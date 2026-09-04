@@ -243,7 +243,7 @@ local function makeVolume(name: string, size: Vector3, cframe: CFrame, parent: I
 	})
 end
 
---- Small visible marker used for sockets, guard posts and display slots.
+--- Small visible marker used for sockets and guard posts.
 local function makeMarker(name: string, size: Vector3, cframe: CFrame, color: Color3, parent: Instance): Part
 	return makePart({
 		name = name,
@@ -255,6 +255,23 @@ local function makeMarker(name: string, size: Vector3, cframe: CFrame, color: Co
 		castShadow = false,
 		transparency = 0.4,
 		material = Enum.Material.Neon,
+	})
+end
+
+--- Display slot pad. Deliberately matte and quiet: fourteen neon pads per plot
+--- blew out the whole base area, and the trophy standing on it is the thing
+--- that should draw the eye.
+local function makeSlotPad(name: string, cframe: CFrame, parent: Instance): Part
+	return makePart({
+		name = name,
+		size = MapConfig.DISPLAY_SLOT_SIZE,
+		cframe = cframe,
+		parent = parent,
+		color = MapPalette.DisplaySlot,
+		canCollide = false,
+		castShadow = false,
+		transparency = 0.55,
+		material = Enum.Material.SmoothPlastic,
 	})
 end
 
@@ -647,11 +664,9 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		local localX = -halfW + layout.width * (col - 0.5) / cols
 		for i = 1, perCol do
 			n += 1
-			local slot = makeMarker(
+			local slot = makeSlotPad(
 				string.format("DisplaySlot%02d", n),
-				MapConfig.DISPLAY_SLOT_SIZE,
 				at(localX, 0.5, rankBack - rankSpan * (i - 1) / (perCol - 1)),
-				MapPalette.DisplaySlot,
 				slots
 			)
 			slot:SetAttribute("SlotIndex", n)

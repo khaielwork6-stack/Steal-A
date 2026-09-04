@@ -1,0 +1,122 @@
+--!strict
+--[[
+	StateService
+	The single server -> client replication path.
+
+	Clients render replicated state and never compute rewards or ownership
+	(GDD section 16). Pushes are coalesced onto a short timer so a burst of
+	income ticks cannot spam the network.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
+local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local EconomyService = require(script.Parent.EconomyService)
+local BaseService = require(script.Parent.BaseService)
+
+local PUSH_INTERVAL = 0.25
+
+local StateService = {}
+
+local dirty: { [Player]: boolean } = {}
+
+export type ClientState = {
+	cash: number,
+	income: number,
+	speedPower: number,
+	walkSpeed: number,
+	baseActivated: boolean,
+	treadmillLevel: number,
+	treadmillNextCost: number?,
+	capacityTier: number,
+	slotsUnlocked: number,
+	slotsUsed: number,
+	slotsNextCost: number?,
+	trapCount: number,
+	tutorialStage: number,
+	highestZone: number,
+	indexCount: number,
+	plotName: string?,
+}
+
+local function build(player: Player): ClientState?
+	local profile = DataService.get(player)
+	if not profile then
+		return nil
+	end
+
+	local discovered = 0
+	for _ in profile.Index do
+		discovered += 1
+	end
+
+	local nextTreadmill = TreadmillConfig.nextTier(profile.TreadmillLevel)
+	local nextCapacity = BaseConfig.nextUpgrade(profile.BaseCapacityTier)
+	local plot = BaseService.getPlot(player)
+
+	return {
+		cash = profile.Cash,
+		income = EconomyService.getIncome(player),
+		speedPower = profile.SpeedPower,
+		walkSpeed = GameConfig.walkSpeedFromPower(profile.SpeedPower),
+		baseActivated = profile.BaseActivated,
+		treadmillLevel = profile.TreadmillLevel,
+		treadmillNextCost = if nextTreadmill then nextTreadmill.cost else nil,
+		capacityTier = profile.BaseCapacityTier,
+		slotsUnlocked = BaseConfig.slotsForTier(profile.BaseCapacityTier),
+		slotsUsed = #profile.DisplayItems,
+		slotsNextCost = if nextCapacity then nextCapacity.cost else nil,
+		trapCount = profile.TrapCount,
+		tutorialStage = profile.TutorialStage,
+		highestZone = profile.HighestZoneReached,
+		indexCount = discovered,
+		plotName = if plot then plot.Name else nil,
+	}
+end
+
+--- Marks a player's state as needing replication on the next tick.
+function StateService.markDirty(player: Player)
+	dirty[player] = true
+end
+
+function StateService.pushNow(player: Player)
+	local state = build(player)
+	if state then
+		Remotes.get("StatePush"):FireClient(player, state)
+	end
+	dirty[player] = nil
+end
+
+--- One-off toast / feedback message.
+function StateService.notify(player: Player, kind: string, message: string, detail: any?)
+	Remotes.get("Notify"):FireClient(player, kind, message, detail)
+end
+
+function StateService.start()
+	EconomyService.onChanged(StateService.markDirty)
+
+	Players.PlayerRemoving:Connect(function(player)
+		dirty[player] = nil
+	end)
+
+	task.spawn(function()
+		while true do
+			task.wait(PUSH_INTERVAL)
+			for player in dirty do
+				if player.Parent then
+					StateService.pushNow(player)
+				else
+					dirty[player] = nil
+				end
+			end
+		end
+	end)
+end
+
+return StateService
