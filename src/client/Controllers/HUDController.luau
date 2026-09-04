@@ -1,106 +1,323 @@
 --!strict
 --[[
 	HUDController
-	PLACEHOLDER HUD - renders replicated state only, never calculates anything.
+	Binds the imported UI pack to live game state.
 
-	This exists so the economy, base assignment and (later) treadmill are fully
-	testable before real UI art arrives. It is intentionally plain: replace the
-	visuals wholesale when the designed UI lands, but keep the StatePush contract.
+	The pack supplies the art and its own animation LocalScript (slide-up panels,
+	one-at-a-time, blur, ripples). This controller supplies the DATA and the
+	game-specific wiring. Keeping that split means the pack can be restyled
+	without touching gameplay code, and gameplay can change without re-authoring
+	the UI.
+
+	Every value here comes from StatePush. The client renders; it never computes.
+
+	Expected hierarchy (after the audit restructure):
+	  MainUI
+	    Bottom.Currencies.{Cash, Income, Speed}.Amount
+	    Bottom.Hotbar.Hotbar.<slot>.Frame.{Icon, Count, Earns}
+	    Buttons.Left.{Shop, Backpack, Index, Settings}
+	    Top.Base
+	    ZoneProgress.Frame.{LEVEL, AMOUNT, Frame}
+	    Frames.{Shop, Backpack, Index, Upgrades, Settings}
+	    Notifications.{Spawned, PickedUp, InventoryFull, Collected}
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local HUDController = {}
 
 local player = Players.LocalPlayer
 
-local function label(parent: Instance, name: string, order: number, size: number, color: Color3): TextLabel
-	local text = Instance.new("TextLabel")
-	text.Name = name
-	text.BackgroundTransparency = 1
-	text.Size = UDim2.new(1, 0, 0, size)
-	text.LayoutOrder = order
-	text.Font = Enum.Font.FredokaOne
-	text.TextScaled = true
-	text.TextXAlignment = Enum.TextXAlignment.Left
-	text.TextColor3 = color
-	text.TextStrokeTransparency = 0.35
-	text.Text = ""
-	text.Parent = parent
-	return text
+local ui: ScreenGui
+local cashLabel: TextLabel?
+local incomeLabel: TextLabel?
+local speedLabel: TextLabel?
+local zoneTitle: TextLabel?
+local zoneAmount: TextLabel?
+local zoneFill: Frame?
+
+local lastCash = 0
+
+local function findLabel(container: Instance?, name: string): TextLabel?
+	if not container then
+		return nil
+	end
+	local found = container:FindFirstChild(name, true)
+	return if found and found:IsA("TextLabel") then found else nil
+end
+
+-- ==========================================================
+-- CURRENCY CHIPS
+-- ==========================================================
+
+--- Little pop when Cash increases, so passive income feels alive without a
+--- separate floating-text system.
+local function pulse(label: TextLabel?)
+	if not label then
+		return
+	end
+	label.TextTransparency = 0
+	local original = label.TextColor3
+	label.TextColor3 = Color3.fromRGB(190, 255, 200)
+	TweenService:Create(label, TweenInfo.new(0.35), { TextColor3 = original }):Play()
+end
+
+-- ==========================================================
+-- ZONE PROGRESS
+-- ==========================================================
+
+--- Repurposed from the pack's boss bar: shows progress toward the NEXT zone's
+--- recommended Speed, which is the game's actual long-term goal.
+local function updateZoneProgress(speedPower: number)
+	if not zoneTitle or not zoneAmount or not zoneFill then
+		return
+	end
+
+	local nextZone: ZoneConfig.ZoneDef? = nil
+	for _, zone in ZoneConfig.Zones do
+		if zone.recommendedSpeed > speedPower then
+			nextZone = zone
+			break
+		end
+	end
+
+	if not nextZone then
+		zoneTitle.Text = "MAX"
+		zoneAmount.Text = "All zones unlocked"
+		zoneFill.Size = UDim2.fromScale(1, zoneFill.Size.Y.Scale)
+		return
+	end
+
+	-- Progress runs from the previous gate to the next one, not from zero, so
+	-- the bar actually moves instead of sitting near-empty for hours.
+	local previous = 0
+	for _, zone in ZoneConfig.Zones do
+		if zone.index == nextZone.index - 1 then
+			previous = zone.recommendedSpeed
+		end
+	end
+
+	local span = math.max(nextZone.recommendedSpeed - previous, 1)
+	local progress = math.clamp((speedPower - previous) / span, 0, 1)
+
+	zoneTitle.Text = nextZone.name
+	zoneAmount.Text = `{NumberFormat.short(speedPower)}/{NumberFormat.short(nextZone.recommendedSpeed)}`
+	zoneFill.Size = UDim2.fromScale(progress, zoneFill.Size.Y.Scale)
+end
+
+-- ==========================================================
+-- HOTBAR
+-- ==========================================================
+
+--- The pack's item strip becomes our display-slot readout: how much of the base
+--- is filled and what each trophy earns.
+local function updateHotbar(state)
+	local strip = ui:FindFirstChild("Bottom")
+	local hotbar = strip and strip:FindFirstChild("Hotbar")
+	local slots = hotbar and hotbar:FindFirstChild("Slots")
+	if not slots then
+		return
+	end
+
+	local index = 0
+	for _, slot in slots:GetChildren() do
+		if not slot:IsA("GuiButton") then
+			continue
+		end
+		index += 1
+
+		local frame = slot:FindFirstChild("Frame")
+		local count = frame and frame:FindFirstChild("Count")
+		local earns = frame and frame:FindFirstChild("Earns")
+
+		local filled = index <= state.slotsUsed
+		local unlocked = index <= state.slotsUnlocked
+
+		slot.Visible = unlocked
+		if count and count:IsA("TextLabel") then
+			count.Text = tostring(index)
+		end
+		if earns and earns:IsA("TextLabel") then
+			earns.Text = if filled then "FULL" else "empty"
+			earns.TextColor3 = if filled
+				then Color3.fromRGB(126, 255, 148)
+				else Color3.fromRGB(190, 195, 205)
+		end
+	end
+end
+
+-- ==========================================================
+-- PANELS
+-- ==========================================================
+
+--- The pack's LocalScript opens a panel whose name matches the button. We only
+--- need to keep panel CONTENT in sync, plus close anything that no longer
+--- applies.
+local function refreshPanels(state)
+	local frames = ui:FindFirstChild("Frames")
+	if not frames then
+		return
+	end
+
+	local backpack = frames:FindFirstChild("Backpack")
+	local counter = backpack and findLabel(backpack:FindFirstChild("Features"), "Title")
+	if counter then
+		counter.Text = `{state.slotsUsed}/{state.slotsUnlocked} Displayed`
+	end
+
+	local index = frames:FindFirstChild("Index")
+	local indexCounter = index and findLabel(index:FindFirstChild("Features"), "Title")
+	if indexCounter then
+		indexCounter.Text = `{state.indexCount}/96 Discovered`
+	end
+end
+
+-- ==========================================================
+-- NOTIFICATIONS
+-- ==========================================================
+
+local toastQueue: { { kind: string, message: string } } = {}
+local toastBusy = false
+
+local function showToast(kind: string, message: string)
+	local holder = ui:FindFirstChild("Notifications")
+	if not holder then
+		return
+	end
+
+	-- Reuse whichever pack notification frame best matches the message type.
+	local template = holder:FindFirstChild(
+		if kind == "error" then "InventoryFull"
+		elseif kind == "success" then "Collected"
+		else "PickedUp"
+	) or holder:FindFirstChild("PickedUp")
+
+	if not template or not template:IsA("GuiObject") then
+		return
+	end
+
+	local label = findLabel(template, "Title") or template:FindFirstChildWhichIsA("TextLabel", true)
+	if label then
+		label.Text = message
+	end
+
+	template.Visible = true
+	task.delay(2.4, function()
+		template.Visible = false
+	end)
+end
+
+local function pumpToasts()
+	if toastBusy then
+		return
+	end
+	toastBusy = true
+	task.spawn(function()
+		while #toastQueue > 0 do
+			local next = table.remove(toastQueue, 1)
+			if next then
+				showToast(next.kind, next.message)
+			end
+			task.wait(0.6)
+		end
+		toastBusy = false
+	end)
+end
+
+-- ==========================================================
+-- START
+-- ==========================================================
+
+--- Phones get a slightly smaller UI so the side menu and the currency stack do
+--- not eat the play area. Driven off viewport width rather than TouchEnabled,
+--- because a small window on desktop has the same problem.
+local function applyScale()
+	local camera = workspace.CurrentCamera
+	local scale = ui:FindFirstChildWhichIsA("UIScale")
+	if not camera or not scale then
+		return
+	end
+	local width = camera.ViewportSize.X
+	scale.Scale = if width < 700 then 0.72 elseif width < 1000 then 0.85 else 1
 end
 
 function HUDController.start()
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "HUD"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.Parent = player:WaitForChild("PlayerGui")
+	local playerGui = player:WaitForChild("PlayerGui")
+	local found = playerGui:WaitForChild("MainUI", 20)
+	if not found or not found:IsA("ScreenGui") then
+		warn("[HUDController] MainUI not found - is the UI pack in StarterGui?")
+		return
+	end
+	ui = found
 
-	local stack = Instance.new("Frame")
-	stack.Name = "Stats"
-	stack.BackgroundTransparency = 1
-	stack.Position = UDim2.new(0, 18, 0, 18)
-	stack.Size = UDim2.new(0, 340, 0, 190)
-	stack.Parent = gui
+	ui.ResetOnSpawn = false
+	ui.IgnoreGuiInset = true
+	ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-	local layout = Instance.new("UIListLayout")
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 2)
-	layout.Parent = stack
+	local currencies = ui:FindFirstChild("Bottom") and ui.Bottom:FindFirstChild("Currencies")
+	cashLabel = findLabel(currencies and currencies:FindFirstChild("Cash"), "Amount")
+	incomeLabel = findLabel(currencies and currencies:FindFirstChild("Income"), "Amount")
+	speedLabel = findLabel(currencies and currencies:FindFirstChild("Speed"), "Amount")
 
-	local cash = label(stack, "Cash", 1, 46, Color3.fromRGB(126, 255, 148))
-	local income = label(stack, "Income", 2, 26, Color3.fromRGB(198, 255, 208))
-	local speed = label(stack, "Speed", 3, 34, Color3.fromRGB(120, 208, 255))
-	local slots = label(stack, "Slots", 4, 24, Color3.fromRGB(255, 226, 128))
-	local plot = label(stack, "Plot", 5, 22, Color3.fromRGB(226, 226, 236))
+	local bar = ui:FindFirstChild("ZoneProgress")
+	local barFrame = bar and bar:FindFirstChild("Frame")
+	zoneTitle = barFrame and findLabel(barFrame, "LEVEL")
+	zoneAmount = barFrame and findLabel(barFrame, "AMOUNT")
+	local fill = barFrame and barFrame:FindFirstChild("Frame")
+	zoneFill = if fill and fill:IsA("Frame") then fill else nil
 
-	-- Toast area for Notify messages.
-	local toast = Instance.new("TextLabel")
-	toast.Name = "Toast"
-	toast.AnchorPoint = Vector2.new(0.5, 0)
-	toast.Position = UDim2.new(0.5, 0, 0, 26)
-	toast.Size = UDim2.new(0, 520, 0, 44)
-	toast.BackgroundTransparency = 1
-	toast.Font = Enum.Font.FredokaOne
-	toast.TextScaled = true
-	toast.TextStrokeTransparency = 0.3
-	toast.TextTransparency = 1
-	toast.Text = ""
-	toast.Parent = gui
+	-- The Income chip inherited a Rebirths icon; drop it so the number owns the
+	-- chip and stays readable on a phone.
+	local incomeIcon = currencies
+		and currencies:FindFirstChild("Income")
+		and currencies.Income:FindFirstChild("Icon")
+	if incomeIcon then
+		incomeIcon:Destroy()
+	end
+
+	-- "BASE" teleports you home. Long map, one plot: this earns its place.
+	local baseButton = ui:FindFirstChild("Top") and ui.Top:FindFirstChild("Base")
+	if baseButton and baseButton:IsA("GuiButton") then
+		baseButton.Activated:Connect(function()
+			Remotes.get("TeleportHomeRequest"):FireServer()
+		end)
+	end
+
+	applyScale()
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
+	end
 
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
-		cash.Text = NumberFormat.cash(state.cash)
-		income.Text = NumberFormat.income(state.income)
-		speed.Text = `Speed {NumberFormat.short(state.speedPower)}  ({string.format("%.1f", state.walkSpeed)} ws)`
-		slots.Text = `Displays {state.slotsUsed}/{state.slotsUnlocked}   Traps {state.trapCount}   Index {state.indexCount}/96`
-		plot.Text = if state.baseActivated
-			then `{state.plotName or "-"}  ·  Treadmill Lv{state.treadmillLevel}`
-			else `{state.plotName or "-"}  ·  Base locked`
+		if cashLabel then
+			cashLabel.Text = NumberFormat.cash(state.cash)
+			if state.cash > lastCash then
+				pulse(cashLabel)
+			end
+			lastCash = state.cash
+		end
+		if incomeLabel then
+			incomeLabel.Text = NumberFormat.income(state.income)
+		end
+		if speedLabel then
+			speedLabel.Text = `Speed {NumberFormat.short(state.speedPower)}`
+		end
+
+		updateZoneProgress(state.speedPower)
+		updateHotbar(state)
+		refreshPanels(state)
 	end)
 
-	local toastToken = 0
 	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string)
-		toastToken += 1
-		local token = toastToken
-
-		toast.Text = message
-		toast.TextColor3 = if kind == "error"
-			then Color3.fromRGB(255, 132, 132)
-			elseif kind == "success" then Color3.fromRGB(140, 255, 160)
-			else Color3.fromRGB(255, 244, 214)
-		toast.TextTransparency = 0
-
-		task.delay(2.5, function()
-			if toastToken == token then
-				toast.TextTransparency = 1
-			end
-		end)
+		table.insert(toastQueue, { kind = kind, message = message })
+		pumpToasts()
 	end)
 end
 

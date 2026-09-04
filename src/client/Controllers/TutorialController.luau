@@ -72,8 +72,9 @@ function TutorialController.start()
 	-- Objective banner, top centre and well clear of the stats block.
 	local banner = Instance.new("Frame")
 	banner.Name = "Objective"
+	-- Sits below the zone-progress bar, which owns the very top of the screen.
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position = UDim2.new(0.5, 0, 0, 84)
+	banner.Position = UDim2.new(0.5, 0, 0, 112)
 	banner.Size = UDim2.new(0, 620, 0, 82)
 	banner.BackgroundTransparency = 1
 	banner.Visible = false

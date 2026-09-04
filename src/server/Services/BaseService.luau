@@ -366,8 +366,39 @@ function BaseService.unassign(player: Player)
 	assignments[player] = nil
 end
 
+--- The HUD's BASE button. Rate-limited by a simple cooldown, and refused while
+--- carrying so it cannot be used to skip an escape.
+local lastTeleport: { [Player]: number } = {}
+
+function BaseService.teleportHome(player: Player): (boolean, string?)
+	local now = os.clock()
+	if now - (lastTeleport[player] or 0) < 3 then
+		return false, "Wait a moment."
+	end
+
+	local plot = assignments[player]
+	local spawn = plot and plot:FindFirstChild("Spawn")
+	if not plot or not spawn or not spawn:IsA("BasePart") then
+		return false, "You have no base yet."
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	if not character or not humanoid or humanoid.Health <= 0 then
+		return false, "You cannot travel right now."
+	end
+
+	lastTeleport[player] = now
+	character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
+	return true
+end
+
 function BaseService.start()
 	local bases = getBases()
+
+	Players.PlayerRemoving:Connect(function(player)
+		lastTeleport[player] = nil
+	end)
 	for _, plot in bases:GetChildren() do
 		setOwner(plot, nil)
 	end

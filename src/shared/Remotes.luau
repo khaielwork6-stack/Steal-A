@@ -23,6 +23,7 @@ Remotes.NAMES = {
 	"BatSwingRequest",
 	"TrapPlaceRequest",
 	"IndexClaimRequest",
+	"TeleportHomeRequest",
 	-- server -> client
 	"StatePush",
 	"Notify",

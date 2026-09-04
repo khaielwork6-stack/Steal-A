@@ -92,6 +92,18 @@ PvPService.start()
 -- could not place anything - invisible to tests that call place() directly.
 BaseService.start()
 
+-- HUD "BASE" button. Refused while carrying so it cannot skip an escape run.
+require(ReplicatedStorage.Shared.Remotes).get("TeleportHomeRequest").OnServerEvent:Connect(function(player)
+	if CarryService.getCarried(player) then
+		StateService.notify(player, "error", "Not while carrying loot - run it home!")
+		return
+	end
+	local ok, reason = BaseService.teleportHome(player)
+	if not ok and reason then
+		StateService.notify(player, "error", reason)
+	end
+end)
+
 DebugService.start()
 
 -- Movement is owned by SpeedService/CarryService so the compressed formula and
