@@ -36,8 +36,8 @@ local SpeedService = {}
 
 local upgradeLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.TreadmillUpgradeRequest)
 
-local function notify(player: Player, kind: string, message: string)
-	StateService.notify(player, kind, message)
+local function notify(player: Player, kind: string, message: string, detail: string?)
+	StateService.notify(player, kind, message, detail)
 end
 
 -- ==========================================================
@@ -74,7 +74,7 @@ function SpeedService.activateBase(player: Player): (boolean, string?)
 
 	SpeedService.refreshTreadmill(player)
 	StateService.pushNow(player)
-	notify(player, "success", "Base activated! Your treadmill is online.")
+	notify(player, "success", "Base activated! Your treadmill is online.", "unlock")
 	return true
 end
 
@@ -111,7 +111,8 @@ function SpeedService.upgradeTreadmill(player: Player): (boolean, string?)
 	notify(
 		player,
 		"success",
-		`Treadmill {next.name}! +{NumberFormat.short(TreadmillConfig.gainPerSecond(next.level))} Speed/s`
+		`Treadmill {next.name}! +{NumberFormat.short(TreadmillConfig.gainPerSecond(next.level))} Speed/s`,
+		"levelup"
 	)
 	return true
 end

@@ -38,8 +38,8 @@ local placeLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.PlaceLootRequest)
 local sellLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.SellLootRequest)
 local upgradeLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.BaseUpgradeRequest)
 
-local function notify(player: Player, kind: string, message: string)
-	StateService.notify(player, kind, message)
+local function notify(player: Player, kind: string, message: string, detail: string?)
+	StateService.notify(player, kind, message, detail)
 end
 
 -- ==========================================================
@@ -261,7 +261,7 @@ function PlacementService.upgradeStorage(player: Player): (boolean, string?)
 
 	profile.StorageTier = next.tier
 	StateService.pushNow(player)
-	notify(player, "success", `Storage upgraded - {next.capacity} slots!`)
+	notify(player, "success", `Storage upgraded - {next.capacity} slots!`, "levelup")
 	return true
 end
 
@@ -298,7 +298,7 @@ function PlacementService.upgradeCapacity(player: Player): (boolean, string?)
 	PlacementService.refreshPrompts(player)
 	StateService.pushNow(player)
 
-	notify(player, "success", `Base upgraded — {next.slots} display slots!`)
+	notify(player, "success", `Base upgraded — {next.slots} display slots!`, "levelup")
 	return true
 end
 

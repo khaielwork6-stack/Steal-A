@@ -112,6 +112,11 @@ local function build(): boolean
 	-- Positioning is computed per target in apply(); a fixed offset cannot clear
 	-- loot models that range from a coin to a statue.
 	clone.StudsOffset = Vector3.zero
+	-- A BillboardGui is a LayerCollector, so PlayerGui wipes it on respawn unless
+	-- this is set. Being caught by a guardian respawns you, which destroyed the
+	-- shared prompt and left every later reparent erroring with "Parent property
+	-- is locked, current parent: NULL".
+	clone.ResetOnSpawn = false
 	clone.Enabled = false
 	clone.Parent = playerGui
 	idleParent = playerGui
@@ -301,7 +306,9 @@ local function apply(prompt: ProximityPrompt?)
 	current = prompt
 
 	local board = billboard
-	if not board then
+	-- A destroyed instance is no longer under `game`, and reparenting one throws
+	-- "Parent property is locked". Bail rather than error every frame.
+	if not board or not board:IsDescendantOf(game) then
 		return
 	end
 

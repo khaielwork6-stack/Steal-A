@@ -25,6 +25,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local LootService = {}
@@ -199,7 +200,7 @@ local function buildModel(loot: LootInstance): Model
 	model.Name = loot.itemId
 
 	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart")
+		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
 	end
 
 	for _, descendant in model:GetDescendants() do
@@ -286,40 +287,12 @@ end
 
 --- Mutations are asset-cheap: material, colour and particles only. Never a
 --- separate mesh per variant.
+--- Mutation dressing is one shared system (MutationVfx) driven by the artist's
+--- assets, so a new mutation or a new item needs no code here. Materials are no
+--- longer overridden: the imported models have their own, and replacing them
+--- turned a stone meteorite into glass.
 local function applyMutation(loot: LootInstance, model: Model)
-	if loot.mutation == "Normal" then
-		return
-	end
-	local anchor = model.PrimaryPart
-	if not anchor then
-		return
-	end
-
-	local highlight = Instance.new("Highlight")
-	highlight.Name = "MutationGlow"
-	highlight.FillTransparency = 0.7
-	highlight.OutlineTransparency = 0
-	highlight.Adornee = model
-	highlight.Parent = model
-
-	if loot.mutation == "Shiny" then
-		highlight.FillColor = Color3.fromRGB(255, 255, 255)
-		highlight.OutlineColor = Color3.fromRGB(220, 240, 255)
-		anchor.Material = Enum.Material.Glass
-	elseif loot.mutation == "Golden" then
-		highlight.FillColor = Color3.fromRGB(255, 205, 60)
-		highlight.OutlineColor = Color3.fromRGB(255, 226, 120)
-		anchor.Material = Enum.Material.Metal
-		anchor.Color = Color3.fromRGB(255, 198, 62)
-	elseif loot.mutation == "Neon" then
-		highlight.FillColor = Color3.fromRGB(120, 240, 255)
-		highlight.OutlineColor = Color3.fromRGB(160, 250, 255)
-		anchor.Material = Enum.Material.Neon
-	elseif loot.mutation == "Glitched" then
-		highlight.FillColor = Color3.fromRGB(255, 74, 190)
-		highlight.OutlineColor = Color3.fromRGB(140, 255, 255)
-		anchor.Material = Enum.Material.ForceField
-	end
+	MutationVfx.apply(model, loot.mutation)
 end
 
 -- ==========================================================
@@ -339,10 +312,40 @@ local function materialise(socket: Socket, loot: LootInstance)
 	buildLabel(loot, model)
 	applyMutation(loot, model)
 
-	local anchor = model.PrimaryPart :: BasePart
-	local lift = anchor.Size.Y / 2 + 1
 	model.Parent = socket.part
-	model:PivotTo(socket.part.CFrame * CFrame.new(0, lift, 0))
+
+	-- Sit the model ON the pedestal by measuring where its lowest point actually
+	-- ends up, rather than guessing from the PrimaryPart's height. An imported
+	-- model's pivot is wherever the artist left it, and its PrimaryPart is often
+	-- a small piece, so the old guess buried statues and floated paintings.
+	model:PivotTo(socket.part.CFrame)
+	local lowest = math.huge
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			local half = descendant.Size / 2
+			for x = -1, 1, 2 do
+				for y = -1, 1, 2 do
+					for z = -1, 1, 2 do
+						local corner = (descendant.CFrame * CFrame.new(half.X * x, half.Y * y, half.Z * z)).Position
+						lowest = math.min(lowest, corner.Y)
+					end
+				end
+			end
+		end
+	end
+
+	if lowest < math.huge then
+		local surface = socket.part.Position.Y + socket.part.Size.Y / 2
+		model:PivotTo(model:GetPivot() + Vector3.new(0, surface + 0.2 - lowest, 0))
+	end
+
+	-- Recursive: an imported model keeps its parts inside nested Models, so the
+	-- anchor is often not a direct child.
+	local anchor = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	if not anchor then
+		warn(`[LootService] {loot.itemId} has no part to host its prompt`)
+		return
+	end
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"

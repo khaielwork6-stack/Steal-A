@@ -71,13 +71,49 @@ RarityConfig.Sizes = {
 	{ id = "Giant", chance = 2, multiplier = 3.50, scale = 2.60, movePenalty = 0.18 },
 } :: { Variant }
 
+-- Locked ladder, rarest and best last:
+--   Normal -> Shiny -> Golden -> Flaming -> Corrupted
+-- The order of this list IS the hierarchy; the VFX escalate along it.
 RarityConfig.Mutations = {
 	{ id = "Normal", chance = 90.0, multiplier = 1.00 },
 	{ id = "Shiny", chance = 6.0, multiplier = 1.25 },
 	{ id = "Golden", chance = 2.5, multiplier = 2.00 },
-	{ id = "Neon", chance = 1.0, multiplier = 2.50 },
-	{ id = "Glitched", chance = 0.5, multiplier = 3.00 },
+	{ id = "Flaming", chance = 1.0, multiplier = 2.50 },
+	{ id = "Corrupted", chance = 0.5, multiplier = 3.00 },
 } :: { Variant }
+
+--- Pre-rename ids that may still exist in saved profiles. Mapped rather than
+--- dropped so an old item keeps its tier instead of silently becoming Normal.
+RarityConfig.MutationAliases = {
+	Neon = "Flaming",
+	Glitched = "Corrupted",
+} :: { [string]: string }
+
+--- Always run a stored mutation id through this before using it.
+function RarityConfig.normaliseMutation(id: string?): string
+	if not id then
+		return "Normal"
+	end
+	return RarityConfig.MutationAliases[id] or id
+end
+
+--- Tint for the mutation glow, and the fallback when an item has no VFX asset.
+RarityConfig.MutationColors = {
+	Shiny = Color3.fromRGB(226, 244, 255),
+	Golden = Color3.fromRGB(255, 205, 60),
+	Flaming = Color3.fromRGB(255, 122, 36),
+	Corrupted = Color3.fromRGB(168, 62, 255),
+}
+
+--- 0 for Normal, rising to 4 for Corrupted. Used to escalate intensity.
+function RarityConfig.mutationRank(id: string): number
+	for index, mutation in RarityConfig.Mutations do
+		if mutation.id == id then
+			return index - 1
+		end
+	end
+	return 0
+end
 
 --- Index a variant list by id.
 local function byId(list: { Variant }): { [string]: Variant }

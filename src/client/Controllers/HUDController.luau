@@ -28,6 +28,7 @@ local TweenService = game:GetService("TweenService")
 
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local EffectsController = require(script.Parent.EffectsController)
 local ToastController = require(script.Parent.ToastController)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
@@ -226,6 +227,7 @@ function HUDController.start()
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
 	end
 
+	EffectsController.start()
 	ToastController.start(ui)
 
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
@@ -250,8 +252,16 @@ function HUDController.start()
 		refreshPanels(state)
 	end)
 
-	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string)
+	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string, detail: string?)
 		ToastController.show(kind, message)
+
+		-- `detail` lets the server ask for a world effect without needing to know
+		-- what the effect is. Gold for anything bought, blue for an unlock.
+		if detail == "levelup" then
+			EffectsController.burstOnPlayer("Gold")
+		elseif detail == "unlock" then
+			EffectsController.burstOnPlayer("Blue")
+		end
 	end)
 end
 

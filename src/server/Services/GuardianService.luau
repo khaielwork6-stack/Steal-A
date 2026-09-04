@@ -53,11 +53,20 @@ type Guardian = {
 	lootId: string?,
 	lastRepath: number,
 	wakeAt: number?,
+	shellMotor: Weld?, -- drives the imported costume's pose; nil when unskinned
 }
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
 -- never enough to clear an 80-stud containment wall.
 local WAKE_DELAY = 0.55 -- shocked beat before the chase actually starts
+
+-- Run-cycle tuning. Deliberately over the top: this is the first chase a new
+-- player ever sees and it should read as comedy, not as a walk.
+local RUN_CYCLE_SPEED = 15 -- radians/sec; ~4.8 footfalls a second
+local RUN_BOB = 0.85 -- studs of vertical pump per stride
+local RUN_ROLL = math.rad(17) -- side-to-side rock
+local RUN_YAW = math.rad(11) -- shoulder swing
+local RUN_LEAN = math.rad(-24) -- pitched forward, chasing his own centre of mass
 -- Tuned by measurement, not by feel: 110/72 threw the player 156 studs, which
 -- launched them clean across the safe line and into the base plaza. These land
 -- around 80-90 studs - clearly dramatic, still comfortably inside the lane.
@@ -139,6 +148,63 @@ end
 -- RIG
 -- ==========================================================
 
+--- Dresses a functional rig in an imported model.
+---
+--- The imports are static props - 28 anchored parts, no Humanoid, no Motor6D -
+--- so they cannot be animated by Roblox's animation system and cannot drive a
+--- Humanoid themselves. Rather than rebuild the artist's model into a rig (which
+--- risks breaking it), the model is welded on as a costume over the working
+--- rig: physics and pathfinding stay with the invisible root, and the costume
+--- is posed procedurally in animateShell().
+local function dressRig(model: Model, root: BasePart, shell: Model)
+	shell.Name = "Shell"
+	shell:PivotTo(root.CFrame)
+
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = false
+			descendant.CanCollide = false
+			descendant.CanQuery = false
+			descendant.CanTouch = false
+			descendant.Massless = true
+		end
+	end
+
+	-- A single pivot part the whole costume hangs off, so animateShell only has
+	-- to move one thing and the model keeps its internal welds.
+	local pivot = Instance.new("Part")
+	pivot.Name = "ShellPivot"
+	pivot.Size = Vector3.new(0.2, 0.2, 0.2)
+	pivot.Transparency = 1
+	pivot.CanCollide = false
+	pivot.CanQuery = false
+	pivot.CanTouch = false
+	pivot.Massless = true
+	pivot.CFrame = root.CFrame
+	pivot.Parent = model
+
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = pivot
+			weld.Part1 = descendant
+			weld.Parent = pivot
+		end
+	end
+
+	shell.Parent = model
+
+	-- The pivot follows the root; animateShell drives this offset every frame.
+	local motor = Instance.new("Weld")
+	motor.Name = "ShellMotor"
+	motor.Part0 = root
+	motor.Part1 = pivot
+	motor.C0 = CFrame.new()
+	motor.Parent = root
+
+	return motor
+end
+
 local function buildRig(zoneIndex: number): Model
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local assets = ServerStorage:FindFirstChild("GameAssets")
@@ -146,13 +212,9 @@ local function buildRig(zoneIndex: number): Model
 		then assets.Guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{zone.guardian}`)
 		else nil
 
-	if source and source:IsA("Model") then
-		return source:Clone()
-	end
-
-	-- The HumanoidRootPart doubles as the visible, COLLIDABLE body. A rig whose
-	-- parts all have CanCollide off never leaves Freefall, and a Humanoid in
-	-- Freefall silently ignores MoveTo.
+	-- The HumanoidRootPart doubles as the COLLIDABLE body. A rig whose parts all
+	-- have CanCollide off never leaves Freefall, and a Humanoid in Freefall
+	-- silently ignores MoveTo.
 	local model = Instance.new("Model")
 	model.Name = zone.guardian
 
@@ -166,22 +228,6 @@ local function buildRig(zoneIndex: number): Model
 	root.CanCollide = true
 	root.Parent = model
 
-	local head = Instance.new("Part")
-	head.Name = "Head"
-	head.Size = Vector3.new(1.7, 1.7, 1.7)
-	head.Color = Color3.fromRGB(240, 204, 160)
-	head.Material = Enum.Material.SmoothPlastic
-	head.TopSurface = Enum.SurfaceType.Smooth
-	head.BottomSurface = Enum.SurfaceType.Smooth
-	head.CanCollide = false
-	head.CFrame = root.CFrame * CFrame.new(0, 2.85, 0)
-	head.Parent = model
-
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = root
-	weld.Part1 = head
-	weld.Parent = root
-
 	local humanoid = Instance.new("Humanoid")
 	humanoid.Name = "Humanoid"
 	humanoid.RigType = Enum.HumanoidRigType.R6
@@ -189,6 +235,31 @@ local function buildRig(zoneIndex: number): Model
 	humanoid.Parent = model
 
 	model.PrimaryPart = root
+
+	if source and source:IsA("Model") then
+		-- Real art: the block body becomes an invisible physics proxy.
+		root.Transparency = 1
+		dressRig(model, root, source:Clone())
+		model:SetAttribute("HasShell", true)
+	else
+		-- No art for this zone yet: keep the readable placeholder body.
+		local head = Instance.new("Part")
+		head.Name = "Head"
+		head.Size = Vector3.new(1.7, 1.7, 1.7)
+		head.Color = Color3.fromRGB(240, 204, 160)
+		head.Material = Enum.Material.SmoothPlastic
+		head.TopSurface = Enum.SurfaceType.Smooth
+		head.BottomSurface = Enum.SurfaceType.Smooth
+		head.CanCollide = false
+		head.CFrame = root.CFrame * CFrame.new(0, 2.85, 0)
+		head.Parent = model
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = head
+		weld.Parent = root
+	end
+
 	return model
 end
 
@@ -280,13 +351,54 @@ end
 -- STEP
 -- ==========================================================
 
+--- Poses the imported costume. The models are static props with no skeleton, so
+--- there is nothing to play an Animation on; instead the whole costume is
+--- bobbed, leaned and rolled as one rigid piece.
+---
+--- That constraint is leaned into rather than hidden. A rigid body pumping up
+--- and down while pitched forward and rocking side to side reads as a cartoon
+--- sprint - closer to a Looney Tunes run cycle than to a jointed walk, and much
+--- better than the stiff glide it would otherwise be.
+local function animateShell(guardian: Guardian, now: number)
+	local motor = guardian.shellMotor
+	if not motor then
+		return -- placeholder body, nothing to pose
+	end
+
+	local state = guardian.state
+
+	if state == "Sleeping" then
+		-- Slumped forward, breathing slowly.
+		local breathe = math.sin(now * 1.5) * 0.07
+		motor.C0 = CFrame.new(0, breathe, 0) * CFrame.Angles(math.rad(14), 0, 0)
+		return
+	end
+
+	if state == "Waking" then
+		-- Bolt upright and vibrate with outrage.
+		local shake = math.sin(now * 46) * math.rad(7)
+		motor.C0 = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
+		return
+	end
+
+	-- BOOKING IT.
+	local t = now * RUN_CYCLE_SPEED
+	-- abs(sin) gives two bounces per cycle: one per footfall.
+	local bob = math.abs(math.sin(t)) * RUN_BOB
+	local roll = math.sin(t * 0.5) * RUN_ROLL
+	local yaw = math.sin(t * 0.5 + 1.1) * RUN_YAW
+	motor.C0 = CFrame.new(0, bob, 0) * CFrame.Angles(RUN_LEAN, yaw, roll)
+end
+
 local function step()
 	local now = os.clock()
 
 	for _, guardian in guardians do
+		animateShell(guardian, now)
+
 		local state = guardian.state
 		if state == "Sleeping" then
-			continue -- idle guardians cost nothing
+			continue -- idle guardians cost nothing beyond the pose above
 		end
 
 		local humanoid = guardian.humanoid
@@ -417,6 +529,8 @@ function GuardianService.start()
 		guardian.model = model
 		guardian.humanoid = humanoid
 		guardian.root = root
+		local motor = root:FindFirstChild("ShellMotor")
+		guardian.shellMotor = if motor and motor:IsA("Weld") then motor else nil
 		guardians[zoneIndex] = guardian
 
 		model:SetAttribute("ZoneIndex", zoneIndex)
