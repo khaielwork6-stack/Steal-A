@@ -1,0 +1,63 @@
+{
+  "name": "Steal A",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+
+    "Workspace": {
+      "$properties": {
+        "FilteringEnabled": true,
+        "StreamingEnabled": true,
+        "StreamingTargetRadius": 1600
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Ambient": [
+          0.3137,
+          0.3137,
+          0.3450
+        ],
+        "OutdoorAmbient": [
+          0.549,
+          0.5686,
+          0.6078
+        ],
+        "Brightness": 3,
+        "ClockTime": 14,
+        "GeographicLatitude": 0,
+        "ExposureCompensation": 0.15,
+        "EnvironmentDiffuseScale": 0.55,
+        "EnvironmentSpecularScale": 0.35,
+        "ShadowSoftness": 0.55,
+        "GlobalShadows": true,
+        "Outlines": false,
+        "Technology": "ShadowMap"
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}
