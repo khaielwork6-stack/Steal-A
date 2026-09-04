@@ -10,10 +10,12 @@ local HUDController = require(script.Controllers.HUDController)
 local GuardianFxController = require(script.Controllers.GuardianFxController)
 local BasePromptController = require(script.Controllers.BasePromptController)
 local TutorialController = require(script.Controllers.TutorialController)
+local CombatController = require(script.Controllers.CombatController)
 
 HUDController.start()
 GuardianFxController.start()
 BasePromptController.start()
 TutorialController.start()
+CombatController.start()
 
 print("[Client] controllers started")

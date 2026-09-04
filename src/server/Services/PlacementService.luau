@@ -350,6 +350,14 @@ function PlacementService.start()
 		sellLimiter:release(player)
 		upgradeLimiter:release(player)
 	end)
+
+	-- Catch-up: if any player was already assigned a plot before this service
+	-- started, build their prompts now rather than waiting for the next rebuild.
+	for _, player in Players:GetPlayers() do
+		if BaseService.getPlot(player) then
+			PlacementService.refreshPrompts(player)
+		end
+	end
 end
 
 return PlacementService

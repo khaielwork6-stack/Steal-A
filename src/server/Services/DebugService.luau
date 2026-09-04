@@ -17,6 +17,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
@@ -171,6 +172,86 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return LootService.snapshot()
 	end,
 
+	--- Spawns a stand-in victim rig so the bat and traps can be exercised with
+	--- only one real client. It is a plain R6 humanoid, not a Player, so it
+	--- proves geometry/cooldown but NOT the Player-targeting path.
+	dummy = function(player, distance: number?)
+		local existing = workspace:FindFirstChild("_TestDummy")
+		if existing then
+			existing:Destroy()
+		end
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not root then
+			return { error = "no character" }
+		end
+
+		local model = Instance.new("Model")
+		model.Name = "_TestDummy"
+		local body = Instance.new("Part")
+		body.Name = "HumanoidRootPart"
+		body.Size = Vector3.new(2.6, 5, 1.6)
+		body.Color = Color3.fromRGB(230, 90, 120)
+		body.CFrame = root.CFrame * CFrame.new(0, 0, -(distance or 4))
+		body.Parent = model
+		local hum = Instance.new("Humanoid")
+		hum.Parent = model
+		model.PrimaryPart = body
+		model.Parent = workspace
+		return { spawned = true, at = tostring(body.Position) }
+	end,
+
+	swing = function(player)
+		local PvPService = require(script.Parent.PvPService)
+		local ok, reason = PvPService.trySwing(player)
+		return { accepted = ok, reason = reason }
+	end,
+
+	placeTrap = function(player, forward: number?)
+		local PvPService = require(script.Parent.PvPService)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		local target = root and (root.Position + root.CFrame.LookVector * (forward or 8)) or nil
+		PvPService.tryPlaceTrap(player, target)
+		local profile = DataService.get(player)
+		return {
+			trapsLeft = profile and profile.TrapCount,
+			activeTraps = PvPService.activeTrapCount(),
+		}
+	end,
+
+	pvpState = function(player)
+		local PvPService = require(script.Parent.PvPService)
+		local RagdollService = require(script.Parent.RagdollService)
+		local profile = DataService.get(player)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		local hum = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		return {
+			trapCount = profile and profile.TrapCount,
+			activeTraps = PvPService.activeTrapCount(),
+			immune = RagdollService.isImmune(player),
+			rooted = hum and hum:GetAttribute("Rooted") == true,
+			walkSpeed = hum and hum.WalkSpeed,
+			inSafeZone = root and BaseService.isSafePosition(root.Position),
+			hasBat = player.Backpack:FindFirstChild("Bat") ~= nil
+				or (player.Character and player.Character:FindFirstChild("Bat") ~= nil),
+			hasTrapTool = player.Backpack:FindFirstChild("Trap") ~= nil
+				or (player.Character and player.Character:FindFirstChild("Trap") ~= nil),
+		}
+	end,
+
+	--- Moves the player to a spot, used to test safe-zone gating.
+	teleport = function(player, x: number, y: number, z: number)
+		local character = player.Character
+		if character then
+			character:PivotTo(CFrame.new(x, y, z))
+		end
+		task.wait(0.35)
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		return {
+			at = root and tostring(root.Position),
+			inSafeZone = root and BaseService.isSafePosition(root.Position),
+		}
+	end,
+
 	tutorial = function(player)
 		local TutorialService = require(script.Parent.TutorialService)
 		local profile = DataService.get(player)
@@ -191,6 +272,9 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		if not profile then
 			return { error = "no profile" }
 		end
+		-- Release any in-flight carry, otherwise the next steal is refused with
+		-- "already carrying" and the reset is not really a reset.
+		CarryService.releaseCarry(player)
 		profile.TutorialStage = 0
 		profile.Index = {}
 		profile.DisplayItems = {}
@@ -198,6 +282,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		profile.SpeedPower = 10
 		profile.BaseActivated = false
 		profile.TreadmillLevel = 0
+		profile.TrapCount = GameConfig.STARTING_TRAPS
 		BaseService.rebuildDisplays(player)
 		EconomyService.recalculate(player)
 		StateService.pushNow(player)

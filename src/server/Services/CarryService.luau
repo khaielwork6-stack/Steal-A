@@ -68,6 +68,13 @@ function CarryService.applyMovement(player: Player)
 		return
 	end
 
+	-- A rooted player stays rooted. Dropping loot and the 0.25s training tick
+	-- both call this, and either would otherwise silently cancel a trap's root
+	-- the instant it landed - exactly when the trap matters most.
+	if humanoid:GetAttribute("Rooted") then
+		return
+	end
+
 	local speed = GameConfig.walkSpeedFromPower(profile.SpeedPower)
 
 	local loot = carrying[player]

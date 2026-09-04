@@ -94,6 +94,25 @@ function BaseService.plotAt(position: Vector3): Instance?
 	return nil
 end
 
+local safeLineZ: number? = nil
+
+--- Any position behind the red line, or inside any plot's volume, is safe.
+--- PvP is disabled here so nobody can be spawn-griefed at their own base
+--- (GDD section 12). Note this is ANY safe zone, not just your own.
+function BaseService.isSafePosition(position: Vector3): boolean
+	if not safeLineZ then
+		local map = workspace:FindFirstChild("Map")
+		local zone = map and map:FindFirstChild("SafeZone")
+		local line = zone and zone:FindFirstChild("BoundaryLine")
+		safeLineZ = if line and line:IsA("BasePart") then line.Position.Z else 0
+	end
+
+	if position.Z < (safeLineZ :: number) then
+		return true
+	end
+	return BaseService.plotAt(position) ~= nil
+end
+
 --- True when the player is standing inside their OWN base safe zone. Guardians
 --- may not cross it and PvP is disabled there (GDD sections 10 and 12).
 function BaseService.isInOwnSafeZone(player: Player): boolean

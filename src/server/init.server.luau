@@ -24,13 +24,14 @@ local PlacementService = require(Services.PlacementService)
 local SpeedService = require(Services.SpeedService)
 local ZoneSignService = require(Services.ZoneSignService)
 local TutorialService = require(Services.TutorialService)
+local RagdollService = require(Services.RagdollService)
+local PvPService = require(Services.PvPService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
 
 DataService.start()
 EconomyService.start()
-BaseService.start()
 StateService.start()
 
 -- Cross-service wiring is done here so the services themselves stay decoupled.
@@ -78,6 +79,19 @@ PlacementService.start()
 SpeedService.start()
 ZoneSignService.start()
 TutorialService.start()
+RagdollService.start()
+RagdollService.setMovementRefresher(function(player)
+	SpeedService.applyMovement(player)
+end)
+PvPService.start()
+
+-- BaseService goes LAST on purpose. Assigning a plot fires the rebuild hook that
+-- creates a player's display-slot prompts, so every listener must already be
+-- registered. Starting it early meant a player was assigned before
+-- PlacementService existed, their prompts were never created, and they simply
+-- could not place anything - invisible to tests that call place() directly.
+BaseService.start()
+
 DebugService.start()
 
 -- Movement is owned by SpeedService/CarryService so the compressed formula and

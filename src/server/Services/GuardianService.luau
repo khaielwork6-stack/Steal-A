@@ -36,6 +36,7 @@ local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local LootService = require(script.Parent.LootService)
 local BaseService = require(script.Parent.BaseService)
+local RagdollService = require(script.Parent.RagdollService)
 
 local GuardianService = {}
 
@@ -68,7 +69,6 @@ local SAFE_LINE_MARGIN = 6 -- studs the guardian keeps on the danger side
 local LEASH_DISTANCE = 900 -- never chase further than this from home
 
 local guardians: { [number]: Guardian } = {}
-local stunned: { [Player]: number } = {}
 
 local safeLineZ = 0
 
@@ -263,70 +263,17 @@ end
 -- ==========================================================
 
 local function ragdollAndLaunch(player: Player, fromPosition: Vector3)
-	local now = os.clock()
-	if (stunned[player] or 0) > now then
-		return -- already flying; never stack impulses
-	end
-	stunned[player] = now + CATCH_IMMUNITY
-
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not humanoid or not root or not root:IsA("BasePart") then
-		return
-	end
-
-	local flat = Vector3.new(root.Position.X - fromPosition.X, 0, root.Position.Z - fromPosition.Z)
-	local direction = if flat.Magnitude > 0.1 then flat.Unit else root.CFrame.LookVector
-
-	-- The character is normally network-owned by its client, and a server-side
-	-- impulse on a client-owned assembly is simply discarded. Take ownership for
-	-- the duration of the launch, then hand it back.
-	pcall(function()
-		root:SetNetworkOwner(nil)
-	end)
-
-	humanoid.PlatformStand = true -- goes limp and tumbles
-	humanoid:ChangeState(Enum.HumanoidStateType.Physics) -- stop it steering itself
-
-	-- A plain velocity assignment gets overwritten by the Humanoid on the very
-	-- next physics step. A short-lived LinearVelocity constraint wins instead,
-	-- and using a fixed velocity keeps the launch identical for every avatar
-	-- rather than scaling with whatever the player happens to be wearing.
-	local attachment = Instance.new("Attachment")
-	attachment.Name = "CatchLaunch"
-	attachment.Parent = root
-
-	local push = Instance.new("LinearVelocity")
-	push.Attachment0 = attachment
-	push.RelativeTo = Enum.ActuatorRelativeTo.World
-	push.MaxForce = math.huge
-	push.VectorVelocity = direction * CATCH_KNOCKBACK + Vector3.new(0, CATCH_LIFT, 0)
-	push.Parent = root
-
-	root.AssemblyAngularVelocity = Vector3.new(math.random(-9, 9), math.random(-6, 6), math.random(-9, 9))
-
-	-- Cut the push almost immediately: it sets the launch, gravity does the arc.
-	task.delay(0.2, function()
-		push:Destroy()
-		attachment:Destroy()
-	end)
-
-	task.delay(CATCH_STUN, function()
-		if not humanoid.Parent or humanoid.Health <= 0 then
-			return
-		end
-		humanoid.PlatformStand = false
-		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		pcall(function()
-			root:SetNetworkOwner(player)
-		end)
-	end)
+	RagdollService.launch(player, fromPosition, {
+		knockback = CATCH_KNOCKBACK,
+		lift = CATCH_LIFT,
+		stun = CATCH_STUN,
+		immunity = CATCH_IMMUNITY,
+	})
 end
 
 --- True while a player is mid-launch, so a guardian cannot re-hit them.
 function GuardianService.isStunned(player: Player): boolean
-	return (stunned[player] or 0) > os.clock()
+	return RagdollService.isImmune(player)
 end
 
 -- ==========================================================
@@ -486,7 +433,6 @@ function GuardianService.start()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		stunned[player] = nil
 		for _, guardian in guardians do
 			if guardian.target == player then
 				goHome(guardian)
@@ -501,6 +447,55 @@ function GuardianService.start()
 		count += 1
 	end
 	print(`[GuardianService] {count} guardians posted (one per zone), safe line at Z={safeLineZ}`)
+end
+
+--- Traps root a guardian without breaking its state machine: it keeps its
+--- target and resumes the same chase when the root expires (GDD section 12).
+function GuardianService.rootGuardian(zoneIndex: number, seconds: number): boolean
+	local guardian = guardians[zoneIndex]
+	local humanoid = guardian and guardian.humanoid
+	if not guardian or not humanoid or guardian.state == "Sleeping" then
+		return false
+	end
+	if humanoid:GetAttribute("Rooted") then
+		return false -- already rooted; never stack
+	end
+
+	local restore = humanoid.WalkSpeed
+	humanoid.WalkSpeed = 0
+	humanoid:SetAttribute("Rooted", true)
+	if guardian.model then
+		guardian.model:SetAttribute("Rooted", true)
+	end
+
+	task.delay(seconds, function()
+		if not humanoid.Parent then
+			return
+		end
+		humanoid.WalkSpeed = restore
+		humanoid:SetAttribute("Rooted", nil)
+		if guardian.model then
+			guardian.model:SetAttribute("Rooted", nil)
+		end
+	end)
+	return true
+end
+
+--- The zone a guardian is currently chasing in, for trap targeting.
+function GuardianService.activeChaseZones(): { number }
+	local zones = {}
+	for zoneIndex, guardian in guardians do
+		if guardian.state == "Chasing" or guardian.state == "Waking" then
+			table.insert(zones, zoneIndex)
+		end
+	end
+	return zones
+end
+
+--- Position of a zone's guardian, or nil when it has no rig.
+function GuardianService.guardianPosition(zoneIndex: number): Vector3?
+	local guardian = guardians[zoneIndex]
+	return if guardian and guardian.root then guardian.root.Position else nil
 end
 
 --- Debug/reporting helper.
