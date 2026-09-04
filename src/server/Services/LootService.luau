@@ -233,7 +233,11 @@ local function buildLabel(loot: LootInstance, model: Model)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "LootLabel"
 	gui.Size = UDim2.fromScale(11, 4)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, anchor.Size.Y / 2 + 4, 0)
+	-- +6 rather than +4. This label is 4 studs tall, so at +4 its lower edge sat
+	-- only two studs above the object - not enough room for the interact prompt,
+	-- which has to live between them and needs about three. The prompt is the
+	-- call to action and belongs nearest the object, so the label yields.
+	gui.StudsOffsetWorldSpace = Vector3.new(0, anchor.Size.Y / 2 + 6, 0)
 	gui.MaxDistance = 260
 	gui.Adornee = anchor
 	gui.Parent = anchor

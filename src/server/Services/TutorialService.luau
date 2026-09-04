@@ -50,9 +50,6 @@ export type TutorialState = {
 	objective: string,
 	hint: string?,
 	target: Vector3?,
-	chip: string?,
-	chipValue: number?,
-	chipTarget: number?,
 }
 
 local nextZoneShownAt: { [Player]: number } = {}
@@ -216,15 +213,12 @@ local function buildState(player: Player, stage: number): TutorialState
 		}
 	end
 
-	-- COMPLETE: no arrows, just an objective card until the goal is met.
-	local speed = if profile then profile.SpeedPower else 0
-	local goal = GameConfig.TUTORIAL_NEXT_GOAL_SPEED
+	-- COMPLETE: the tutorial is done and says nothing further. Zone requirements
+	-- are communicated by the zone signs and the top progress bar, so a trailing
+	-- "next goal" widget was pure duplication.
 	return {
 		stage = STAGE.COMPLETE,
 		objective = "",
-		chip = if speed < goal then `Reach {NumberFormat.short(goal)} Speed` else nil,
-		chipValue = speed,
-		chipTarget = goal,
 	}
 end
 
@@ -269,7 +263,6 @@ local function evaluate(player: Player)
 	if not previous
 		or previous.stage ~= state.stage
 		or previous.objective ~= state.objective
-		or previous.chip ~= state.chip
 	then
 		StateService.pushNow(player)
 	end

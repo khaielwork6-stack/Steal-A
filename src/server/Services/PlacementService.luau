@@ -113,7 +113,8 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	notify(
 		player,
 		"success",
-		`Placed {loot.name} · +{NumberFormat.income(loot.finalIncome)}` .. (if firstTime then "  (NEW!)" else "")
+		`PLACED  {loot.name}  +{NumberFormat.income(loot.finalIncome)}`
+			.. (if firstTime then "  (NEW!)" else "")
 	)
 	return true
 end
@@ -195,7 +196,13 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 			StateService.pushNow(player)
 
 			local def = LootConfig.ById[item.ItemId]
-			notify(player, "success", `Displayed {if def then def.name else item.ItemId}`)
+			-- Name AND the income it just started earning: placing a trophy is
+			-- the payoff beat of the loop, so it should read as a gain.
+			notify(
+				player,
+				"success",
+				`PLACED  {if def then def.name else item.ItemId}  +{NumberFormat.income(item.FinalIncome)}`
+			)
 			return true
 		end
 	end
@@ -339,8 +346,11 @@ function PlacementService.refreshPrompts(player: Player)
 		-- taken later from the inventory panel, so a mis-click cannot destroy
 		-- a rare trophy.
 		p.ActionText = if occupied then "Store" else "Place"
+		-- Every interactable holds, so the prompt's fill animation always plays
+		-- and the interaction reads the same everywhere. Placing is the lightest
+		-- of them, so it gets the shortest hold.
 		p.ObjectText = `Display Slot {index}`
-		p.HoldDuration = if occupied then 0.4 else 0
+		p.HoldDuration = if occupied then 0.4 else 0.35
 	end
 end
 
