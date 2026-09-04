@@ -315,6 +315,18 @@ function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInsta
 	return true
 end
 
+--- Hands the carried item off to the base. Unlike releaseCarry this does NOT
+--- send the item home: PlacementService has already turned it into a trophy.
+function CarryService.consumeCarry(player: Player)
+	local loot = carrying[player]
+	if not loot then
+		return
+	end
+	detach(loot)
+	clearCarry(player)
+	loot.carrier = nil
+end
+
 --- Death, reset, disconnect or any invalidation must always release the item.
 function CarryService.releaseCarry(player: Player)
 	local loot = carrying[player]

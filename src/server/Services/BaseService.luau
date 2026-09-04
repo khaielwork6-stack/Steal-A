@@ -24,6 +24,13 @@ local BaseService = {}
 
 local assignments: { [Player]: Model | Folder } = {}
 local owners: { [Instance]: Player } = {}
+local rebuildListeners: { (Player) -> () } = {}
+
+--- Fires after a plot's trophies are rebuilt, so PlacementService can keep its
+--- slot prompts in step without BaseService having to know about prompts.
+function BaseService.onRebuilt(callback: (Player) -> ())
+	table.insert(rebuildListeners, callback)
+end
 
 local basesFolder: Folder? = nil
 
@@ -260,6 +267,10 @@ function BaseService.rebuildDisplays(player: Player)
 				trophy:PivotTo(slot.CFrame * CFrame.new(0, lift + 0.5, 0))
 			end
 		end
+	end
+
+	for _, callback in rebuildListeners do
+		task.spawn(callback, player)
 	end
 end
 

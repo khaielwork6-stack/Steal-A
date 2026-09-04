@@ -171,6 +171,66 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return LootService.snapshot()
 	end,
 
+	--- Runs the real placement path (validation included) into a chosen slot.
+	place = function(player, slotIndex: number?)
+		local PlacementService = require(script.Parent.PlacementService)
+		local free = BaseService.freeSlots(player)
+		local target = slotIndex or free[1]
+		if not target then
+			return { error = "no free slot" }
+		end
+		local ok, reason = PlacementService.place(player, target)
+		return { placed = ok, reason = reason, slot = target, income = EconomyService.getIncome(player) }
+	end,
+
+	sell = function(player, slotIndex: number)
+		local PlacementService = require(script.Parent.PlacementService)
+		local ok, reason = PlacementService.sell(player, slotIndex)
+		return { sold = ok, reason = reason, cash = EconomyService.getCash(player), income = EconomyService.getIncome(player) }
+	end,
+
+	upgradeBase = function(player)
+		local PlacementService = require(script.Parent.PlacementService)
+		local ok, reason = PlacementService.upgradeCapacity(player)
+		return { upgraded = ok, reason = reason, slots = BaseService.unlockedSlots(player) }
+	end,
+
+	--- Re-runs the display rebuild + income recalculation, which is exactly what
+	--- a reconnect does. Income and trophy count must not drift.
+	rebuild = function(player, times: number?)
+		local incomes, trophies = {}, {}
+		for _ = 1, times or 1 do
+			BaseService.rebuildDisplays(player)
+			table.insert(incomes, EconomyService.recalculate(player))
+
+			local plot = BaseService.getPlot(player)
+			local n = 0
+			if plot then
+				local slots = plot:FindFirstChild("DisplaySlots")
+				if slots then
+					for _, slot in slots:GetChildren() do
+						if slot:FindFirstChild("Trophy") then
+							n += 1
+						end
+					end
+				end
+			end
+			table.insert(trophies, n)
+			task.wait(0.15)
+		end
+		return { incomes = incomes, trophies = trophies }
+	end,
+
+	activate = function(player)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		profile.BaseActivated = true
+		StateService.pushNow(player)
+		return { activated = true }
+	end,
+
 	clearDisplays = function(player)
 		local profile = DataService.get(player)
 		if not profile then

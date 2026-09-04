@@ -22,6 +22,7 @@ local StateService = require(Services.StateService)
 local LootService = require(Services.LootService)
 local CarryService = require(Services.CarryService)
 local GuardianService = require(Services.GuardianService)
+local PlacementService = require(Services.PlacementService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -72,6 +73,7 @@ end
 LootService.start()
 CarryService.start()
 GuardianService.start()
+PlacementService.start()
 DebugService.start()
 
 --- Applies the compressed movement formula. SpeedPower is never assigned to
