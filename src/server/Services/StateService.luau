@@ -15,6 +15,7 @@ local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local StorageConfig = require(ReplicatedStorage.Shared.Config.StorageConfig)
 
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -87,6 +88,13 @@ local function build(player: Player): ClientState?
 		indexCount = discovered,
 		plotName = if plot then plot.Name else nil,
 		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
+		inventory = profile.Inventory,
+		storageUsed = #profile.Inventory,
+		storageCapacity = StorageConfig.capacityForTier(profile.StorageTier),
+		storageNextCost = (function()
+			local next = StorageConfig.nextUpgrade(profile.StorageTier)
+			return if next then next.cost else nil
+		end)(),
 	}
 end
 

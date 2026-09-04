@@ -307,6 +307,41 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { sold = ok, reason = reason, cash = EconomyService.getCash(player), income = EconomyService.getIncome(player) }
 	end,
 
+	--- Exercises the store -> inventory -> sell/equip flow through the real service.
+	inventory = function(player, action: string?, argument: any)
+		local PlacementService = require(script.Parent.PlacementService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		local ok, reason
+		if action == "store" then
+			ok, reason = PlacementService.store(player, argument or 1)
+		elseif action == "sell" then
+			ok, reason = PlacementService.sellStored(player, argument)
+		elseif action == "equip" then
+			ok, reason = PlacementService.equip(player, argument)
+		elseif action == "upgrade" then
+			ok, reason = PlacementService.upgradeStorage(player)
+		end
+
+		local stored = {}
+		for _, item in profile.Inventory do
+			table.insert(stored, `{item.ItemId} {item.Size}/{item.Mutation} ${item.FinalIncome}/s id={item.InstanceId:sub(1, 8)}`)
+		end
+		return {
+			ok = ok,
+			reason = reason,
+			displays = #profile.DisplayItems,
+			stored = stored,
+			capacity = PlacementService.storageCapacity(player),
+			income = EconomyService.getIncome(player),
+			cash = EconomyService.getCash(player),
+			firstStoredId = profile.Inventory[1] and profile.Inventory[1].InstanceId,
+		}
+	end,
+
 	upgradeBase = function(player)
 		local PlacementService = require(script.Parent.PlacementService)
 		local ok, reason = PlacementService.upgradeCapacity(player)

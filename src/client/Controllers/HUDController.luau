@@ -28,6 +28,7 @@ local TweenService = game:GetService("TweenService")
 
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local HUDController = {}
@@ -62,10 +63,8 @@ local function pulse(label: TextLabel?)
 	if not label then
 		return
 	end
-	label.TextTransparency = 0
-	local original = label.TextColor3
-	label.TextColor3 = Color3.fromRGB(190, 255, 200)
-	TweenService:Create(label, TweenInfo.new(0.35), { TextColor3 = original }):Play()
+	UIAnim.flashColor(label, Color3.fromRGB(190, 255, 200))
+	UIAnim.punch(label, 0.06)
 end
 
 -- ==========================================================
@@ -106,49 +105,30 @@ local function updateZoneProgress(speedPower: number)
 	local span = math.max(nextZone.recommendedSpeed - previous, 1)
 	local progress = math.clamp((speedPower - previous) / span, 0, 1)
 
-	zoneTitle.Text = nextZone.name
-	zoneAmount.Text = `{NumberFormat.short(speedPower)}/{NumberFormat.short(nextZone.recommendedSpeed)}`
-	zoneFill.Size = UDim2.fromScale(progress, zoneFill.Size.Y.Scale)
+	zoneTitle.Text = `NEXT: {nextZone.name}`
+	zoneAmount.Text = `{NumberFormat.short(speedPower)} / {NumberFormat.short(nextZone.recommendedSpeed)} Speed`
+
+	-- The pack's fill was centre-anchored, so it grew outward from the middle
+	-- instead of filling left to right. Anchor left and tween the width.
+	UIAnim.setBarFill(zoneFill, progress)
 end
 
 -- ==========================================================
 -- HOTBAR
 -- ==========================================================
 
---- The pack's item strip becomes our display-slot readout: how much of the base
---- is filled and what each trophy earns.
-local function updateHotbar(state)
+--- Compact "displays filled" readout. The pack's five numbered slots were
+--- removed entirely: they duplicated Roblox's own tool hotbar (which already
+--- shows exactly the two tools we have, Bat and Trap) and misrepresented
+--- capacity, which runs to fourteen.
+local function updateDisplayCount(state)
 	local strip = ui:FindFirstChild("Bottom")
-	local hotbar = strip and strip:FindFirstChild("Hotbar")
-	local slots = hotbar and hotbar:FindFirstChild("Slots")
-	if not slots then
-		return
-	end
-
-	local index = 0
-	for _, slot in slots:GetChildren() do
-		if not slot:IsA("GuiButton") then
-			continue
-		end
-		index += 1
-
-		local frame = slot:FindFirstChild("Frame")
-		local count = frame and frame:FindFirstChild("Count")
-		local earns = frame and frame:FindFirstChild("Earns")
-
-		local filled = index <= state.slotsUsed
-		local unlocked = index <= state.slotsUnlocked
-
-		slot.Visible = unlocked
-		if count and count:IsA("TextLabel") then
-			count.Text = tostring(index)
-		end
-		if earns and earns:IsA("TextLabel") then
-			earns.Text = if filled then "FULL" else "empty"
-			earns.TextColor3 = if filled
-				then Color3.fromRGB(126, 255, 148)
-				else Color3.fromRGB(190, 195, 205)
-		end
+	local label = strip and strip:FindFirstChild("DisplayCount")
+	if label and label:IsA("TextLabel") then
+		label.Text = `Displays  {state.slotsUsed}/{state.slotsUnlocked}`
+		label.TextColor3 = if state.slotsUsed >= state.slotsUnlocked
+			then Color3.fromRGB(255, 176, 46)
+			else Color3.fromRGB(226, 230, 240)
 	end
 end
 
@@ -163,12 +143,6 @@ local function refreshPanels(state)
 	local frames = ui:FindFirstChild("Frames")
 	if not frames then
 		return
-	end
-
-	local backpack = frames:FindFirstChild("Backpack")
-	local counter = backpack and findLabel(backpack:FindFirstChild("Features"), "Title")
-	if counter then
-		counter.Text = `{state.slotsUsed}/{state.slotsUnlocked} Displayed`
 	end
 
 	local index = frames:FindFirstChild("Index")
@@ -289,6 +263,12 @@ function HUDController.start()
 		end)
 	end
 
+	-- Every button in the pack gets the same hover/press feel.
+	UIAnim.bindAllButtons(ui)
+	ui.DescendantAdded:Connect(function()
+		task.defer(UIAnim.bindAllButtons, ui)
+	end)
+
 	applyScale()
 	local camera = workspace.CurrentCamera
 	if camera then
@@ -311,7 +291,7 @@ function HUDController.start()
 		end
 
 		updateZoneProgress(state.speedPower)
-		updateHotbar(state)
+		updateDisplayCount(state)
 		refreshPanels(state)
 	end)
 

@@ -12,8 +12,11 @@
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+
+local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local TutorialController = {}
 
@@ -101,23 +104,73 @@ function TutorialController.start()
 	hint.TextStrokeTransparency = 0.35
 	hint.Parent = banner
 
-	-- Trailing quest chip, bottom left, out of the way.
-	local chip = Instance.new("TextLabel")
+	-- Trailing objective widget. The old version was a bare pill of text that
+	-- read as a debug label; this is a proper card with a heading, the goal and
+	-- its own progress fill so the player can see how close they are.
+	local chip = Instance.new("Frame")
 	chip.Name = "QuestChip"
-	chip.AnchorPoint = Vector2.new(0, 1)
-	chip.Position = UDim2.new(0, 18, 1, -18)
-	chip.Size = UDim2.new(0, 250, 0, 34)
-	chip.BackgroundColor3 = Color3.fromRGB(24, 28, 40)
-	chip.BackgroundTransparency = 0.25
-	chip.Font = Enum.Font.FredokaOne
-	chip.TextScaled = true
-	chip.TextColor3 = ACCENT
+	chip.AnchorPoint = Vector2.new(1, 1)
+	chip.Position = UDim2.new(1, -14, 1, -96)
+	chip.Size = UDim2.fromOffset(238, 74)
+	chip.BackgroundColor3 = Color3.fromRGB(30, 34, 46)
 	chip.Visible = false
 	chip.Parent = gui
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = chip
+	local chipCorner = Instance.new("UICorner")
+	chipCorner.CornerRadius = UDim.new(0, 12)
+	chipCorner.Parent = chip
+
+	local chipStroke = Instance.new("UIStroke")
+	chipStroke.Thickness = 3
+	chipStroke.Color = Color3.fromRGB(14, 16, 22)
+	chipStroke.Parent = chip
+
+	local heading = Instance.new("TextLabel")
+	heading.Name = "Heading"
+	heading.BackgroundTransparency = 1
+	heading.Position = UDim2.new(0, 12, 0, 6)
+	heading.Size = UDim2.new(1, -24, 0, 16)
+	heading.Font = Enum.Font.FredokaOne
+	heading.TextScaled = true
+	heading.TextXAlignment = Enum.TextXAlignment.Left
+	heading.TextColor3 = Color3.fromRGB(150, 160, 180)
+	heading.Text = "NEXT GOAL"
+	heading.Parent = chip
+
+	local goal = Instance.new("TextLabel")
+	goal.Name = "Goal"
+	goal.BackgroundTransparency = 1
+	goal.Position = UDim2.new(0, 12, 0, 22)
+	goal.Size = UDim2.new(1, -24, 0, 26)
+	goal.Font = Enum.Font.FredokaOne
+	goal.TextScaled = true
+	goal.TextXAlignment = Enum.TextXAlignment.Left
+	goal.TextColor3 = ACCENT
+	goal.Text = ""
+	goal.Parent = chip
+
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.Position = UDim2.new(0, 12, 1, -20)
+	track.Size = UDim2.new(1, -24, 0, 10)
+	track.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+	track.Parent = chip
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1, 0)
+	trackCorner.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.AnchorPoint = Vector2.new(0, 0.5)
+	fill.Position = UDim2.new(0, 0, 0.5, 0)
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = ACCENT
+	fill.Parent = track
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1, 0)
+	fillCorner.Parent = fill
 
 	local Remotes = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Remotes)
 
@@ -143,8 +196,23 @@ function TutorialController.start()
 			hint.Text = tutorial.hint or ""
 		end
 
-		chip.Visible = tutorial.chip ~= nil
-		chip.Text = tutorial.chip or ""
+		if tutorial.chip then
+			if not chip.Visible then
+				UIAnim.popIn(chip, 0.8)
+			end
+			goal.Text = tutorial.chip
+			-- Show real progress toward the goal rather than a static label.
+			local target = tutorial.chipTarget
+			local value = tutorial.chipValue
+			if type(target) == "number" and type(value) == "number" and target > 0 then
+				UIAnim.setBarFill(fill, math.clamp(value / target, 0, 1), 1)
+				track.Visible = true
+			else
+				track.Visible = false
+			end
+		elseif chip.Visible then
+			UIAnim.popOut(chip)
+		end
 
 		currentTarget = tutorial.target
 	end)

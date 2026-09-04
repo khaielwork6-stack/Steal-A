@@ -51,6 +51,8 @@ export type TutorialState = {
 	hint: string?,
 	target: Vector3?,
 	chip: string?,
+	chipValue: number?,
+	chipTarget: number?,
 }
 
 local nextZoneShownAt: { [Player]: number } = {}
@@ -214,14 +216,15 @@ local function buildState(player: Player, stage: number): TutorialState
 		}
 	end
 
-	-- COMPLETE: no arrows, just a quest chip until the goal is met.
+	-- COMPLETE: no arrows, just an objective card until the goal is met.
 	local speed = if profile then profile.SpeedPower else 0
+	local goal = GameConfig.TUTORIAL_NEXT_GOAL_SPEED
 	return {
 		stage = STAGE.COMPLETE,
 		objective = "",
-		chip = if speed < GameConfig.TUTORIAL_NEXT_GOAL_SPEED
-			then `Reach {NumberFormat.short(GameConfig.TUTORIAL_NEXT_GOAL_SPEED)} Speed`
-			else nil,
+		chip = if speed < goal then `Reach {NumberFormat.short(goal)} Speed` else nil,
+		chipValue = speed,
+		chipTarget = goal,
 	}
 end
 

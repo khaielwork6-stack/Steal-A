@@ -23,6 +23,7 @@ local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local StorageConfig = require(ReplicatedStorage.Shared.Config.StorageConfig)
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
@@ -121,8 +122,15 @@ end
 -- SELL
 -- ==========================================================
 
---- Sells the trophy in `slotIndex` for SELL_REFUND_SECONDS of its income.
-function PlacementService.sell(player: Player, slotIndex: number): (boolean, string?)
+function PlacementService.storageCapacity(player: Player): number
+	local profile = DataService.get(player)
+	return if profile then StorageConfig.capacityForTier(profile.StorageTier) else StorageConfig.STARTING_CAPACITY
+end
+
+--- Takes a trophy OFF display and into storage. This is what clicking a placed
+--- item does: it must never destroy the item. Selling is a separate, deliberate
+--- choice made from the inventory panel.
+function PlacementService.store(player: Player, slotIndex: number): (boolean, string?)
 	if not sellLimiter:consume(player) then
 		return false, "Slow down!"
 	end
@@ -139,25 +147,114 @@ function PlacementService.sell(player: Player, slotIndex: number): (boolean, str
 			break
 		end
 	end
-
 	if not found or not foundAt then
-		return false, "Nothing to sell there."
+		return false, "Nothing on that slot."
 	end
 
-	-- Server calculates the payout; the client never supplies a value.
-	local payout = math.floor(found.FinalIncome * GameConfig.SELL_REFUND_SECONDS)
-	local def = LootConfig.ById[found.ItemId]
-	local displayName = if def then def.name else found.ItemId
+	if #profile.Inventory >= PlacementService.storageCapacity(player) then
+		return false, "Storage full - sell something first."
+	end
 
 	table.remove(profile.DisplayItems, foundAt)
+	found.SlotIndex = 0
+	table.insert(profile.Inventory, found)
 
-	-- Index discovery survives a sale (GDD section 13).
-	EconomyService.award(player, payout)
 	BaseService.rebuildDisplays(player)
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
-	notify(player, "success", `Sold {displayName} for {NumberFormat.cash(payout)}`)
+	local def = LootConfig.ById[found.ItemId]
+	notify(player, "info", `Stored {if def then def.name else found.ItemId}`)
+	return true
+end
+
+--- Puts a stored item back onto the first free display slot.
+function PlacementService.equip(player: Player, instanceId: string): (boolean, string?)
+	if not placeLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+
+	local free = BaseService.freeSlots(player)
+	if #free == 0 then
+		return false, "No free display slots."
+	end
+
+	for index, item in profile.Inventory do
+		if item.InstanceId == instanceId then
+			table.remove(profile.Inventory, index)
+			item.SlotIndex = free[1]
+			table.insert(profile.DisplayItems, item)
+
+			BaseService.rebuildDisplays(player)
+			EconomyService.recalculate(player)
+			StateService.pushNow(player)
+
+			local def = LootConfig.ById[item.ItemId]
+			notify(player, "success", `Displayed {if def then def.name else item.ItemId}`)
+			return true
+		end
+	end
+	return false, "That item is not in storage."
+end
+
+--- Sells a STORED item for SELL_REFUND_SECONDS of its income.
+function PlacementService.sellStored(player: Player, instanceId: string): (boolean, string?)
+	if not sellLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+
+	for index, item in profile.Inventory do
+		if item.InstanceId == instanceId then
+			-- Server calculates the payout; the client never supplies a value.
+			local payout = math.floor(item.FinalIncome * GameConfig.SELL_REFUND_SECONDS)
+			local def = LootConfig.ById[item.ItemId]
+			table.remove(profile.Inventory, index)
+
+			-- Index discovery survives a sale (GDD section 13).
+			EconomyService.award(player, payout)
+			StateService.pushNow(player)
+			notify(
+				player,
+				"success",
+				`Sold {if def then def.name else item.ItemId} for {NumberFormat.cash(payout)}`
+			)
+			return true
+		end
+	end
+	return false, "That item is not in storage."
+end
+
+function PlacementService.upgradeStorage(player: Player): (boolean, string?)
+	if not upgradeLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+
+	local next = StorageConfig.nextUpgrade(profile.StorageTier)
+	if not next then
+		return false, "Storage is fully upgraded!"
+	end
+	if not EconomyService.spend(player, next.cost) then
+		return false, `You need {NumberFormat.cash(next.cost)}.`
+	end
+
+	profile.StorageTier = next.tier
+	StateService.pushNow(player)
+	notify(player, "success", `Storage upgraded - {next.capacity} slots!`)
 	return true
 end
 
@@ -238,9 +335,12 @@ function PlacementService.refreshPrompts(player: Player)
 		local occupied = slot:FindFirstChild("Trophy") ~= nil
 		local p = prompt :: ProximityPrompt
 		p:SetAttribute("ServerEnabled", index <= unlocked)
-		p.ActionText = if occupied then "Sell" else "Place"
-		p.ObjectText = `Slot {index}`
-		p.HoldDuration = if occupied then 0.6 else 0
+		-- Taking an item off display STORES it. Selling is a deliberate action
+		-- taken later from the inventory panel, so a mis-click cannot destroy
+		-- a rare trophy.
+		p.ActionText = if occupied then "Store" else "Place"
+		p.ObjectText = `Display Slot {index}`
+		p.HoldDuration = if occupied then 0.4 else 0
 	end
 end
 
@@ -309,7 +409,7 @@ function PlacementService.start()
 
 		local occupied = slot:FindFirstChild("Trophy") ~= nil
 		local ok, reason = if occupied
-			then PlacementService.sell(player, index)
+			then PlacementService.store(player, index)
 			else PlacementService.place(player, index)
 
 		if not ok and reason then
@@ -328,11 +428,26 @@ function PlacementService.start()
 		end
 	end)
 
-	Remotes.get("SellLootRequest").OnServerEvent:Connect(function(player, slotIndex)
-		if type(slotIndex) ~= "number" then
+	-- Inventory actions all arrive on one remote, tagged by action, so adding a
+	-- new one later does not mean adding a new RemoteEvent.
+	Remotes.get("InventoryRequest").OnServerEvent:Connect(function(player, action, argument)
+		if type(action) ~= "string" then
 			return
 		end
-		local ok, reason = PlacementService.sell(player, math.floor(slotIndex))
+
+		local ok, reason
+		if action == "sell" and type(argument) == "string" then
+			ok, reason = PlacementService.sellStored(player, argument)
+		elseif action == "equip" and type(argument) == "string" then
+			ok, reason = PlacementService.equip(player, argument)
+		elseif action == "store" and type(argument) == "number" then
+			ok, reason = PlacementService.store(player, math.floor(argument))
+		elseif action == "upgradeStorage" then
+			ok, reason = PlacementService.upgradeStorage(player)
+		else
+			return
+		end
+
 		if not ok and reason then
 			notify(player, "error", reason)
 		end

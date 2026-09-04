@@ -24,7 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
-local SCHEMA_VERSION = 1
+local SCHEMA_VERSION = 2
 local STORE_NAME = "PlayerProfiles_v1"
 
 local DataService = {}
@@ -54,6 +54,8 @@ export type Profile = {
 	Index: { [string]: boolean },
 	ClaimedIndexRewards: { [string]: boolean },
 	DisplayItems: { DisplayItem },
+	Inventory: { DisplayItem }, -- stored, not earning; SlotIndex is unused here
+	StorageTier: number,
 	Lifetime: { Steals: number, PvPSteals: number, Secrets: number, CashEarned: number },
 	Settings: { ReducedVFX: boolean, ScreenShake: boolean },
 }
@@ -79,6 +81,8 @@ local function defaultProfile(): Profile
 		Index = {},
 		ClaimedIndexRewards = {},
 		DisplayItems = {},
+		Inventory = {},
+		StorageTier = 0,
 		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0 },
 		Settings = { ReducedVFX = false, ScreenShake = true },
 	}
@@ -99,7 +103,19 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 1
 	end
 
-	-- Future migrations chain here: if version < 2 then ... end
+	if version < 2 then
+		-- v2 introduced storage: taking an item off display now stores it rather
+		-- than selling it, so existing saves need somewhere to put it.
+		if type(profile.Inventory) ~= "table" then
+			profile.Inventory = {}
+		end
+		if type(profile.StorageTier) ~= "number" then
+			profile.StorageTier = 0
+		end
+		profile.SchemaVersion = 2
+	end
+
+	-- Future migrations chain here: if version < 3 then ... end
 
 	return profile
 end
@@ -121,6 +137,10 @@ local function reconcile(profile: Profile): Profile
 	if type(profile.DisplayItems) ~= "table" then
 		profile.DisplayItems = {}
 	end
+	if type(profile.Inventory) ~= "table" then
+		profile.Inventory = {}
+	end
+	profile.StorageTier = math.max(0, math.floor(tonumber(profile.StorageTier) or 0))
 
 	return profile
 end

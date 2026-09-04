@@ -18,6 +18,7 @@ Remotes.NAMES = {
 	"StealRequest",
 	"PlaceLootRequest",
 	"SellLootRequest",
+	"InventoryRequest",
 	"BaseUpgradeRequest",
 	"TreadmillUpgradeRequest",
 	"BatSwingRequest",
