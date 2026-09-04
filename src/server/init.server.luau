@@ -36,6 +36,20 @@ CarryService.setNotifier(function(player, kind, message)
 	StateService.notify(player, kind, message)
 end)
 
+CarryService.setZoneBusyCheck(GuardianService.isZoneBusy)
+
+-- A catch reclaims the loot; the launch itself is GuardianService's job.
+GuardianService.setCatchHandler(function(loot)
+	CarryService.reclaim(loot)
+end)
+
+GuardianService.setEscapeHandler(function(loot, player)
+	if not loot.escapeNotice then
+		loot.escapeNotice = true
+		StateService.notify(player, "success", `You escaped with the {loot.name}!`)
+	end
+end)
+
 CarryService.setDeliveredHandler(function(player, loot)
 	-- Reaching your own safe zone permanently clears the guardian for this item.
 	-- Placement itself is a deliberate player action, never automatic.

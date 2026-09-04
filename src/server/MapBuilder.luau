@@ -542,23 +542,38 @@ local function placeSockets(map: Instance)
 					MapPalette.LootSocket,
 					sockets
 				)
-
-				-- Guardian waits outboard of its socket, still inside the lane.
-				local gx = math.min(MapConfig.LANE_WIDTH * MapConfig.GUARD_INSET_X, MapConfig.LANE_HALF - 18)
-				local gz = sz + MapConfig.GUARD_ROW_OFFSET
-				while gx > x and not isClear(footprints, sign * gx, gz, 10) do
-					gx -= 4
-				end
-
-				makeMarker(
-					string.format("Guard%02d", n),
-					Vector3.new(7, 0.6, 7),
-					CFrame.new(sign * gx, 0.3, gz),
-					MapPalette.SafeLine,
-					guards
-				)
 			end
 		end
+
+		-- ONE guardian per zone, sleeping between its four sockets. Placed last
+		-- so it can be validated against both the scenery and the sockets.
+		local restZ = startZ + length * 0.5
+		local restX = 0
+		local blockers = table.clone(footprints)
+		for _, socket in sockets:GetChildren() do
+			if socket:IsA("BasePart") then
+				table.insert(blockers, { x = socket.Position.X, z = socket.Position.Z, hx = 10, hz = 10 })
+			end
+		end
+
+		if not isClear(blockers, restX, restZ, 8) then
+			for _, dx in { 0, 26, -26, 52, -52 } do
+				for _, dz in { 0, 22, -22 } do
+					if isClear(blockers, dx, restZ + dz, 8) then
+						restX, restZ = dx, restZ + dz
+						break
+					end
+				end
+			end
+		end
+
+		makeMarker(
+			"GuardianPost",
+			Vector3.new(9, 0.6, 9),
+			CFrame.new(restX, 0.3, restZ),
+			MapPalette.SafeLine,
+			guards
+		)
 	end
 end
 

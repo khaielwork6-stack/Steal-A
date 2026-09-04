@@ -1,14 +1,28 @@
 --!strict
 --[[
 	GuardianService
-	One guardian per loot socket, chasing only its own thief (GDD section 10).
+	EXACTLY ONE guardian per zone - twelve in the whole world. All four loot
+	sockets in a zone share that single guardian.
 
-	Design rules this enforces:
-	  * Target ownership: a guardian may ONLY target the player carrying the item
-	    from its linked socket. It never retargets a random nearby player.
-	  * Idle guardians have no per-frame heartbeat. Only active chases update.
-	  * Guardians cannot cross the carrier's own base safe zone.
-	  * Zone 1's Cop must be beatable at fresh-account SpeedPower 10.
+	State loop:
+	    SLEEPING (+ Zzz)
+	      -> any item in the zone is successfully stolen
+	    WAKING   (+ "!")
+	      -> turns to the thief
+	    CHASING  (that thief only, never a bystander)
+	      -> A: thief crosses the red safe line  -> escape, guardian stops AT the
+	            line, walks home, sleeps again
+	      -> B: guardian catches the thief first -> ragdoll + launch, loot resets,
+	            guardian walks home, sleeps again
+
+	Hard rules:
+	  * No aggro of any kind before a successful steal. Walking through the zone,
+	    standing on the loot, brushing the guardian - none of it wakes anything.
+	  * One chase per zone. A second steal in a busy zone is refused until the
+	    guardian has fully reset.
+	  * The red safe line is a real AI boundary, not a distance check. The
+	    guardian never crosses it, never paths through it, and cannot touch a
+	    player who is already behind it. Safe zone always wins.
 ]]
 
 local Players = game:GetService("Players")
@@ -18,46 +32,113 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local LootService = require(script.Parent.LootService)
 local BaseService = require(script.Parent.BaseService)
-local CarryService = require(script.Parent.CarryService)
 
 local GuardianService = {}
 
+export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Returning"
+
 type Guardian = {
 	zoneIndex: number,
-	socketIndex: number,
 	home: CFrame,
+	state: GuardianState,
 	model: Model?,
 	humanoid: Humanoid?,
 	root: BasePart?,
 	target: Player?,
 	lootId: string?,
 	lastRepath: number,
+	wakeAt: number?,
 }
 
-local guardians: { [string]: Guardian } = {}
-local active: { [string]: Guardian } = {}
+-- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
+-- never enough to clear an 80-stud containment wall.
+local WAKE_DELAY = 0.55 -- shocked beat before the chase actually starts
+-- Tuned by measurement, not by feel: 110/72 threw the player 156 studs, which
+-- launched them clean across the safe line and into the base plaza. These land
+-- around 80-90 studs - clearly dramatic, still comfortably inside the lane.
+local CATCH_KNOCKBACK = 72
+local CATCH_LIFT = 62
+local CATCH_STUN = 1.6
+local CATCH_IMMUNITY = 2.5
+local SAFE_LINE_MARGIN = 6 -- studs the guardian keeps on the danger side
+local LEASH_DISTANCE = 900 -- never chase further than this from home
 
-local function key(zoneIndex: number, socketIndex: number): string
-	return `{zoneIndex}:{socketIndex}`
+local guardians: { [number]: Guardian } = {}
+local stunned: { [Player]: number } = {}
+
+local safeLineZ = 0
+
+local onCatch: (LootService.LootInstance) -> () = function() end
+local onEscape: (LootService.LootInstance, Player) -> () = function() end
+
+--- Wired from init so this service never has to require CarryService back.
+function GuardianService.setCatchHandler(fn: (LootService.LootInstance) -> ())
+	onCatch = fn
 end
 
---- Guardian speed sits just under a player who meets the recommendation, so a
---- Normal-size item is a narrow win and heavier loot needs a Speed buffer.
-local function guardianSpeed(zoneIndex: number): number
-	local zone = ZoneConfig.Zones[zoneIndex]
-	local matched = GameConfig.walkSpeedFromPower(math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER))
-	return matched * ZoneConfig.GUARDIAN_SPEED_FACTOR
+function GuardianService.setEscapeHandler(fn: (LootService.LootInstance, Player) -> ())
+	onEscape = fn
+end
+
+-- ==========================================================
+-- SAFE LINE
+-- ==========================================================
+
+--- True when a position is on the SAFE side of the red line.
+local function isBehindSafeLine(position: Vector3): boolean
+	return position.Z < safeLineZ
+end
+
+--- Nearest point a guardian is allowed to occupy: never past the red line.
+local function clampToDangerSide(position: Vector3): Vector3
+	local limit = safeLineZ + SAFE_LINE_MARGIN
+	if position.Z < limit then
+		return Vector3.new(position.X, position.Y, limit)
+	end
+	return position
+end
+
+-- ==========================================================
+-- PRESENTATION
+-- ==========================================================
+
+--- The client reads this attribute to drive the floating Zzz and the "!" pop.
+--- Keeping the animation client-side means twelve looping effects cost the
+--- server nothing.
+local function publishState(guardian: Guardian)
+	if guardian.model then
+		guardian.model:SetAttribute("State", guardian.state)
+	end
+end
+
+local function sleepPose(guardian: Guardian)
+	local root = guardian.root
+	if not root then
+		return
+	end
+	-- Anchored while asleep: it cannot drift, cannot be shoved by a passing
+	-- player, and costs no physics.
+	root.Anchored = true
+	root.CFrame = guardian.home * CFrame.Angles(math.rad(-20), 0, 0)
+end
+
+local function enterSleep(guardian: Guardian)
+	guardian.state = "Sleeping"
+	guardian.target = nil
+	guardian.lootId = nil
+	guardian.wakeAt = nil
+	sleepPose(guardian)
+	publishState(guardian)
 end
 
 -- ==========================================================
 -- RIG
 -- ==========================================================
 
---- Real rigs live at ServerStorage.GameAssets.Guardians.<ZoneNN_Name>. Until
---- those exist a blocky placeholder humanoid keeps the chase fully testable.
 local function buildRig(zoneIndex: number): Model
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local assets = ServerStorage:FindFirstChild("GameAssets")
@@ -96,10 +177,10 @@ local function buildRig(zoneIndex: number): Model
 	head.CFrame = root.CFrame * CFrame.new(0, 2.85, 0)
 	head.Parent = model
 
-	local headWeld = Instance.new("WeldConstraint")
-	headWeld.Part0 = root
-	headWeld.Part1 = head
-	headWeld.Parent = root
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = head
+	weld.Parent = root
 
 	local humanoid = Instance.new("Humanoid")
 	humanoid.Name = "Humanoid"
@@ -111,142 +192,229 @@ local function buildRig(zoneIndex: number): Model
 	return model
 end
 
-local function spawnGuardian(guardian: Guardian)
-	local model = buildRig(guardian.zoneIndex)
-	local humanoid = model:FindFirstChildWhichIsA("Humanoid")
-	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
-
-	if not humanoid or not root or not root:IsA("BasePart") then
-		warn(`[GuardianService] malformed rig for zone {guardian.zoneIndex}`)
-		model:Destroy()
-		return
-	end
-
-	humanoid.WalkSpeed = guardianSpeed(guardian.zoneIndex)
-	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-	-- Guardians must never be shoved around by players or carried loot.
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-
-	model:PivotTo(guardian.home)
-	model.Parent = workspace
-
-	guardian.model = model
-	guardian.humanoid = humanoid
-	guardian.root = root
+local function guardianSpeed(zoneIndex: number): number
+	local zone = ZoneConfig.Zones[zoneIndex]
+	local matched = GameConfig.walkSpeedFromPower(math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER))
+	return matched * ZoneConfig.GUARDIAN_SPEED_FACTOR
 end
 
 -- ==========================================================
--- CHASE
+-- CHASE CONTROL
 -- ==========================================================
 
-local function alert(guardian: Guardian)
-	local root = guardian.root
-	if not root then
-		return
+function GuardianService.isZoneBusy(zoneIndex: number): boolean
+	local guardian = guardians[zoneIndex]
+	if not guardian then
+		return false
 	end
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "Alert"
-	gui.Size = UDim2.fromScale(3, 3)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0)
-	gui.AlwaysOnTop = true
-	gui.Adornee = root
-	gui.Parent = root
-
-	local mark = Instance.new("TextLabel")
-	mark.Size = UDim2.fromScale(1, 1)
-	mark.BackgroundTransparency = 1
-	mark.Font = Enum.Font.FredokaOne
-	mark.TextScaled = true
-	mark.TextColor3 = Color3.fromRGB(255, 72, 72)
-	mark.TextStrokeTransparency = 0.2
-	mark.Text = "!"
-	mark.Parent = gui
-
-	task.delay(1.5, function()
-		gui:Destroy()
-	end)
+	return guardian.state ~= "Sleeping"
 end
 
-local function stopChase(guardian: Guardian)
+local function goHome(guardian: Guardian)
+	guardian.state = "Returning"
 	guardian.target = nil
 	guardian.lootId = nil
-	active[key(guardian.zoneIndex, guardian.socketIndex)] = nil
+	publishState(guardian)
 
 	local humanoid = guardian.humanoid
-	if humanoid and guardian.model then
+	if humanoid then
 		humanoid:MoveTo(guardian.home.Position)
 	end
 end
 
-function GuardianService.beginChase(loot: LootService.LootInstance, carrier: Player)
-	local guardian = guardians[key(loot.zoneIndex, loot.socketIndex)]
-	if not guardian or not guardian.humanoid then
+--- Called the moment a zone's loot is successfully stolen.
+function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
+	local guardian = guardians[loot.zoneIndex]
+	if not guardian or not guardian.humanoid or not guardian.root then
 		return
 	end
+	if guardian.state ~= "Sleeping" then
+		return -- one chase per zone
+	end
 
-	guardian.target = carrier
+	guardian.state = "Waking"
+	guardian.target = thief
 	guardian.lootId = loot.id
 	guardian.lastRepath = 0
-	active[key(loot.zoneIndex, loot.socketIndex)] = guardian
+	guardian.wakeAt = os.clock() + WAKE_DELAY
 
-	alert(guardian)
+	-- Stand up and turn to face the thief.
+	guardian.root.Anchored = false
+	local character = thief.Character
+	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
+	if targetRoot and targetRoot:IsA("BasePart") then
+		local from = guardian.root.Position
+		local look = Vector3.new(targetRoot.Position.X, from.Y, targetRoot.Position.Z)
+		guardian.root.CFrame = CFrame.lookAt(from, look)
+	end
+
+	publishState(guardian)
 end
 
 function GuardianService.stopChaseFor(loot: LootService.LootInstance)
-	local guardian = guardians[key(loot.zoneIndex, loot.socketIndex)]
-	if guardian and guardian.lootId == loot.id then
-		stopChase(guardian)
+	local guardian = guardians[loot.zoneIndex]
+	if guardian and guardian.lootId == loot.id and guardian.state ~= "Sleeping" then
+		goHome(guardian)
 	end
 end
 
---- Only active chases run. Idle guardians cost nothing per frame.
-local function stepChases()
+-- ==========================================================
+-- CATCH
+-- ==========================================================
+
+local function ragdollAndLaunch(player: Player, fromPosition: Vector3)
+	local now = os.clock()
+	if (stunned[player] or 0) > now then
+		return -- already flying; never stack impulses
+	end
+	stunned[player] = now + CATCH_IMMUNITY
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not root or not root:IsA("BasePart") then
+		return
+	end
+
+	local flat = Vector3.new(root.Position.X - fromPosition.X, 0, root.Position.Z - fromPosition.Z)
+	local direction = if flat.Magnitude > 0.1 then flat.Unit else root.CFrame.LookVector
+
+	-- The character is normally network-owned by its client, and a server-side
+	-- impulse on a client-owned assembly is simply discarded. Take ownership for
+	-- the duration of the launch, then hand it back.
+	pcall(function()
+		root:SetNetworkOwner(nil)
+	end)
+
+	humanoid.PlatformStand = true -- goes limp and tumbles
+	humanoid:ChangeState(Enum.HumanoidStateType.Physics) -- stop it steering itself
+
+	-- A plain velocity assignment gets overwritten by the Humanoid on the very
+	-- next physics step. A short-lived LinearVelocity constraint wins instead,
+	-- and using a fixed velocity keeps the launch identical for every avatar
+	-- rather than scaling with whatever the player happens to be wearing.
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "CatchLaunch"
+	attachment.Parent = root
+
+	local push = Instance.new("LinearVelocity")
+	push.Attachment0 = attachment
+	push.RelativeTo = Enum.ActuatorRelativeTo.World
+	push.MaxForce = math.huge
+	push.VectorVelocity = direction * CATCH_KNOCKBACK + Vector3.new(0, CATCH_LIFT, 0)
+	push.Parent = root
+
+	root.AssemblyAngularVelocity = Vector3.new(math.random(-9, 9), math.random(-6, 6), math.random(-9, 9))
+
+	-- Cut the push almost immediately: it sets the launch, gravity does the arc.
+	task.delay(0.2, function()
+		push:Destroy()
+		attachment:Destroy()
+	end)
+
+	task.delay(CATCH_STUN, function()
+		if not humanoid.Parent or humanoid.Health <= 0 then
+			return
+		end
+		humanoid.PlatformStand = false
+		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		pcall(function()
+			root:SetNetworkOwner(player)
+		end)
+	end)
+end
+
+--- True while a player is mid-launch, so a guardian cannot re-hit them.
+function GuardianService.isStunned(player: Player): boolean
+	return (stunned[player] or 0) > os.clock()
+end
+
+-- ==========================================================
+-- STEP
+-- ==========================================================
+
+local function step()
 	local now = os.clock()
 
-	for _, guardian in active do
+	for _, guardian in guardians do
+		local state = guardian.state
+		if state == "Sleeping" then
+			continue -- idle guardians cost nothing
+		end
+
 		local humanoid = guardian.humanoid
 		local root = guardian.root
-		local target = guardian.target
-		local lootId = guardian.lootId
-
-		if not humanoid or not root or not target or not lootId then
-			stopChase(guardian)
+		if not humanoid or not root then
 			continue
 		end
 
-		local loot = LootService.get(lootId)
-		if not loot or loot.state ~= "Carried" or loot.carrier ~= target then
-			stopChase(guardian)
+		-- Absolute boundary: even mid-physics the guardian may never end up on
+		-- the safe side of the red line.
+		if root.Position.Z < safeLineZ + SAFE_LINE_MARGIN then
+			root.CFrame = CFrame.new(clampToDangerSide(root.Position)) * (root.CFrame - root.Position)
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+
+		if state == "Returning" then
+			if (root.Position - guardian.home.Position).Magnitude < 6 then
+				enterSleep(guardian)
+			elseif now - guardian.lastRepath >= ZoneConfig.GUARDIAN_REPATH_INTERVAL then
+				guardian.lastRepath = now
+				humanoid:MoveTo(guardian.home.Position)
+			end
+			continue
+		end
+
+		local target = guardian.target
+		local lootId = guardian.lootId
+		local loot = if lootId then LootService.get(lootId) else nil
+
+		-- The chase is only valid while THIS thief still carries THIS item.
+		if not target or not target.Parent or not loot or loot.state ~= "Carried" or loot.carrier ~= target then
+			goHome(guardian)
 			continue
 		end
 
 		local character = target.Character
 		local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
 		if not targetRoot or not targetRoot:IsA("BasePart") then
-			stopChase(guardian)
+			goHome(guardian)
 			continue
 		end
 
-		-- Safe boundary: the guardian may not cross into the carrier's own base.
-		if BaseService.isInOwnSafeZone(target) then
-			stopChase(guardian)
+		-- ESCAPE: crossing the red line, or reaching their own base, ends it.
+		if isBehindSafeLine(targetRoot.Position) or BaseService.isInOwnSafeZone(target) then
+			onEscape(loot, target)
+			goHome(guardian)
 			continue
 		end
 
+		if state == "Waking" then
+			if now < (guardian.wakeAt or 0) then
+				continue -- hold the shocked beat
+			end
+			guardian.state = "Chasing"
+			publishState(guardian)
+		end
+
+		if (root.Position - guardian.home.Position).Magnitude > LEASH_DISTANCE then
+			goHome(guardian)
+			continue
+		end
+
+		-- CATCH
 		local distance = (root.Position - targetRoot.Position).Magnitude
-
-		if distance <= ZoneConfig.GUARDIAN_CATCH_RADIUS then
-			CarryService.reclaim(loot)
-			stopChase(guardian)
+		if distance <= ZoneConfig.GUARDIAN_CATCH_RADIUS and not GuardianService.isStunned(target) then
+			ragdollAndLaunch(target, root.Position)
+			onCatch(loot)
+			goHome(guardian)
 			continue
 		end
 
-		-- Direct MoveTo while the path is simple; repath on a controlled cadence
-		-- rather than every frame.
 		if now - guardian.lastRepath >= ZoneConfig.GUARDIAN_REPATH_INTERVAL then
 			guardian.lastRepath = now
-			humanoid:MoveTo(targetRoot.Position)
+			-- Never path THROUGH the line: the move goal is clamped too.
+			humanoid:MoveTo(clampToDangerSide(targetRoot.Position))
 		end
 	end
 end
@@ -259,6 +427,9 @@ function GuardianService.start()
 	local map = workspace:WaitForChild("Map", 20)
 	local zonesFolder = map:WaitForChild("Zones", 10)
 
+	local line = map:FindFirstChild("SafeZone") and map.SafeZone:FindFirstChild("BoundaryLine")
+	safeLineZ = if line and line:IsA("BasePart") then line.Position.Z else 0
+
 	local holder = Instance.new("Folder")
 	holder.Name = "Guardians"
 	holder.Parent = workspace
@@ -266,52 +437,83 @@ function GuardianService.start()
 	for zoneIndex, zoneDef in ZoneConfig.Zones do
 		local zone = zonesFolder:FindFirstChild(zoneDef.id)
 		local posts = zone and zone:FindFirstChild("GuardianSpawns")
-		if not posts then
+		local post = posts and posts:FindFirstChild("GuardianPost")
+		if not post or not post:IsA("BasePart") then
+			warn(`[GuardianService] {zoneDef.id} has no GuardianPost - rebuild the map`)
 			continue
 		end
 
-		for socketIndex = 1, ZoneConfig.SOCKETS_PER_ZONE do
-			local post = posts:FindFirstChild(string.format("Guard%02d", socketIndex))
-			if post and post:IsA("BasePart") then
-				local guardian: Guardian = {
-					zoneIndex = zoneIndex,
-					socketIndex = socketIndex,
-					home = post.CFrame * CFrame.new(0, 3, 0),
-					lastRepath = 0,
-				}
-				guardians[key(zoneIndex, socketIndex)] = guardian
-				spawnGuardian(guardian)
-				if guardian.model then
-					guardian.model.Parent = holder
-				end
-			end
+		local guardian: Guardian = {
+			zoneIndex = zoneIndex,
+			home = post.CFrame * CFrame.new(0, 2.2, 0),
+			state = "Sleeping",
+			lastRepath = 0,
+		}
+
+		local model = buildRig(zoneIndex)
+		local humanoid = model:FindFirstChildWhichIsA("Humanoid")
+		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+		if not humanoid or not root or not root:IsA("BasePart") then
+			warn(`[GuardianService] malformed rig for {zoneDef.id}`)
+			model:Destroy()
+			continue
 		end
+
+		humanoid.WalkSpeed = guardianSpeed(zoneIndex)
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+		model:PivotTo(guardian.home)
+		model.Parent = holder
+
+		guardian.model = model
+		guardian.humanoid = humanoid
+		guardian.root = root
+		guardians[zoneIndex] = guardian
+
+		model:SetAttribute("ZoneIndex", zoneIndex)
+		enterSleep(guardian)
 	end
 
-	-- React to loot state rather than polling for thefts.
+	-- Wake ONLY on a real steal. Nothing about proximity or presence aggros.
 	LootService.onStateChanged(function(loot, previous, next)
 		if next == "Carried" and previous ~= "Dropped" and loot.carrier then
-			GuardianService.beginChase(loot, loot.carrier)
+			GuardianService.wake(loot, loot.carrier)
 		elseif next == "Returning" or next == "Placed" or next == "Spawned" then
 			GuardianService.stopChaseFor(loot)
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		for _, guardian in active do
+		stunned[player] = nil
+		for _, guardian in guardians do
 			if guardian.target == player then
-				stopChase(guardian)
+				goHome(guardian)
 			end
 		end
 	end)
 
-	RunService.Heartbeat:Connect(stepChases)
+	RunService.Heartbeat:Connect(step)
 
 	local count = 0
 	for _ in guardians do
 		count += 1
 	end
-	print(`[GuardianService] {count} guardians posted`)
+	print(`[GuardianService] {count} guardians posted (one per zone), safe line at Z={safeLineZ}`)
+end
+
+--- Debug/reporting helper.
+function GuardianService.snapshot(): { [string]: any }
+	local out = {}
+	for zoneIndex, guardian in guardians do
+		out[ZoneConfig.Zones[zoneIndex].id] = {
+			state = guardian.state,
+			target = if guardian.target then guardian.target.Name else nil,
+			z = if guardian.root then math.floor(guardian.root.Position.Z) else nil,
+		}
+	end
+	return out
 end
 
 return GuardianService

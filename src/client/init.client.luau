@@ -7,7 +7,9 @@
 ]]
 
 local HUDController = require(script.Controllers.HUDController)
+local GuardianFxController = require(script.Controllers.GuardianFxController)
 
 HUDController.start()
+GuardianFxController.start()
 
 print("[Client] controllers started")

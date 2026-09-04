@@ -47,6 +47,7 @@ export type LootInstance = {
 	model: Model?,
 	droppedAt: number?,
 	deliveredNotice: boolean?, -- so the "you're safe" toast fires only once
+	escapeNotice: boolean?, -- so the "you escaped" toast fires only once
 }
 
 type Socket = {

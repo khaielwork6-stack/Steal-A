@@ -30,6 +30,16 @@ local stealLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.StealRequest)
 local notify: (Player, string, string) -> () = function() end
 local onDelivered: (Player, LootService.LootInstance) -> () = function() end
 
+--- Injected from init rather than required, so GuardianService can depend on
+--- CarryService without the two forming a require cycle.
+local isZoneBusy: (number) -> boolean = function()
+	return false
+end
+
+function CarryService.setZoneBusyCheck(fn: (number) -> boolean)
+	isZoneBusy = fn
+end
+
 function CarryService.setNotifier(fn: (Player, string, string) -> ())
 	notify = fn
 end
@@ -183,6 +193,12 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 
 	if BaseService.isFull(player) then
 		return "BASE FULL - sell something or upgrade your base."
+	end
+
+	-- One chase per zone: the single zone guardian cannot hold two targets, so
+	-- a second theft here waits until it has fully reset.
+	if isZoneBusy(loot.zoneIndex) then
+		return "The guard is already chasing someone here!"
 	end
 
 	return nil
