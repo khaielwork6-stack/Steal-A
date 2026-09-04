@@ -12,8 +12,6 @@ local Players = game:GetService("Players")
 -- Creates ReplicatedStorage.Remotes before any client tries to wait on it.
 require(ReplicatedStorage.Shared.Remotes)
 
-local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-
 local Services = script.Services
 local DataService = require(Services.DataService)
 local EconomyService = require(Services.EconomyService)
@@ -23,6 +21,8 @@ local LootService = require(Services.LootService)
 local CarryService = require(Services.CarryService)
 local GuardianService = require(Services.GuardianService)
 local PlacementService = require(Services.PlacementService)
+local SpeedService = require(Services.SpeedService)
+local ZoneSignService = require(Services.ZoneSignService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -74,28 +74,14 @@ LootService.start()
 CarryService.start()
 GuardianService.start()
 PlacementService.start()
+SpeedService.start()
+ZoneSignService.start()
 DebugService.start()
 
---- Applies the compressed movement formula. SpeedPower is never assigned to
---- WalkSpeed directly (GDD section 9).
-local function applyMovement(player: Player, character: Model)
-	local humanoid = character:WaitForChild("Humanoid", 10)
-	if not humanoid or not humanoid:IsA("Humanoid") then
-		return
-	end
-	local profile = DataService.waitForProfile(player)
-	if not profile then
-		return
-	end
-	humanoid.WalkSpeed = GameConfig.walkSpeedFromPower(profile.SpeedPower)
-end
-
+-- Movement is owned by SpeedService/CarryService so the compressed formula and
+-- the carry penalty are applied in exactly one place.
 local function onPlayer(player: Player)
-	if player.Character then
-		task.spawn(applyMovement, player, player.Character)
-	end
 	player.CharacterAdded:Connect(function(character)
-		task.spawn(applyMovement, player, character)
 		task.spawn(function()
 			-- Respawns should land the player back on their own plot.
 			task.wait(0.2)
@@ -110,6 +96,7 @@ local function onPlayer(player: Player)
 	task.spawn(function()
 		DataService.waitForProfile(player)
 		EconomyService.recalculate(player)
+		SpeedService.applyMovement(player)
 		StateService.pushNow(player)
 	end)
 end

@@ -221,6 +221,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { incomes = incomes, trophies = trophies }
 	end,
 
+	--- Cheat: flips the flag without paying. Use activateBase for the real path.
 	activate = function(player)
 		local profile = DataService.get(player)
 		if not profile then
@@ -229,6 +230,58 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		profile.BaseActivated = true
 		StateService.pushNow(player)
 		return { activated = true }
+	end,
+
+	activateBase = function(player)
+		local SpeedService = require(script.Parent.SpeedService)
+		local ok, reason = SpeedService.activateBase(player)
+		local profile = DataService.get(player)
+		return {
+			activated = ok,
+			reason = reason,
+			cash = EconomyService.getCash(player),
+			treadmillLevel = profile and profile.TreadmillLevel,
+		}
+	end,
+
+	upgradeTreadmill = function(player)
+		local SpeedService = require(script.Parent.SpeedService)
+		local ok, reason = SpeedService.upgradeTreadmill(player)
+		local profile = DataService.get(player)
+		return {
+			upgraded = ok,
+			reason = reason,
+			level = profile and profile.TreadmillLevel,
+			cash = EconomyService.getCash(player),
+		}
+	end,
+
+	--- Parks the player on their treadmill and reports whether the server agrees.
+	standOnTreadmill = function(player)
+		local SpeedService = require(script.Parent.SpeedService)
+		local plot = BaseService.getPlot(player)
+		local trigger = plot and plot:FindFirstChild("Treadmill") and plot.Treadmill:FindFirstChild("TrainingTrigger")
+		if not trigger then
+			return { error = "no treadmill" }
+		end
+		local character = player.Character
+		if character then
+			character:PivotTo(trigger.CFrame)
+		end
+		task.wait(0.4)
+		return { onTreadmill = SpeedService.isOnOwnTreadmill(player) }
+	end,
+
+	stepOff = function(player)
+		local SpeedService = require(script.Parent.SpeedService)
+		local plot = BaseService.getPlot(player)
+		local trigger = plot and plot.Treadmill.TrainingTrigger
+		local character = player.Character
+		if character and trigger then
+			character:PivotTo(trigger.CFrame * CFrame.new(0, 0, 70))
+		end
+		task.wait(0.4)
+		return { onTreadmill = SpeedService.isOnOwnTreadmill(player) }
 	end,
 
 	clearDisplays = function(player)

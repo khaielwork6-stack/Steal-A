@@ -40,8 +40,13 @@ function NumberFormat.short(value: number): string
 		text = string.format("%.0f", scaled)
 	end
 
-	-- Trim trailing zeros so we show "5K" rather than "5.00K".
-	text = text:gsub("%.?0+$", "")
+	-- Trim trailing zeros so we show "5K" rather than "5.00K" - but ONLY when
+	-- there is a decimal point. Trimming unconditionally turned 250K into 25K
+	-- and 100M into 1M, because it ate the zeros of a whole number.
+	if text:find("%.") then
+		text = text:gsub("0+$", "")
+		text = text:gsub("%.$", "")
+	end
 
 	return (if negative then "-" else "") .. text .. SUFFIXES[tier + 1]
 end
