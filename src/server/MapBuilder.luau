@@ -405,33 +405,8 @@ local function buildZones(map: Instance)
 
 		makeVolume("Entrance", Vector3.new(MapConfig.LANE_WIDTH, 20, 6), CFrame.new(0, 10, startZ), zone)
 
-		local sockets = folder("SpawnSockets", zone)
-		local guards = folder("GuardianSpawns", zone)
-
-		local socketX = MapConfig.LANE_WIDTH * 0.26
-		local guardX = MapConfig.LANE_HALF - 28
-		local rowZ = { startZ + length * 0.29, startZ + length * 0.71 }
-
-		local n = 0
-		for _, z in rowZ do
-			for _, sign in { -1, 1 } do
-				n += 1
-				makeMarker(
-					string.format("Socket%02d", n),
-					Vector3.new(16, 0.6, 16),
-					CFrame.new(sign * socketX, 0.3, z),
-					MapPalette.LootSocket,
-					sockets
-				)
-				makeMarker(
-					string.format("Guard%02d", n),
-					Vector3.new(7, 0.6, 7),
-					CFrame.new(sign * guardX, 0.3, z),
-					MapPalette.SafeLine,
-					guards
-				)
-			end
-		end
+		folder("SpawnSockets", zone)
+		folder("GuardianSpawns", zone)
 
 		if i < MapConfig.ZONE_COUNT then
 			local blend = MapPalette.transition(i)
@@ -444,6 +419,128 @@ local function buildZones(map: Instance)
 				{ a = blend, b = blend:Lerp(Color3.new(0, 0, 0), 0.08), studded = surface.studded, tile = 40 },
 				transitions
 			)
+		end
+	end
+end
+
+-- ==========================================================
+-- LOOT SOCKETS AND GUARDIAN POSTS
+-- ==========================================================
+
+--- True world-axis XZ half-extents of a part, rotation included.
+local function footprintOf(p: BasePart): (number, number)
+	local cf = p.CFrame
+	local sx, sy, sz = p.Size.X / 2, p.Size.Y / 2, p.Size.Z / 2
+	local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+	local hx = math.abs(r.X) * sx + math.abs(u.X) * sy + math.abs(l.X) * sz
+	local hz = math.abs(r.Z) * sx + math.abs(u.Z) * sy + math.abs(l.Z) * sz
+	return hx, hz
+end
+
+--- XZ footprints of everything a socket must stay clear of.
+local function decorationFootprints(zone: Instance): { { x: number, z: number, hx: number, hz: number } }
+	local out = {}
+	local decorations = zone:FindFirstChild("Decorations")
+	if not decorations then
+		return out
+	end
+	for _, p in decorations:GetDescendants() do
+		if p:IsA("BasePart") then
+			local hx, hz = footprintOf(p)
+			table.insert(out, { x = p.Position.X, z = p.Position.Z, hx = hx, hz = hz })
+		end
+	end
+	return out
+end
+
+local function isClear(footprints, x: number, z: number, pad: number): boolean
+	for _, f in footprints do
+		if math.abs(x - f.x) < f.hx + pad and math.abs(z - f.z) < f.hz + pad then
+			return false
+		end
+	end
+	return true
+end
+
+--- Places the four loot sockets and their guardian posts.
+-- Runs AFTER landmarks so a socket can never end up buried inside a pyramid or
+-- pressed against a wall: each one retreats toward the centre until it is clear.
+local function placeSockets(map: Instance)
+	local zones = map.Zones
+	local pad = MapConfig.SOCKET_CLEARANCE
+	local maxX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_INSET_X
+	local minX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_MIN_INSET_X
+
+	for i, def in MapConfig.ZONES do
+		local zone = zones:FindFirstChild(def.id)
+		if not zone then
+			continue
+		end
+
+		local startZ = MapConfig.zoneStartZ(i)
+		local length = MapConfig.zoneLength(i)
+		local sockets = zone.SpawnSockets
+		local guards = zone.GuardianSpawns
+		sockets:ClearAllChildren()
+		guards:ClearAllChildren()
+
+		local footprints = decorationFootprints(zone)
+
+		local n = 0
+		for _, frac in MapConfig.SOCKET_ROW_FRACTIONS do
+			local z = startZ + length * frac
+			for _, sign in { -1, 1 } do
+				n += 1
+
+				-- Retreat inward first; if the whole line is occupied by a big
+				-- landmark, slide along the zone instead of burying the socket.
+				local x, sz = maxX, z
+				while x > minX and not isClear(footprints, sign * x, sz, pad) do
+					x -= 4
+				end
+
+				if not isClear(footprints, sign * x, sz, pad) then
+					local limit = MapConfig.SOCKET_MAX_Z_SHIFT
+					for shift = 8, limit, 8 do
+						for _, dir in { 1, -1 } do
+							local trialX = maxX
+							while trialX > minX and not isClear(footprints, sign * trialX, z + dir * shift, pad) do
+								trialX -= 4
+							end
+							if isClear(footprints, sign * trialX, z + dir * shift, pad) then
+								x, sz = trialX, z + dir * shift
+								break
+							end
+						end
+						if sz ~= z then
+							break
+						end
+					end
+				end
+
+				makeMarker(
+					string.format("Socket%02d", n),
+					Vector3.new(16, 0.6, 16),
+					CFrame.new(sign * x, 0.3, sz),
+					MapPalette.LootSocket,
+					sockets
+				)
+
+				-- Guardian waits outboard of its socket, still inside the lane.
+				local gx = math.min(MapConfig.LANE_WIDTH * MapConfig.GUARD_INSET_X, MapConfig.LANE_HALF - 18)
+				local gz = sz + MapConfig.GUARD_ROW_OFFSET
+				while gx > x and not isClear(footprints, sign * gx, gz, 10) do
+					gx -= 4
+				end
+
+				makeMarker(
+					string.format("Guard%02d", n),
+					Vector3.new(7, 0.6, 7),
+					CFrame.new(sign * gx, 0.3, gz),
+					MapPalette.SafeLine,
+					guards
+				)
+			end
 		end
 	end
 end
@@ -536,18 +633,24 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	fenceRun(-halfW, halfD, -halfW, -halfD)
 	fenceRun(halfW, halfD, halfW, -halfD)
 
-	-- Display slots: two rows of seven, sized for Giant (x3.5) trophies.
+	-- Display slots: two ranks running down the plot's deep axis, sized so a
+	-- Giant (x3.5) trophy still reads as its own exhibit.
 	local slots = folder("DisplaySlots", base)
-	local perRow = MapConfig.DISPLAY_SLOTS_PER_BASE // MapConfig.DISPLAY_SLOT_ROWS
+	local cols = MapConfig.DISPLAY_SLOT_COLS
+	local perCol = MapConfig.DISPLAY_SLOTS_PER_BASE // cols
+	local rankBack = halfD - MapConfig.DISPLAY_BACK_INSET
+	local rankFront = -halfD + MapConfig.DISPLAY_FRONT_RESERVE
+	local rankSpan = rankBack - rankFront
+
 	local n = 0
-	for row = 1, MapConfig.DISPLAY_SLOT_ROWS do
-		local localZ = halfD - MapConfig.DISPLAY_ROW_BACK_INSET - (row - 1) * MapConfig.DISPLAY_ROW_PITCH
-		for col = 1, perRow do
+	for col = 1, cols do
+		local localX = -halfW + layout.width * (col - 0.5) / cols
+		for i = 1, perCol do
 			n += 1
 			local slot = makeMarker(
 				string.format("DisplaySlot%02d", n),
 				MapConfig.DISPLAY_SLOT_SIZE,
-				at(-halfW + layout.width * (col - 0.5) / perRow, 0.5, localZ),
+				at(localX, 0.5, rankBack - rankSpan * (i - 1) / (perCol - 1)),
 				MapPalette.DisplaySlot,
 				slots
 			)
@@ -555,7 +658,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		end
 	end
 
-	local frontZ = -halfD + 30
+	local frontZ = -halfD + 26
 	makePart({
 		name = "BaseActivationPad",
 		size = MapConfig.PAD_SIZE,
@@ -578,7 +681,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
 	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.CFrame = at(0, 0.5, frontZ + 20)
+	spawn.CFrame = at(0, 0.5, frontZ + 16)
 	spawn.Anchored = true
 	spawn.CanCollide = false
 	spawn.Transparency = 1
@@ -608,8 +711,8 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	for _, sign in { -1, 1 } do
 		makePart({
 			name = "Rail",
-			size = Vector3.new(1.6, 9, tSize.Z - 6),
-			cframe = at(sign * (tSize.X / 2 - 0.8), tSize.Y + 4.5, tZ),
+			size = Vector3.new(1.6, 7, tSize.Z - 8),
+			cframe = at(sign * (tSize.X / 2 - 0.8), tSize.Y + 3.5, tZ),
 			color = MapPalette.Treadmill,
 			parent = treadmill,
 			canCollide = false,
@@ -649,7 +752,9 @@ local function buildSpawns(map: Instance)
 	local s = Instance.new("SpawnLocation")
 	s.Name = "LobbySpawn"
 	s.Size = Vector3.new(24, 1, 24)
-	s.CFrame = CFrame.new(0, 0.5, MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH * 0.3)
+	-- Sits just inside the plaza mouth: a new player sees the bases behind them,
+	-- the treadmills beside them and the Zone 01 entrance straight ahead.
+	s.CFrame = CFrame.new(0, 0.5, MapConfig.PLAZA_FRONT_Z - 40)
 	s.Anchored = true
 	s.CanCollide = false
 	s.Transparency = 0.5
@@ -678,7 +783,11 @@ function MapBuilder.build(): Folder
 	buildBases(map)
 	buildSpawns(map)
 	folder("Decorations", map)
+
+	-- Landmarks first, then sockets, so loot spawns can be validated against the
+	-- scenery that actually exists rather than against assumed clear ground.
 	MapLandmarks.build(map)
+	placeSockets(map)
 
 	local parts = 0
 	for _, d in map:GetDescendants() do

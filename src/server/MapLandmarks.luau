@@ -18,6 +18,11 @@ local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local MapLandmarks = {}
 
+-- Every size and offset below was authored against the original 320-wide lane.
+-- Applying the config's scale at the leaf keeps silhouettes proportional and
+-- inside the walls whenever the lane is resized, without retuning 400 numbers.
+local S = MapConfig.LANDMARK_SCALE
+
 local function rgb(r: number, g: number, b: number): Color3
 	return Color3.fromRGB(r, g, b)
 end
@@ -38,7 +43,7 @@ local function facing(ctx: Ctx, offset: Vector3, yaw: number): Ctx
 	return {
 		parent = ctx.parent,
 		origin = ctx.origin,
-		frame = ctx.frame * CFrame.new(offset) * CFrame.Angles(0, math.rad(yaw), 0),
+		frame = ctx.frame * CFrame.new(offset * S) * CFrame.Angles(0, math.rad(yaw), 0),
 	}
 end
 
@@ -54,7 +59,7 @@ local function shape(
 ): Part
 	local p = Instance.new("Part")
 	p.Name = name
-	p.Size = size
+	p.Size = size * S
 	p.Anchored = true
 	p.CanCollide = true
 	p.Color = color
@@ -64,7 +69,7 @@ local function shape(
 	if shapeType then
 		p.Shape = shapeType
 	end
-	p.CFrame = ctx.frame * CFrame.new(offset) * (rotation or CFrame.identity)
+	p.CFrame = ctx.frame * CFrame.new(offset * S) * (rotation or CFrame.identity)
 	p.Parent = ctx.parent
 	return p
 end
@@ -84,18 +89,6 @@ end
 --- Upright cylinder (Roblox cylinders are built along X, so rotate them).
 local function pillar(ctx: Ctx, name: string, diameter: number, height: number, offset: Vector3, color: Color3, material: Enum.Material?): Part
 	return cyl(ctx, name, Vector3.new(height, diameter, diameter), offset, color, material, CFrame.Angles(0, 0, math.rad(90)))
-end
-
-local function wedge(ctx: Ctx, name: string, size: Vector3, offset: Vector3, color: Color3, rot: CFrame?): WedgePart
-	local p = Instance.new("WedgePart")
-	p.Name = name
-	p.Size = size
-	p.Anchored = true
-	p.Color = color
-	p.Material = Enum.Material.SmoothPlastic
-	p.CFrame = ctx.frame * CFrame.new(offset) * (rot or CFrame.identity)
-	p.Parent = ctx.parent
-	return p
 end
 
 --- Stepped pyramid / ziggurat, built from shrinking boxes.
@@ -468,11 +461,33 @@ function MapLandmarks.build(map: Instance)
 
 		builders[i](ctx)
 
-		-- Landmarks are scenery: never let them cast expensive shadows or block
-		-- the loot sockets they sit beside.
-		for _, d in decorations:GetDescendants() do
-			if d:IsA("BasePart") then
-				d.CastShadow = false
+		-- Nudge each side's landmark inward as a group if anything overhangs the
+		-- containment wall. Shifting per side rather than per part keeps a
+		-- composite landmark (hull, masts, sails) aligned with itself.
+		local limit = MapConfig.LANE_HALF - 3
+		local overflow = { [-1] = 0, [1] = 0 }
+		for _, p in decorations:GetDescendants() do
+			if p:IsA("BasePart") then
+				local cf, s = p.CFrame, p.Size
+				local hx = math.abs(cf.RightVector.X) * s.X / 2
+					+ math.abs(cf.UpVector.X) * s.Y / 2
+					+ math.abs(cf.LookVector.X) * s.Z / 2
+				local side = if p.Position.X < 0 then -1 else 1
+				local over = math.abs(p.Position.X) + hx - limit
+				if over > overflow[side] then
+					overflow[side] = over
+				end
+			end
+		end
+
+		for _, p in decorations:GetDescendants() do
+			if p:IsA("BasePart") then
+				local side = if p.Position.X < 0 then -1 else 1
+				if overflow[side] > 0 then
+					p.CFrame = p.CFrame + Vector3.new(-side * overflow[side], 0, 0)
+				end
+				-- Landmarks are scenery: no expensive shadows.
+				p.CastShadow = false
 				total += 1
 			end
 		end

@@ -32,9 +32,13 @@ MapConfig.DISPLAY_SLOT_ROWS = 2
 -- ==========================================================
 -- Reference zones read noticeably wider than they are deep; keep WIDTH/LENGTH
 -- around 1.45 so each zone is a broad shallow band rather than a square room.
-MapConfig.LANE_WIDTH = 320 -- interior, wall face to wall face
-MapConfig.ZONE_LENGTH = 220 -- depth of Zone 01; every later zone scales off this
-MapConfig.TRANSITION_DEPTH = 40 -- blend strip between two zones
+-- Gameplay compression pass: the world was correct visually but unplayable at
+-- the starting Speed of 10 (~18.3 WalkSpeed). Zone dimensions are the previous
+-- values x0.70; the Zone 01 -> Zone 12 escalation curve below is untouched, so
+-- the whole curve simply moved down together.
+MapConfig.LANE_WIDTH = 256 -- interior, wall face to wall face
+MapConfig.ZONE_LENGTH = 154 -- depth of Zone 01; every later zone scales off this
+MapConfig.TRANSITION_DEPTH = 28 -- blend strip between two zones
 MapConfig.FLOOR_THICKNESS = 4
 
 -- Progression escalation: each zone is slightly longer than the last so late-game
@@ -69,7 +73,7 @@ MapConfig.WALL_CAP_OVERHANG = 2
 -- ==========================================================
 -- SAFE ZONE
 -- ==========================================================
-MapConfig.SAFE_ZONE_DEPTH = 220 -- open apron between plaza mouth and the line
+MapConfig.SAFE_ZONE_DEPTH = 55 -- open apron between plaza mouth and the line
 MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 
 -- ==========================================================
@@ -78,23 +82,45 @@ MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 -- The plaza is wider than the lane so seven plots fit without crowding the
 -- central sightline. Corridor width is kept equal to LANE_WIDTH so a player
 -- standing at the back of the plaza looks straight down the whole world.
-MapConfig.PLAZA_CORRIDOR_WIDTH = 320
-MapConfig.PLOT_DEPTH = 170 -- plot extent along its inward-facing axis
-MapConfig.PLOT_WIDTH = 220 -- plot extent across its inward-facing axis
-MapConfig.PLOT_GAP = 30 -- clear space between neighbouring side plots
+-- Lobby compression: travel distance here was the worst offender, so the plaza
+-- lost its empty depth rather than its usable plot area. Plots kept their room
+-- by trading Z-frontage for X-depth (100 x 240 = 24k studs of floor each), and
+-- the three rows per side now sit almost shoulder to shoulder.
+MapConfig.PLAZA_CORRIDOR_WIDTH = 200
+MapConfig.PLOT_DEPTH = 210 -- plot extent along its inward-facing axis
+MapConfig.PLOT_WIDTH = 84 -- plot extent across its inward-facing axis
+MapConfig.PLOT_GAP = 4 -- clear space between neighbouring side plots
 MapConfig.PLOTS_PER_SIDE = 3 -- 3 left + 3 right + 1 head = 7
-MapConfig.HEAD_PLOT_WIDTH = 320
-MapConfig.HEAD_PLOT_DEPTH = 170
+MapConfig.HEAD_PLOT_WIDTH = 256
+MapConfig.HEAD_PLOT_DEPTH = 100
 
 -- Per-base furniture
-MapConfig.TREADMILL_SIZE = Vector3.new(16, 3, 34)
-MapConfig.TREADMILL_STANDOFF = 30 -- distance from plot edge out into the corridor
-MapConfig.PAD_SIZE = Vector3.new(14, 1, 14)
-MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(22, 1, 22)
-MapConfig.DISPLAY_ROW_BACK_INSET = 35 -- first row, measured from plot back edge
-MapConfig.DISPLAY_ROW_PITCH = 60 -- gap between the two display rows
+-- Deliberately under the ~2-stud humanoid step height: players must be able to
+-- walk straight onto the treadmill, and Base07's sits in the middle of the
+-- corridor where everyone else walks past it.
+MapConfig.TREADMILL_SIZE = Vector3.new(14, 1.6, 28)
+MapConfig.TREADMILL_STANDOFF = 18 -- distance from plot edge out into the corridor
+MapConfig.PAD_SIZE = Vector3.new(12, 1, 12)
+
+-- Display slots run as two long ranks down the plot's deep axis, which both fits
+-- the new footprint and shows a collection off better to anyone walking past.
+MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(20, 1, 20)
+MapConfig.DISPLAY_SLOT_COLS = 2 -- ranks across the plot width
+MapConfig.DISPLAY_BACK_INSET = 18 -- first slot, measured from the plot back edge
+MapConfig.DISPLAY_FRONT_RESERVE = 50 -- room kept clear at the front for pads/spawn
+
 MapConfig.SAFE_ZONE_HEIGHT = 60
-MapConfig.SAFE_ZONE_CORRIDOR_BLEED = 70 -- how far the safe volume reaches past the plot
+MapConfig.SAFE_ZONE_CORRIDOR_BLEED = 50 -- how far the safe volume reaches past the plot
+
+-- Loot socket / guardian placement, as fractions of the zone footprint. Kept in
+-- config so shrinking a zone never leaves spawns at stale world coordinates.
+MapConfig.SOCKET_INSET_X = 0.28 -- of LANE_WIDTH, either side of centre
+MapConfig.SOCKET_ROW_FRACTIONS = { 0.25, 0.75 } -- of zone length
+MapConfig.SOCKET_CLEARANCE = 18 -- studs of free space required around a socket
+MapConfig.SOCKET_MIN_INSET_X = 0.12 -- how far inward a blocked socket may retreat
+MapConfig.SOCKET_MAX_Z_SHIFT = 44 -- last resort: slide along the zone instead
+MapConfig.GUARD_INSET_X = 0.36 -- of LANE_WIDTH
+MapConfig.GUARD_ROW_OFFSET = -14 -- studs behind the socket it serves
 
 -- ==========================================================
 -- ZONES
@@ -117,6 +143,10 @@ MapConfig.ZONES = {
 -- ==========================================================
 -- DERIVED GEOMETRY
 -- ==========================================================
+-- Landmarks were authored against a 320-wide lane. Scaling them by the width
+-- ratio keeps every silhouette inside the walls after a lane resize.
+MapConfig.LANDMARK_SCALE = MapConfig.LANE_WIDTH / 320
+
 MapConfig.PLAZA_WIDTH = MapConfig.PLAZA_CORRIDOR_WIDTH + 2 * MapConfig.PLOT_DEPTH
 
 MapConfig.PLAZA_SIDE_RUN = MapConfig.PLOTS_PER_SIDE * MapConfig.PLOT_WIDTH
