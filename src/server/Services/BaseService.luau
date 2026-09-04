@@ -63,19 +63,31 @@ function BaseService.getOwner(plot: Instance): Player?
 	return owners[plot]
 end
 
+--- Vertical tolerance around the plot floor. Deliberately generous: whether a
+--- player is home is a question about the ground they are standing on, not
+--- about the exact height of an invisible volume. Testing Y against the part
+--- made placement silently fail when a SafeZone part drifted upward.
+local SAFE_ZONE_VERTICAL_TOLERANCE = 80
+
 --- Resolves the plot a position sits inside, if any. Used by safe-zone checks.
 function BaseService.plotAt(position: Vector3): Instance?
 	for plot in owners do
 		local safe = plot:FindFirstChild("SafeZone")
 		if safe and safe:IsA("BasePart") then
-			local local_ = safe.CFrame:PointToObjectSpace(position)
+			-- Footprint test in the volume's own frame so plot rotation is honoured.
+			local offset = safe.CFrame:PointToObjectSpace(position)
 			local half = safe.Size / 2
-			if
-				math.abs(local_.X) <= half.X
-				and math.abs(local_.Y) <= half.Y
-				and math.abs(local_.Z) <= half.Z
-			then
-				return plot
+			if math.abs(offset.X) <= half.X and math.abs(offset.Z) <= half.Z then
+				-- Height is measured from the plot's own floor, not the volume.
+				local floorY = 0
+				local floor = plot:FindFirstChild("PlotFloor")
+				local slab = floor and floor:FindFirstChild("Slab")
+				if slab and slab:IsA("BasePart") then
+					floorY = slab.Position.Y + slab.Size.Y / 2
+				end
+				if math.abs(position.Y - floorY) <= SAFE_ZONE_VERTICAL_TOLERANCE then
+					return plot
+				end
 			end
 		end
 	end

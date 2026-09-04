@@ -46,6 +46,14 @@ GameConfig.DROPPED_RECLAIM_WINDOW = 8 -- before a PvP drop returns to origin
 GameConfig.GLOBAL_REFRESH_INTERVAL = 300
 GameConfig.GLOBAL_REFRESH_WARNING = 10
 
+-- Tutorial (GDD section 4). The first steal is guaranteed so a brand new player
+-- always meets the same, winnable opening: a Normal/Normal Ancient Vase.
+GameConfig.TUTORIAL_ITEM_ID = "Museum_AncientVase"
+GameConfig.TUTORIAL_ZONE = 1
+GameConfig.TUTORIAL_SOCKET = 1
+GameConfig.TUTORIAL_NEXT_GOAL_SPEED = 900 -- the "Reach 900 Speed" quest chip
+GameConfig.TUTORIAL_FINISH_DELAY = 9 -- seconds the zone-2 pointer stays up
+
 -- Anti-exploit: max accepted requests per player per second, per remote.
 GameConfig.RATE_LIMITS = {
 	StealRequest = 4,

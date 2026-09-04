@@ -9,9 +9,11 @@
 local HUDController = require(script.Controllers.HUDController)
 local GuardianFxController = require(script.Controllers.GuardianFxController)
 local BasePromptController = require(script.Controllers.BasePromptController)
+local TutorialController = require(script.Controllers.TutorialController)
 
 HUDController.start()
 GuardianFxController.start()
 BasePromptController.start()
+TutorialController.start()
 
 print("[Client] controllers started")

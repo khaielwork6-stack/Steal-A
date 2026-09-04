@@ -23,6 +23,7 @@ local GuardianService = require(Services.GuardianService)
 local PlacementService = require(Services.PlacementService)
 local SpeedService = require(Services.SpeedService)
 local ZoneSignService = require(Services.ZoneSignService)
+local TutorialService = require(Services.TutorialService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -76,6 +77,7 @@ GuardianService.start()
 PlacementService.start()
 SpeedService.start()
 ZoneSignService.start()
+TutorialService.start()
 DebugService.start()
 
 -- Movement is owned by SpeedService/CarryService so the compressed formula and

@@ -391,6 +391,59 @@ function LootService.get(lootId: string): LootInstance?
 	return byId[lootId]
 end
 
+--- Pins a specific item into a socket, used for the tutorial's guaranteed
+--- Ancient Vase. Refuses if the socket is mid-steal so a player escaping with
+--- something can never have it swapped out from under them. Returns the
+--- instance now sitting in the socket, or nil if it could not be forced.
+function LootService.forceSocket(
+	zoneIndex: number,
+	socketIndex: number,
+	itemId: string,
+	sizeId: string,
+	mutationId: string
+): LootInstance?
+	local socket = LootService.getSocket(zoneIndex, socketIndex)
+	if not socket then
+		return nil
+	end
+
+	local current = socket.loot
+	if current then
+		if current.state ~= "Spawned" then
+			return nil -- reserved or being carried; leave it alone
+		end
+		if current.itemId == itemId and current.size == sizeId and current.mutation == mutationId then
+			return current -- already correct
+		end
+		despawn(current)
+		byId[current.id] = nil
+		socket.loot = nil
+	end
+
+	local def = LootConfig.ById[itemId]
+	if not def then
+		return nil
+	end
+
+	local loot: LootInstance = {
+		id = HttpService:GenerateGUID(false),
+		itemId = def.id,
+		name = def.name,
+		zoneIndex = zoneIndex,
+		socketIndex = socketIndex,
+		rarity = def.rarity,
+		size = sizeId,
+		mutation = mutationId,
+		baseIncome = def.income,
+		finalIncome = RarityConfig.finalIncome(def.income, sizeId, mutationId),
+		state = "Spawned",
+	}
+
+	byId[loot.id] = loot
+	materialise(socket, loot)
+	return loot
+end
+
 function LootService.getSocket(zoneIndex: number, socketIndex: number): Socket?
 	local zone = sockets[zoneIndex]
 	return if zone then zone[socketIndex] else nil

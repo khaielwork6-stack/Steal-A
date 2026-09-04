@@ -26,6 +26,14 @@ local StateService = {}
 
 local dirty: { [Player]: boolean } = {}
 
+--- TutorialService installs itself here rather than being required, so the two
+--- services do not form a cycle (TutorialService needs pushNow).
+local tutorialProvider: ((Player) -> any)? = nil
+
+function StateService.setTutorialProvider(fn: (Player) -> any)
+	tutorialProvider = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -43,6 +51,7 @@ export type ClientState = {
 	highestZone: number,
 	indexCount: number,
 	plotName: string?,
+	tutorial: any?,
 }
 
 local function build(player: Player): ClientState?
@@ -77,6 +86,7 @@ local function build(player: Player): ClientState?
 		highestZone = profile.HighestZoneReached,
 		indexCount = discovered,
 		plotName = if plot then plot.Name else nil,
+		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
 	}
 end
 

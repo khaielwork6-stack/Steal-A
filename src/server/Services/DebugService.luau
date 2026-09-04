@@ -171,6 +171,39 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return LootService.snapshot()
 	end,
 
+	tutorial = function(player)
+		local TutorialService = require(script.Parent.TutorialService)
+		local profile = DataService.get(player)
+		local state = TutorialService.getState(player)
+		return {
+			savedStage = profile and profile.TutorialStage,
+			derivedStage = TutorialService.deriveStage(player),
+			objective = state and state.objective,
+			hint = state and state.hint,
+			chip = state and state.chip,
+			hasTarget = state ~= nil and state.target ~= nil,
+		}
+	end,
+
+	--- Wipes progress the way a fresh account looks, to re-run the tutorial.
+	resetTutorial = function(player)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		profile.TutorialStage = 0
+		profile.Index = {}
+		profile.DisplayItems = {}
+		profile.Cash = 0
+		profile.SpeedPower = 10
+		profile.BaseActivated = false
+		profile.TreadmillLevel = 0
+		BaseService.rebuildDisplays(player)
+		EconomyService.recalculate(player)
+		StateService.pushNow(player)
+		return { reset = true }
+	end,
+
 	--- Runs the real placement path (validation included) into a chosen slot.
 	place = function(player, slotIndex: number?)
 		local PlacementService = require(script.Parent.PlacementService)
