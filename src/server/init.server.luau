@@ -19,6 +19,9 @@ local DataService = require(Services.DataService)
 local EconomyService = require(Services.EconomyService)
 local BaseService = require(Services.BaseService)
 local StateService = require(Services.StateService)
+local LootService = require(Services.LootService)
+local CarryService = require(Services.CarryService)
+local GuardianService = require(Services.GuardianService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -27,6 +30,34 @@ DataService.start()
 EconomyService.start()
 BaseService.start()
 StateService.start()
+
+-- Cross-service wiring is done here so the services themselves stay decoupled.
+CarryService.setNotifier(function(player, kind, message)
+	StateService.notify(player, kind, message)
+end)
+
+CarryService.setDeliveredHandler(function(player, loot)
+	-- Reaching your own safe zone permanently clears the guardian for this item.
+	-- Placement itself is a deliberate player action, never automatic.
+	if loot.state ~= "Carried" then
+		return
+	end
+	GuardianService.stopChaseFor(loot)
+	if not loot.deliveredNotice then
+		loot.deliveredNotice = true
+		StateService.notify(player, "success", `Safe! Place the {loot.name} on a display slot.`)
+	end
+end)
+
+LootService.refreshWarning = function()
+	for _, player in Players:GetPlayers() do
+		StateService.notify(player, "info", "LOOT REFRESH in 10s")
+	end
+end
+
+LootService.start()
+CarryService.start()
+GuardianService.start()
 DebugService.start()
 
 --- Applies the compressed movement formula. SpeedPower is never assigned to

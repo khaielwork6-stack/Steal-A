@@ -24,6 +24,8 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local BaseService = require(script.Parent.BaseService)
 local StateService = require(script.Parent.StateService)
+local LootService = require(script.Parent.LootService)
+local CarryService = require(script.Parent.CarryService)
 
 local DebugService = {}
 
@@ -105,6 +107,68 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		EconomyService.award(player, amount)
 		StateService.pushNow(player)
 		return { cash = EconomyService.getCash(player) }
+	end,
+
+	--- Teleports next to a socket and runs the real steal path, prompt aside.
+	steal = function(player, zoneIndex: number, socketIndex: number?)
+		local socket = LootService.getSocket(zoneIndex, socketIndex or 1)
+		if not socket then
+			return { error = "no such socket" }
+		end
+		local loot = socket.loot
+		if not loot then
+			return { error = "socket is empty" }
+		end
+
+		local character = player.Character
+		if character then
+			character:PivotTo(socket.part.CFrame * CFrame.new(0, 4, 6))
+			task.wait(0.35)
+		end
+
+		local ok = CarryService.trySteal(player, loot)
+		return {
+			accepted = ok,
+			item = loot.name,
+			rarity = loot.rarity,
+			variant = `{loot.size}/{loot.mutation}`,
+			income = loot.finalIncome,
+			state = loot.state,
+		}
+	end,
+
+	carry = function(player)
+		local loot = CarryService.getCarried(player)
+		if not loot then
+			return { carrying = false }
+		end
+		local humanoid = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		return {
+			carrying = true,
+			item = loot.name,
+			state = loot.state,
+			size = loot.size,
+			walkSpeed = if humanoid then humanoid.WalkSpeed else -1,
+		}
+	end,
+
+	--- Drops the player next to their own base so the safe-zone stop can be seen.
+	goHome = function(player)
+		local plot = BaseService.getPlot(player)
+		local spawn = plot and plot:FindFirstChild("Spawn")
+		if not spawn or not spawn:IsA("BasePart") then
+			return { error = "no plot" }
+		end
+		local character = player.Character
+		if character then
+			character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
+		end
+		task.wait(0.5)
+		return { inOwnSafeZone = BaseService.isInOwnSafeZone(player) }
+	end,
+
+	lootSnapshot = function()
+		return LootService.snapshot()
 	end,
 
 	clearDisplays = function(player)
