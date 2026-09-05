@@ -562,6 +562,30 @@ nothing about tiers, so an upgrade is a pure model swap against a fixed frame.
 Verified across all nine: belt length 13.00, belt plane 1.60, player stands at
 4.60, footprint centred to 0.00, all facing the same way, zero colliding parts.
 
+### Farming feel
+
+`TreadmillController` (client) makes standing on a treadmill look like training.
+It GRANTS NOTHING - SpeedService remains the only thing that awards SpeedPower.
+
+- **Detection is local.** The client runs the same oriented-box test against the
+  same `TrainingTrigger` the server uses, so it reacts on the first frame with no
+  "you are training" remote. The server keeps its own independent check, so a
+  tampered client changes what it SEES and never what it earns.
+- **The centre hold is soft.** The player is eased to the belt centre and turned
+  to face along it, but ONLY while `Humanoid.MoveDirection` is zero. The instant
+  they push a key the hold releases, so walking off is immediate and the controls
+  are never fought. A hard lock would trap them.
+- **The animation is the player's own**, read out of `character.Animate.run.RunAnim`
+  and played at `Action` priority so it beats the idle animation. Deliberately not
+  a shipped animation id - that is one more asset that can come back "not approved
+  for the requester", as the lobby music did.
+- **Popups show the REAL granted delta**, observed from `StatePush.speedPower`,
+  never predicted from config - so they cannot drift from what was actually
+  awarded, and a refused tick shows nothing. Gains arriving faster than
+  `POPUP_MIN_INTERVAL` are summed into one popup rather than stacked, which is
+  what keeps it from becoming spam. They spawn to alternating SIDES: directly
+  overhead is where the tier label lives and the two used to collide.
+
 ### Upgrades preview
 
 `UpgradesController.fillViewport(target, level)` builds from the SAME library and

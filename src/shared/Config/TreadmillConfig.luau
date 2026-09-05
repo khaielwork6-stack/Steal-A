@@ -51,6 +51,33 @@ TreadmillConfig.STANDARD_DECK_HEIGHT = 1.6
 TreadmillConfig.DECK_SIZE = Vector3.new(12, 1.6, 13.6)
 TreadmillConfig.TRIGGER_SIZE = Vector3.new(12, 12, 13.6)
 
+-- ==========================================================
+-- FARMING FEEL (client-side presentation only)
+-- ==========================================================
+--
+-- None of this touches the reward. SpeedService remains the only thing that
+-- grants SpeedPower, on its own server tick, and every number shown to the
+-- player is read back from real state rather than predicted.
+
+--- How close to the belt centre a standing player is held, and how quickly.
+--- The hold only applies while the player is giving NO movement input, so
+--- walking off is always instant and never fights the controls.
+TreadmillConfig.CENTRE_SNAP_SPEED = 9 -- studs/sec of correction
+TreadmillConfig.CENTRE_TURN_SPEED = 10 -- radians/sec of turn toward forward
+TreadmillConfig.CENTRE_DEADZONE = 0.05 -- studs; below this, stop correcting
+
+--- Playback rate of the borrowed run animation. Slightly above 1 reads as
+--- effort without looking sped-up.
+TreadmillConfig.RUN_ANIMATION_SPEED = 1.15
+
+--- Floating "+N Speed" text.
+TreadmillConfig.POPUP_MIN_INTERVAL = 0.35 -- seconds between popups; gains between are summed
+TreadmillConfig.POPUP_RISE = 3.0 -- studs travelled upward
+TreadmillConfig.POPUP_LIFETIME = 0.9 -- seconds from spawn to gone
+TreadmillConfig.POPUP_MAX_CONCURRENT = 6 -- hard cap, so nothing can ever pile up
+TreadmillConfig.POPUP_SIDE_OFFSET = 3.0 -- studs out to the side, clear of the treadmill label
+TreadmillConfig.POPUP_START_HEIGHT = 0.6 -- studs above the root; the tier label lives far higher up
+
 export type Tier = {
 	level: number,
 	name: string,
