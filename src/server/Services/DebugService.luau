@@ -1092,6 +1092,24 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Sets SpeedPower directly, so the "a player below the gate gets caught, a
+	--- player at the gate escapes" acceptance test can be run without grinding a
+	--- treadmill for it. Server-side only, exactly like every other grant.
+	setSpeed = function(player, power: number)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		profile.SpeedPower = math.max(GameConfig.STARTING_SPEED_POWER, math.floor(power or 10))
+		require(script.Parent.SpeedService).applyMovement(player)
+		StateService.pushNow(player)
+		local humanoid = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		return {
+			speedPower = profile.SpeedPower,
+			walkSpeed = if humanoid then humanoid.WalkSpeed else -1,
+		}
+	end,
+
 	--- Inspects, resets, or attacks the one-time tutorial Cash bridge.
 	---   Invoke("bridge")                report the flag
 	---   Invoke("bridge", nil, "reset")  clear it, to re-run onboarding

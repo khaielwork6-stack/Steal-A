@@ -165,14 +165,27 @@ local function localExtents(model: Model, frame: CFrame): (Vector3?, Vector3?)
 	return min, max
 end
 
---- Which end of the deck a treadmill's console should sit at. Six of the nine
---- models were authored this way round, so this is simply the majority; flipping
---- it turns every treadmill in the game at once.
+--- Which end of the deck a treadmill's console should sit at.
+---
+--- MEASURED, AND IT DOES NOT CURRENTLY FIRE. Every one of the nine models is a
+--- single MeshPart, so `tallestEndZ` below can only see the mesh's BOUNDING BOX,
+--- whose corners are symmetric by definition. It therefore returns the same
+--- value (-6.5, half the box depth) for all nine, the flip condition is never
+--- met, and every model simply keeps the yaw the long-axis pass left it at.
+---
+--- That is fine in practice - the nine were authored consistently, so they all
+--- end up the same way round - but do not believe this step is normalising
+--- anything until the models stop being single meshes. It would start working
+--- the moment a model arrives with real sub-parts.
+---
+--- The direction the PLAYER faces is deliberately NOT derived from here for the
+--- same reason: see TreadmillConfig.PLAYER_FACING_SIGN.
 TreadmillModel.FRONT_SIGN = -1
 
 --- Where the model's highest point sits along the deck axis, measured from the
---- model's OWN centre. A treadmill's tallest feature is its console, arch or
---- halo, which is what identifies the front.
+--- model's OWN centre. On a multi-part model a treadmill's tallest feature is
+--- its console, arch or halo, which is what identifies the front. On a single
+--- MeshPart it is only ever a bounding-box corner - see FRONT_SIGN.
 ---
 --- Relative to the model's centre, NOT to the deck's origin: this runs before
 --- the model has been moved onto the deck, so an absolute measurement would be

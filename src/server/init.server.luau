@@ -52,6 +52,13 @@ end)
 
 CarryService.setZoneBusyCheck(GuardianService.isZoneBusy)
 
+-- The DROP button lives on StatePush, so a steal has to push immediately rather
+-- than waiting for the next thing that happens to dirty the state.
+StateService.setCarryProvider(CarryService.summariseCarry)
+CarryService.setCarryChangedHandler(function(player)
+	StateService.pushNow(player)
+end)
+
 -- A catch reclaims the loot; the launch itself is GuardianService's job.
 GuardianService.setCatchHandler(function(loot)
 	CarryService.reclaim(loot)

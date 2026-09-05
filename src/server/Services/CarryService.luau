@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local LootService = require(script.Parent.LootService)
 local BaseService = require(script.Parent.BaseService)
@@ -26,6 +27,7 @@ local CarryService = {}
 
 local carrying: { [Player]: LootService.LootInstance } = {}
 local stealLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.StealRequest)
+local dropLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.DropLootRequest)
 
 local notify: (Player, string, string) -> () = function() end
 local onDelivered: (Player, LootService.LootInstance) -> () = function() end
@@ -44,6 +46,17 @@ function CarryService.setNotifier(fn: (Player, string, string) -> ())
 	notify = fn
 end
 
+--- Called whenever `carrying[player]` gains or loses an entry, so the DROP
+--- button appears on the same frame the steal lands rather than on whatever
+--- unrelated change happens to dirty the state next. Injected rather than
+--- required for the same reason as `notify`: StateService must not become a
+--- dependency of this file.
+local onCarryChanged: (Player) -> () = function() end
+
+function CarryService.setCarryChangedHandler(fn: (Player) -> ())
+	onCarryChanged = fn
+end
+
 --- Called when a carrier crosses into their own safe zone. TutorialService and
 --- the placement flow hook this.
 function CarryService.setDeliveredHandler(fn: (Player, LootService.LootInstance) -> ())
@@ -52,6 +65,36 @@ end
 
 function CarryService.getCarried(player: Player): LootService.LootInstance?
 	return carrying[player]
+end
+
+--- What StatePush tells the client about the carry. Deliberately a summary, not
+--- the instance: the client needs to know THAT it is carrying something and what
+--- to call it, and nothing else it could be tempted to act on.
+export type CarrySummary = { name: string, rarity: string }
+
+function CarryService.summariseCarry(player: Player): CarrySummary?
+	local loot = carrying[player]
+	if not loot then
+		return nil
+	end
+	return { name = loot.name, rarity = loot.rarity }
+end
+
+--- The player's own DROP button.
+---
+--- Routes into the SAME `forceDrop` the PvP bat uses rather than adding a second
+--- drop path: one set of rules for where the item lands, how long it can be
+--- reclaimed, and how it gets home if nobody takes it.
+function CarryService.dropCarried(player: Player): (boolean, string?)
+	if not dropLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+	local loot = carrying[player]
+	if not loot then
+		return false, "You are not carrying anything."
+	end
+	CarryService.forceDrop(loot)
+	return true
 end
 
 -- ==========================================================
@@ -159,6 +202,7 @@ local function clearCarry(player: Player)
 	end
 	carrying[player] = nil
 	CarryService.applyMovement(player)
+	onCarryChanged(player)
 end
 
 -- ==========================================================
@@ -235,6 +279,7 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	-- it; nothing rolls a replacement.
 	LootService.detach(loot)
 	CarryService.applyMovement(player)
+	onCarryChanged(player)
 
 	local profile = DataService.get(player)
 	if profile then
@@ -325,6 +370,7 @@ function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInsta
 	carrying[player] = loot
 	LootService.setState(loot, "Carried")
 	CarryService.applyMovement(player)
+	onCarryChanged(player)
 	notify(player, "info", `Grabbed the {loot.name}!`)
 	return true
 end
@@ -407,9 +453,20 @@ function CarryService.start()
 		end
 	end)
 
+	-- The DROP button. No payload: the server already knows what this player is
+	-- carrying, and letting the client name a target would be handing it a
+	-- decision it has no business making.
+	Remotes.get("DropLootRequest").OnServerEvent:Connect(function(player)
+		local ok, reason = CarryService.dropCarried(player)
+		if not ok and reason then
+			notify(player, "error", reason)
+		end
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		CarryService.releaseCarry(player)
 		stealLimiter:release(player)
+		dropLimiter:release(player)
 	end)
 
 	local function hookCharacter(player: Player, character: Model)

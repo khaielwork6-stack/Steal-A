@@ -66,6 +66,35 @@ TreadmillConfig.CENTRE_SNAP_SPEED = 9 -- studs/sec of correction
 TreadmillConfig.CENTRE_TURN_SPEED = 10 -- radians/sec of turn toward forward
 TreadmillConfig.CENTRE_DEADZONE = 0.05 -- studs; below this, stop correcting
 
+--- Lateral correction is faster than longitudinal. Stepping onto a treadmill,
+--- the thing that reads as wrong is standing off the SIDE of the belt; being a
+--- little forward or back of centre looks fine and correcting it hard feels like
+--- being sucked to a point. Splitting the two is what makes the connection look
+--- deliberate rather than magnetic.
+TreadmillConfig.CENTRE_LATERAL_MULTIPLIER = 2.2
+
+--- Studs back from the deck centre the player settles, toward the rear of the
+--- belt. A real runner stands behind the console, not inside it, and centring on
+--- the deck exactly put the character's chest through the display on the taller
+--- tiers.
+TreadmillConfig.STANCE_OFFSET = 1.6
+
+--- WHICH WAY A RUNNER FACES, as a multiplier on the deck's own LookVector.
+---
+--- THE PLAYER USED TO FACE BACKWARDS and this is the constant that fixes it.
+--- The invisible deck is built by MapBuilder from the plot's frame, so its
+--- LookVector points out toward the corridor. The art is aligned separately, and
+--- for every one of the nine models the console ends up at the OPPOSITE end - so
+--- turning the player to the deck's raw LookVector pointed them at the back of
+--- their own treadmill.
+---
+--- Verified visually on the Rusty tier (the one every player starts on) and by
+--- measuring where the model's console cluster sits relative to the deck. The
+--- nine models are authored consistently, so ONE sign covers all of them -
+--- flipping this turns the player on every tier at once, which is what you want
+--- if a future import arrives the other way round.
+TreadmillConfig.PLAYER_FACING_SIGN = -1
+
 --- Playback rate of the borrowed run animation. Slightly above 1 reads as
 --- effort without looking sped-up.
 TreadmillConfig.RUN_ANIMATION_SPEED = 1.15

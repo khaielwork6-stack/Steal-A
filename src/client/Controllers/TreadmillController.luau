@@ -247,7 +247,16 @@ local function leaveTreadmill()
 	pendingGain = 0
 end
 
---- Eases the player to the middle of the belt, facing along it.
+--- The direction a runner on this deck should be facing, in world space.
+---
+--- The deck's own LookVector points out toward the corridor; the console sits at
+--- the other end. See TreadmillConfig.PLAYER_FACING_SIGN for the whole story and
+--- for the one number to change if a future model is authored the other way.
+local function runDirection(surface: BasePart): Vector3
+	return surface.CFrame.LookVector * TreadmillConfig.PLAYER_FACING_SIGN
+end
+
+--- Eases the player onto the belt, facing the console.
 ---
 --- Only while they are standing still. `MoveDirection` is zero exactly when the
 --- player is giving no input, so the instant they try to walk this stops
@@ -261,13 +270,19 @@ local function holdCentre(root: BasePart, humanoid: Humanoid, dt: number)
 		return
 	end
 
-	-- Target the belt centre, keeping the player's own height so this can never
-	-- shove them into the deck or lift them off it.
-	local target = Vector3.new(surface.Position.X, root.Position.Y, surface.Position.Z)
+	local facing = runDirection(surface)
+
+	-- Settle BEHIND the deck centre rather than on it: a runner stands back from
+	-- the console, and dead centre put the character's chest through the display
+	-- on the taller tiers.
+	local target = surface.Position - facing * TreadmillConfig.STANCE_OFFSET
+	-- Keep the player's own height, so this can never shove them into the deck or
+	-- lift them off it.
+	target = Vector3.new(target.X, root.Position.Y, target.Z)
+
 	local toTarget = target - root.Position
 	local distance = toTarget.Magnitude
 
-	local facing = surface.CFrame.LookVector
 	local current = root.CFrame.LookVector
 	local turned = current:Angle(facing)
 
@@ -275,8 +290,19 @@ local function holdCentre(root: BasePart, humanoid: Humanoid, dt: number)
 		return
 	end
 
-	local ease = math.min(1, TreadmillConfig.CENTRE_SNAP_SPEED * dt / math.max(distance, 0.001))
-	local position = root.Position:Lerp(target, ease)
+	-- Split the correction into "across the belt" and "along the belt" and pull
+	-- the lateral one harder. Standing off the SIDE of the belt is the part that
+	-- reads as broken; being slightly forward or back of the mark does not, and
+	-- correcting both at the same rate feels like being sucked to a point.
+	local right = surface.CFrame.RightVector
+	local lateral = right * toTarget:Dot(right)
+	local along = toTarget - lateral
+
+	local rate = TreadmillConfig.CENTRE_SNAP_SPEED * dt
+	local lateralStep = math.min(1, (rate * TreadmillConfig.CENTRE_LATERAL_MULTIPLIER) / math.max(lateral.Magnitude, 0.001))
+	local alongStep = math.min(1, rate / math.max(along.Magnitude, 0.001))
+
+	local position = root.Position + lateral * lateralStep + along * alongStep
 	local rotation = CFrame.lookAt(Vector3.zero, current):Lerp(
 		CFrame.lookAt(Vector3.zero, facing),
 		math.min(1, TreadmillConfig.CENTRE_TURN_SPEED * dt)

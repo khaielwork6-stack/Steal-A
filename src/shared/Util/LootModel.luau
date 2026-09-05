@@ -135,14 +135,24 @@ local function adopt(source: Instance): Model?
 		return model
 	end
 
-	if source:IsA("Accoutrement") then -- covers both Accessory and the old Hat
+	-- Accoutrement covers Accessory and the old Hat; a Tool is the third thing an
+	-- artist hands over that is neither a Model nor a bare part, and it is shaped
+	-- the same way - the art is the Handle. Both are unwrapped identically.
+	if source:IsA("Accoutrement") or source:IsA("Tool") then
 		local handle = source:FindFirstChild("Handle", true)
+			or source:FindFirstChildWhichIsA("BasePart", true)
 		if handle and handle:IsA("BasePart") then
 			local part = handle:Clone()
-			-- An accessory Handle carries attachments and welds meant for a
-			-- character. On a pedestal they do nothing but can re-parent the part.
-			for _, child in part:GetChildren() do
-				if child:IsA("Attachment") or child:IsA("JointInstance") or child:IsA("WeldConstraint") then
+			-- A Handle carries attachments, welds and (on a Tool) scripts and grip
+			-- data meant for a character. On a pedestal they do nothing but can
+			-- re-parent the part or run code we never asked for.
+			for _, child in part:GetDescendants() do
+				if
+					child:IsA("Attachment")
+					or child:IsA("JointInstance")
+					or child:IsA("WeldConstraint")
+					or child:IsA("BaseScript")
+				then
 					child:Destroy()
 				end
 			end

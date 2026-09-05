@@ -43,6 +43,14 @@ function StateService.setIndexProvider(fn: (Player) -> any)
 	indexProvider = fn
 end
 
+--- And CarryService, so the DROP button can appear the moment a steal succeeds
+--- without inventing a second replication channel for one boolean.
+local carryProvider: ((Player) -> any)? = nil
+
+function StateService.setCarryProvider(fn: (Player) -> any)
+	carryProvider = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -62,6 +70,9 @@ export type ClientState = {
 	index: any?, -- IndexService.Summary: per-zone counts and claim flags only
 	plotName: string?,
 	tutorial: any?,
+	--- { name, rarity } while carrying stolen loot, nil otherwise. Drives the
+	--- DROP button. A summary, never the loot instance.
+	carrying: any?,
 }
 
 local function build(player: Player): ClientState?
@@ -98,6 +109,7 @@ local function build(player: Player): ClientState?
 		index = if indexProvider then indexProvider(player) else nil,
 		plotName = if plot then plot.Name else nil,
 		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
+		carrying = if carryProvider then carryProvider(player) else nil,
 		inventory = profile.Inventory,
 		storageUsed = #profile.Inventory,
 		storageCapacity = StorageConfig.capacityForTier(profile.StorageTier),

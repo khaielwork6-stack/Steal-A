@@ -48,8 +48,15 @@ end
 
 --- Guardians move just under the player who meets the recommendation, so a
 --- Normal-size item is a narrow win and bigger loot demands a Speed buffer.
+--- A player BELOW the recommendation is genuinely slower than the guardian and
+--- is meant to be caught - that is the whole point of the Speed gate, and it
+--- only holds because the guardian steers every frame rather than re-issuing a
+--- goal on a timer (see GuardianService's STEERING section).
 ZoneConfig.GUARDIAN_SPEED_FACTOR = 0.98
+
+--- Catch distance for a zone-1-sized guardian. Later guardians are physically
+--- larger and GuardianService scales this with them, so a fifteen-stud boss does
+--- not have to bury its own model in the player before the catch registers.
 ZoneConfig.GUARDIAN_CATCH_RADIUS = 6
-ZoneConfig.GUARDIAN_REPATH_INTERVAL = 0.4
 
 return ZoneConfig

@@ -235,6 +235,15 @@ end
 
 --- Nearest currently-shown prompt, so walking past a row of slots highlights
 --- only the one the player actually means.
+---
+--- The `prompt:IsDescendantOf(workspace)` test is load-bearing, not defensive
+--- tidiness. `PromptHidden` does NOT fire for a prompt whose part is destroyed -
+--- which is what happens to every piece of loot the moment it is stolen - so a
+--- destroyed prompt stays in `shown`, and a destroyed prompt still reports
+--- `Enabled = true` with a `Parent` that still passes `IsA("BasePart")`. It
+--- therefore kept WINNING this search, and the billboard was handed a target
+--- that is no longer in the world: nothing rendered, while the real prompt the
+--- player was standing next to never got a turn.
 local function pickNearest(): ProximityPrompt?
 	local character = player.Character
 	local origin = character and character:FindFirstChild("HumanoidRootPart")
@@ -245,7 +254,7 @@ local function pickNearest(): ProximityPrompt?
 	local best, bestDistance = nil, math.huge
 	for prompt in shown do
 		local part = prompt.Parent
-		if prompt.Enabled and part and part:IsA("BasePart") then
+		if prompt.Enabled and part and part:IsA("BasePart") and prompt:IsDescendantOf(workspace) then
 			local distance = (part.Position - origin.Position).Magnitude
 			if distance < bestDistance then
 				best, bestDistance = prompt, distance
@@ -350,18 +359,31 @@ local function resetHold()
 end
 
 --- Swaps content in place. Never creates a second billboard.
+---
+--- ORDER MATTERS HERE, and getting it wrong is what made the prompt go
+--- permanently invisible while still being interactable.
+---
+--- `current` used to be assigned BEFORE the liveness check below. So if the
+--- billboard was unavailable for one frame, `current` was already pointing at
+--- the live prompt while nothing had actually been rendered - and the
+--- `prompt == current` guard on the next frame then returned immediately,
+--- forever. The prompt kept working (it is a real ProximityPrompt; holding E
+--- still fired it) and the UI never came back. `current` is now only committed
+--- once the billboard has genuinely been claimed.
 local function apply(prompt: ProximityPrompt?)
 	if prompt == current then
 		return
 	end
-	current = prompt
 
 	local board = billboard
 	-- A destroyed instance is no longer under `game`, and reparenting one throws
-	-- "Parent property is locked". Bail rather than error every frame.
+	-- "Parent property is locked". Bail WITHOUT committing `current`, so the next
+	-- frame tries again instead of latching a target that was never shown.
 	if not board or not board:IsDescendantOf(game) then
 		return
 	end
+
+	current = prompt
 
 	if not prompt then
 		if board.Enabled then
@@ -380,18 +402,16 @@ local function apply(prompt: ProximityPrompt?)
 			end
 
 			task.delay(0.14, function()
-				if token ~= hideToken or current or not billboard then
-					return -- a new prompt took over mid-hide
+				local live = billboard
+				if token ~= hideToken or current or not live or not live:IsDescendantOf(game) then
+					return -- a new prompt took over mid-hide, or we were destroyed
 				end
 				root.Visible = false
 				if scale then
 					scale.Scale = 1
 				end
-				billboard.Enabled = false
-				-- Park it off the world part so a destroyed slot cannot take the
-				-- single shared billboard with it.
-				billboard.Parent = idleParent
-				billboard.Adornee = nil
+				live.Enabled = false
+				live.Adornee = nil
 			end)
 		end
 		return
@@ -401,8 +421,21 @@ local function apply(prompt: ProximityPrompt?)
 	hideToken += 1
 
 	local part = prompt.Parent :: BasePart
+	-- ADORNEE ONLY. NEVER REPARENT THIS INTO THE WORLD.
+	--
+	-- The billboard used to be parented to the target part as well as adorned to
+	-- it, and that is the root cause of the disappearing prompt. Loot models are
+	-- Destroy()ed the instant they are stolen, refreshed or reclaimed, and a
+	-- billboard living inside one is destroyed with it - taking the single shared
+	-- prompt for the whole game with it, permanently, from one steal.
+	--
+	-- A BillboardGui in PlayerGui renders at its Adornee perfectly well, so
+	-- nothing is gained by parenting it into the target and everything is at
+	-- risk. It now stays in PlayerGui for the life of the session.
 	board.Adornee = part
-	board.Parent = part
+	if board.Parent ~= idleParent then
+		board.Parent = idleParent
+	end
 	refreshLift()
 
 	objectLabel.Text = prompt.ObjectText
@@ -498,12 +531,46 @@ function InteractController.start()
 	-- no benefit; four times a second is well under what the eye notices while
 	-- an object is still settling.
 	local nextLiftCheck = 0
+	local nextRebuildAttempt = 0
 
 	RunService.Heartbeat:Connect(function()
+		local now = os.clock()
+
+		-- SELF-HEAL. With the Adornee-only change in apply() nothing routine can
+		-- destroy the billboard any more, but "the prompt is invisible forever"
+		-- is a bad enough failure that it is worth not trusting that. Rate
+		-- limited so a genuinely missing UI pack warns occasionally rather than
+		-- once a frame.
+		if (not billboard or not billboard:IsDescendantOf(game)) and now >= nextRebuildAttempt then
+			nextRebuildAttempt = now + 2
+			billboard = nil
+			current = nil
+			warn("[InteractController] interact billboard went missing - rebuilding it")
+			if not build() then
+				return
+			end
+		end
+
+		local board = billboard
+		if not board then
+			return
+		end
+
+		-- An adornee that has left the world renders nothing. Releasing the
+		-- target here is what lets the next candidate claim the billboard on the
+		-- following frame; without it the controller sits pointed at a destroyed
+		-- part with `current` still set, which looks exactly like a broken prompt.
+		local adornee = board.Adornee
+		if current and adornee and not adornee:IsDescendantOf(workspace) then
+			current = nil
+			board.Enabled = false
+			board.Adornee = nil
+		end
+
 		apply(pickNearest())
 
-		if current and os.clock() >= nextLiftCheck then
-			nextLiftCheck = os.clock() + 0.25
+		if current and now >= nextLiftCheck then
+			nextLiftCheck = now + 0.25
 			refreshLift()
 		end
 	end)

@@ -33,15 +33,18 @@ MonetizationConfig.Products = {
 --- call fails. Roblox is the authority on what a product costs, so a stale entry
 --- here can never make the UI quote a price the player is not actually charged -
 --- it is checked against the live value and disagreements are warned about.
+--- Corrected against GetProductInfo: every one of these was stale, and the
+--- panel was warning about all eight on open. The products are actually priced
+--- 16/24/32/40/56/72/96/120, not the 19/29/39/... that was guessed here.
 MonetizationConfig.ListedPriceRobux = {
-	TreadmillTier2 = 19,
-	TreadmillTier3 = 29,
-	TreadmillTier4 = 39,
-	TreadmillTier5 = 49,
-	TreadmillTier6 = 69,
-	TreadmillTier7 = 89,
-	TreadmillTier8 = 119,
-	TreadmillTier9 = 149,
+	TreadmillTier2 = 16,
+	TreadmillTier3 = 24,
+	TreadmillTier4 = 32,
+	TreadmillTier5 = 40,
+	TreadmillTier6 = 56,
+	TreadmillTier7 = 72,
+	TreadmillTier8 = 96,
+	TreadmillTier9 = 120,
 } :: { [string]: number }
 
 --- True once a real ID has been pasted in.

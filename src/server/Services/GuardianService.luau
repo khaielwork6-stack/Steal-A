@@ -32,12 +32,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
-local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 
 local LootService = require(script.Parent.LootService)
-local BaseService = require(script.Parent.BaseService)
 local RagdollService = require(script.Parent.RagdollService)
 
 local GuardianService = {}
@@ -53,9 +51,17 @@ type Guardian = {
 	root: BasePart?,
 	target: Player?,
 	lootId: string?,
-	lastRepath: number,
 	wakeAt: number?,
 	shellMotor: Weld?, -- drives the imported costume's pose; nil when unskinned
+	--- Catch distance, scaled to this guardian's physical size (see buildRig).
+	catchRadius: number,
+	-- Stuck detection. A guardian steering straight at its target will
+	-- occasionally jam on a prop or a wall corner; these let it notice and
+	-- sidestep rather than grinding in place until the player is gone.
+	lastPosition: Vector3?,
+	stuckFor: number,
+	sidestepUntil: number,
+	sidestepSign: number,
 }
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
@@ -77,7 +83,23 @@ local CATCH_LIFT = 62
 local CATCH_STUN = 1.6
 local CATCH_IMMUNITY = 2.5
 local SAFE_LINE_MARGIN = 6 -- studs the guardian keeps on the danger side
-local LEASH_DISTANCE = 900 -- never chase further than this from home
+
+-- ==========================================================
+-- STUCK RECOVERY
+-- ==========================================================
+--
+-- Steering straight at a target is fast and never backtracks, but it will jam on
+-- a wall corner or a decoration. These let a guardian notice it has stopped
+-- making ground and sidestep out of it, rather than grinding in place.
+
+--- Fraction of its own top speed a guardian must be making to count as moving.
+local STUCK_SPEED_FRACTION = 0.25
+--- Seconds of that before a sidestep is triggered.
+local STUCK_TRIGGER = 0.3
+--- Seconds a sidestep lasts once triggered.
+local SIDESTEP_DURATION = 0.45
+--- How hard the sidestep steers, relative to the straight-line direction.
+local SIDESTEP_STRENGTH = 1.1
 
 local guardians: { [number]: Guardian } = {}
 
@@ -251,22 +273,31 @@ local function dressRig(model: Model, root: BasePart, shell: Model)
 	return motor
 end
 
-local function buildRig(zoneIndex: number): Model
+--- Body proportions at GameConfig.GUARDIAN_HEIGHT. Everything scales off these,
+--- so a bigger zone guardian gets a bigger physics body too rather than a huge
+--- costume balanced on a small invisible box.
+local BASE_ROOT_SIZE = Vector3.new(2.6, 4, 1.6)
+
+local function buildRig(zoneIndex: number): (Model, number)
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local assets = ServerStorage:FindFirstChild("GameAssets")
 	local source = if assets and assets:FindFirstChild("Guardians")
 		then assets.Guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{zone.guardian}`)
 		else nil
 
+	-- Guardians grow zone by zone so a later zone reads as dangerous on sight.
+	local targetHeight = GameConfig.guardianHeightFor(zoneIndex)
+	local growth = targetHeight / GameConfig.GUARDIAN_HEIGHT
+
 	-- The HumanoidRootPart doubles as the COLLIDABLE body. A rig whose parts all
 	-- have CanCollide off never leaves Freefall, and a Humanoid in Freefall
-	-- silently ignores MoveTo.
+	-- silently refuses to move.
 	local model = Instance.new("Model")
 	model.Name = zone.guardian
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(2.6, 4, 1.6)
+	root.Size = BASE_ROOT_SIZE * growth
 	root.Color = Color3.fromRGB(52, 78, 168)
 	root.Material = Enum.Material.SmoothPlastic
 	root.TopSurface = Enum.SurfaceType.Smooth
@@ -278,6 +309,8 @@ local function buildRig(zoneIndex: number): Model
 	humanoid.Name = "Humanoid"
 	humanoid.RigType = Enum.HumanoidRigType.R6
 	humanoid.HipHeight = 0
+	-- Step height scales with the body, so a big guardian steps over the same
+	-- kerbs a small one does instead of being stopped by geometry it dwarfs.
 	humanoid.Parent = model
 
 	model.PrimaryPart = root
@@ -288,14 +321,14 @@ local function buildRig(zoneIndex: number): Model
 
 		local shell = source:Clone()
 
-		-- Normalise the costume to a consistent height. Imports arrive at whatever
+		-- Normalise the costume to this zone's height. Imports arrive at whatever
 		-- scale they were modelled at - the Pirate Captain is 21 studs tall as
-		-- authored - and a guardian that dwarfs the containment walls reads as a
+		-- authored - so a guardian that dwarfs the containment walls reads as a
 		-- bug. Measured from real part corners because GetBoundingBox is oriented
 		-- to the pivot, and applied RELATIVE because ScaleTo is absolute.
 		local height = LootModel.worldHeight(shell)
 		if height and height > 0.01 then
-			shell:ScaleTo(shell:GetScale() * (GameConfig.GUARDIAN_HEIGHT / height))
+			shell:ScaleTo(shell:GetScale() * (targetHeight / height))
 		end
 
 		dressRig(model, root, shell)
@@ -304,13 +337,13 @@ local function buildRig(zoneIndex: number): Model
 		-- No art for this zone yet: keep the readable placeholder body.
 		local head = Instance.new("Part")
 		head.Name = "Head"
-		head.Size = Vector3.new(1.7, 1.7, 1.7)
+		head.Size = Vector3.new(1.7, 1.7, 1.7) * growth
 		head.Color = Color3.fromRGB(240, 204, 160)
 		head.Material = Enum.Material.SmoothPlastic
 		head.TopSurface = Enum.SurfaceType.Smooth
 		head.BottomSurface = Enum.SurfaceType.Smooth
 		head.CanCollide = false
-		head.CFrame = root.CFrame * CFrame.new(0, 2.85, 0)
+		head.CFrame = root.CFrame * CFrame.new(0, 2.85 * growth, 0)
 		head.Parent = model
 
 		local weld = Instance.new("WeldConstraint")
@@ -319,13 +352,98 @@ local function buildRig(zoneIndex: number): Model
 		weld.Parent = root
 	end
 
-	return model
+	model:SetAttribute("Height", targetHeight)
+	return model, growth
 end
 
 local function guardianSpeed(zoneIndex: number): number
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local matched = GameConfig.walkSpeedFromPower(math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER))
 	return matched * ZoneConfig.GUARDIAN_SPEED_FACTOR
+end
+
+-- ==========================================================
+-- STEERING
+-- ==========================================================
+--
+-- THIS IS THE FIX FOR THE RUBBER-BANDING. Read before changing it.
+--
+-- The chase used to be `Humanoid:MoveTo(target)` re-issued every 0.4 seconds.
+-- Three separate failures came out of that, and they compounded:
+--
+--   1. MoveTo walks to a FIXED POINT. For up to 0.4s the guardian was running at
+--      where the player USED to be, so when the player ran past it, the guardian
+--      visibly turned around and went backwards to a stale point before the next
+--      repath turned it around again. That is the "pulled backward for half a
+--      second" the chase was reported as doing.
+--   2. MoveTo STOPS on arrival. Reaching a stale point parked the guardian dead
+--      still until the next repath tick - the lost momentum.
+--   3. Every repath restarted the walk, so at high speeds the guardian spent a
+--      meaningful share of the chase accelerating from nothing.
+--
+-- `Humanoid:Move(direction)` has none of that: it sets a direction, there is no
+-- goal to arrive at, nothing stops, and calling it every frame means the
+-- direction is never stale. The guardian now runs a true pursuit curve.
+
+--- Points a guardian at a world position for THIS frame.
+---
+--- Returns the horizontal distance to the goal. Never uses MoveTo, and never
+--- pushes through the red line - the DIRECTION is clamped, so the guardian
+--- slides along the boundary instead of being shoved back off it.
+local function steer(guardian: Guardian, humanoid: Humanoid, root: BasePart, goal: Vector3, now: number, dt: number): number
+	local from = root.Position
+	local flat = Vector3.new(goal.X - from.X, 0, goal.Z - from.Z)
+	local distance = flat.Magnitude
+
+	if distance < 0.4 then
+		humanoid:Move(Vector3.zero, false)
+		return distance
+	end
+
+	local direction = flat / distance
+
+	-- Sidestep out of whatever we are jammed on, if we are jammed on something.
+	if now < guardian.sidestepUntil then
+		local lateral = Vector3.new(-direction.Z, 0, direction.X) * (guardian.sidestepSign * SIDESTEP_STRENGTH)
+		local blended = direction + lateral
+		if blended.Magnitude > 0.001 then
+			direction = blended.Unit
+		end
+	end
+
+	-- The red line is an absolute boundary. Refusing to STEER across it is what
+	-- keeps the guardian on the danger side; the old code let it walk over and
+	-- then teleported it back with its velocity zeroed, which is a second, very
+	-- literal source of the backward yank.
+	if from.Z <= safeLineZ + SAFE_LINE_MARGIN and direction.Z < 0 then
+		direction = Vector3.new(direction.X, 0, 0)
+		direction = if direction.Magnitude > 0.001 then direction.Unit else Vector3.zero
+	end
+
+	humanoid:Move(direction, false)
+
+	-- Stuck bookkeeping: compare ground actually covered against ground we should
+	-- have covered at this guardian's own speed.
+	local previous = guardian.lastPosition
+	guardian.lastPosition = from
+	if previous and dt > 0 then
+		local moved = (Vector3.new(from.X, 0, from.Z) - Vector3.new(previous.X, 0, previous.Z)).Magnitude
+		local expected = humanoid.WalkSpeed * dt
+		if expected > 0 and moved < expected * STUCK_SPEED_FRACTION and direction.Magnitude > 0.001 then
+			guardian.stuckFor += dt
+			if guardian.stuckFor >= STUCK_TRIGGER and now >= guardian.sidestepUntil then
+				guardian.stuckFor = 0
+				guardian.sidestepSign = -guardian.sidestepSign
+				guardian.sidestepUntil = now + SIDESTEP_DURATION
+				-- A hop clears the kerbs and props a pure sidestep cannot.
+				humanoid.Jump = true
+			end
+		else
+			guardian.stuckFor = 0
+		end
+	end
+
+	return distance
 end
 
 -- ==========================================================
@@ -340,16 +458,21 @@ function GuardianService.isZoneBusy(zoneIndex: number): boolean
 	return guardian.state ~= "Sleeping"
 end
 
+--- Clears the per-chase steering state. Anything that starts or ends a chase
+--- must call this, or a sidestep from the last one leaks into the next.
+local function resetSteering(guardian: Guardian)
+	guardian.lastPosition = nil
+	guardian.stuckFor = 0
+	guardian.sidestepUntil = 0
+end
+
 local function goHome(guardian: Guardian)
 	guardian.state = "Returning"
 	guardian.target = nil
 	guardian.lootId = nil
+	resetSteering(guardian)
 	publishState(guardian)
-
-	local humanoid = guardian.humanoid
-	if humanoid then
-		humanoid:MoveTo(guardian.home.Position)
-	end
+	-- No MoveTo. `step` steers home every frame, same as it chases.
 end
 
 --- Called the moment a zone's loot is successfully stolen.
@@ -365,8 +488,8 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 	guardian.state = "Waking"
 	guardian.target = thief
 	guardian.lootId = loot.id
-	guardian.lastRepath = 0
 	guardian.wakeAt = os.clock() + WAKE_DELAY
+	resetSteering(guardian)
 
 	-- The snore has to stop the instant it wakes, not fade out over the chase.
 	Audio.stopLoop("Snoring", guardian.root)
@@ -378,6 +501,18 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 
 	-- Stand up and turn to face the thief.
 	guardian.root.Anchored = false
+
+	-- PIN SIMULATION TO THE SERVER. Roblox hands network ownership of a loose
+	-- unanchored assembly to the nearest player - which during a chase is always
+	-- the thief. Their client then simulates the thing hunting them, and every
+	-- server correction on top of that reads as a stutter or a snap backwards.
+	-- Ownership can only be set while the part is unanchored, hence the position
+	-- here, and it is pcall'd because a part that has already been reclaimed by
+	-- the engine throws rather than returning.
+	pcall(function()
+		(guardian.root :: BasePart):SetNetworkOwner(nil)
+	end)
+
 	local character = thief.Character
 	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
 	if targetRoot and targetRoot:IsA("BasePart") then
@@ -457,7 +592,7 @@ local function animateShell(guardian: Guardian, now: number)
 	motor.C0 = CFrame.new(0, bob, 0) * CFrame.Angles(RUN_LEAN, yaw, roll)
 end
 
-local function step()
+local function step(dt: number)
 	local now = os.clock()
 
 	for _, guardian in guardians do
@@ -474,19 +609,24 @@ local function step()
 			continue
 		end
 
-		-- Absolute boundary: even mid-physics the guardian may never end up on
-		-- the safe side of the red line.
-		if root.Position.Z < safeLineZ + SAFE_LINE_MARGIN then
+		-- Absolute boundary, and deliberately a LAST RESORT. `steer` refuses to
+		-- push across the line at all, so this only ever fires if physics threw
+		-- the guardian over it. It corrects the position and cancels only the
+		-- component of velocity still carrying it inward - the old version ran
+		-- every frame within six studs of the line and zeroed the ENTIRE
+		-- velocity, which is exactly the backward yank the chase was accused of.
+		if root.Position.Z < safeLineZ then
 			root.CFrame = CFrame.new(clampToDangerSide(root.Position)) * (root.CFrame - root.Position)
-			root.AssemblyLinearVelocity = Vector3.zero
+			local velocity = root.AssemblyLinearVelocity
+			if velocity.Z < 0 then
+				root.AssemblyLinearVelocity = Vector3.new(velocity.X, velocity.Y, 0)
+			end
 		end
 
 		if state == "Returning" then
-			if (root.Position - guardian.home.Position).Magnitude < 6 then
+			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
+			if distance < 6 then
 				enterSleep(guardian)
-			elseif now - guardian.lastRepath >= ZoneConfig.GUARDIAN_REPATH_INTERVAL then
-				guardian.lastRepath = now
-				humanoid:MoveTo(guardian.home.Position)
 			end
 			continue
 		end
@@ -508,8 +648,13 @@ local function step()
 			continue
 		end
 
-		-- ESCAPE: crossing the red line, or reaching their own base, ends it.
-		if isBehindSafeLine(targetRoot.Position) or BaseService.isInOwnSafeZone(target) then
+		-- ESCAPE: crossing the red line. THE LINE IS THE ONLY THING THAT ENDS A
+		-- CHASE. This used to also end on `BaseService.isInOwnSafeZone`, which is
+		-- an intermediate checkpoint - getting near your own plot. Distance from
+		-- home, time elapsed and proximity to the base are all deliberately NOT
+		-- conditions here: once a guardian is awake it pursues until the thief is
+		-- across, is caught, or no longer has the item.
+		if isBehindSafeLine(targetRoot.Position) then
 			onEscape(loot, target)
 			goHome(guardian)
 			continue
@@ -523,14 +668,10 @@ local function step()
 			publishState(guardian)
 		end
 
-		if (root.Position - guardian.home.Position).Magnitude > LEASH_DISTANCE then
-			goHome(guardian)
-			continue
-		end
-
-		-- CATCH
+		-- CATCH. The radius scales with the guardian, so a fifteen-stud boss is
+		-- not required to bury its own model in the player before it registers.
 		local distance = (root.Position - targetRoot.Position).Magnitude
-		if distance <= ZoneConfig.GUARDIAN_CATCH_RADIUS and not GuardianService.isStunned(target) then
+		if distance <= guardian.catchRadius and not GuardianService.isStunned(target) then
 			-- ONE hit cue, never both. A boss landing a hit plays the heavy
 			-- reaction INSTEAD of the regular one, so they cannot stack.
 			local zone = ZoneConfig.Zones[guardian.zoneIndex]
@@ -542,11 +683,9 @@ local function step()
 			continue
 		end
 
-		if now - guardian.lastRepath >= ZoneConfig.GUARDIAN_REPATH_INTERVAL then
-			guardian.lastRepath = now
-			-- Never path THROUGH the line: the move goal is clamped too.
-			humanoid:MoveTo(clampToDangerSide(targetRoot.Position))
-		end
+		-- Steered fresh every frame at the thief's CURRENT position. No goal
+		-- point, no arrival stop, nothing to go stale.
+		steer(guardian, humanoid, root, targetRoot.Position, now, dt)
 	end
 end
 
@@ -574,14 +713,7 @@ function GuardianService.start()
 			continue
 		end
 
-		local guardian: Guardian = {
-			zoneIndex = zoneIndex,
-			home = post.CFrame * CFrame.new(0, 2.2, 0),
-			state = "Sleeping",
-			lastRepath = 0,
-		}
-
-		local model = buildRig(zoneIndex)
+		local model, growth = buildRig(zoneIndex)
 		local humanoid = model:FindFirstChildWhichIsA("Humanoid")
 		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
 		if not humanoid or not root or not root:IsA("BasePart") then
@@ -590,10 +722,26 @@ function GuardianService.start()
 			continue
 		end
 
+		local guardian: Guardian = {
+			zoneIndex = zoneIndex,
+			-- Derived from the body rather than a fixed 2.2: a later zone's
+			-- guardian is physically larger and a constant offset would bury it.
+			home = post.CFrame * CFrame.new(0, (root :: BasePart).Size.Y / 2 + 0.2, 0),
+			state = "Sleeping",
+			catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth,
+			stuckFor = 0,
+			sidestepUntil = 0,
+			sidestepSign = 1,
+		}
+
 		humanoid.WalkSpeed = guardianSpeed(zoneIndex)
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+		-- A seated or platform-standing guardian silently stops responding to
+		-- Move; neither state is ever wanted here.
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
 
 		model:PivotTo(guardian.home)
 		model.Parent = holder
@@ -626,6 +774,7 @@ function GuardianService.start()
 		end
 	end)
 
+	-- Heartbeat, not a timer: the guardian is steered fresh every single frame.
 	RunService.Heartbeat:Connect(step)
 
 	local count = 0

@@ -45,7 +45,23 @@ GameConfig.STEAL_INTERACTION_RANGE = 14
 -- one by hand in Studio. The Big/Huge/Giant size roll multiplies on top.
 GameConfig.LOOT_WORLD_HEIGHT = 5 -- loose in a zone socket, must read at distance
 GameConfig.LOOT_TROPHY_HEIGHT = 6 -- on a base pedestal, seen up close
-GameConfig.GUARDIAN_HEIGHT = 7 -- imported guardian costumes, all matched to this
+
+-- Guardians grow zone by zone, so walking into a later zone reads as dangerous
+-- before the player has read a single number. Zone 1's Cop is the baseline the
+-- tutorial was tuned against and does not move.
+GameConfig.GUARDIAN_HEIGHT = 7 -- zone 1
+GameConfig.GUARDIAN_HEIGHT_GROWTH = 0.085 -- compounding, per zone past the first
+GameConfig.GUARDIAN_HEIGHT_MAX = 15 -- hard ceiling; the containment walls are 22
+
+--- Costume height for a zone's guardian. Compounding rather than linear so the
+--- early steps stay subtle and the late ones land: zone 1 is 7 studs, zone 6 is
+--- ~10.4, zone 12 is capped near 15 - imposing, and still comfortably under the
+--- lane walls, which is what stops a guardian from reading as a broken import.
+function GameConfig.guardianHeightFor(zoneIndex: number): number
+	local steps = math.max(0, zoneIndex - 1)
+	local height = GameConfig.GUARDIAN_HEIGHT * (1 + GameConfig.GUARDIAN_HEIGHT_GROWTH) ^ steps
+	return math.min(height, GameConfig.GUARDIAN_HEIGHT_MAX)
+end
 
 -- ==========================================================
 -- LOOT LIFECYCLE
@@ -105,6 +121,7 @@ GameConfig.RATE_LIMITS = {
 	TrapPlaceRequest = 3,
 	IndexClaimRequest = 4,
 	PurchaseRequest = 2,
+	DropLootRequest = 3,
 }
 
 return GameConfig

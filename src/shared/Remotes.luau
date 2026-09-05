@@ -25,6 +25,10 @@ Remotes.NAMES = {
 	"TrapPlaceRequest",
 	"IndexClaimRequest",
 	"TeleportHomeRequest",
+	-- The DROP button. Carries no payload at all: the server already knows what
+	-- this player is carrying, and asking the client which item to drop would be
+	-- handing it a target it has no business choosing.
+	"DropLootRequest",
 	-- Asks the SERVER to open a Robux purchase prompt. The client never calls
 	-- PromptProductPurchase with an id of its own choosing, so a tampered client
 	-- cannot make the game prompt for an arbitrary product.

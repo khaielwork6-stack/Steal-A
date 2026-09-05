@@ -742,3 +742,128 @@ both, cross-base isolation) are unverified by observation. The single-player
 halves of those guarantees were checked: the `Reserved` state gates the second
 claim, refresh is one server-side loop, and income is keyed per Player. Run
 "Start Server + 2 Players" in Studio to close this properly.
+
+---
+
+## 17. Zones 3–5 art, the chase fix, the DROP button
+
+### Zone 3/4/5 assets
+
+All 24 items and 3 bosses arrived loose in Workspace under human-readable names
+("Zone 4Alien Artifcat"). They are now renamed to their ItemIds and moved under
+the §6 naming contract, so no code knows they exist:
+
+- `ServerStorage.GameAssets.Loot.<ItemId>` — 38 of the 40 items in zones 1–5 now
+  have real art. Only `Museum_Ruby` and `Pirate_CursedCoin` are still missing.
+- `ServerStorage.GameAssets.Guardians.Zone03_RoyalGuard` / `Zone04_Agent` /
+  `Zone05_ElfGuard`.
+
+**`LootModel` now unwraps a `Tool` as well as an Accessory/Hat** — the Castle's
+Golden Key is a Tool, and Tools were falling through to a placeholder.
+
+### Bosses grow by zone
+
+`GameConfig.guardianHeightFor(zoneIndex)` — 7 studs at the Museum, compounding
+8.5% a zone, capped at 15 (lane walls are 22). The physics root, the head on
+art-less zones and the CATCH RADIUS all scale with it, so a fifteen-stud boss
+does not have to bury its own model in you before the catch registers.
+
+### The chase: what was actually wrong
+
+Four separate causes, all fixed at the root. **Do not put any of them back.**
+
+1. **`Humanoid:MoveTo` re-issued every 0.4s.** MoveTo walks to a FIXED POINT, so
+   for up to 0.4s the guardian ran at where the player *used to be* — and when
+   the player got past it, it visibly turned around and went backwards to a
+   stale point. It also STOPS on arrival, and every repath restarted the walk
+   from zero. That is the rubber-banding, the lost momentum and the backward
+   yank, all from one line.
+   → `Humanoid:Move(direction)` every Heartbeat. No goal, nothing to arrive at,
+   nothing stale. See the STEERING block in `GuardianService`.
+
+2. **The safe-line clamp teleported the guardian backward and zeroed its whole
+   velocity**, every frame it was within six studs of the line.
+   → The *direction* is clamped instead, so it slides along the boundary. The
+   position correction is now a last resort that only fires if it actually
+   crossed, and only cancels the inward component of velocity.
+
+3. **Network ownership.** The guardian root is a loose unanchored assembly, so
+   Roblox handed simulation to the nearest player — during a chase, always the
+   thief. Their client simulated the thing hunting them and every server
+   correction read as a stutter. → `SetNetworkOwner(nil)` on wake.
+
+4. **`LEASH_DISTANCE = 900` silently abandoned the chase.** Zone 5's post is 894
+   studs from the line and zone 12's is 2,626, so from zone 5 on the guardian
+   gave up a third of the way home. → Deleted. The chase now ends on exactly
+   three things: the thief crosses the line, the thief is caught, or the loot
+   stops being carried.
+
+**The red line is the ONLY escape condition.** `BaseService.isInOwnSafeZone` was
+also ending chases; it is an intermediate checkpoint and is gone from that test.
+
+`ZoneConfig.GUARDIAN_REPATH_INTERVAL` is deleted — nothing repaths any more.
+
+Measured after the fix: **0 backward samples in 128** over an 850-stud pursuit; a
+Speed-10 player in the 10K zone is caught in 3.4s; a player *at* the 10K gate
+(36.96 walkspeed vs the guardian's 37.73) is never closed on and crosses the line
+after 468 studs, with the chase active the whole way.
+
+### The Hold-E prompt going invisible
+
+Three causes, all real, all in `InteractController`:
+
+1. **The single shared billboard was PARENTED into the target part.** Loot models
+   are `Destroy()`ed the instant they are stolen — taking the prompt for the
+   whole game with them, permanently, from one steal. → **Adornee only. Never
+   reparent it into the world.** A BillboardGui in PlayerGui renders at its
+   Adornee perfectly well.
+2. **`apply` set `current = prompt` BEFORE checking the billboard was alive**, so
+   one bad frame latched a target that had never been rendered and the
+   `prompt == current` guard then returned early forever. → `current` is only
+   committed once the billboard is genuinely claimed.
+3. **`PromptHidden` does not fire for a prompt whose part is destroyed**, and a
+   destroyed prompt still reports `Enabled = true` with a `BasePart` parent — so
+   it kept winning `pickNearest`. → also requires `IsDescendantOf(workspace)`.
+
+Plus a rate-limited self-heal that rebuilds the billboard if it ever goes
+missing. Verified across steals, three range in/out cycles, a guardian catch and
+a full death/respawn: exactly one copy, always visible when it should be.
+
+### The DROP button
+
+`MainUI["DROP BUTTON NEW"]` is a real pack button that shipped as a spare SHOP
+button. `DropController` retitles it, moves it bottom-centre, and drives it from
+`StatePush.carrying`.
+
+- **No new drop system.** `DropLootRequest` (no payload — the server knows what
+  you are carrying) calls the same `CarryService.forceDrop` the PvP bat does, so
+  the drop position, the 8s reclaim window and the return-to-origin are one set
+  of rules. Verified: dropped items return to their own socket with their own
+  variant and no extra roll.
+- Route through `UIAnim.claimButton`, never `bindButton` — see §8.
+- It is NOT hidden optimistically on click; it hides when the server says the
+  carry is gone, so a refused drop leaves it up.
+
+### Treadmill facing
+
+`TreadmillConfig.PLAYER_FACING_SIGN = -1`. The deck's LookVector points out at
+the corridor and the console is at the other end, so turning the player to the
+raw LookVector faced them at the back of their own treadmill.
+
+**`TreadmillModel.FRONT_SIGN` does NOT normalise anything today** and must not be
+trusted to. Every model is a single MeshPart, so `tallestEndZ` can only see the
+bounding box, whose corners are symmetric — it returns -6.5 for all nine and the
+flip never fires. The nine happen to be authored consistently, so one sign covers
+them; that comment is now in the file.
+
+Stance also improved: lateral correction pulls 2.2× harder than longitudinal
+(standing off the SIDE of the belt is what reads as broken), and the player
+settles `STANCE_OFFSET` studs behind the console instead of inside it. Measured
+across three enter/leave cycles: lateral offset 0.000, +8 Speed/s while on, 0
+while off, movement restored each time.
+
+### Also fixed in passing
+
+All eight `MonetizationConfig.ListedPriceRobux` values were stale — the products
+are priced 16/24/32/40/56/72/96/120, not 19/29/39/49/69/89/119/149. Display only
+(the panel already trusts `GetProductInfo`), but it was warning on every open.
