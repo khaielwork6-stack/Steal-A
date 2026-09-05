@@ -88,28 +88,10 @@ local function flatten(label: TextLabel?, color: Color3)
 	label.TextColor3 = color
 end
 
---- Claims a button for our own input handling. See the header note.
----
---- TWO NON-OBVIOUS THINGS, both of which silently produce a dead button.
----
---- 1. The pack's buttons ship with `Active = false`. The pack drives them from
----    InputBegan and MouseButton1Click, which still fire; `Activated` does NOT.
----    Every clone inherits that, so anything bound with Activated - these tabs
----    and the claim bar - has to switch it back on.
----
---- 2. bindButton bails out on any button already carrying `_UIHandlerSetup` -
----    that is how it avoids fighting the pack - and these buttons are CLONES of
----    a pack button, so they arrive already stamped. Both attributes have to be
----    cleared first or the button ends up with no hover, press or ripple at all.
----    bindButton re-stamps `_UIHandlerSetup` itself on the way out, which is
----    what keeps the pack's own scanner off them afterwards.
-local function claimForUs(button: GuiButton)
-	button:SetAttribute("_UIHandlerSetup", nil)
-	button:SetAttribute("AnimBound", nil)
-	UIAnim.bindButton(button)
-	button.Active = true
-	button.Selectable = true
-end
+--- Claims a button for our own input handling. See UIAnim.claimButton for why
+--- a cloned pack button is inert until both its Active flag and its handler
+--- attributes are corrected.
+local claimForUs = UIAnim.claimButton
 
 -- ==========================================================
 -- CARDS

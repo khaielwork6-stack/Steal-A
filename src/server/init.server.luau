@@ -52,10 +52,13 @@ GuardianService.setCatchHandler(function(loot)
 	CarryService.reclaim(loot)
 end)
 
+-- Crossing the red line. Short and celebratory: the tutorial objective flips to
+-- "PLACE YOUR STOLEN ITEM" on its own, so this must not repeat that instruction.
 GuardianService.setEscapeHandler(function(loot, player)
 	if not loot.escapeNotice then
 		loot.escapeNotice = true
-		StateService.notify(player, "success", `You escaped with the {loot.name}!`)
+		StateService.notify(player, "success", "ESCAPED!")
+		StateService.sound(player, "Escape")
 	end
 end)
 
@@ -66,9 +69,17 @@ CarryService.setDeliveredHandler(function(player, loot)
 		return
 	end
 	GuardianService.stopChaseFor(loot)
-	if not loot.deliveredNotice then
+
+	-- Deliberately quiet in the normal case. This fires on reaching your own safe
+	-- zone, moments after the escape toast above, and it used to add a SECOND
+	-- message repeating the "place it on a display slot" objective that is
+	-- already on screen. The only case that still needs a word is a delivery
+	-- with no chase behind it, where the escape toast never fired at all.
+	if not loot.escapeNotice and not loot.deliveredNotice then
 		loot.deliveredNotice = true
-		StateService.notify(player, "success", `Safe! Place the {loot.name} on a display slot.`)
+		loot.escapeNotice = true
+		StateService.notify(player, "success", "SAFE!")
+		StateService.sound(player, "Escape")
 	end
 end)
 

@@ -31,6 +31,10 @@ Remotes.NAMES = {
 	-- The 96-entry Index discovery map. Deliberately NOT part of StatePush,
 	-- which fires several times a second while income ticks.
 	"IndexPush",
+	-- Personal sound cues. Carries a cue NAME from AudioConfig, never an asset
+	-- id. World/positional sounds do not use this: the server parents those to
+	-- the part they belong to and they replicate on their own.
+	"SoundCue",
 }
 
 local folder: Folder

@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
@@ -303,9 +304,22 @@ local function trainingTick()
 			continue
 		end
 
+		local before = profile.SpeedPower
 		profile.SpeedPower += tier.gainPerTick
 		SpeedService.applyMovement(player)
 		StateService.markDirty(player)
+
+		-- Crossing a zone's recommended Speed is the single moment the long
+		-- treadmill grind pays off, so it gets its own cue and a toast. Compared
+		-- against the value BEFORE the tick, so it fires exactly once per gate
+		-- however large the increment was.
+		for _, zone in ZoneConfig.Zones do
+			if zone.recommendedSpeed > before and zone.recommendedSpeed <= profile.SpeedPower then
+				notify(player, "success", `{string.upper(zone.name)} UNLOCKED`, "unlock")
+				StateService.sound(player, "ZoneUnlock")
+				break
+			end
+		end
 	end
 end
 

@@ -33,6 +33,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
+local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
+local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 
 local LootService = require(script.Parent.LootService)
 local BaseService = require(script.Parent.BaseService)
@@ -142,6 +144,11 @@ local function enterSleep(guardian: Guardian)
 	guardian.wakeAt = nil
 	sleepPose(guardian)
 	publishState(guardian)
+
+	-- Positional and server-owned, so every nearby player hears it from the right
+	-- direction without any replication of ours. Idempotent: re-entering sleep
+	-- does not start a second copy.
+	Audio.startLoop("Snoring", guardian.root)
 end
 
 -- ==========================================================
@@ -156,12 +163,41 @@ end
 --- risks breaking it), the model is welded on as a costume over the working
 --- rig: physics and pathfinding stay with the invisible root, and the costume
 --- is posed procedurally in animateShell().
+--- Part names a Humanoid treats as its own body. A costume that uses them gets
+--- ADOPTED by the rig's Humanoid once parented, which re-enables collision on
+--- the torso and can rebind the root - so the guardian jams in place a few studs
+--- from its target and never lands a catch.
+local RESERVED_PART_NAMES = {
+	HumanoidRootPart = true,
+	Head = true,
+	Torso = true,
+	UpperTorso = true,
+	LowerTorso = true,
+	["Left Arm"] = true,
+	["Right Arm"] = true,
+	["Left Leg"] = true,
+	["Right Leg"] = true,
+}
+
 local function dressRig(model: Model, root: BasePart, shell: Model)
 	shell.Name = "Shell"
 	shell:PivotTo(root.CFrame)
 
+	-- A character-shaped import brings its own Humanoid and its own body-part
+	-- names. Both have to go before it is parented: two Humanoids in one model
+	-- is undefined, and the reserved names are what let the surviving Humanoid
+	-- take the costume over. Purely decorative geometry from here on.
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("Humanoid") then
+			descendant:Destroy()
+		end
+	end
+
 	for _, descendant in shell:GetDescendants() do
 		if descendant:IsA("BasePart") then
+			if RESERVED_PART_NAMES[descendant.Name] then
+				descendant.Name = `Shell_{descendant.Name}`
+			end
 			descendant.Anchored = false
 			descendant.CanCollide = false
 			descendant.CanQuery = false
@@ -193,6 +229,16 @@ local function dressRig(model: Model, root: BasePart, shell: Model)
 	end
 
 	shell.Parent = model
+
+	-- Re-assert after parenting. The Humanoid only acts on parts once they are
+	-- inside its model, so anything it would have re-collided is corrected here
+	-- even if a future import uses a body-part name this list does not know.
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.CanCollide = false
+			descendant.Massless = true
+		end
+	end
 
 	-- The pivot follows the root; animateShell drives this offset every frame.
 	local motor = Instance.new("Weld")
@@ -239,7 +285,20 @@ local function buildRig(zoneIndex: number): Model
 	if source and source:IsA("Model") then
 		-- Real art: the block body becomes an invisible physics proxy.
 		root.Transparency = 1
-		dressRig(model, root, source:Clone())
+
+		local shell = source:Clone()
+
+		-- Normalise the costume to a consistent height. Imports arrive at whatever
+		-- scale they were modelled at - the Pirate Captain is 21 studs tall as
+		-- authored - and a guardian that dwarfs the containment walls reads as a
+		-- bug. Measured from real part corners because GetBoundingBox is oriented
+		-- to the pivot, and applied RELATIVE because ScaleTo is absolute.
+		local height = LootModel.worldHeight(shell)
+		if height and height > 0.01 then
+			shell:ScaleTo(shell:GetScale() * (GameConfig.GUARDIAN_HEIGHT / height))
+		end
+
+		dressRig(model, root, shell)
 		model:SetAttribute("HasShell", true)
 	else
 		-- No art for this zone yet: keep the readable placeholder body.
@@ -308,6 +367,14 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 	guardian.lootId = loot.id
 	guardian.lastRepath = 0
 	guardian.wakeAt = os.clock() + WAKE_DELAY
+
+	-- The snore has to stop the instant it wakes, not fade out over the chase.
+	Audio.stopLoop("Snoring", guardian.root)
+
+	-- Exactly one alert per chase: this function already returns early unless the
+	-- guardian was Sleeping, so there is no second entry point to guard against.
+	local zone = ZoneConfig.Zones[loot.zoneIndex]
+	Audio.playAt(if zone and zone.isBoss then "BossAlert" else "PoliceWhistle", guardian.root)
 
 	-- Stand up and turn to face the thief.
 	guardian.root.Anchored = false
@@ -464,6 +531,11 @@ local function step()
 		-- CATCH
 		local distance = (root.Position - targetRoot.Position).Magnitude
 		if distance <= ZoneConfig.GUARDIAN_CATCH_RADIUS and not GuardianService.isStunned(target) then
+			-- ONE hit cue, never both. A boss landing a hit plays the heavy
+			-- reaction INSTEAD of the regular one, so they cannot stack.
+			local zone = ZoneConfig.Zones[guardian.zoneIndex]
+			Audio.playAt(if zone and zone.isBoss then "BossHit" else "NpcCatch", root)
+
 			ragdollAndLaunch(target, root.Position)
 			onCatch(loot)
 			goHome(guardian)

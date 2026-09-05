@@ -23,6 +23,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
+local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
@@ -175,47 +176,20 @@ end
 -- ==========================================================
 
 --- Real per-zone models are used when present; otherwise a rarity-tinted
---- placeholder keeps the whole loop testable without art.
+--- placeholder keeps the whole loop testable without art. LootModel owns the
+--- lookup, the wrapping of non-Model art and the scale normalisation, so this
+--- and BaseService.buildTrophy cannot drift apart.
 local function buildModel(loot: LootInstance): Model
-	local model: Model
-
-	local assets = game:GetService("ServerStorage"):FindFirstChild("GameAssets")
-	local source = if assets and assets:FindFirstChild("Loot")
-		then assets.Loot:FindFirstChild(loot.itemId, true)
-		else nil
-
-	if source and source:IsA("Model") then
-		model = source:Clone()
-	else
-		model = Instance.new("Model")
-		local part = Instance.new("Part")
-		part.Name = "Placeholder"
-		part.Size = Vector3.new(6, 7, 6)
-		part.Color = RarityConfig.Colors[loot.rarity] or Color3.fromRGB(200, 200, 200)
-		part.Material = Enum.Material.SmoothPlastic
-		part.Parent = model
-		model.PrimaryPart = part
-	end
-
-	model.Name = loot.itemId
-
-	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-	end
-
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.CastShadow = false
-		end
-	end
-
 	-- Size is a visual scale plus a movement multiplier, never physics mass.
 	local size = RarityConfig.SizeById[loot.size]
-	if size and size.scale and size.scale ~= 1 then
-		model:ScaleTo(size.scale)
-	end
+
+	local model = LootModel.build({
+		itemId = loot.itemId,
+		rarity = loot.rarity,
+		targetHeight = GameConfig.LOOT_WORLD_HEIGHT,
+		sizeScale = if size then size.scale else nil,
+		placeholderSize = Vector3.new(6, 7, 6),
+	})
 
 	model:SetAttribute("LootId", loot.id)
 	model:SetAttribute("ItemId", loot.itemId)

@@ -241,6 +241,7 @@ function PlacementService.sellStored(player: Player, instanceId: string): (boole
 				"success",
 				`Sold {if def then def.name else item.ItemId} for {NumberFormat.cash(payout)}`
 			)
+			StateService.sound(player, "Sell")
 			return true
 		end
 	end

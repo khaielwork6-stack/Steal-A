@@ -39,6 +39,14 @@ GameConfig.SELL_REFUND_SECONDS = 60 -- selling pays this many seconds of income
 GameConfig.STEAL_HOLD_DURATION = 1.0
 GameConfig.STEAL_INTERACTION_RANGE = 14
 
+-- Art normalisation. Imported models arrive at wildly different scales (a
+-- 0.5-stud crown next to a 14-stud treasure map), so LootModel scales every
+-- asset to these heights on build rather than asking an artist to resize each
+-- one by hand in Studio. The Big/Huge/Giant size roll multiplies on top.
+GameConfig.LOOT_WORLD_HEIGHT = 5 -- loose in a zone socket, must read at distance
+GameConfig.LOOT_TROPHY_HEIGHT = 6 -- on a base pedestal, seen up close
+GameConfig.GUARDIAN_HEIGHT = 7 -- imported guardian costumes, all matched to this
+
 -- Loot lifecycle (GDD section 6).
 GameConfig.SOCKET_REFILL_DELAY = 20 -- after a successful theft
 GameConfig.GUARDIAN_RETURN_DELAY = 2 -- after a guardian reclaims

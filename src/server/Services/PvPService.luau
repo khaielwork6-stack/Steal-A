@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -124,6 +125,11 @@ local function resolveSwing(attacker: Player)
 	end
 
 	local victim = best :: Player
+
+	-- Positional, on the victim, so both players and any bystander hear the
+	-- connect from the right place. Only ever on a hit that actually resolved.
+	local victimCharacter = victim.Character
+	Audio.playAt("BatHit", victimCharacter and victimCharacter:FindFirstChild("HumanoidRootPart"))
 
 	-- Drop BEFORE the launch so the item lands where the victim was standing.
 	local carried = CarryService.getCarried(victim)

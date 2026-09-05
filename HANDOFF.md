@@ -36,7 +36,8 @@ Recent commits:
 | `dc8a227` | Move all UI onto the purchased pack; fix three interaction bugs |
 | `efa4644` | Wire in imported Zone 1 art; add reusable mutation VFX system |
 | `c119838` | Merge the UI pack migration into master |
-| *(this session)* | Phase 9 — the Loot Index (see §10) |
+| `02164f0` | Phase 9 — the Loot Index (see §12) |
+| *(this session)* | Zone 1/2 art pipeline, Storage UI rebuild, tutorial dedupe, audio pass |
 
 ---
 
@@ -58,8 +59,8 @@ lost if the place is not saved:
 | Location | Contents |
 |---|---|
 | `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`) |
-| `ServerStorage.GameAssets.Loot` | `Museum_RarePainting`, `Museum_Meteorite`, `Museum_GoldenStatue`, `Museum_PharaohMask` |
-| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop` |
+| `ServerStorage.GameAssets.Loot` | Zone 1: all but `Museum_Ruby`. Zone 2: all but `Pirate_CursedCoin` |
+| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop`, `Zone02_PirateCaptain` |
 | `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
 | `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
 
@@ -78,7 +79,7 @@ Two edits were also made **inside** the place that are not in git:
 - **Phase 9 (Index): COMPLETE.** `IndexService` + `IndexConfig` + the
   `IndexController` panel. Per-zone set completion, claimable rewards
   (cash / Speed / a permanent income multiplier) and the all-96 completionist
-  reward. See §10.
+  reward. See §12.
 - **Phase 10 (UI/VFX/audio): mostly done.** All UI is on the pack, mutation VFX,
   upgrade VFX and real Zone 1 models are in. **Audio is untouched.**
 - **Phases 11–13 (monetization, multiplayer hardening, polish): not started.**
@@ -244,13 +245,30 @@ Drop new art in and it is picked up with **no code change**:
 - Guardian: `ServerStorage.GameAssets.Guardians.Zone<NN>_<guardian>`
   (guardian name comes from `ZoneConfig.Zones[i].guardian`, e.g. `Zone02_PirateCaptain`)
 
-Imports were normalised to 2.5–6 studs tall; the Cop to 7.
+**Any class works** — `Model`, bare `MeshPart`/`Part`/union, or a legacy
+`Hat`/`Accessory` (its `Handle` is extracted). `src/shared/Util/LootModel.luau`
+is the single resolver for world loot AND base trophies; both used to have their
+own copy that required a `Model` and silently ignored everything else.
+
+**Do not resize imports by hand.** Every asset is scaled on build to
+`GameConfig.LOOT_WORLD_HEIGHT` / `LOOT_TROPHY_HEIGHT` / `GUARDIAN_HEIGHT`,
+measured from real part corners. Scaling is applied RELATIVE, which also fixed a
+live bug: `ScaleTo` is absolute, so a Big roll on an asset saved at scale 0.22
+was six times too large.
 
 ---
 
 ## 7. Known issues / not done
 
-- **No audio anywhere.** This is now the largest untouched area.
+- **Lobby music does not play.** `92804804272270` returns *"Asset is not approved
+  for the requester"* — a Roblox audio-permission problem, not a code one. The
+  other 17 cues load and play. Either re-upload that track under the place
+  owner's account or grant this experience permission, then update the id in
+  `AudioConfig`. Everything around it (safe-zone detection, fade in/out) is wired
+  and verified working.
+- **Zone 1 is missing Ruby art and Zone 2 is missing Cursed Coin.** Both fall
+  back to the rarity-tinted placeholder; drop them in under the naming contract.
+  Zones 3–12 have no art at all.
 - **No real item thumbnails.** There is no per-item art in the project — loot and
   trophies are both a `Placeholder` part tinted by rarity. The Storage cards show
   a rarity-coloured swatch instead of the pack's demo creature. Swap point is in
@@ -286,8 +304,9 @@ Imports were normalised to 2.5–6 studs tall; the Cop to 7.
   buttons ship `Active = false` (the pack drives them from `InputBegan`, not
   `Activated`) and already carry `_UIHandlerSetup`. So a clone bound with
   `Activated` never fires, and `UIAnim.bindButton` silently bails on it, leaving
-  a button with no hover, press or ripple. `IndexController.claimForUs` shows the
-  correct order: clear both attributes → `bindButton` → set `Active = true`.
+  a button with no hover, press or ripple. **Always route through
+  `UIAnim.claimButton`**, which does it in the right order. This has now bitten
+  twice — the Index tabs, then the Storage DISPLAY/SELL buttons.
 - **`ProximityPromptService` is camera-aware.** A scriptable camera parked away
   from the character suppresses `PromptShown` entirely and makes `TextBounds`
   read `0,0` — which looks exactly like a broken font. Restore
@@ -309,14 +328,57 @@ Imports were normalised to 2.5–6 studs tall; the Cop to 7.
 ## 9. Suggested next steps
 
 1. Confirm the place is **saved and published** (§0).
-2. Add art for the other 4 Zone 1 items, then zones 2–12, using the naming
-   contract in §6 (no code needed).
-3. **Audio** — the largest untouched area of Phase 10.
+2. **Fix the lobby-music asset permission** (see §7) — one blocked asset id.
+3. Add `Museum_Ruby` and `Pirate_CursedCoin`, then zones 3–12, using the naming
+   contract in §6. No code needed, and no manual resizing.
 4. Phase 11 (monetization), then 12–13.
+
+12. **A character-shaped guardian costume gets ADOPTED by the rig's Humanoid.**
+    The Pirate Captain import has parts named `Torso`, `Head`, `Left Arm` … and
+    its own `HumanoidRootPart`. Parent that into a model containing a `Humanoid`
+    and Roblox claims those reserved names and **re-enables `CanCollide` on the
+    torso**, which welds a colliding part to the assembly. The guardian then
+    jams a few studs short of its target and can never land a catch — while
+    still reporting `state = Chasing` and `HumanoidState = Running`, so it looks
+    like a pathfinding bug. `dressRig` now strips any Humanoid from the costume,
+    prefixes every reserved part name with `Shell_`, and re-asserts
+    `CanCollide = false` AFTER parenting. The Cop never hit this because it is an
+    unnamed mesh prop.
 
 ---
 
-## 10. Phase 9 — the Loot Index
+## 11. Audio
+
+`src/shared/Config/AudioConfig.luau` holds every asset id, volume and category.
+**No `rbxassetid://` belongs anywhere else.** `src/shared/Util/Audio.luau` is the
+only thing that constructs a `Sound`; it pools one-shots per (parent, cue) and
+makes loops idempotent, so a repeated trigger cannot stack instances.
+
+The split that matters:
+
+- **World cues** (`Snoring`, `BossAlert`, `PoliceWhistle`, `BossHit`, `NpcCatch`,
+  `BatHit`) are created **on the server**, parented to the part they belong to,
+  and replicate positionally on their own. No remote traffic, and bystanders
+  hear them from the right direction.
+- **Personal cues** go over the `SoundCue` remote as a cue NAME, never an id.
+- **UI + music** are client-only in `AudioController`.
+
+**One cue per event, never two.** A boss hit plays `BossHit` *instead of*
+`NpcCatch`; an event-specific cue cancels the generic `Notification` beep queued
+for the same toast (the toast always arrives first, so the generic one is
+deferred a frame and cancelled). `ZoneConfig.isBoss` decides boss vs police —
+Zone 1's Cop is deliberately NOT a boss.
+
+UI hover/click is wired by walking `MainUI` and connecting listeners **only** —
+it never stamps `_UIHandlerSetup`, so it cannot steal a button from the pack the
+way `bindButton` would.
+
+Lobby music is pure geometry: the red line is `Z = 0`, so the client compares its
+own position every frame with a hysteresis band rather than asking the server.
+
+---
+
+## 12. Phase 9 — the Loot Index
 
 **Discovery is recorded on PLACEMENT, not on a steal** (`PlacementService`
 writes `Profile.Index[itemId]`, then calls `IndexService.onDiscovered`). Carrying

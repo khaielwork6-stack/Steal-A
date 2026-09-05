@@ -126,6 +126,13 @@ function StateService.notify(player: Player, kind: string, message: string, deta
 	Remotes.get("Notify"):FireClient(player, kind, message, detail)
 end
 
+--- A personal sound cue, named from AudioConfig. Positional world sounds do NOT
+--- come through here - the server parents those to the part they belong to and
+--- lets them replicate, so bystanders hear them from the right direction.
+function StateService.sound(player: Player, cue: string)
+	Remotes.get("SoundCue"):FireClient(player, cue)
+end
+
 function StateService.start()
 	EconomyService.onChanged(StateService.markDirty)
 

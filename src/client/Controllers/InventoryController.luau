@@ -42,6 +42,23 @@ local InventoryController = {}
 
 local player = Players.LocalPlayer
 
+--- Card geometry, as fractions of the row unless noted. The pack's demo row was
+--- a 4:1 aspect-locked stamp that used about a fifth of the panel; these give it
+--- the full width of the list with a thumbnail, a readable text column and a
+--- proper button column. All of it is here so the row can be retuned in one
+--- place rather than hunted through buildCard.
+local CARD = {
+	WIDTH = 0.96, -- of the ScrollingFrame
+	HEIGHT = 0.30, -- of the ScrollingFrame: about three rows visible at once
+	THUMB_LEFT = 0.025,
+	THUMB_HEIGHT = 0.80,
+	TEXT_LEFT = 0.24,
+	TEXT_WIDTH = 0.40,
+	ACTION_WIDTH = 0.30,
+	NAME_TEXT = 20,
+	SUB_TEXT = 14,
+}
+
 local panel: Frame? = nil
 local scroll: ScrollingFrame? = nil
 local cardTemplate: Frame? = nil
@@ -145,10 +162,39 @@ local function buildCard(item: any, index: number): Frame?
 	card.Visible = true
 	card.LayoutOrder = index
 
+	-- The pack's demo row was locked to a 4:1 aspect and sized off its HEIGHT, so
+	-- it collapsed to a stamp in the corner of a panel it should fill. Drop the
+	-- lock and give the row the full width of the list.
+	local cardAspect = card:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if cardAspect then
+		cardAspect:Destroy()
+	end
+	card.AnchorPoint = Vector2.new(0.5, 0)
+	card.Size = UDim2.fromScale(CARD.WIDTH, CARD.HEIGHT)
+
 	local nameRow, variantRow, rarityRow = cardRows(card)
 	flatten(nameRow, Color3.fromRGB(255, 255, 255))
 	flatten(variantRow, Color3.fromRGB(206, 216, 232))
 	flatten(rarityRow, rarityColor)
+
+	-- One left-aligned text column between the thumbnail and the action buttons,
+	-- rather than three half-width labels floating in the middle of the card.
+	local function placeRow(row: TextLabel?, y: number, height: number, size: number)
+		if not row then
+			return
+		end
+		row.AnchorPoint = Vector2.new(0, 0.5)
+		row.Position = UDim2.fromScale(CARD.TEXT_LEFT, y)
+		row.Size = UDim2.fromScale(CARD.TEXT_WIDTH, height)
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextScaled = false
+		row.TextSize = size
+		row.TextTruncate = Enum.TextTruncate.AtEnd
+		row.RichText = false
+	end
+	placeRow(nameRow, 0.27, 0.30, CARD.NAME_TEXT)
+	placeRow(variantRow, 0.56, 0.24, CARD.SUB_TEXT)
+	placeRow(rarityRow, 0.80, 0.24, CARD.SUB_TEXT)
 
 	if nameRow then
 		nameRow.Text = if def then def.name else item.ItemId
@@ -172,6 +218,17 @@ local function buildCard(item: any, index: number): Frame?
 	local thumbHolder = body and body:FindFirstChild("BrainrotFrame")
 	local slot = thumbHolder and thumbHolder:FindFirstChild("1")
 	if slot and slot:IsA("GuiObject") then
+		-- A square thumbnail pinned to the left edge, sized off the row height so
+		-- it scales with the card rather than with the panel width.
+		slot.AnchorPoint = Vector2.new(0, 0.5)
+		slot.Position = UDim2.fromScale(CARD.THUMB_LEFT, 0.5)
+		slot.Size = UDim2.fromScale(1, CARD.THUMB_HEIGHT)
+		local slotAspect = slot:FindFirstChildOfClass("UIAspectRatioConstraint")
+		if slotAspect then
+			slotAspect.AspectRatio = 1
+			slotAspect.DominantAxis = Enum.DominantAxis.Height
+		end
+
 		local stroke = slot:FindFirstChildOfClass("UIStroke")
 		if stroke then
 			stroke.Color = rarityColor
@@ -204,30 +261,57 @@ local function buildCard(item: any, index: number): Frame?
 	if choose and money and money:IsA("TextButton") then
 		local sell = money:Clone()
 
+		-- The pack's demo stacked two tiny buttons in the middle of the card. Give
+		-- the pair a real column down the right-hand third instead.
+		choose.AnchorPoint = Vector2.new(1, 0.5)
+		choose.Position = UDim2.fromScale(0.975, 0.5)
+		choose.Size = UDim2.fromScale(CARD.ACTION_WIDTH, 0.84)
+		local chooseLayout = choose:FindFirstChildOfClass("UIListLayout")
+		if chooseLayout then
+			chooseLayout.FillDirection = Enum.FillDirection.Vertical
+			chooseLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			chooseLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+			chooseLayout.Padding = UDim.new(0.08, 0)
+			chooseLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		end
+
+		local function dressAction(button: TextButton, label: string, order: number)
+			button.LayoutOrder = order
+			button.AnchorPoint = Vector2.new(0.5, 0.5)
+			button.Size = UDim2.fromScale(1, 0.44)
+			-- The pack locked these to 3:1. In a full-width column that squashes
+			-- them back to demo size, so the column decides the shape now.
+			local aspect = button:FindFirstChildOfClass("UIAspectRatioConstraint")
+			if aspect then
+				aspect:Destroy()
+			end
+			stripPromo(button)
+			local text = priceLabel(button)
+			if text then
+				text.Text = label
+				text.Size = UDim2.fromScale(0.92, 0.62)
+				text.TextScaled = true
+			end
+			-- The reason both of these did nothing: a pack button ships
+			-- Active = false and pre-stamped, so Activated never fired and
+			-- bindButton skipped it. See UIAnim.claimButton.
+			UIAnim.claimButton(button)
+		end
+
 		-- Deliberately NOT "Display"/"Sell": the pack opens the panel in Frames
 		-- whose name matches a clicked button, and a button named "Sell" would
 		-- reopen the template panel.
 		money.Name = "DisplayAction"
-		money.LayoutOrder = 1
-		stripPromo(money)
+		dressAction(money, "DISPLAY", 1)
 		tintButton(money, Color3.fromRGB(0, 158, 40), Color3.fromRGB(120, 240, 130), Color3.fromRGB(0, 150, 40))
-		local displayText = priceLabel(money)
-		if displayText then
-			displayText.Text = "DISPLAY"
-		end
 		money.Activated:Connect(function()
 			Remotes.get("InventoryRequest"):FireServer("equip", item.InstanceId)
 		end)
 
 		sell.Name = "SellAction"
-		sell.LayoutOrder = 2
 		sell.Parent = choose
-		stripPromo(sell)
+		dressAction(sell, "SELL", 2)
 		tintButton(sell, Color3.fromRGB(168, 30, 38), Color3.fromRGB(255, 108, 112), Color3.fromRGB(170, 24, 32))
-		local sellText = priceLabel(sell)
-		if sellText then
-			sellText.Text = "SELL"
-		end
 		sell.Activated:Connect(function()
 			Remotes.get("InventoryRequest"):FireServer("sell", item.InstanceId)
 		end)
@@ -390,6 +474,9 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 		if upgradePrice then
 			upgradePrice.Text = "+ STORAGE"
 		end
+		-- Reused straight out of the pack, so it carries the same Active = false
+		-- and pre-stamped attributes that made the card buttons inert.
+		UIAnim.claimButton(upgrade)
 		upgrade.Activated:Connect(function()
 			Remotes.get("InventoryRequest"):FireServer("upgradeStorage")
 		end)
@@ -397,6 +484,26 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 
 	-- ---------- list ----------
 	local layout = list:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		layout.Padding = UDim.new(0.025, 0)
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+
+	-- Rows are now tall enough that ten of them overflow, so the canvas has to
+	-- grow and the bar has to be visible.
+	list.CanvasSize = UDim2.new()
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.ScrollBarThickness = 6
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
+
+	local listPadding = list:FindFirstChildOfClass("UIPadding")
+	if not listPadding then
+		listPadding = Instance.new("UIPadding")
+		listPadding.Parent = list
+	end
+	listPadding.PaddingTop = UDim.new(0.02, 0)
+	listPadding.PaddingBottom = UDim.new(0.02, 0)
 
 	-- The pack ships four demo cards; keep the first as our template and drop
 	-- the rest along with the zero-size spacer.

@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
+local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -166,49 +167,22 @@ end
 -- DISPLAY RECONSTRUCTION
 -- ==========================================================
 
---- Placeholder trophy. Real per-zone models drop into
---- ServerStorage.GameAssets.Loot.<ZoneFolder>.<AssetName> and are used
---- automatically once present; until then we show a labelled block so the
---- economy is fully testable without art.
+--- The pedestal copy of a stolen item. Real art drops into
+--- ServerStorage.GameAssets.Loot.<ItemId> and is used automatically once
+--- present; until then a rarity-tinted block keeps the economy fully testable
+--- without art. LootModel owns both branches - see it for the naming contract.
 local function buildTrophy(item: DataService.DisplayItem): Model
-	local model = Instance.new("Model")
-	model.Name = item.ItemId
+	-- A trophy shows the size it was stolen at, so the same size roll that scaled
+	-- the world model scales the pedestal copy.
+	local size = RarityConfig.SizeById[item.Size]
 
-	local assets = game:GetService("ServerStorage"):FindFirstChild("GameAssets")
-	local source = nil
-	if assets then
-		local loot = assets:FindFirstChild("Loot")
-		if loot then
-			source = loot:FindFirstChild(item.ItemId, true)
-		end
-	end
-
-	if source and source:IsA("Model") then
-		model = source:Clone()
-		model.Name = item.ItemId
-	else
-		local part = Instance.new("Part")
-		part.Name = "Placeholder"
-		part.Size = Vector3.new(8, 10, 8)
-		part.Color = RarityConfig.Colors[item.Rarity] or Color3.fromRGB(200, 200, 200)
-		part.Material = Enum.Material.SmoothPlastic
-		part.Anchored = true
-		part.CanCollide = false
-		part.Parent = model
-		model.PrimaryPart = part
-	end
-
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.CastShadow = false
-		end
-	end
-
-	if not model.PrimaryPart then
-		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-	end
+	local model = LootModel.build({
+		itemId = item.ItemId,
+		rarity = item.Rarity,
+		targetHeight = GameConfig.LOOT_TROPHY_HEIGHT,
+		sizeScale = if size then size.scale else nil,
+		placeholderSize = Vector3.new(8, 10, 8),
+	})
 
 	-- A trophy keeps the mutation it was stolen with. The whole point of the
 	-- base is that it looks like a museum of what you took, so a Corrupted

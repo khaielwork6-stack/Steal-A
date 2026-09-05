@@ -156,9 +156,12 @@ function IndexService.push(player: Player)
 end
 
 --- Called by PlacementService when an item is discovered for the first time.
+--- Only ever on a genuinely new entry - PlacementService checks the Index before
+--- calling - so the discovery cue cannot fire on a repeat pickup.
 function IndexService.onDiscovered(player: Player, itemId: string)
 	IndexService.push(player)
 	StateService.markDirty(player)
+	StateService.sound(player, "NewDiscovery")
 
 	local zoneIndex = LootConfig.ZoneOf[itemId]
 	if not zoneIndex then

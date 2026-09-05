@@ -348,6 +348,31 @@ function UIAnim.bindButton(button: GuiButton)
 	end)
 end
 
+--- Takes ownership of a button we drive ourselves, rather than the pack.
+---
+--- Use this on ANY button cloned from, or reused out of, the purchased pack.
+--- Two things about those buttons silently produce a dead control:
+---
+--- 1. They ship with `Active = false`. The pack drives its own buttons from
+---    InputBegan and MouseButton1Click, both of which still fire; `Activated`
+---    does NOT fire while Active is false. Anything we wire with `Activated` -
+---    which is everything we write - therefore has to switch it back on.
+---
+--- 2. They already carry `_UIHandlerSetup`, and bindButton deliberately bails on
+---    that attribute so it never fights the pack. A clone inherits it, so the
+---    button ends up claimed but with no hover, press or ripple at all. Both
+---    attributes have to be cleared BEFORE binding; bindButton re-stamps
+---    `_UIHandlerSetup` on its way out, which is what keeps the pack off it.
+---
+--- Both of these have bitten this project once each. Always route through here.
+function UIAnim.claimButton(button: GuiButton)
+	button:SetAttribute(PACK_BOUND_ATTRIBUTE, nil)
+	button:SetAttribute("AnimBound", nil)
+	UIAnim.bindButton(button)
+	button.Active = true
+	button.Selectable = true
+end
+
 --- Applies bindButton to every descendant button, once.
 function UIAnim.bindAllButtons(root: Instance)
 	for _, descendant in root:GetDescendants() do

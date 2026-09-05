@@ -238,7 +238,11 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 		profile.Lifetime.Steals += 1
 	end
 
-	notify(player, "info", `Stole {loot.name}! Get to your base!`)
+	-- A CONFIRMATION, not an instruction. The standing tutorial objective already
+	-- reads "GET BACK TO YOUR BASE!", and this toast used to repeat it verbatim -
+	-- two messages saying the same thing at the same moment. One instructional
+	-- objective at a time, plus a short event toast, is the rule.
+	notify(player, "success", `STOLEN: {loot.name}!`)
 	return true
 end
 
