@@ -12,15 +12,36 @@
 
 local MonetizationConfig = {}
 
+-- The key names the tier the product GRANTS, not the tier you buy it from:
+-- TreadmillTier2 moves a level-1 player to level 2. Tier 1 is the starting
+-- treadmill and is granted by base activation, so it has no product.
 MonetizationConfig.Products = {
-	TreadmillTier2 = 0,
-	TreadmillTier3 = 0,
-	TreadmillTier4 = 0,
-	TreadmillTier5 = 0,
-	TreadmillTier6 = 0,
-	TreadmillTier7 = 0,
-	TreadmillTier8 = 0,
-	TreadmillTier9 = 0,
+	TreadmillTier2 = 3711354814,
+	TreadmillTier3 = 3711354847,
+	TreadmillTier4 = 3711354872,
+	TreadmillTier5 = 3711354886,
+	TreadmillTier6 = 3711354896,
+	TreadmillTier7 = 3711354919,
+	TreadmillTier8 = 3711354939,
+	TreadmillTier9 = 3711354965,
+} :: { [string]: number }
+
+--- Robux prices as listed in the Creator Dashboard.
+---
+--- These are for DISPLAY ONLY and are never trusted: the panel asks Roblox for
+--- the live price via GetProductInfo and only falls back to this table if that
+--- call fails. Roblox is the authority on what a product costs, so a stale entry
+--- here can never make the UI quote a price the player is not actually charged -
+--- it is checked against the live value and disagreements are warned about.
+MonetizationConfig.ListedPriceRobux = {
+	TreadmillTier2 = 19,
+	TreadmillTier3 = 29,
+	TreadmillTier4 = 39,
+	TreadmillTier5 = 49,
+	TreadmillTier6 = 69,
+	TreadmillTier7 = 89,
+	TreadmillTier8 = 119,
+	TreadmillTier9 = 149,
 } :: { [string]: number }
 
 --- True once a real ID has been pasted in.
