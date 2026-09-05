@@ -35,6 +35,14 @@ function StateService.setTutorialProvider(fn: (Player) -> any)
 	tutorialProvider = fn
 end
 
+--- IndexService does the same, and for the same reason: it needs notify and
+--- pushNow, so it cannot be required from here.
+local indexProvider: ((Player) -> any)? = nil
+
+function StateService.setIndexProvider(fn: (Player) -> any)
+	indexProvider = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -51,6 +59,7 @@ export type ClientState = {
 	tutorialStage: number,
 	highestZone: number,
 	indexCount: number,
+	index: any?, -- IndexService.Summary: per-zone counts and claim flags only
 	plotName: string?,
 	tutorial: any?,
 }
@@ -86,6 +95,7 @@ local function build(player: Player): ClientState?
 		tutorialStage = profile.TutorialStage,
 		highestZone = profile.HighestZoneReached,
 		indexCount = discovered,
+		index = if indexProvider then indexProvider(player) else nil,
 		plotName = if plot then plot.Name else nil,
 		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
 		inventory = profile.Inventory,

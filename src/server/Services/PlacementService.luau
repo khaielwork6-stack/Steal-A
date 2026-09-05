@@ -29,6 +29,7 @@ local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
+local IndexService = require(script.Parent.IndexService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
 
@@ -116,6 +117,11 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		`PLACED  {loot.name}  +{NumberFormat.income(loot.finalIncome)}`
 			.. (if firstTime then "  (NEW!)" else "")
 	)
+
+	-- After the placement toast, so "NEW!" reads before any set-complete banner.
+	if firstTime then
+		IndexService.onDiscovered(player, loot.itemId)
+	end
 	return true
 end
 

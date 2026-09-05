@@ -95,11 +95,18 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			FinalIncome = final,
 			SlotIndex = free[1],
 		})
+		local firstTime = not profile.Index[def.id]
 		profile.Index[def.id] = true
 
 		BaseService.rebuildDisplays(player)
 		local income = EconomyService.recalculate(player)
 		StateService.pushNow(player)
+
+		-- Mirror the real placement path. Without this the Index grid stays stale
+		-- until the panel is next opened, which makes grant-based testing lie.
+		if firstTime then
+			require(script.Parent.IndexService).onDiscovered(player, def.id)
+		end
 
 		return { placed = def.name, slot = free[1], finalIncome = final, totalIncome = income }
 	end,
@@ -265,6 +272,51 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Index inspection and set-completion shortcut. Completing a set the honest
+	--- way costs eight successful steals, which is not a practical test loop.
+	---   index()            -> the summary
+	---   index("discover", 3) -> marks every Zone 3 item discovered
+	---   index("claim", 3)    -> runs the real claim path, validation included
+	---   index("wipe")        -> clears discoveries and claims
+	index = function(player, action: string?, zoneIndex: number?)
+		local IndexService = require(script.Parent.IndexService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		if action == "discover" then
+			local pool = LootConfig.Items[zoneIndex or 1]
+			if not pool then
+				return { error = "no such zone" }
+			end
+			for _, item in pool do
+				profile.Index[item.id] = true
+			end
+			IndexService.push(player)
+			StateService.pushNow(player)
+		elseif action == "claim" then
+			-- Written as a statement, not an if-expression: an if-expression
+			-- truncates a multi-return call to its first value, which would
+			-- silently drop the refusal reason this command exists to show.
+			local ok, reason
+			if zoneIndex then
+				ok, reason = IndexService.claimZone(player, zoneIndex)
+			else
+				ok, reason = IndexService.claimAll(player)
+			end
+			return { claimed = ok, reason = reason, income = EconomyService.getIncome(player) }
+		elseif action == "wipe" then
+			profile.Index = {}
+			profile.ClaimedIndexRewards = {}
+			EconomyService.recalculate(player)
+			IndexService.push(player)
+			StateService.pushNow(player)
+		end
+
+		return IndexService.summarise(player)
+	end,
+
 	--- Wipes progress the way a fresh account looks, to re-run the tutorial.
 	resetTutorial = function(player)
 		local profile = DataService.get(player)
@@ -276,6 +328,9 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		CarryService.releaseCarry(player)
 		profile.TutorialStage = 0
 		profile.Index = {}
+		-- Claims must go with the discoveries that earned them, or the reset
+		-- leaves a permanent income multiplier standing on an empty Index.
+		profile.ClaimedIndexRewards = {}
 		profile.DisplayItems = {}
 		profile.Cash = 0
 		profile.SpeedPower = 10

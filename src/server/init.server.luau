@@ -20,6 +20,7 @@ local StateService = require(Services.StateService)
 local LootService = require(Services.LootService)
 local CarryService = require(Services.CarryService)
 local GuardianService = require(Services.GuardianService)
+local IndexService = require(Services.IndexService)
 local PlacementService = require(Services.PlacementService)
 local SpeedService = require(Services.SpeedService)
 local ZoneSignService = require(Services.ZoneSignService)
@@ -32,7 +33,12 @@ Players.CharacterAutoLoads = true
 
 DataService.start()
 EconomyService.start()
+
+-- The Index summary rides StatePush, so it has to be installed before the first
+-- push goes out. Injected rather than required to keep the two services acyclic.
+StateService.setIndexProvider(IndexService.summarise)
 StateService.start()
+IndexService.start()
 
 -- Cross-service wiring is done here so the services themselves stay decoupled.
 CarryService.setNotifier(function(player, kind, message)

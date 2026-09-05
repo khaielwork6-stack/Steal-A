@@ -138,21 +138,9 @@ end
 -- PANELS
 -- ==========================================================
 
---- The pack's LocalScript opens a panel whose name matches the button. We only
---- need to keep panel CONTENT in sync, plus close anything that no longer
---- applies.
-local function refreshPanels(state)
-	local frames = ui:FindFirstChild("Frames")
-	if not frames then
-		return
-	end
-
-	local index = frames:FindFirstChild("Index")
-	local indexCounter = index and findLabel(index:FindFirstChild("Features"), "Title")
-	if indexCounter then
-		indexCounter.Text = `{state.indexCount}/96 Discovered`
-	end
-end
+-- Panel CONTENT has an owner per panel: Storage is InventoryController's and the
+-- Loot Index is IndexController's. The HUD deliberately writes to neither - two
+-- writers on one label is how the Index counter would start fighting itself.
 
 -- ==========================================================
 -- START
@@ -249,7 +237,6 @@ function HUDController.start()
 
 		updateZoneProgress(state.speedPower)
 		updateDisplayCount(state)
-		refreshPanels(state)
 	end)
 
 	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string, detail: string?)

@@ -25,16 +25,18 @@ Place: `PlaceId 134344354476234`, `GameId 10765058861`.
 ## 1. Repo state
 
 - Remote: `https://github.com/khaielwork6-stack/Steal-A.git`
-- Working branch: **`ui/pack-migration-and-prompt-fixes`** (pushed, in sync)
-- `master` is still at `29ca4bc` — **nothing below is on master yet**
+- Working branch: **`master`**. `ui/pack-migration-and-prompt-fixes` has been
+  merged in (`c119838`) and is no longer the place to work.
 - No PR was opened (`gh` CLI is not installed on this machine)
 
-Commits on the branch:
+Recent commits:
 
 | Hash | Summary |
 |---|---|
 | `dc8a227` | Move all UI onto the purchased pack; fix three interaction bugs |
 | `efa4644` | Wire in imported Zone 1 art; add reusable mutation VFX system |
+| `c119838` | Merge the UI pack migration into master |
+| *(this session)* | Phase 9 — the Loot Index (see §10) |
 
 ---
 
@@ -73,9 +75,10 @@ Two edits were also made **inside** the place that are not in git:
 
 - **Phases 0–8: complete.** Config, data/base assignment, loot spawning,
   steal/carry/guardian, placement/economy, treadmill + Speed, T0–T9 tutorial, PvP.
-- **Phase 9 (Index): NOT STARTED.** Only a discovery counter exists
-  (`state.indexCount`) and an unused `IndexClaimRequest` remote. No Index
-  service, no UI, no rewards. **This is the main gap.**
+- **Phase 9 (Index): COMPLETE.** `IndexService` + `IndexConfig` + the
+  `IndexController` panel. Per-zone set completion, claimable rewards
+  (cash / Speed / a permanent income multiplier) and the all-96 completionist
+  reward. See §10.
 - **Phase 10 (UI/VFX/audio): mostly done.** All UI is on the pack, mutation VFX,
   upgrade VFX and real Zone 1 models are in. **Audio is untouched.**
 - **Phases 11–13 (monetization, multiplayer hardening, polish): not started.**
@@ -247,8 +250,7 @@ Imports were normalised to 2.5–6 studs tall; the Cop to 7.
 
 ## 7. Known issues / not done
 
-- **Phase 9 (Index) is the main gap** — no service, UI or rewards.
-- **No audio anywhere.**
+- **No audio anywhere.** This is now the largest untouched area.
 - **No real item thumbnails.** There is no per-item art in the project — loot and
   trophies are both a `Placeholder` part tinted by rarity. The Storage cards show
   a rarity-coloured swatch instead of the pack's demo creature. Swap point is in
@@ -271,9 +273,21 @@ Imports were normalised to 2.5–6 studs tall; the Cop to 7.
   with empty state* (`DataService.get` will return `nil`). Use the debug bridge
   instead: `game.ServerStorage.DebugInvoke:Invoke(command, playerName, ...)` —
   note the 2nd argument is a player **name string or `nil`**, not a `Player`.
-- **Synthetic clicks are impossible.** `user_mouse_input` does not reach the
-  client, and `VirtualInputManager` is blocked (`lacking capability RobloxScript`).
-  Keyboard input via `user_keyboard_input` **does** work.
+- **Synthetic clicks DO work — via `instance_path`.** (This corrects an earlier
+  note in this file.) `user_mouse_input` with
+  `instance_path = "LocalPlayer.PlayerGui.MainUI.Buttons.Left.Index"` reaches the
+  client and fires the button. Raw `x`/`y` coordinates are far less reliable, and
+  `VirtualInputManager` is still blocked (`lacking capability RobloxScript`).
+  Keyboard input via `user_keyboard_input` also works.
+  When a click appears to do nothing, click a **pack** button the same way as a
+  control before concluding the harness is at fault — that is what exposed the
+  `Active = false` bug below.
+- **A clone of a pack button is inert until you fix two properties.** Pack
+  buttons ship `Active = false` (the pack drives them from `InputBegan`, not
+  `Activated`) and already carry `_UIHandlerSetup`. So a clone bound with
+  `Activated` never fires, and `UIAnim.bindButton` silently bails on it, leaving
+  a button with no hover, press or ripple. `IndexController.claimForUs` shows the
+  correct order: clear both attributes → `bindButton` → set `Active = true`.
 - **`ProximityPromptService` is camera-aware.** A scriptable camera parked away
   from the character suppresses `PromptShown` entirely and makes `TextBounds`
   read `0,0` — which looks exactly like a broken font. Restore
@@ -285,15 +299,55 @@ Imports were normalised to 2.5–6 studs tall; the Cop to 7.
   programmatically instead.
 - `DebugInvoke` commands: `snapshot`, `cash`, `grant(itemId, size, mutation)`,
   `clearDisplays`, `steal`, `inventory(action, arg)`, `upgradeBase`,
-  `activateBase`, `resetTutorial`, `tutorial`, `treadmill`.
+  `activateBase`, `resetTutorial`, `tutorial`, `treadmill`,
+  `index(action, zoneIndex)` where action is `discover`/`claim`/`wipe`.
+- **`grant` refuses once the base is full** (7 slots). To finish a set for
+  testing use `index("discover", zone)` rather than an 8th `grant`.
 
 ---
 
 ## 9. Suggested next steps
 
 1. Confirm the place is **saved and published** (§0).
-2. Merge `ui/pack-migration-and-prompt-fixes` into `master`.
-3. Build **Phase 9 (Index)** — the real remaining gap.
-4. Add art for the other 4 Zone 1 items, then zones 2–12, using the naming
+2. Add art for the other 4 Zone 1 items, then zones 2–12, using the naming
    contract in §6 (no code needed).
-5. Audio, then Phase 11+ .
+3. **Audio** — the largest untouched area of Phase 10.
+4. Phase 11 (monetization), then 12–13.
+
+---
+
+## 10. Phase 9 — the Loot Index
+
+**Discovery is recorded on PLACEMENT, not on a steal** (`PlacementService`
+writes `Profile.Index[itemId]`, then calls `IndexService.onDiscovered`). Carrying
+an item home is the achievement.
+
+**Rewards are derived, never typed.** `IndexConfig` holds three ratios and all
+twelve zones re-balance together:
+
+| | Formula | Zone 1 | Zone 12 |
+|---|---|---|---|
+| Cash | `CASH_SECONDS` (90) × the zone's combined base income | $9.8M | $6.36T |
+| Speed | `SPEED_FRACTION` (0.15) × the **next** zone's recommended Speed | 135 | 3B |
+| Income | `+2%` permanent, per claimed set | | |
+
+All twelve claimed = **+24%**; the all-96 completionist claim adds **+10%** on
+top and requires every zone already claimed. The multiplier is applied in
+`EconomyService.recalculate` against the aggregate, so a claim never rewrites
+saved per-item `FinalIncome`.
+
+**Replication.** The 96-entry discovery map rides its own `IndexPush` remote, not
+`StatePush` — `StatePush` fires ~4×/sec while income ticks. `StatePush` carries
+only a twelve-entry summary. The client also fires `IndexClaimRequest("sync")` on
+start and on panel open, which is immune to the join race in a way a timed
+re-push is not.
+
+**The panel is filled in, not built.** `MainUI.Frames.Index` already exists and
+`Buttons.Left.Index` already opens it. The pack's demo grid shipped both states
+an index needs — a card with `Rarity`+`Name`, and one with `Count` = "???" — and
+both are lifted out as templates. Zone tabs exist because the grid is four wide,
+so eight items are exactly two rows.
+
+Verified end to end in Play mode: gating, double-claim refusal, the completionist
+order requirement, the multiplier reaching real income (60,577 → 61,788 = ×1.02),
+the opener badge, and 20 open/close cycles leaking nothing.

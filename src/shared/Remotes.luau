@@ -28,6 +28,9 @@ Remotes.NAMES = {
 	-- server -> client
 	"StatePush",
 	"Notify",
+	-- The 96-entry Index discovery map. Deliberately NOT part of StatePush,
+	-- which fires several times a second while income ticks.
+	"IndexPush",
 }
 
 local folder: Folder

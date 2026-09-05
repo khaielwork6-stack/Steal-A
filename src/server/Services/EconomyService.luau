@@ -15,6 +15,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local IndexConfig = require(ReplicatedStorage.Shared.Config.IndexConfig)
 local DataService = require(script.Parent.DataService)
 
 local EconomyService = {}
@@ -46,6 +47,12 @@ function EconomyService.recalculate(player: Player): number
 	for _, item in profile.DisplayItems do
 		total += item.FinalIncome
 	end
+
+	-- The only global multiplier in the game: completed Index sets. Reading it
+	-- from the config keeps the reward defined in one place, and applying it here
+	-- means it lands on the aggregate rather than on each item's frozen
+	-- FinalIncome - so a claim never rewrites saved item data.
+	total = math.floor(total * IndexConfig.incomeMultiplier(profile.ClaimedIndexRewards))
 
 	incomePerSecond[player] = total
 	notify(player)

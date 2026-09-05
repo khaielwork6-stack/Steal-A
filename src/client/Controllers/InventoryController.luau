@@ -33,6 +33,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local ItemThumb = require(ReplicatedStorage.Shared.Util.ItemThumb)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -178,27 +179,11 @@ local function buildCard(item: any, index: number): Frame?
 		end
 		local inner = slot:FindFirstChild("Frame")
 
-		-- The pack's thumbnail ships a demo creature. There is no per-item art in
-		-- the project yet - loot and trophies are both a Placeholder part tinted
-		-- by rarity (see LootService/BaseService) - so the swatch below shows the
-		-- item's ACTUAL in-world colour rather than borrowed demo artwork. Drop
-		-- real models in later and this is the one place to swap.
+		-- The pack's thumbnail ships a demo creature. ItemThumb owns what a card
+		-- shows instead, and is the single swap point for real per-item art.
 		local icon = inner and inner:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			icon.Image = ""
-			icon.BackgroundTransparency = 0
-			icon.BackgroundColor3 = rarityColor
-			if not icon:FindFirstChildOfClass("UICorner") then
-				local round = Instance.new("UICorner")
-				round.CornerRadius = UDim.new(0.18, 0)
-				round.Parent = icon
-			end
-			if not icon:FindFirstChildOfClass("UIStroke") then
-				local edge = Instance.new("UIStroke")
-				edge.Thickness = 2
-				edge.Color = Color3.fromRGB(18, 20, 26)
-				edge.Parent = icon
-			end
+			ItemThumb.apply(icon, rarity)
 		end
 
 		local earns = inner and inner:FindFirstChild("Earns")
