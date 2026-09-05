@@ -24,7 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
-local SCHEMA_VERSION = 2
+local SCHEMA_VERSION = 3
 local STORE_NAME = "PlayerProfiles_v1"
 
 local DataService = {}
@@ -58,6 +58,10 @@ export type Profile = {
 	StorageTier: number,
 	Lifetime: { Steals: number, PvPSteals: number, Secrets: number, CashEarned: number },
 	Settings: { ReducedVFX: boolean, ScreenShake: boolean },
+	-- Robux purchase ids already granted. This MUST be durable: ProcessReceipt is
+	-- retried across sessions and servers, so an in-memory set would re-grant a
+	-- replayed receipt after a rejoin. Bounded - see MonetizationService.
+	ProcessedReceipts: { string },
 }
 
 local store: DataStore? = nil
@@ -85,6 +89,7 @@ local function defaultProfile(): Profile
 		StorageTier = 0,
 		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0 },
 		Settings = { ReducedVFX = false, ScreenShake = true },
+		ProcessedReceipts = {},
 	}
 end
 
@@ -115,7 +120,16 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 2
 	end
 
-	-- Future migrations chain here: if version < 3 then ... end
+	if version < 3 then
+		-- v3 introduced Robux purchases. An existing player has never had a
+		-- receipt granted, so an empty list is correct and cannot re-grant.
+		if type(profile.ProcessedReceipts) ~= "table" then
+			profile.ProcessedReceipts = {}
+		end
+		profile.SchemaVersion = 3
+	end
+
+	-- Future migrations chain here: if version < 4 then ... end
 
 	return profile
 end
@@ -142,6 +156,13 @@ local function reconcile(profile: Profile): Profile
 	end
 	profile.StorageTier = math.max(0, math.floor(tonumber(profile.StorageTier) or 0))
 
+	-- A corrupt receipt list must never be silently replaced with an empty one:
+	-- that would let every past receipt be granted a second time. Only repair it
+	-- when it is not a table at all, which means there is nothing to lose.
+	if type(profile.ProcessedReceipts) ~= "table" then
+		profile.ProcessedReceipts = {}
+	end
+
 	return profile
 end
 
@@ -163,6 +184,16 @@ end
 
 function DataService.get(player: Player): Profile?
 	return profiles[player]
+end
+
+--- True when saves actually reach a DataStore.
+---
+--- ProcessReceipt must only report a purchase granted once the grant is durable,
+--- so it needs to distinguish "the save failed" from "there is no DataStore in
+--- this environment". Studio without API access is the latter: nothing can be
+--- persisted, and refusing every receipt there would make purchases untestable.
+function DataService.isPersistent(): boolean
+	return useDataStore and store ~= nil
 end
 
 function DataService.load(player: Player)

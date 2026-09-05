@@ -25,6 +25,10 @@ Remotes.NAMES = {
 	"TrapPlaceRequest",
 	"IndexClaimRequest",
 	"TeleportHomeRequest",
+	-- Asks the SERVER to open a Robux purchase prompt. The client never calls
+	-- PromptProductPurchase with an id of its own choosing, so a tampered client
+	-- cannot make the game prompt for an arbitrary product.
+	"PurchaseRequest",
 	-- server -> client
 	"StatePush",
 	"Notify",

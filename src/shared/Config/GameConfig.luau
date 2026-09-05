@@ -71,6 +71,7 @@ GameConfig.RATE_LIMITS = {
 	BatSwingRequest = 4,
 	TrapPlaceRequest = 3,
 	IndexClaimRequest = 4,
+	PurchaseRequest = 2,
 }
 
 return GameConfig

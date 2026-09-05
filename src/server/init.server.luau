@@ -27,6 +27,7 @@ local ZoneSignService = require(Services.ZoneSignService)
 local TutorialService = require(Services.TutorialService)
 local RagdollService = require(Services.RagdollService)
 local PvPService = require(Services.PvPService)
+local MonetizationService = require(Services.MonetizationService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -94,6 +95,8 @@ CarryService.start()
 GuardianService.start()
 PlacementService.start()
 SpeedService.start()
+-- Must follow SpeedService: a receipt grants its tier through it.
+MonetizationService.start()
 ZoneSignService.start()
 TutorialService.start()
 RagdollService.start()

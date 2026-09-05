@@ -29,6 +29,17 @@ function MonetizationConfig.isConfigured(key: string): boolean
 	return id ~= nil and id > 0
 end
 
+--- The product id for a key, or nil when unset. Returning nil rather than 0
+--- means a caller cannot accidentally prompt for product "0", which Roblox
+--- surfaces to the player as a broken purchase dialog.
+function MonetizationConfig.productIdFor(key: string?): number?
+	if not key then
+		return nil
+	end
+	local id = MonetizationConfig.Products[key]
+	return if id and id > 0 then id else nil
+end
+
 --- Reverse lookup so ProcessReceipt can map a purchased id back to its key.
 function MonetizationConfig.keyForProductId(productId: number): string?
 	for key, id in MonetizationConfig.Products do

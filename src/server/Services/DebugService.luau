@@ -402,6 +402,82 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { upgraded = ok, reason = reason, slots = BaseService.unlockedSlots(player) }
 	end,
 
+	--- Robux receipts, which cannot be produced for real in Studio.
+	---
+	---   receipt("configure")                 give every treadmill product a fake id
+	---   receipt("clear")                     put every id back to 0 (unconfigured)
+	---   receipt("deliver", productId, purchaseId)
+	---                                        hand ProcessReceipt a synthetic receipt
+	---
+	--- "deliver" is the only way to exercise replay safety, the unconfigured
+	--- refusal and the already-maxed path.
+	receipt = function(player, mode: string?, a: any, b: any)
+		local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
+		local MonetizationService = require(script.Parent.MonetizationService)
+		local profile = DataService.get(player)
+
+		if mode == "configure" then
+			local assigned = {}
+			local base = 9000000
+			for key in MonetizationConfig.Products do
+				base += 1
+				MonetizationConfig.Products[key] = base
+				assigned[key] = base
+			end
+			return { configured = assigned }
+		elseif mode == "clear" then
+			for key in MonetizationConfig.Products do
+				MonetizationConfig.Products[key] = 0
+			end
+			return { cleared = true }
+		elseif mode == "seed" then
+			-- Pushes dummy ids straight into the durable list so the trim in
+			-- rememberGrant can be exercised. A player can only ever make eight
+			-- real treadmill purchases, so the cap is otherwise unreachable.
+			if profile then
+				for i = 1, tonumber(a) or 0 do
+					table.insert(profile.ProcessedReceipts, "seed-" .. i)
+				end
+			end
+			return { receiptsStored = profile and #profile.ProcessedReceipts }
+		elseif mode == "setlevel" then
+			if profile then
+				profile.TreadmillLevel = math.clamp(tonumber(a) or 1, 0, 9)
+			end
+			return { treadmillLevel = profile and profile.TreadmillLevel }
+		elseif mode == "deliver" then
+			local decision = MonetizationService.processReceipt({
+				PlayerId = player.UserId,
+				ProductId = tonumber(a) or 0,
+				PurchaseId = tostring(b),
+				CurrencySpent = 0,
+				CurrencyType = Enum.CurrencyType.Robux,
+				PlaceIdWherePurchased = game.PlaceId,
+			})
+			return {
+				decision = decision.Name,
+				treadmillLevel = profile and profile.TreadmillLevel,
+				receiptsStored = profile and #profile.ProcessedReceipts,
+			}
+		end
+
+		-- Default: report the current state.
+		local ids = {}
+		for key, id in MonetizationConfig.Products do
+			table.insert(ids, `{key}={id}`)
+		end
+		table.sort(ids)
+		local nextId, nextKey, nextLevel = MonetizationService.nextTreadmillProduct(player)
+		return {
+			products = ids,
+			treadmillLevel = profile and profile.TreadmillLevel,
+			receiptsStored = profile and #profile.ProcessedReceipts,
+			nextProductId = nextId,
+			nextProductKey = nextKey,
+			nextLevel = nextLevel,
+		}
+	end,
+
 	--- Re-runs the display rebuild + income recalculation, which is exactly what
 	--- a reconnect does. Income and trophy count must not drift.
 	rebuild = function(player, times: number?)
