@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -205,6 +206,15 @@ local function buildTrophy(item: DataService.DisplayItem): Model
 		end
 	end
 
+	if not model.PrimaryPart then
+		model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	-- A trophy keeps the mutation it was stolen with. The whole point of the
+	-- base is that it looks like a museum of what you took, so a Corrupted
+	-- Meteorite must still read as Corrupted once it is on the pedestal.
+	MutationVfx.apply(model, item.Mutation)
+
 	model:SetAttribute("InstanceId", item.InstanceId)
 	model:SetAttribute("ItemId", item.ItemId)
 	model:SetAttribute("FinalIncome", item.FinalIncome)
@@ -215,7 +225,7 @@ end
 --- Income/name card floating over a placed trophy.
 local function buildLabel(item: DataService.DisplayItem, parent: Model)
 	local def = LootConfig.ById[item.ItemId]
-	local anchor = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")
+	local anchor = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart", true)
 	if not anchor then
 		return
 	end
@@ -292,7 +302,7 @@ function BaseService.rebuildDisplays(player: Player)
 			buildLabel(item, trophy)
 			trophy.Parent = slot
 
-			local anchor = trophy.PrimaryPart or trophy:FindFirstChildWhichIsA("BasePart")
+			local anchor = trophy.PrimaryPart or trophy:FindFirstChildWhichIsA("BasePart", true)
 			if anchor then
 				local lift = anchor.Size.Y / 2
 				trophy:PivotTo(slot.CFrame * CFrame.new(0, lift + 0.5, 0))

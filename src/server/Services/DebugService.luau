@@ -261,7 +261,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			derivedStage = TutorialService.deriveStage(player),
 			objective = state and state.objective,
 			hint = state and state.hint,
-			chip = state and state.chip,
 			hasTarget = state ~= nil and state.target ~= nil,
 		}
 	end,

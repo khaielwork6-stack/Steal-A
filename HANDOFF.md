@@ -1,0 +1,299 @@
+# Handoff — Steal Something
+
+Written for the next Claude session. Read this before touching anything.
+
+---
+
+## 0. DO THIS FIRST — the place file may be unsaved
+
+Two things must be true before the game runs correctly:
+
+1. **The Roblox place must be saved.** A large amount of work lives *only* in the
+   `.rbxl`, not in git. If it was never saved, the game is broken on load: no
+   loot models, no mutation VFX, no Cop, and the "press E spams four popups" bug
+   returns. Ask the user whether they did **File → Save to Roblox** and
+   **File → Publish to Roblox**. There is **no save/publish tool** in the Studio
+   MCP integration, so you cannot do it for them.
+
+2. **Rojo must be serving.** `rojo serve default.project.json` on port `34872`,
+   with the Rojo plugin connected in Studio. Without it, Studio runs stale code.
+
+Place: `PlaceId 134344354476234`, `GameId 10765058861`.
+
+---
+
+## 1. Repo state
+
+- Remote: `https://github.com/khaielwork6-stack/Steal-A.git`
+- Working branch: **`ui/pack-migration-and-prompt-fixes`** (pushed, in sync)
+- `master` is still at `29ca4bc` — **nothing below is on master yet**
+- No PR was opened (`gh` CLI is not installed on this machine)
+
+Commits on the branch:
+
+| Hash | Summary |
+|---|---|
+| `dc8a227` | Move all UI onto the purchased pack; fix three interaction bugs |
+| `efa4644` | Wire in imported Zone 1 art; add reusable mutation VFX system |
+
+---
+
+## 2. The single most important architectural fact
+
+**Code lives in git. Art lives in the place file. They are separate.**
+
+`default.project.json` maps only:
+
+```
+ReplicatedStorage.Shared          <- src/shared
+ServerScriptService.Server        <- src/server
+StarterPlayer.StarterPlayerScripts.Client <- src/client
+```
+
+Everything below is **Studio-side only, not version controlled**, and will be
+lost if the place is not saved:
+
+| Location | Contents |
+|---|---|
+| `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`) |
+| `ServerStorage.GameAssets.Loot` | `Museum_RarePainting`, `Museum_Meteorite`, `Museum_GoldenStatue`, `Museum_PharaohMask` |
+| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop` |
+| `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
+| `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
+
+Two edits were also made **inside** the place that are not in git:
+
+- `StarterGui.MainUI.ResetOnSpawn` set to **false** (fixes duplicate HUD on respawn)
+- `StarterGui.MainUI.LocalScript` — the pack's demo `E` keybind was surgically
+  removed (see §5)
+
+---
+
+## 3. Phase status (per the GDD, section 19)
+
+- **Phases 0–8: complete.** Config, data/base assignment, loot spawning,
+  steal/carry/guardian, placement/economy, treadmill + Speed, T0–T9 tutorial, PvP.
+- **Phase 9 (Index): NOT STARTED.** Only a discovery counter exists
+  (`state.indexCount`) and an unused `IndexClaimRequest` remote. No Index
+  service, no UI, no rewards. **This is the main gap.**
+- **Phase 10 (UI/VFX/audio): mostly done.** All UI is on the pack, mutation VFX,
+  upgrade VFX and real Zone 1 models are in. **Audio is untouched.**
+- **Phases 11–13 (monetization, multiplayer hardening, polish): not started.**
+
+---
+
+## 4. What the UI architecture is now
+
+The pack ships its own animation `LocalScript` at `StarterGui.MainUI.LocalScript`.
+It owns every button inside `MainUI`: hover/press/ripple, and it opens the panel
+in `MainUI.Frames` whose **name matches the clicked button's name**.
+
+**Rules that must not be broken:**
+
+- Do **not** call `UIAnim.bindAllButtons` on `MainUI`. The pack stamps buttons it
+  owns with the attribute `_UIHandlerSetup` and **skips anything already carrying
+  it**. If we bind first, the pack refuses the button and it animates but never
+  opens anything. `UIAnim` is for UI we build *outside* the pack.
+- Anything cloned from an existing pack button must have `_UIHandlerSetup` and
+  `AnimBound` **cleared** before parenting, or the pack ignores it (this exact
+  bug made the Storage button dead — see §5).
+- Never write into a notification template. `ToastController` clones them.
+- `MainUI.Frames.Sell` is a **template**, moved at runtime into
+  `MainUI.Templates` by `InventoryController`. Anything left in `Frames` is
+  treated by the pack as an openable panel.
+
+Controllers (`src/client/Controllers/`):
+
+| File | Role |
+|---|---|
+| `HUDController` | Binds pack HUD to `StatePush`; starts Toast + Effects controllers |
+| `ToastController` | The **only** path from a server `Notify` to screen. Clones pack templates |
+| `InteractController` | Single shared prompt built from the pack's `Action UI` billboard |
+| `InventoryController` | Storage panel, cloned from the pack's `Sell` frame |
+| `EffectsController` | One-shot world VFX bursts (LevelUp) |
+| `TutorialController` | World arrow only. Objectives go out as toasts |
+| `BasePromptController`, `CombatController`, `GuardianFxController` | Unchanged |
+
+---
+
+## 5. Bugs found and fixed (root causes — this is the valuable part)
+
+These were all real, and several are non-obvious. Do not reintroduce them.
+
+1. **`Workspace` is itself a `Model`.**
+   `part:FindFirstAncestorWhichIsA("Model")` on any part without its own model
+   returns Workspace, whose bounding box is the whole map (~303 studs). This
+   lifted every base interact prompt ~154 studs into the sky — Activate Base,
+   Upgrade Base, treadmill and display slots all *worked* but appeared to have no
+   UI at all. Guarded in `InteractController.liftFor`.
+
+2. **`Model:GetBoundingBox()` returns an *oriented* box** aligned to the model's
+   pivot. `size.Y` is **not** world height when the pivot is rotated. Using it to
+   scale imports produced nonsense (an 11-stud model "shrank" to 20 studs). Use a
+   true world AABB from part corners.
+
+3. **`Model:ScaleTo()` is absolute, not relative.** Multiply through
+   `model:GetScale()`.
+
+4. **`FindFirstChildWhichIsA` is not recursive by default.** Imported models keep
+   their parts inside nested `Model`s (the meteorite is
+   `Zone One Meteor > meteor > OldMeteor`), so the non-recursive call found no
+   anchor part — silently no prompt and no VFX. All such calls now pass `true`.
+
+5. **Notification templates must never be mutated.** The old HUD wrote toast text
+   into the pack's template and set `Visible = true`. The pack clones from that
+   same template, so real messages leaked into unrelated popups.
+
+6. **The pack shipped a demo keybind**: `NOTIFICATION_TEST_KEYBIND = Enum.KeyCode.E`
+   calling `showAllNotifications()`, which played *every* template on each `E`
+   press ("??? Spawned" / "Inventory Full!" / …). Removed from the pack
+   `LocalScript` in the place file.
+
+7. **Cleanup must filter on what to KEEP.** The inventory cleared rows with
+   `if child:IsA("Frame")`, but the empty-state was a `TextLabel`, so one
+   "Nothing stored." accumulated per `StatePush`. Now filters on `UILayout`.
+
+8. **A deferred hide must be cancellable.** `UIAnim.popOut`'s completion callback
+   set `Visible = false` even after a new target had claimed the shared interact
+   billboard, leaving it enabled but invisible forever. Fixed with a `hideToken`.
+
+9. **`ResetOnSpawn` on a persistent HUD.** `MainUI` had it on, so respawning
+   (which the guardian causes constantly) kept the bound HUD *and* added a second
+   unbound copy over it — the pack's demo numbers reappeared and its script ran
+   twice. Also destroyed the interact billboard (a `BillboardGui` is a
+   `LayerCollector`), causing "Parent property is locked" spam.
+
+10. **State was only pushed on change, and the join push raced the client.** A
+    fresh account with $0 income could sit on default values indefinitely. Fixed
+    in `src/server/init.server.luau` by re-marking dirty for a few seconds after
+    the profile loads.
+
+11. **Self-inflicted, caught in testing:** rewriting the loot placement lift
+    deleted the `local anchor` line, so `prompt.Parent = anchor` orphaned **all
+    48 steal prompts**. If loot suddenly becomes unstealable, look there first.
+
+---
+
+## 6. Systems added
+
+### Mutations — locked ladder
+
+`Normal → Shiny → Golden → Flaming → Corrupted` (Corrupted is best). Defined in
+`src/shared/Config/RarityConfig.luau`:
+
+| Mutation | Chance | Multiplier |
+|---|---|---|
+| Normal | 90.0% | ×1.00 |
+| Shiny | 6.0% | ×1.25 |
+| Golden | 2.5% | ×2.00 |
+| Flaming | 1.0% | ×2.50 |
+| Corrupted | 0.5% | ×3.00 |
+
+`RarityConfig.MutationAliases` maps the old `Neon → Flaming` and
+`Glitched → Corrupted` so existing saves keep their tier. **Always run a stored
+mutation id through `RarityConfig.normaliseMutation()`.**
+
+### `src/shared/Util/MutationVfx.luau`
+
+Generic, no per-item code. Reads whatever is in
+`ReplicatedStorage.GameAssets.Mutations` and applies it to any model. The four
+authored assets have four *different* shapes (emitters on a Model, on a Part, or
+on a nested `MainPart`), so the effect source is discovered rather than assumed.
+Emitter `Size`/`Speed` are scaled to the target's span. Applied both to world
+loot (`LootService`) and to displayed trophies (`BaseService.buildTrophy`).
+
+To add a mutation: author it in that folder, add a row to `RarityConfig`. No code.
+
+### `src/client/Controllers/EffectsController.luau`
+
+The two `LVLUP!` assets were the **same effect in two colourways**, with **no
+literal text**. Kept both. Their emitters are named `Emit-1` / `Emit-6` — that
+suffix is the **emit count**; they are bursts fired with `:Emit(n)`, not looping
+emitters to enable.
+
+Triggered by the 4th argument of `StateService.notify(player, kind, message, detail)`:
+
+- `detail = "levelup"` → gold burst (storage upgrade, base upgrade, treadmill upgrade)
+- `detail = "unlock"` → blue burst (base activation)
+
+### Zone 1 guardian (the Cop)
+
+**The imported Cop is a static prop** — 28 anchored parts, **no `Humanoid`, no
+`Motor6D`**. It cannot be animated by Roblox's animation system. Rather than
+re-rig the artist's model, `GuardianService.dressRig` welds it on as a *costume*
+over the existing working rig (invisible `HumanoidRootPart` keeps physics and
+pathfinding) and `animateShell` poses it procedurally each frame:
+
+- **Sleeping** — slumped 14° forward, slow breathing bob
+- **Waking** — bolts upright, vibrates
+- **Chasing** — −24° forward lean, 0.85-stud bob at ~5 footfalls/sec, ±17° waddle
+
+Tuning constants are at the top of `GuardianService` (`RUN_CYCLE_SPEED`,
+`RUN_BOB`, `RUN_ROLL`, `RUN_YAW`, `RUN_LEAN`).
+
+Other zones have no art and keep the placeholder block body automatically.
+
+### Asset naming contract
+
+Drop new art in and it is picked up with **no code change**:
+
+- Loot: `ServerStorage.GameAssets.Loot.<ItemId>` (e.g. `Museum_Diamond`)
+- Guardian: `ServerStorage.GameAssets.Guardians.Zone<NN>_<guardian>`
+  (guardian name comes from `ZoneConfig.Zones[i].guardian`, e.g. `Zone02_PirateCaptain`)
+
+Imports were normalised to 2.5–6 studs tall; the Cop to 7.
+
+---
+
+## 7. Known issues / not done
+
+- **Phase 9 (Index) is the main gap** — no service, UI or rewards.
+- **No audio anywhere.**
+- **No real item thumbnails.** There is no per-item art in the project — loot and
+  trophies are both a `Placeholder` part tinted by rarity. The Storage cards show
+  a rarity-coloured swatch instead of the pack's demo creature. Swap point is in
+  `InventoryController.buildCard`.
+- **Zone 1 has 8 items but only 4 models** (`AncientVase`, `Ruby`, `GoldenCrown`,
+  `Diamond` still use placeholders). Zones 2–12 have none.
+- **Rejoin persistence is unverified** — DataStore API access is off in Studio, so
+  profiles are in-memory. The save schema was never touched, but this needs a
+  live-server check.
+- **The Storage button click was never verified by an actual click** (see §8).
+  A fallback opener exists and warns to console if the pack fails to bind it.
+- `MainUI.Templates` is created at runtime, not authored in the place.
+
+---
+
+## 8. Testing gotchas in this environment (will save you hours)
+
+- **`execute_luau` runs in a separate Lua VM** from the game's scripts. `_G` is
+  **not** shared, and `require`-ing a server module gives you a *fresh instance
+  with empty state* (`DataService.get` will return `nil`). Use the debug bridge
+  instead: `game.ServerStorage.DebugInvoke:Invoke(command, playerName, ...)` —
+  note the 2nd argument is a player **name string or `nil`**, not a `Player`.
+- **Synthetic clicks are impossible.** `user_mouse_input` does not reach the
+  client, and `VirtualInputManager` is blocked (`lacking capability RobloxScript`).
+  Keyboard input via `user_keyboard_input` **does** work.
+- **`ProximityPromptService` is camera-aware.** A scriptable camera parked away
+  from the character suppresses `PromptShown` entirely and makes `TextBounds`
+  read `0,0` — which looks exactly like a broken font. Restore
+  `CameraType = Custom` before concluding anything about prompts.
+- **`BillboardGui.AlwaysOnTop = true` renders nothing here.** Verified twice: it
+  reports `Enabled`, `Visible` and a correct `AbsoluteSize`, and draws nothing.
+  Solve occlusion by lifting the billboard instead.
+- Screenshots of short particle bursts are near-impossible to time; verify those
+  programmatically instead.
+- `DebugInvoke` commands: `snapshot`, `cash`, `grant(itemId, size, mutation)`,
+  `clearDisplays`, `steal`, `inventory(action, arg)`, `upgradeBase`,
+  `activateBase`, `resetTutorial`, `tutorial`, `treadmill`.
+
+---
+
+## 9. Suggested next steps
+
+1. Confirm the place is **saved and published** (§0).
+2. Merge `ui/pack-migration-and-prompt-fixes` into `master`.
+3. Build **Phase 9 (Index)** — the real remaining gap.
+4. Add art for the other 4 Zone 1 items, then zones 2–12, using the naming
+   contract in §6 (no code needed).
+5. Audio, then Phase 11+ .

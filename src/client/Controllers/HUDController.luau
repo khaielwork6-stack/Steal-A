@@ -28,6 +28,8 @@ local TweenService = game:GetService("TweenService")
 
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local EffectsController = require(script.Parent.EffectsController)
+local ToastController = require(script.Parent.ToastController)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
@@ -153,58 +155,6 @@ local function refreshPanels(state)
 end
 
 -- ==========================================================
--- NOTIFICATIONS
--- ==========================================================
-
-local toastQueue: { { kind: string, message: string } } = {}
-local toastBusy = false
-
-local function showToast(kind: string, message: string)
-	local holder = ui:FindFirstChild("Notifications")
-	if not holder then
-		return
-	end
-
-	-- Reuse whichever pack notification frame best matches the message type.
-	local template = holder:FindFirstChild(
-		if kind == "error" then "InventoryFull"
-		elseif kind == "success" then "Collected"
-		else "PickedUp"
-	) or holder:FindFirstChild("PickedUp")
-
-	if not template or not template:IsA("GuiObject") then
-		return
-	end
-
-	local label = findLabel(template, "Title") or template:FindFirstChildWhichIsA("TextLabel", true)
-	if label then
-		label.Text = message
-	end
-
-	template.Visible = true
-	task.delay(2.4, function()
-		template.Visible = false
-	end)
-end
-
-local function pumpToasts()
-	if toastBusy then
-		return
-	end
-	toastBusy = true
-	task.spawn(function()
-		while #toastQueue > 0 do
-			local next = table.remove(toastQueue, 1)
-			if next then
-				showToast(next.kind, next.message)
-			end
-			task.wait(0.6)
-		end
-		toastBusy = false
-	end)
-end
-
--- ==========================================================
 -- START
 -- ==========================================================
 
@@ -263,11 +213,13 @@ function HUDController.start()
 		end)
 	end
 
-	-- Every button in the pack gets the same hover/press feel.
-	UIAnim.bindAllButtons(ui)
-	ui.DescendantAdded:Connect(function()
-		task.defer(UIAnim.bindAllButtons, ui)
-	end)
+	-- Buttons inside MainUI are deliberately NOT bound here. The pack's own
+	-- animation script already gives every button under this ScreenGui its
+	-- hover/press/ripple treatment, and it additionally pairs a button with the
+	-- panel of the same name to open it. Binding them ourselves would stamp them
+	-- as already-handled, the pack would skip them, and buttons like Storage
+	-- would animate but never open anything. UIAnim is for the UI we build
+	-- outside this pack.
 
 	applyScale()
 	local camera = workspace.CurrentCamera
@@ -275,9 +227,14 @@ function HUDController.start()
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
 	end
 
+	EffectsController.start()
+	ToastController.start(ui)
+
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		if cashLabel then
-			cashLabel.Text = NumberFormat.cash(state.cash)
+			-- Count toward the new balance rather than snapping, so passive
+			-- income visibly ticks up instead of flickering between values.
+			UIAnim.countTo(cashLabel, state.cash, NumberFormat.cash)
 			if state.cash > lastCash then
 				pulse(cashLabel)
 			end
@@ -295,9 +252,16 @@ function HUDController.start()
 		refreshPanels(state)
 	end)
 
-	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string)
-		table.insert(toastQueue, { kind = kind, message = message })
-		pumpToasts()
+	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string, detail: string?)
+		ToastController.show(kind, message)
+
+		-- `detail` lets the server ask for a world effect without needing to know
+		-- what the effect is. Gold for anything bought, blue for an unlock.
+		if detail == "levelup" then
+			EffectsController.burstOnPlayer("Gold")
+		elseif detail == "unlock" then
+			EffectsController.burstOnPlayer("Blue")
+		end
 	end)
 end
 

@@ -126,6 +126,21 @@ local function onPlayer(player: Player)
 		EconomyService.recalculate(player)
 		SpeedService.applyMovement(player)
 		StateService.pushNow(player)
+
+		-- The push above races the client: a profile that loads instantly (Studio
+		-- solo, or a warm DataStore) fires it before StarterPlayerScripts have
+		-- connected to StatePush, so the client drops its only snapshot. State is
+		-- otherwise only sent on CHANGE, so a fresh account with $0 income and no
+		-- actions could sit on default values indefinitely - every panel showing
+		-- 0/10 storage and a blank HUD until the player happened to earn
+		-- something. Re-mark for a short while so a late listener still gets one.
+		for _ = 1, 12 do
+			task.wait(0.5)
+			if not player.Parent then
+				return
+			end
+			StateService.markDirty(player)
+		end
 	end)
 end
 

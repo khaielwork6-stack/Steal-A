@@ -51,7 +51,6 @@ GameConfig.GLOBAL_REFRESH_WARNING = 10
 GameConfig.TUTORIAL_ITEM_ID = "Museum_AncientVase"
 GameConfig.TUTORIAL_ZONE = 1
 GameConfig.TUTORIAL_SOCKET = 1
-GameConfig.TUTORIAL_NEXT_GOAL_SPEED = 900 -- the "Reach 900 Speed" quest chip
 GameConfig.TUTORIAL_FINISH_DELAY = 9 -- seconds the zone-2 pointer stays up
 
 -- Anti-exploit: max accepted requests per player per second, per remote.
