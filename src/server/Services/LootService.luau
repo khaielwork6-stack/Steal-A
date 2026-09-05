@@ -1,8 +1,7 @@
 --!strict
 --[[
 	LootService
-	Four active loot sockets per zone, weighted rolls, and the socket lifecycle
-	(GDD section 6).
+	Four active loot sockets per zone, weighted rolls, and the socket lifecycle.
 
 	Authoritative state lives here and only here. Every concrete loot instance
 	carries a GUID and a state, and every transition checks both the current
@@ -16,6 +15,32 @@
 	  Dropped   loose after PvP, 8s reclaim window
 	  Returning transient cleanup
 	  Placed    handed to BaseService, no longer world state
+
+	== SPAWN PACING - THE RULE THAT SHAPES THE WHOLE GAME ==
+
+	A socket emptied by a SUCCESSFUL theft stays empty. There is no per-socket
+	refill timer, and adding one back would undo the entire economy pass: 48
+	sockets each quietly rerolling every 20 seconds is a slot machine that prints
+	the best items in the game faster than anyone can spend them.
+
+	Sockets refill ONLY at the global refresh (every GLOBAL_REFRESH_INTERVAL
+	seconds, with a countdown). That gives the server a shared rhythm - loot
+	appears, players hunt, the good sockets get taken, the world empties, the
+	countdown runs, everyone races out again.
+
+	Two paths put an item back early, and BOTH return the same instance rather
+	than rolling a new one:
+	  * a guardian reclaim (you were caught - you should not have to wait five
+	    minutes for the thing you failed to steal)
+	  * an unclaimed PvP drop timing out
+
+	== JACKPOTS ==
+
+	The 8th item in every zone is its jackpot and is excluded from ordinary rolls
+	entirely. Once per global refresh the server makes ONE roll (never one per
+	socket) at GameConfig.JACKPOT_REFRESH_CHANCE; on success exactly one jackpot
+	is placed in one socket of one reachable zone and announced. Players still
+	have to go and steal it.
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -44,6 +69,7 @@ export type LootInstance = {
 	mutation: string,
 	baseIncome: number,
 	finalIncome: number,
+	jackpot: boolean,
 	state: LootState,
 	carrier: Player?,
 	model: Model?,
@@ -57,7 +83,6 @@ type Socket = {
 	index: number,
 	part: BasePart,
 	loot: LootInstance?,
-	refillAt: number?,
 }
 
 local sockets: { { Socket } } = {}
@@ -104,30 +129,11 @@ local function weightedPick(entries: { { chance: number } }): number
 	return #entries
 end
 
---- Rolls a rarity band for the zone, honouring the Secret lock on zones 1-4.
-local function rollRarity(zoneIndex: number): string
-	local weights = RarityConfig.weightsFor(zoneIndex)
-	local total = 0
-	for _, weight in weights do
-		total += weight
-	end
-
-	local roll = math.random() * total
-	local cursor = 0
-	for _, rarity in RarityConfig.Order do
-		cursor += weights[rarity] or 0
-		if roll <= cursor then
-			return rarity
-		end
-	end
-	return "Common"
-end
-
 --- ItemIds of the types currently active anywhere in a zone. A zone never shows
 --- the same type twice at once.
 local function activeTypes(zoneIndex: number): { [string]: boolean }
 	local active = {}
-	for _, socket in sockets[zoneIndex] do
+	for _, socket in sockets[zoneIndex] or {} do
 		if socket.loot then
 			active[socket.loot.itemId] = true
 		end
@@ -135,37 +141,55 @@ local function activeTypes(zoneIndex: number): { [string]: boolean }
 	return active
 end
 
---- Rolls rarity, then an eligible item of that rarity not already active.
---- Falls back through other rarities rather than ever leaving a socket empty.
-local function rollItem(zoneIndex: number): LootConfig.ItemDef?
-	local pool = LootConfig.Items[zoneIndex]
-	local taken = activeTypes(zoneIndex)
+--- Rolls one item for a socket out of the zone's NORMAL pool.
+---
+--- Jackpots are not in that pool at all, so no amount of socket churn can
+--- produce one. Everything else is weighted by its rarity's share of
+--- RarityConfig.NormalWeights and then RENORMALISED across whatever is actually
+--- eligible - which handles both a zone whose ladder omits a tier and a tier
+--- whose item is already on show in another socket, without the old
+--- roll-a-band-then-hunt-for-a-member fallback that quietly skewed the curve.
+--- `exclude` defaults to the types already on show in the zone (a zone never
+--- shows the same type twice at once). Tests pass an empty table to measure the
+--- raw weight curve rather than the without-replacement one four live sockets
+--- actually produce.
+local function rollItem(zoneIndex: number, exclude: { [string]: boolean }?): LootConfig.ItemDef?
+	local taken = exclude or activeTypes(zoneIndex)
 
-	for _ = 1, 12 do
-		local rarity = rollRarity(zoneIndex)
-		local candidates = {}
-		for _, item in pool do
-			if item.rarity == rarity and not taken[item.id] then
-				table.insert(candidates, item)
-			end
-		end
-		if #candidates > 0 then
-			return candidates[weightedPick(candidates)]
-		end
-	end
+	local candidates: { LootConfig.ItemDef } = {}
+	local weights: { number } = {}
+	local total = 0
 
-	-- Everything in the rolled bands was already active: take any free type.
-	local remaining = {}
-	for _, item in pool do
+	for _, item in LootConfig.normalPool(zoneIndex) do
 		if not taken[item.id] then
-			table.insert(remaining, item)
+			table.insert(candidates, item)
+			local weight = RarityConfig.NormalWeights[item.rarity] or 0
+			table.insert(weights, weight)
+			total += weight
 		end
 	end
-	if #remaining == 0 then
+
+	if #candidates == 0 then
 		return nil
 	end
-	return remaining[weightedPick(remaining)]
+	if total <= 0 then
+		-- No eligible tier carries a normal weight. Should be impossible with a
+		-- sane ladder, but never leave a socket empty over a config typo.
+		return candidates[math.random(#candidates)]
+	end
+
+	local roll = math.random() * total
+	local cursor = 0
+	for index, item in candidates do
+		cursor += weights[index]
+		if roll <= cursor then
+			return item
+		end
+	end
+	return candidates[#candidates]
 end
+
+LootService.rollItem = rollItem
 
 local function rollVariant(list: { RarityConfig.Variant }): RarityConfig.Variant
 	return list[weightedPick(list)]
@@ -332,7 +356,35 @@ local function materialise(socket: Socket, loot: LootInstance)
 
 	loot.model = model
 	socket.loot = loot
-	socket.refillAt = nil
+end
+
+--- Builds a concrete instance from a definition. `sizeId` / `mutationId` are
+--- rolled when omitted - a jackpot injection deliberately takes the normal rolls
+--- so it can still arrive Huge and Corrupted.
+local function makeInstance(
+	def: LootConfig.ItemDef,
+	zoneIndex: number,
+	socketIndex: number,
+	sizeId: string?,
+	mutationId: string?
+): LootInstance
+	local size = sizeId or rollVariant(RarityConfig.Sizes).id
+	local mutation = mutationId or rollVariant(RarityConfig.Mutations).id
+
+	return {
+		id = HttpService:GenerateGUID(false),
+		itemId = def.id,
+		name = def.name,
+		zoneIndex = zoneIndex,
+		socketIndex = socketIndex,
+		rarity = def.rarity,
+		size = size,
+		mutation = mutation,
+		baseIncome = def.income,
+		finalIncome = RarityConfig.finalIncome(def.income, size, mutation),
+		jackpot = def.jackpot,
+		state = "Spawned",
+	}
 end
 
 --- Rolls and spawns a fresh instance for an empty socket.
@@ -346,23 +398,7 @@ function LootService.fillSocket(socket: Socket): LootInstance?
 		return nil
 	end
 
-	local size = rollVariant(RarityConfig.Sizes)
-	local mutation = rollVariant(RarityConfig.Mutations)
-
-	local loot: LootInstance = {
-		id = HttpService:GenerateGUID(false),
-		itemId = def.id,
-		name = def.name,
-		zoneIndex = socket.zoneIndex,
-		socketIndex = socket.index,
-		rarity = def.rarity,
-		size = size.id,
-		mutation = mutation.id,
-		baseIncome = def.income,
-		finalIncome = RarityConfig.finalIncome(def.income, size.id, mutation.id),
-		state = "Spawned",
-	}
-
+	local loot = makeInstance(def, socket.zoneIndex, socket.index)
 	byId[loot.id] = loot
 	materialise(socket, loot)
 	return loot
@@ -397,19 +433,29 @@ function LootService.fromDescendant(instance: Instance?): LootInstance?
 	return nil
 end
 
---- Pins a specific item into a socket, used for the tutorial's guaranteed
---- Ancient Vase. Refuses if the socket is mid-steal so a player escaping with
---- something can never have it swapped out from under them. Returns the
---- instance now sitting in the socket, or nil if it could not be forced.
+--- Pins a specific item into a socket. Used for the tutorial's guaranteed
+--- Ancient Vase and for jackpot injection. Refuses if the socket is mid-steal so
+--- a player escaping with something can never have it swapped out from under
+--- them. Returns the instance now sitting in the socket, or nil if it could not
+--- be forced.
+---
+--- `sizeId` / `mutationId` are optional: omit them to take the normal variant
+--- rolls (what a jackpot wants), pass them to pin an exact instance (what the
+--- tutorial wants).
 function LootService.forceSocket(
 	zoneIndex: number,
 	socketIndex: number,
 	itemId: string,
-	sizeId: string,
-	mutationId: string
+	sizeId: string?,
+	mutationId: string?
 ): LootInstance?
 	local socket = LootService.getSocket(zoneIndex, socketIndex)
 	if not socket then
+		return nil
+	end
+
+	local def = LootConfig.ById[itemId]
+	if not def then
 		return nil
 	end
 
@@ -418,7 +464,11 @@ function LootService.forceSocket(
 		if current.state ~= "Spawned" then
 			return nil -- reserved or being carried; leave it alone
 		end
-		if current.itemId == itemId and current.size == sizeId and current.mutation == mutationId then
+		if
+			current.itemId == itemId
+			and (sizeId == nil or current.size == sizeId)
+			and (mutationId == nil or current.mutation == mutationId)
+		then
 			return current -- already correct
 		end
 		despawn(current)
@@ -426,27 +476,35 @@ function LootService.forceSocket(
 		socket.loot = nil
 	end
 
-	local def = LootConfig.ById[itemId]
-	if not def then
-		return nil
+	-- A zone never shows the same type twice. Pinning bypasses the roller, so it
+	-- has to enforce that itself: an ordinary roll elsewhere in this zone may
+	-- already have produced the very item we are about to pin. Clear those
+	-- sockets first and refill them AFTER the pin lands, so the reroll sees the
+	-- pinned type as taken and cannot simply reproduce it.
+	--
+	-- This matters far more than it used to. Sockets no longer churn every 20
+	-- seconds, so a duplicate would sit there for a full refresh cycle - and the
+	-- tutorial pins the Ancient Vase, which means the very first thing a new
+	-- player sees would be two of them.
+	local toRefill: { Socket } = {}
+	for _, other in sockets[zoneIndex] or {} do
+		local occupant = other.loot
+		if other.index ~= socketIndex and occupant and occupant.itemId == itemId and occupant.state == "Spawned" then
+			despawn(occupant)
+			byId[occupant.id] = nil
+			other.loot = nil
+			table.insert(toRefill, other)
+		end
 	end
 
-	local loot: LootInstance = {
-		id = HttpService:GenerateGUID(false),
-		itemId = def.id,
-		name = def.name,
-		zoneIndex = zoneIndex,
-		socketIndex = socketIndex,
-		rarity = def.rarity,
-		size = sizeId,
-		mutation = mutationId,
-		baseIncome = def.income,
-		finalIncome = RarityConfig.finalIncome(def.income, sizeId, mutationId),
-		state = "Spawned",
-	}
-
+	local loot = makeInstance(def, zoneIndex, socketIndex, sizeId, mutationId)
 	byId[loot.id] = loot
 	materialise(socket, loot)
+
+	for _, other in toRefill do
+		LootService.fillSocket(other)
+	end
+
 	return loot
 end
 
@@ -455,17 +513,22 @@ function LootService.getSocket(zoneIndex: number, socketIndex: number): Socket?
 	return if zone then zone[socketIndex] else nil
 end
 
---- Detaches loot from its socket. The socket refills after `delay` seconds.
-function LootService.detach(loot: LootInstance, delay: number)
+--- Detaches loot from its socket, leaving the socket EMPTY until the next global
+--- refresh. There is deliberately no delay argument: a per-socket refill timer is
+--- the thing this economy exists to remove.
+function LootService.detach(loot: LootInstance)
 	local socket = LootService.getSocket(loot.zoneIndex, loot.socketIndex)
 	if socket and socket.loot == loot then
 		socket.loot = nil
-		socket.refillAt = os.clock() + delay
 	end
 end
 
 --- Sends an instance back to its origin socket. Used by guardian reclaims,
 --- expired PvP drops, disconnects and any failed transition.
+---
+--- This returns the SAME item - it is a recovery path, not a reroll. A failed
+--- steal must not cost the player five minutes, and must not hand the world a
+--- free extra roll either.
 function LootService.returnToOrigin(loot: LootInstance, delay: number?)
 	setState(loot, "Returning")
 	loot.carrier = nil
@@ -487,37 +550,143 @@ function LootService.returnToOrigin(loot: LootInstance, delay: number?)
 	end)
 end
 
---- Removes an instance from world tracking once it becomes a base trophy.
+--- Removes an instance from world tracking once it becomes a base trophy. The
+--- socket it came from stays empty until the global refresh.
 function LootService.consume(loot: LootInstance)
 	setState(loot, "Placed")
 	despawn(loot)
 	byId[loot.id] = nil
-	LootService.detach(loot, GameConfig.SOCKET_REFILL_DELAY)
+	LootService.detach(loot)
 end
 
 -- ==========================================================
 -- REFRESH
 -- ==========================================================
 
---- Rerolls every uncarried world item. Carried and reserved loot is untouched:
---- a player mid-escape must never have their prize vanish.
-function LootService.refreshAll()
+export type RefreshReport = {
+	rerolled: number,
+	filled: number,
+	--- Sockets whose occupant was mid-transition (Reserved or Dropped) and so was
+	--- left alone. Carried loot does NOT appear here and does not need to: a steal
+	--- detaches it from its socket, so the refresh never sees it at all.
+	preservedInSocket: number,
+	jackpot: LootInstance?,
+}
+
+--- Which zones a jackpot may be injected into.
+---
+--- Overridden by init.server so LootService stays free of player/profile
+--- dependencies. The default is every zone, which is correct for an empty server
+--- and for tests; the real implementation narrows it to what somebody online can
+--- actually reach, because a jackpot nobody can walk to is not an event.
+function LootService.eligibleJackpotZones(): { number }
+	local all = {}
+	for index = 1, ZoneConfig.COUNT do
+		table.insert(all, index)
+	end
+	return all
+end
+
+--- Fired when a jackpot is injected. Overridden by init.server to broadcast.
+function LootService.onJackpot(_loot: LootInstance) end
+
+--- Puts one jackpot item into one socket of one eligible zone.
+--- Returns the instance, or nil if nowhere would take it.
+function LootService.injectJackpot(): LootInstance?
+	local zones = LootService.eligibleJackpotZones()
+	if #zones == 0 then
+		return nil
+	end
+
+	-- Try zones in a random order so a blocked zone does not bias the choice.
+	for _ = 1, #zones do
+		local pick = math.random(#zones)
+		local zoneIndex = zones[pick]
+		table.remove(zones, pick)
+
+		local def = LootConfig.jackpotFor(zoneIndex)
+		local zoneSockets = sockets[zoneIndex]
+		if def and zoneSockets then
+			-- Prefer an empty socket, then any socket holding an ordinary item
+			-- that is not mid-steal. Never disturb a reserved or carried one.
+			local empty, replaceable = {}, {}
+			for _, socket in zoneSockets do
+				local current = socket.loot
+				if not current then
+					table.insert(empty, socket)
+				elseif current.state == "Spawned" and not current.jackpot then
+					table.insert(replaceable, socket)
+				end
+			end
+
+			local target = if #empty > 0
+				then empty[math.random(#empty)]
+				else (if #replaceable > 0 then replaceable[math.random(#replaceable)] else nil)
+
+			if target then
+				-- Size and Mutation are rolled normally on top: a jackpot can
+				-- still arrive Giant and Corrupted, which is the best moment the
+				-- game has to offer.
+				local loot = LootService.forceSocket(zoneIndex, target.index, def.id)
+				if loot then
+					return loot
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+--- ONE server-level jackpot roll. Never called per socket.
+function LootService.rollJackpot(): LootInstance?
+	if math.random() >= GameConfig.JACKPOT_REFRESH_CHANCE then
+		return nil
+	end
+	return LootService.injectJackpot()
+end
+
+--- The global world reroll.
+---
+--- Carried, reserved, dropped and returning loot is untouched: a player
+--- mid-escape must never have their prize vanish, and a placed trophy is no
+--- longer world state at all. Only items sitting quietly in a socket are
+--- rerolled, and every empty socket is filled.
+function LootService.refreshAll(): RefreshReport
+	local report: RefreshReport = { rerolled = 0, filled = 0, preservedInSocket = 0 }
+
 	for zoneIndex = 1, ZoneConfig.COUNT do
-		for _, socket in sockets[zoneIndex] do
+		for _, socket in sockets[zoneIndex] or {} do
 			local loot = socket.loot
-			if loot and loot.state == "Spawned" then
-				despawn(loot)
-				byId[loot.id] = nil
-				socket.loot = nil
+			if loot then
+				if loot.state == "Spawned" then
+					despawn(loot)
+					byId[loot.id] = nil
+					socket.loot = nil
+					report.rerolled += 1
+				else
+					report.preservedInSocket += 1
+				end
 			end
 		end
 	end
 
 	for zoneIndex = 1, ZoneConfig.COUNT do
-		for _, socket in sockets[zoneIndex] do
-			LootService.fillSocket(socket)
+		for _, socket in sockets[zoneIndex] or {} do
+			if not socket.loot and LootService.fillSocket(socket) then
+				report.filled += 1
+			end
 		end
 	end
+
+	-- Exactly one world-level jackpot roll, AFTER the world is repopulated.
+	local jackpot = LootService.rollJackpot()
+	if jackpot then
+		report.jackpot = jackpot
+		LootService.onJackpot(jackpot)
+	end
+
+	return report
 end
 
 --- Snapshot for tests and debugging.
@@ -525,15 +694,33 @@ function LootService.snapshot(): { [string]: any }
 	local out = {}
 	for zoneIndex = 1, ZoneConfig.COUNT do
 		local rows = {}
-		for _, socket in sockets[zoneIndex] do
+		for _, socket in sockets[zoneIndex] or {} do
 			local loot = socket.loot
 			table.insert(rows, if loot
-				then `{loot.name} [{loot.rarity}] {loot.size}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state})`
+				then `{loot.name} [{loot.rarity}] {loot.size}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state}){if loot.jackpot then " JACKPOT" else ""}`
 				else "<empty>")
 		end
 		out[ZoneConfig.Zones[zoneIndex].id] = rows
 	end
 	return out
+end
+
+--- Counts, for tests: how many sockets are occupied and how many stand empty.
+function LootService.occupancy(): { occupied: number, empty: number, jackpots: number }
+	local occupied, empty, jackpots = 0, 0, 0
+	for zoneIndex = 1, ZoneConfig.COUNT do
+		for _, socket in sockets[zoneIndex] or {} do
+			if socket.loot then
+				occupied += 1
+				if socket.loot.jackpot then
+					jackpots += 1
+				end
+			else
+				empty += 1
+			end
+		end
+	end
+	return { occupied = occupied, empty = empty, jackpots = jackpots }
 end
 
 -- ==========================================================
@@ -573,22 +760,7 @@ function LootService.start()
 		end
 	end
 
-	-- Refill timer: sockets emptied by a theft come back after 20s.
-	task.spawn(function()
-		while true do
-			task.wait(1)
-			local now = os.clock()
-			for zoneIndex = 1, ZoneConfig.COUNT do
-				for _, socket in sockets[zoneIndex] do
-					if not socket.loot and socket.refillAt and now >= socket.refillAt then
-						LootService.fillSocket(socket)
-					end
-				end
-			end
-		end
-	end)
-
-	-- Global reroll on a 300s cadence, with a countdown so nobody is surprised.
+	-- The ONLY thing that refills a socket. No per-socket timer exists.
 	task.spawn(function()
 		while true do
 			task.wait(GameConfig.GLOBAL_REFRESH_INTERVAL - GameConfig.GLOBAL_REFRESH_WARNING)

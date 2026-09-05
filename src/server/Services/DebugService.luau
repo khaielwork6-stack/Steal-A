@@ -19,7 +19,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
+local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -177,6 +180,25 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 
 	lootSnapshot = function()
 		return LootService.snapshot()
+	end,
+
+	--- Forces the carried item onto the ground exactly as a PvP bat hit does.
+	--- Exists because trySwing needs a second real Player, which a solo Studio
+	--- session cannot provide - this exercises the same CarryService path the bat
+	--- calls into, so the drop/reclaim rules can be tested without one.
+	drop = function(player)
+		local loot = CarryService.getCarried(player)
+		if not loot then
+			return { error = "not carrying anything" }
+		end
+		CarryService.forceDrop(loot)
+		return {
+			item = loot.name,
+			state = loot.state,
+			zone = loot.zoneIndex,
+			socket = loot.socketIndex,
+			reclaimWindow = GameConfig.DROPPED_RECLAIM_WINDOW,
+		}
 	end,
 
 	--- Spawns a stand-in victim rig so the bat and traps can be exercised with
@@ -660,6 +682,453 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		EconomyService.recalculate(player)
 		StateService.pushNow(player)
 		return { cleared = true }
+	end,
+
+	-- ==========================================================
+	-- ECONOMY / SPAWN PACING TEST BRIDGE
+	-- ==========================================================
+
+	--- Runs the real global refresh immediately, jackpot roll and all.
+	---   Invoke("refresh")            one refresh now
+	---   Invoke("refresh", nil, "warn")  fire the countdown first
+	refresh = function(_player, mode: string?)
+		if mode == "warn" then
+			LootService.refreshWarning()
+		end
+		local before = LootService.occupancy()
+		local report = LootService.refreshAll()
+		local after = LootService.occupancy()
+		return {
+			before = before,
+			after = after,
+			rerolled = report.rerolled,
+			filled = report.filled,
+			preservedInSocket = report.preservedInSocket,
+			jackpot = if report.jackpot
+				then `{report.jackpot.name} [{report.jackpot.rarity}] zone {report.jackpot.zoneIndex} socket {report.jackpot.socketIndex}`
+				else nil,
+		}
+	end,
+
+	--- Socket occupancy right now. Used by the "the socket MUST still be empty"
+	--- test - steal something, wait, and confirm this does not go back up.
+	occupancy = function()
+		return LootService.occupancy()
+	end,
+
+	--- Forces a jackpot injection regardless of the 10% roll, to exercise the
+	--- placement and announcement path without waiting for luck.
+	forceJackpot = function()
+		local loot = LootService.injectJackpot()
+		if not loot then
+			return { error = "no eligible zone/socket" }
+		end
+		LootService.onJackpot(loot)
+		return {
+			item = loot.name,
+			rarity = loot.rarity,
+			zone = loot.zoneIndex,
+			socket = loot.socketIndex,
+			size = loot.size,
+			mutation = loot.mutation,
+			income = loot.finalIncome,
+		}
+	end,
+
+	--- Statistical check on the WORLD-LEVEL jackpot roll. Counts how many of
+	--- `trials` refreshes would inject a jackpot, WITHOUT touching the world.
+	---   Invoke("jackpotSim", nil, 20000)
+	jackpotSim = function(_player, trials: number?)
+		local n = math.floor(trials or 20000)
+		local hits = 0
+		for _ = 1, n do
+			if math.random() < GameConfig.JACKPOT_REFRESH_CHANCE then
+				hits += 1
+			end
+		end
+		return {
+			trials = n,
+			hits = hits,
+			observed = hits / n,
+			configured = GameConfig.JACKPOT_REFRESH_CHANCE,
+			note = "one roll per WORLD refresh, never one per socket",
+		}
+	end,
+
+	--- Statistical check on the normal per-socket roller, run against the LIVE
+	--- rollItem with nothing excluded - so what comes out is the raw weight curve
+	--- rather than the without-replacement one four occupied sockets produce.
+	---
+	--- "expected" is the weight table renormalised over the tiers this zone's
+	--- normal pool actually contains. Zones 5-12 map one item to each of the
+	--- seven tiers and should land on 35/27/18/11/6/2.5/0.5 exactly. Zones 1-4
+	--- top out at Cosmic (their Cosmic item IS the jackpot and is excluded), so
+	--- that 0.5% has nowhere to go and is redistributed - and those zones carry
+	--- two Common items sharing the 35%.
+	---   Invoke("raritySim", nil, 5, 200000)
+	raritySim = function(_player, zoneIndex: number?, trials: number?)
+		local zone = math.floor(zoneIndex or 5)
+		local n = math.floor(trials or 200000)
+
+		local pool = LootConfig.normalPool(zone)
+		local weightTotal = 0
+		local expectedByRarity: { [string]: number } = {}
+		for _, item in pool do
+			local weight = RarityConfig.NormalWeights[item.rarity] or 0
+			weightTotal += weight
+			expectedByRarity[item.rarity] = (expectedByRarity[item.rarity] or 0) + weight
+		end
+
+		local counts: { [string]: number } = {}
+		local jackpotHits = 0
+		local jackpot = LootConfig.jackpotFor(zone)
+		local jackpotId = if jackpot then jackpot.id else nil
+
+		-- Empty exclusion set: measure the roller, not the live socket state.
+		local none: { [string]: boolean } = {}
+		for _ = 1, n do
+			local def = LootService.rollItem(zone, none)
+			if def then
+				counts[def.rarity] = (counts[def.rarity] or 0) + 1
+				if def.id == jackpotId then
+					jackpotHits += 1
+				end
+			end
+		end
+
+		local rows = {}
+		local worstDelta = 0
+		for _, rarity in RarityConfig.Order do
+			local expected = 100 * (expectedByRarity[rarity] or 0) / weightTotal
+			local observed = 100 * (counts[rarity] or 0) / n
+			if expected > 0 or observed > 0 then
+				worstDelta = math.max(worstDelta, math.abs(observed - expected))
+				table.insert(rows, string.format(
+					"%-10s observed %6.3f%%  expected %6.3f%%  delta %+.3f",
+					rarity,
+					observed,
+					expected,
+					observed - expected
+				))
+			end
+		end
+
+		return {
+			zone = zone,
+			trials = n,
+			distribution = rows,
+			worstDeltaPercentagePoints = worstDelta,
+			jackpotsFromNormalRolls = jackpotHits,
+			note = "jackpotsFromNormalRolls MUST be 0",
+		}
+	end,
+
+	--- Dumps the resolved economy for one zone, or the anchors for all twelve.
+	---   Invoke("economy", nil, 1)   zone 1 in full
+	---   Invoke("economy")           every zone's first/last item
+	economy = function(_player, zoneIndex: number?)
+		if zoneIndex then
+			local rows = {}
+			for _, item in LootConfig.Items[math.floor(zoneIndex)] or {} do
+				table.insert(rows, string.format(
+					"%d. %-22s %-10s %12s%s",
+					item.position,
+					item.name,
+					item.rarity,
+					NumberFormat.income(item.income),
+					if item.jackpot then "  JACKPOT" else ""
+				))
+			end
+			return rows
+		end
+
+		local rows = {}
+		for index = 1, ZoneConfig.COUNT do
+			local pool = LootConfig.Items[index]
+			local jackpot = LootConfig.jackpotFor(index)
+			table.insert(rows, string.format(
+				"Zone %2d %-18s worst %12s   jackpot %-10s %14s",
+				index,
+				ZoneConfig.Zones[index].name,
+				NumberFormat.income(pool[1].income),
+				jackpot.rarity,
+				NumberFormat.income(jackpot.income)
+			))
+		end
+		return rows
+	end,
+
+	--- Data-migration test. Writes a deliberately STALE trophy straight into the
+	--- profile - old economy income, an obsolete mutation id, a wrong rarity -
+	--- then runs the same reconcile path a real load takes, twice, and reports
+	--- whether the values landed on the new economy and then stayed put.
+	---   Invoke("migrationTest")
+	migrationTest = function(player)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		local stale = {
+			InstanceId = HttpService:GenerateGUID(false),
+			ItemId = "Museum_AncientVase",
+			ZoneId = 99,
+			Rarity = "Legendary",
+			Size = "Normal",
+			Mutation = "Neon", -- retired name; must map to Flaming
+			BaseIncome = 967,
+			FinalIncome = 967,
+			SlotIndex = 0,
+		}
+
+		local firstChanged = DataService.reconcileItem(stale)
+		local afterFirst = {
+			base = stale.BaseIncome,
+			final = stale.FinalIncome,
+			rarity = stale.Rarity,
+			mutation = stale.Mutation,
+			zone = stale.ZoneId,
+		}
+
+		local secondChanged = DataService.reconcileItem(stale)
+		local afterSecond = {
+			base = stale.BaseIncome,
+			final = stale.FinalIncome,
+			rarity = stale.Rarity,
+			mutation = stale.Mutation,
+			zone = stale.ZoneId,
+		}
+
+		local def = LootConfig.ById["Museum_AncientVase"]
+		local expectedFinal = RarityConfig.finalIncome(def.income, "Normal", "Flaming")
+
+		return {
+			firstPassChanged = firstChanged,
+			secondPassChanged = secondChanged,
+			afterFirst = afterFirst,
+			afterSecond = afterSecond,
+			expectedBase = def.income,
+			expectedFinal = expectedFinal,
+			idempotent = secondChanged == false,
+			correct = stale.BaseIncome == def.income
+				and stale.FinalIncome == expectedFinal
+				and stale.Rarity == def.rarity
+				and stale.Mutation == "Flaming"
+				and stale.ZoneId == 1,
+		}
+	end,
+
+	--- Progression model. Answers the question the Cash rebalance actually has to
+	--- answer: with the new incomes, does the treadmill ladder still get paid for?
+	---
+	--- For each zone it computes the EXPECTED income of one ordinary socket roll
+	--- (rarity weights renormalised over that zone's normal pool, times the mean
+	--- Size and Mutation multipliers), scales it to a full display base, and then
+	--- reports how long that base takes to pay for each treadmill tier and how
+	--- long that tier takes to walk to each zone's Speed gate.
+	---
+	--- Jackpots are deliberately EXCLUDED from this model: it is the floor, not
+	--- the expected experience. A single Cursed Coin beats this entire table.
+	progressionSim = function(_player, slots: number?)
+		local displaySlots = math.floor(slots or GameConfig.STARTING_DISPLAY_SLOTS)
+
+		local meanSize = 0
+		for _, v in RarityConfig.Sizes do
+			meanSize += (v.chance / 100) * v.multiplier
+		end
+		local meanMutation = 0
+		for _, v in RarityConfig.Mutations do
+			meanMutation += (v.chance / 100) * v.multiplier
+		end
+		local variantFactor = meanSize * meanMutation
+
+		local zoneRows = {}
+		local perSlot: { number } = {}
+		for zoneIndex = 1, ZoneConfig.COUNT do
+			local pool = LootConfig.normalPool(zoneIndex)
+			local total, expected = 0, 0
+			for _, item in pool do
+				total += RarityConfig.NormalWeights[item.rarity] or 0
+			end
+			for _, item in pool do
+				local weight = RarityConfig.NormalWeights[item.rarity] or 0
+				expected += (weight / total) * item.income
+			end
+			expected *= variantFactor
+			perSlot[zoneIndex] = expected
+
+			local jackpot = LootConfig.jackpotFor(zoneIndex)
+			table.insert(zoneRows, string.format(
+				"Zone %2d %-18s  ordinary roll %12s   full base %12s   jackpot x%.0f",
+				zoneIndex,
+				ZoneConfig.Zones[zoneIndex].name,
+				NumberFormat.income(expected),
+				NumberFormat.income(expected * displaySlots),
+				jackpot.income / math.max(expected / variantFactor, 1)
+			))
+		end
+
+		--- Seconds to bank `cost` on a full base of zone-N loot.
+		local function secondsFor(cost: number, zoneIndex: number): number
+			local rate = perSlot[zoneIndex] * displaySlots
+			return if rate > 0 then cost / rate else math.huge
+		end
+
+		local function pretty(seconds: number): string
+			if seconds ~= seconds or seconds == math.huge then
+				return "never"
+			elseif seconds < 90 then
+				return string.format("%.0fs", seconds)
+			elseif seconds < 5400 then
+				return string.format("%.1f min", seconds / 60)
+			elseif seconds < 86400 * 2 then
+				return string.format("%.1f h", seconds / 3600)
+			end
+			return string.format("%.1f days", seconds / 86400)
+		end
+
+		-- Which zone a player is plausibly looting when they buy each tier: the
+		-- highest zone whose Speed gate they have already cleared.
+		local treadmillRows = {}
+		local speed = GameConfig.STARTING_SPEED_POWER
+		for level = 2, TreadmillConfig.MAX_LEVEL do
+			local tier = TreadmillConfig.Tiers[level]
+			local lootZone = 1
+			for _, zone in ZoneConfig.Zones do
+				if speed >= zone.recommendedSpeed then
+					lootZone = zone.index
+				end
+			end
+			table.insert(treadmillRows, string.format(
+				"Lvl %d %-10s %12s   earned in %-10s on zone %2d loot   then +%s Speed/s",
+				level,
+				tier.name,
+				NumberFormat.cash(tier.cost),
+				pretty(secondsFor(tier.cost, lootZone)),
+				lootZone,
+				NumberFormat.short(TreadmillConfig.gainPerSecond(level))
+			))
+			-- Assume they then train to the next gate they can reach.
+			for _, zone in ZoneConfig.Zones do
+				if zone.recommendedSpeed > speed then
+					speed = zone.recommendedSpeed
+					break
+				end
+			end
+		end
+
+		-- Pure training time to each gate, at the tier a player is likely to hold.
+		local gateRows = {}
+		local from = GameConfig.STARTING_SPEED_POWER
+		for _, zone in ZoneConfig.Zones do
+			if zone.recommendedSpeed <= 0 then
+				continue
+			end
+			local level = math.min(zone.index, TreadmillConfig.MAX_LEVEL)
+			local rate = TreadmillConfig.gainPerSecond(level)
+			table.insert(gateRows, string.format(
+				"Gate %-18s %10s Speed   %-10s at Lvl %d (+%s/s)",
+				zone.name,
+				NumberFormat.short(zone.recommendedSpeed),
+				pretty((zone.recommendedSpeed - from) / math.max(rate, 1)),
+				level,
+				NumberFormat.short(rate)
+			))
+			from = zone.recommendedSpeed
+		end
+
+		return {
+			displaySlots = displaySlots,
+			meanSizeMultiplier = meanSize,
+			meanMutationMultiplier = meanMutation,
+			zones = zoneRows,
+			treadmills = treadmillRows,
+			speedGates = gateRows,
+			note = "ordinary loot only - jackpots are excluded, they are the upside",
+		}
+	end,
+
+	--- Audits the Index rewards against the CURRENT economy, which is the check
+	--- the rebalance needs: the rewards are ratios, so they should have scaled
+	--- down with it rather than becoming a billion-dollar bypass.
+	indexAudit = function()
+		local IndexConfig = require(ReplicatedStorage.Shared.Config.IndexConfig)
+		local rows = {}
+		local firstTreadmill = TreadmillConfig.Tiers[2].cost
+
+		for index = 1, ZoneConfig.COUNT do
+			local reward = IndexConfig.zoneReward(index)
+			local setIncome = 0
+			for _, item in LootConfig.Items[index] do
+				setIncome += item.income
+			end
+			table.insert(rows, string.format(
+				"Zone %2d  set %12s   claim %12s (= %.0fs of the set, %.1fx the $15K upgrade)   +%s Speed",
+				index,
+				NumberFormat.income(setIncome),
+				NumberFormat.cash(reward.cash),
+				if setIncome > 0 then reward.cash / setIncome else 0,
+				reward.cash / firstTreadmill,
+				NumberFormat.short(reward.speed)
+			))
+		end
+
+		local completionist = IndexConfig.completionistReward()
+		return {
+			cashSeconds = IndexConfig.CASH_SECONDS,
+			speedFraction = IndexConfig.SPEED_FRACTION,
+			zones = rows,
+			completionistCash = NumberFormat.cash(completionist.cash),
+			completionistSpeed = NumberFormat.short(completionist.speed),
+			topTreadmillCost = NumberFormat.cash(TreadmillConfig.Tiers[TreadmillConfig.MAX_LEVEL].cost),
+			maxIncomeMultiplier = IndexConfig.incomeMultiplier((function()
+				local all = {}
+				for index = 1, ZoneConfig.COUNT do
+					all[IndexConfig.zoneKey(index)] = true
+				end
+				all[IndexConfig.ALL_ZONES_KEY] = true
+				return all
+			end)()),
+		}
+	end,
+
+	--- Inspects, resets, or attacks the one-time tutorial Cash bridge.
+	---   Invoke("bridge")                report the flag
+	---   Invoke("bridge", nil, "reset")  clear it, to re-run onboarding
+	---   Invoke("bridge", nil, "spam", 50)
+	---        hammer the real grant path 50 times and report the total paid out,
+	---        which must be 0 once the flag is set. This has to run in the SERVER
+	---        VM - a require from the command bar gets a fresh module with an
+	---        empty profile table and would report a meaningless zero.
+	bridge = function(player, mode: string?, times: number?)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		if mode == "reset" then
+			profile.TutorialBridgeGranted = false
+		elseif mode == "spam" then
+			local PlacementService = require(script.Parent.PlacementService)
+			local before = profile.Cash
+			local paid = 0
+			for _ = 1, math.floor(times or 50) do
+				paid += PlacementService.grantTutorialBridge(player)
+			end
+			return {
+				attempts = math.floor(times or 50),
+				totalPaidOut = paid,
+				cashBefore = before,
+				cashAfter = profile.Cash,
+				granted = profile.TutorialBridgeGranted,
+			}
+		end
+
+		return {
+			granted = profile.TutorialBridgeGranted,
+			cash = profile.Cash,
+			target = GameConfig.TUTORIAL_CASH_BRIDGE,
+		}
 	end,
 }
 

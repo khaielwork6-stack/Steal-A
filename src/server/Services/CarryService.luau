@@ -230,7 +230,10 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	loot.carrier = player
 	carrying[player] = loot
 	LootService.setState(loot, "Carried")
-	LootService.detach(loot, GameConfig.SOCKET_REFILL_DELAY)
+	-- The socket is now EMPTY and stays empty until the global refresh. If the
+	-- guardian takes this item back, returnToOrigin puts THIS instance back into
+	-- it; nothing rolls a replacement.
+	LootService.detach(loot)
 	CarryService.applyMovement(player)
 
 	local profile = DataService.get(player)

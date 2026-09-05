@@ -47,19 +47,52 @@ GameConfig.LOOT_WORLD_HEIGHT = 5 -- loose in a zone socket, must read at distanc
 GameConfig.LOOT_TROPHY_HEIGHT = 6 -- on a base pedestal, seen up close
 GameConfig.GUARDIAN_HEIGHT = 7 -- imported guardian costumes, all matched to this
 
--- Loot lifecycle (GDD section 6).
-GameConfig.SOCKET_REFILL_DELAY = 20 -- after a successful theft
+-- ==========================================================
+-- LOOT LIFECYCLE
+-- ==========================================================
+--
+-- THERE IS NO PER-SOCKET REFILL TIMER. A socket emptied by a successful theft
+-- stays empty until the next GLOBAL refresh. That is the core of the pacing:
+-- the world is picked clean, everybody watches the countdown, and the refresh
+-- is a shared event rather than a private slot machine.
+--
+-- The only paths that put an item back into its own socket early are a guardian
+-- reclaim and an unclaimed PvP drop, and both return the SAME instance - they
+-- never roll a new one.
+
 GameConfig.GUARDIAN_RETURN_DELAY = 2 -- after a guardian reclaims
 GameConfig.DROPPED_RECLAIM_WINDOW = 8 -- before a PvP drop returns to origin
-GameConfig.GLOBAL_REFRESH_INTERVAL = 300
-GameConfig.GLOBAL_REFRESH_WARNING = 10
+GameConfig.GLOBAL_REFRESH_INTERVAL = 300 -- the world reroll cadence
+GameConfig.GLOBAL_REFRESH_WARNING = 10 -- countdown shown before it lands
 
--- Tutorial (GDD section 4). The first steal is guaranteed so a brand new player
--- always meets the same, winnable opening: a Normal/Normal Ancient Vase.
+--- Chance that ONE jackpot item is injected somewhere in the world at a global
+--- refresh. This is a single SERVER-LEVEL roll per refresh, never one roll per
+--- socket: 40+ independent rolls at any sane percentage would print the top item
+--- constantly, which is exactly what this economy exists to stop.
+GameConfig.JACKPOT_REFRESH_CHANCE = 0.10
+
+-- ==========================================================
+-- TUTORIAL
+-- ==========================================================
+--
+-- The first steal is guaranteed so a brand new player always meets the same,
+-- winnable opening: a Normal/Normal Ancient Vase.
+
 GameConfig.TUTORIAL_ITEM_ID = "Museum_AncientVase"
 GameConfig.TUTORIAL_ZONE = 1
 GameConfig.TUTORIAL_SOCKET = 1
 GameConfig.TUTORIAL_FINISH_DELAY = 9 -- seconds the zone-2 pointer stays up
+
+--- One-time onboarding bridge. The Ancient Vase earns $1/s, so a fresh player
+--- would otherwise stand still for a thousand seconds to afford the $1,000 base
+--- activation. On their FIRST successful placement they are topped up to exactly
+--- this balance - `max(0, TUTORIAL_CASH_BRIDGE - cash)`, so it is a floor and
+--- never a bonus - and the flag that records it is persisted, which is what
+--- makes it unfarmable by resetting, selling, rejoining or spamming the remote.
+---
+--- This exists so onboarding stays fast WITHOUT the worst item in the game
+--- printing a real income forever.
+GameConfig.TUTORIAL_CASH_BRIDGE = 1000
 
 -- Anti-exploit: max accepted requests per player per second, per remote.
 GameConfig.RATE_LIMITS = {

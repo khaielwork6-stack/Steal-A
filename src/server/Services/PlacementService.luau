@@ -96,7 +96,12 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	-- Discovery fires only on a successful placement (GDD section 13).
 	local firstTime = not profile.Index[loot.itemId]
 	profile.Index[loot.itemId] = true
-	if loot.rarity == "Secret" then
+	-- Lifetime.Secrets is the "I brought home a jackpot" counter. It used to test
+	-- for the literal rarity "Secret", which under the current ladder exists in
+	-- only four of the twelve zones - so a Cosmic Diamond or a Divine Diamond
+	-- Hammer would not have counted. The jackpot flag is the real thing being
+	-- measured; the save key keeps its name so existing profiles carry over.
+	if loot.jackpot then
 		profile.Lifetime.Secrets += 1
 	end
 	if loot.zoneIndex > profile.HighestZoneReached then
@@ -122,7 +127,50 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	if firstTime then
 		IndexService.onDiscovered(player, loot.itemId)
 	end
+
+	PlacementService.grantTutorialBridge(player)
 	return true
+end
+
+--- The one-time onboarding Cash bridge.
+---
+--- The Ancient Vase is worth $1/s under the current economy, so the honest
+--- tutorial - "steal it, place it, now buy the $1,000 base activation" - would
+--- otherwise ask a new player to wait about seventeen minutes. This tops them up
+--- to exactly GameConfig.TUTORIAL_CASH_BRIDGE on their FIRST successful
+--- placement, then never fires again.
+---
+--- It is a FLOOR, not a bonus: `max(0, target - cash)`. A player who somehow
+--- already has more keeps what they have and is granted nothing.
+---
+--- Unfarmable by construction. The flag is durable (profile, schema v4) and is
+--- set BEFORE the award, so none of resetting, selling the vase and re-stealing
+--- it, rejoining, replaying the placement remote, or racing two placements can
+--- produce a second grant - every one of those paths re-enters this function and
+--- finds the flag already true.
+function PlacementService.grantTutorialBridge(player: Player): number
+	local profile = DataService.get(player)
+	if not profile or profile.TutorialBridgeGranted then
+		return 0
+	end
+
+	profile.TutorialBridgeGranted = true
+
+	local target = GameConfig.TUTORIAL_CASH_BRIDGE
+	local grant = math.max(0, target - profile.Cash)
+	if grant <= 0 then
+		return 0
+	end
+
+	EconomyService.award(player, grant)
+	StateService.pushNow(player)
+	notify(
+		player,
+		"success",
+		`FIRST HAUL BONUS  +{NumberFormat.cash(grant)}  -  now upgrade your base`,
+		"levelup"
+	)
+	return grant
 end
 
 -- ==========================================================

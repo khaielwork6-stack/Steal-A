@@ -94,6 +94,10 @@ Two edits were also made **inside** the place that are not in git:
   treadmill models are normalised and wired into both the world and that panel
   (§15).
 - **Phases 12–13 (multiplayer hardening, polish): not started.**
+- **Economy/progression rebalance: COMPLETE.** The old economy is gone. Read
+  §16 before touching any income, rarity or spawn-timing number — several
+  things in this document that were true before it are now wrong, and §16 says
+  which.
 
 ---
 
@@ -593,3 +597,148 @@ builder the world uses, so the shop shows exactly what you receive. It shows the
 NEXT tier (falling back to current at max), auto-fits the camera from real model
 bounds — so wings cannot be cropped and no per-model camera is needed — and
 repaints the instant an upgrade lands, with no reopen.
+
+---
+
+## 16. The economy / progression rebalance
+
+The single largest change to the game since it was built. The old economy let
+almost every object be valuable, so Cash inflated far faster than the Speed
+ladder could absorb. It is gone.
+
+**This section OVERRIDES anything earlier in this file that disagrees with it.**
+
+### What the game feels like now
+
+`trash → trash → decent → rare → HOLY SHIT`, instead of
+`good → better → better → better`.
+
+Income is deliberately **not** normalised across zones. A late-zone Common can
+be worth far less than an early-zone jackpot, and that is the point: it is what
+makes a jackpot read as a jackpot rather than as the next step on a staircase.
+
+### The five rules that hold it together
+
+1. **Position 8 in every zone is its JACKPOT**, worth 50×–2,200× that zone's
+   ordinary loot. `LootConfig.JACKPOT_POSITION`.
+2. **A jackpot can never come out of an ordinary socket roll.**
+   `LootConfig.normalPool()` excludes it, and `LootService.rollItem` draws only
+   from that pool. There is no percentage anywhere that can produce one.
+3. **A socket emptied by a successful theft stays empty** until the next global
+   refresh. The old 20-second per-socket refill timer is deleted, along with
+   `GameConfig.SOCKET_REFILL_DELAY`. `validate.luau` asserts that constant does
+   not come back.
+4. **One jackpot roll per WORLD refresh**, at `JACKPOT_REFRESH_CHANCE = 0.10`.
+   Never one roll per socket — 48 sockets rolling independently is the failure
+   mode this whole pass exists to prevent.
+5. **Saved income is a cache, never a source of truth.** Every profile load
+   recomputes `BaseIncome`, `Rarity` and `FinalIncome` from the live config.
+
+### Rarity: ten tiers, and where they live
+
+`Common → Uncommon → Rare → Epic → Legendary → Mythic → Cosmic → Secret →
+Eternal → Divine`
+
+`RarityConfig` owns all of it and is the only file that enumerates tier names.
+An item's rarity is **derived** from its position in its zone's ladder — it is
+not typed per item, so an item can never drift out of step with its tier.
+
+| Zones | positions 1–7 | position 8 (jackpot) |
+|---|---|---|
+| 1–4 | Common, Common, Uncommon, Rare, Epic, Legendary, Mythic | **Cosmic** |
+| 5–8 | Common … Cosmic | **Secret** |
+| 9–10 | Common … Cosmic | **Eternal** |
+| 11–12 | Common … Cosmic | **Divine** |
+
+Normal spawn weights (`RarityConfig.NormalWeights`, totalling 100):
+`35 / 27 / 18 / 11 / 6 / 2.5 / 0.5`.
+
+**Why zones 1–4 carry two Commons.** Early zones top out at Cosmic on purpose,
+so their Cosmic item *is* the jackpot and is excluded from the pool. That leaves
+six tiers for seven ordinary items, so the two deliberate-garbage items share
+the Common band and the unused 0.5% renormalises. Zones 5–12 map one item to
+each of the seven tiers and hit the target curve exactly. If you would rather
+early zones matched the curve too, the only lever is to move a band boundary in
+`RarityConfig.ZoneLadders` — which puts Secret in the Museum. That trade is the
+reason the table looks the way it does; it is not an oversight.
+
+### Where every number lives
+
+Nothing in this pass is a literal in a gameplay script.
+
+| Knob | Home |
+|---|---|
+| item $/s | `LootConfig` (the only per-item number typed by hand) |
+| rarity ladders | `RarityConfig.ZoneLadders` |
+| normal spawn weights | `RarityConfig.NormalWeights` |
+| jackpot chance | `GameConfig.JACKPOT_REFRESH_CHANCE` |
+| refresh cadence / countdown | `GameConfig.GLOBAL_REFRESH_INTERVAL` / `_WARNING` |
+| tutorial cash bridge | `GameConfig.TUTORIAL_CASH_BRIDGE` |
+| treadmill costs and gains | `TreadmillConfig.Tiers` |
+| zone Speed gates | `ZoneConfig.Zones` (**unchanged** by this pass) |
+
+### The tutorial cash bridge
+
+The Ancient Vase is **$1/s**, not $967/s. A fresh player would otherwise wait
+~17 minutes for the $1,000 base activation, so their **first successful
+placement** tops their balance up to exactly $1,000 — `max(0, 1000 - cash)`, a
+floor and never a bonus.
+
+`PlacementService.grantTutorialBridge`. The flag is durable
+(`Profile.TutorialBridgeGranted`, schema v4) and is set **before** the award, so
+resetting, selling and re-stealing, rejoining, replaying the placement remote or
+racing two placements all re-enter and find it already true. Verified: 50 direct
+attacks on the grant path paid out $0.
+
+### Data migration (schema v4)
+
+`DataService.reconcileItem` runs over every display and inventory item on
+**every** load, not once as a migration step. Rerunning it forever is the point:
+the next economy change reaches existing saves for free.
+
+Durable identity is `ItemId + Size + Mutation` (+ `InstanceId`, `SlotIndex`).
+Income and rarity are recomputed. An unknown `ItemId` is left completely alone
+rather than zeroed.
+
+Test it with `DebugInvoke:Invoke("migrationTest")` — it plants a deliberately
+stale trophy (old $967 income, retired `Neon` mutation, wrong rarity, wrong zone)
+and reports whether one pass fixes it and a second pass changes nothing.
+
+### Things elsewhere in this file that are now WRONG
+
+- §6's claim that Secret is the top tier — there are four tiers above it.
+- Anything describing a 20-second socket refill.
+- Anything quoting $967 for the Ancient Vase.
+- §8's debug command list says `treadmill`; the command is **`treadmills`**.
+
+### New debug commands
+
+`refresh`, `occupancy`, `forceJackpot`, `jackpotSim`, `raritySim`, `economy`,
+`progressionSim`, `indexAudit`, `migrationTest`, `bridge`, `drop`.
+
+`drop` exists because `swing` needs a second real Player, which a solo Studio
+session cannot provide; it calls the same `CarryService.forceDrop` the bat does.
+
+`raritySim` passes an EMPTY exclusion set to `rollItem`, so it measures the raw
+weight curve rather than the without-replacement one four occupied sockets
+produce. Run it against live sockets and it will look wildly skewed and be lying
+to you.
+
+### Bug found and fixed during this pass
+
+**A zone could show the same item type twice.** `forceSocket` bypasses the
+roller, so pinning the tutorial vase into socket 1 while an ordinary roll had
+already put a vase in socket 2 produced two of them. It was survivable when
+sockets churned every 20 seconds; now they persist for a full refresh cycle, and
+the very first thing a new player sees would have been a duplicate. `forceSocket`
+now clears same-type sockets first and refills them *after* the pin lands, so the
+reroll sees the pinned type as taken.
+
+### Known gap
+
+There is **no multiplayer test**. This integration drives one client, so the
+two-player cases (simultaneous steal on one socket, a shared refresh seen by
+both, cross-base isolation) are unverified by observation. The single-player
+halves of those guarantees were checked: the `Reserved` state gates the second
+claim, refresh is one server-side loop, and income is keyed per Player. Run
+"Start Server + 2 Players" in Studio to close this properly.

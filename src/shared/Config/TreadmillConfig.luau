@@ -95,7 +95,11 @@ export type Tier = {
 TreadmillConfig.Tiers = {
 	{ level = 1, name = "Rusty", cost = 0, gainPerTick = 2, -- granted by activation
 		modelKey = "Rusty", scale = 1.0000, deckHeight = 2.558 },
-	{ level = 2, name = "Velocity", cost = 15e3, robuxProductKey = "TreadmillTier2", gainPerTick = 12,
+	-- +20/tick (~80/s), raised from the old +12. Tiers 3-9 are deliberately
+	-- UNCHANGED: the Cash economy was the thing that was broken, and multiplying
+	-- every Speed gain to "match" it would just create the same problem on the
+	-- other axis. Only this one step was retuned.
+	{ level = 2, name = "Velocity", cost = 15e3, robuxProductKey = "TreadmillTier2", gainPerTick = 20,
 		modelKey = "Velocity", scale = 1.0000, deckHeight = 2.279 },
 	{ level = 3, name = "Voltic", cost = 250e3, robuxProductKey = "TreadmillTier3", gainPerTick = 60,
 		modelKey = "Voltic", scale = 1.0000, deckHeight = 1.917 },

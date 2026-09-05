@@ -12,6 +12,10 @@ local Players = game:GetService("Players")
 -- Creates ReplicatedStorage.Remotes before any client tries to wait on it.
 require(ReplicatedStorage.Shared.Remotes)
 
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+
 local Services = script.Services
 local DataService = require(Services.DataService)
 local EconomyService = require(Services.EconomyService)
@@ -85,9 +89,56 @@ CarryService.setDeliveredHandler(function(player, loot)
 end)
 
 LootService.refreshWarning = function()
+	StateService.announce("info", `LOOT REFRESH in {GameConfig.GLOBAL_REFRESH_WARNING}s`)
+end
+
+-- Which zones the global refresh may drop a jackpot into.
+--
+-- Installed here rather than inside LootService so that service keeps knowing
+-- nothing about players or profiles. A jackpot in a zone nobody online can reach
+-- is not an event, so eligibility is the furthest zone ANY current player has
+-- either already looted or has the Speed for - whichever is further - and every
+-- zone up to it is fair game.
+LootService.eligibleJackpotZones = function(): { number }
+	local reach = 1
 	for _, player in Players:GetPlayers() do
-		StateService.notify(player, "info", "LOOT REFRESH in 10s")
+		local profile = DataService.get(player)
+		if profile then
+			reach = math.max(reach, profile.HighestZoneReached)
+			for _, zone in ZoneConfig.Zones do
+				if profile.SpeedPower >= zone.recommendedSpeed then
+					reach = math.max(reach, zone.index)
+				end
+			end
+		end
 	end
+
+	local zones = {}
+	for index = 1, math.min(reach, ZoneConfig.COUNT) do
+		table.insert(zones, index)
+	end
+	return zones
+end
+
+-- A jackpot is a world event: everyone is told, everyone is told WHERE, and
+-- nobody is given it. Players still have to go and steal it.
+LootService.onJackpot = function(loot)
+	local zone = ZoneConfig.Zones[loot.zoneIndex]
+	local zoneName = if zone then string.upper(zone.name) else "THE WORLD"
+	local variant = ""
+	if loot.size ~= "Normal" then
+		variant ..= ` {loot.size}`
+	end
+	if loot.mutation ~= "Normal" then
+		variant ..= ` {loot.mutation}`
+	end
+	StateService.announce(
+		"success",
+		`{string.upper(loot.rarity)}!  {loot.name}{variant} has appeared in {zoneName}  ({NumberFormat.income(loot.finalIncome)})`,
+		"levelup",
+		"NewDiscovery"
+	)
+	print(`[Jackpot] {loot.itemId} [{loot.rarity}] {loot.size}/{loot.mutation} -> zone {loot.zoneIndex} socket {loot.socketIndex}`)
 end
 
 LootService.start()

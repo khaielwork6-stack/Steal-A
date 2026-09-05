@@ -94,14 +94,11 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 		cap.CanCollide = false
 		cap.CastShadow = false
 		cap.Material = Enum.Material.Neon
-		cap.Color = RarityConfig.Colors[
-			if zone.index <= 2 then "Common"
-			elseif zone.index <= 4 then "Uncommon"
-			elseif zone.index <= 6 then "Rare"
-			elseif zone.index <= 8 then "Epic"
-			elseif zone.index <= 10 then "Legendary"
-			else "Secret"
-		]
+		-- Wear the colour of the best thing this zone can produce, read from the
+		-- rarity ladder rather than from a hand-written zone->rarity table that
+		-- would silently disagree with it the first time a band boundary moves.
+		cap.Color = RarityConfig.Colors[RarityConfig.jackpotRarityFor(zone.index)]
+			or RarityConfig.Colors.Common
 		cap.Parent = model
 	end
 

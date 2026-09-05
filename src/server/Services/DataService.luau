@@ -23,8 +23,10 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
+local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
-local SCHEMA_VERSION = 3
+local SCHEMA_VERSION = 4
 local STORE_NAME = "PlayerProfiles_v1"
 
 local DataService = {}
@@ -62,6 +64,10 @@ export type Profile = {
 	-- retried across sessions and servers, so an in-memory set would re-grant a
 	-- replayed receipt after a rejoin. Bounded - see MonetizationService.
 	ProcessedReceipts: { string },
+	-- The one-time onboarding Cash bridge (GameConfig.TUTORIAL_CASH_BRIDGE).
+	-- Durable for the same reason as the receipt list: an in-memory flag would
+	-- hand out another $1,000 on every rejoin.
+	TutorialBridgeGranted: boolean,
 }
 
 local store: DataStore? = nil
@@ -90,6 +96,7 @@ local function defaultProfile(): Profile
 		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0 },
 		Settings = { ReducedVFX = false, ScreenShake = true },
 		ProcessedReceipts = {},
+		TutorialBridgeGranted = false,
 	}
 end
 
@@ -129,10 +136,84 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 3
 	end
 
-	-- Future migrations chain here: if version < 4 then ... end
+	if version < 4 then
+		-- v4 is the economy rebalance. Two things happen here.
+		--
+		-- 1. The one-time tutorial Cash bridge. A profile that already activated
+		--    its base is past the point the bridge exists to get them to, so it
+		--    is marked spent - otherwise every existing player would be handed a
+		--    top-up they were never meant to receive.
+		if type(profile.TutorialBridgeGranted) ~= "boolean" then
+			profile.TutorialBridgeGranted = profile.BaseActivated == true
+		end
+
+		-- 2. Stored per-item income. NOT done here: `reconcile` recomputes
+		--    BaseIncome, Rarity and FinalIncome from the live config on EVERY
+		--    load, for every profile, at every version. Doing it as a one-shot
+		--    migration would freeze today's numbers into the save and leave the
+		--    next economy change with the same problem this one had.
+		profile.SchemaVersion = 4
+	end
+
+	-- Future migrations chain here: if version < 5 then ... end
 
 	return profile
 end
+
+--- Rebuilds one saved item's economy fields from the live configs.
+---
+--- The DURABLE identity of a trophy is ItemId + Size + Mutation (+ InstanceId and
+--- SlotIndex for bookkeeping). Its income is NOT durable and is never trusted
+--- from the save: a $967/s Ancient Vase in an old profile must become a $1/s
+--- Ancient Vase the moment it loads, or the old economy simply carries on inside
+--- existing accounts.
+---
+--- Deterministic and idempotent: the output depends only on the item's identity
+--- and the current config, so repeated joins - and a join after a failed save -
+--- converge on exactly the same numbers instead of drifting.
+local function reconcileItem(item: DisplayItem): boolean
+	local def = LootConfig.ById[item.ItemId]
+	if not def then
+		-- An id we no longer ship. Leave it completely alone rather than zeroing
+		-- someone's trophy; it is still theirs and may come back.
+		return false
+	end
+
+	local changed = false
+	local mutation = RarityConfig.normaliseMutation(item.Mutation)
+	if mutation ~= item.Mutation then
+		item.Mutation = mutation
+		changed = true
+	end
+	if type(item.Size) ~= "string" or not RarityConfig.SizeById[item.Size] then
+		item.Size = "Normal"
+		changed = true
+	end
+
+	local zoneId = LootConfig.ZoneOf[item.ItemId]
+	if item.ZoneId ~= zoneId then
+		item.ZoneId = zoneId
+		changed = true
+	end
+	if item.Rarity ~= def.rarity then
+		item.Rarity = def.rarity
+		changed = true
+	end
+	if item.BaseIncome ~= def.income then
+		item.BaseIncome = def.income
+		changed = true
+	end
+
+	local final = RarityConfig.finalIncome(def.income, item.Size, item.Mutation)
+	if item.FinalIncome ~= final then
+		item.FinalIncome = final
+		changed = true
+	end
+
+	return changed
+end
+
+DataService.reconcileItem = reconcileItem
 
 --- Repairs a loaded profile so a corrupt or partial save cannot crash services.
 local function reconcile(profile: Profile): Profile
@@ -161,6 +242,30 @@ local function reconcile(profile: Profile): Profile
 	-- when it is not a table at all, which means there is nothing to lose.
 	if type(profile.ProcessedReceipts) ~= "table" then
 		profile.ProcessedReceipts = {}
+	end
+
+	if type(profile.TutorialBridgeGranted) ~= "boolean" then
+		profile.TutorialBridgeGranted = profile.BaseActivated == true
+	end
+
+	-- Recompute every stored item's economy from the live config. Runs on EVERY
+	-- load, deliberately: saved income is a cache of a config value, never a
+	-- source of truth, so this is what stops an old economy living on inside
+	-- existing accounts. Aggregate $/s is rebuilt by EconomyService.recalculate
+	-- once the player is set up, from these repaired values.
+	local repaired = 0
+	for _, item in profile.DisplayItems do
+		if reconcileItem(item) then
+			repaired += 1
+		end
+	end
+	for _, item in profile.Inventory do
+		if reconcileItem(item) then
+			repaired += 1
+		end
+	end
+	if repaired > 0 then
+		print(`[DataService] rebuilt income on {repaired} saved item(s) from the current economy`)
 	end
 
 	return profile

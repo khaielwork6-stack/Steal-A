@@ -1,56 +1,184 @@
 --!strict
 --[[
 	RarityConfig
-	Rarity weights, plus the Size and Mutation variant rolls (GDD section 6).
+	The rarity ladder, the normal spawn weights, and the Size / Mutation variant
+	rolls.
 
-	Secret is LOCKED for zones 1-4 by design: their top-end chase is Legendary, so
-	the first Secret in North Pole stays a real milestone.
+	THREE THINGS LIVE HERE AND NOWHERE ELSE:
+
+	1. `Order` - the ten global rarity tiers, weakest first. Adding a tier means
+	   adding a colour and (if it should spawn normally) a weight. Nothing else in
+	   the codebase enumerates rarity names.
+
+	2. `NormalWeights` - the per-socket roller. Deliberately top-heavy: most loot
+	   in a zone should be mediocre, so that the rare thing feels enormous. These
+	   seven tiers sum to 100 and are the ONLY tiers an ordinary socket can roll.
+
+	3. `ZoneLadders` - which rarity each of a zone's eight item slots wears.
+	   Position 8 is the zone's JACKPOT and is deliberately given a tier that
+	   carries NO normal weight, so it can never fall out of an ordinary socket
+	   roll. It arrives only through the global refresh jackpot event
+	   (LootService.rollJackpot).
+
+	Early zones top out at Cosmic; Secret becomes possible at the North Pole,
+	Eternal in the Secret Lab, Divine on the Construction Site. Meeting the
+	strongest labels stays a progression event rather than a first-hour accident.
 ]]
 
 local RarityConfig = {}
 
-export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Secret"
+export type Rarity =
+	"Common" | "Uncommon" | "Rare" | "Epic" | "Legendary"
+	| "Mythic" | "Cosmic" | "Secret" | "Eternal" | "Divine"
 
-RarityConfig.Order = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Secret" }
-
--- Weights are percentages and must total 100 for each band.
-RarityConfig.Weights = {
-	early = { -- zones 1-4, no Secret
-		Common = 35,
-		Uncommon = 27,
-		Rare = 18,
-		Epic = 11,
-		Legendary = 9,
-		Secret = 0,
-	},
-	late = { -- zones 5-12
-		Common = 35,
-		Uncommon = 27,
-		Rare = 18,
-		Epic = 11,
-		Legendary = 7,
-		Secret = 2,
-	},
+--- Weakest first. This order IS the hierarchy; anything that needs to compare
+--- two rarities should use `RarityConfig.rank`.
+RarityConfig.Order = {
+	"Common",
+	"Uncommon",
+	"Rare",
+	"Epic",
+	"Legendary",
+	"Mythic",
+	"Cosmic",
+	"Secret",
+	"Eternal",
+	"Divine",
 }
 
-RarityConfig.SECRET_FIRST_ZONE = 5
-
---- Weight table for a zone.
-function RarityConfig.weightsFor(zoneIndex: number)
-	return if zoneIndex < RarityConfig.SECRET_FIRST_ZONE
-		then RarityConfig.Weights.early
-		else RarityConfig.Weights.late
+RarityConfig.Rank = {} :: { [string]: number }
+for index, name in RarityConfig.Order do
+	RarityConfig.Rank[name] = index
 end
 
--- Player-facing colours, also used for rarity beams and labels.
+--- 0 for an unknown name, so a stale save can never crash a comparison.
+function RarityConfig.rank(rarity: string?): number
+	return if rarity then (RarityConfig.Rank[rarity] or 0) else 0
+end
+
+-- ==========================================================
+-- NORMAL SPAWN WEIGHTS
+-- ==========================================================
+--
+-- Percentages, totalling 100. Every ordinary socket roll - on server start and
+-- at every global refresh - draws from exactly this table.
+--
+-- Tiers absent from this table (Secret, Eternal, Divine) have no normal spawn
+-- path at all. That is the whole point: the top item in a zone is a world event,
+-- not a 1-in-50 socket.
+
+RarityConfig.NormalWeights = {
+	Common = 35,
+	Uncommon = 27,
+	Rare = 18,
+	Epic = 11,
+	Legendary = 6,
+	Mythic = 2.5,
+	Cosmic = 0.5,
+} :: { [string]: number }
+
+--- True when a tier can appear from an ordinary socket roll.
+function RarityConfig.isNormallyRollable(rarity: string): boolean
+	return (RarityConfig.NormalWeights[rarity] or 0) > 0
+end
+
+-- ==========================================================
+-- ZONE LADDERS
+-- ==========================================================
+--
+-- Eight entries, one per item slot, in the zone's own income order (which is
+-- NOT always ascending - see the Bank). Position 8 is the jackpot.
+--
+-- To retune which zones can host which top tier, edit ONLY this table.
+
+export type Ladder = { string }
+
+-- zones 1-4: the chase tops out at Cosmic. Two Commons because the first two
+-- items in these zones are both deliberate garbage.
+local EARLY: Ladder =
+	{ "Common", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic" }
+-- zones 5-8: Secret becomes possible
+local MID: Ladder =
+	{ "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Secret" }
+-- zones 9-10: Eternal
+local LATE: Ladder =
+	{ "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Eternal" }
+-- zones 11-12: Divine
+local APEX: Ladder =
+	{ "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Cosmic", "Divine" }
+
+--- Highest zone index each ladder covers, ascending. Read by `ladderFor`.
+RarityConfig.ZoneLadders = {
+	{ maxZone = 4, ladder = EARLY },
+	{ maxZone = 8, ladder = MID },
+	{ maxZone = 10, ladder = LATE },
+	{ maxZone = math.huge, ladder = APEX },
+}
+
+--- The eight-entry rarity ladder a zone uses.
+function RarityConfig.ladderFor(zoneIndex: number): Ladder
+	for _, band in RarityConfig.ZoneLadders do
+		if zoneIndex <= band.maxZone then
+			return band.ladder
+		end
+	end
+	return APEX
+end
+
+--- Rarity of slot `position` (1-8) in a zone.
+function RarityConfig.rarityAt(zoneIndex: number, position: number): string
+	local ladder = RarityConfig.ladderFor(zoneIndex)
+	return ladder[position] or ladder[#ladder]
+end
+
+--- The slot that carries a zone's jackpot. One number, deliberately not scattered.
+RarityConfig.JACKPOT_POSITION = 8
+
+--- The tier a zone's jackpot wears.
+function RarityConfig.jackpotRarityFor(zoneIndex: number): string
+	return RarityConfig.rarityAt(zoneIndex, RarityConfig.JACKPOT_POSITION)
+end
+
+--- First zone whose ladder can show Secret. Derived, not typed, so moving a band
+--- boundary above cannot leave a stale constant behind.
+RarityConfig.SECRET_FIRST_ZONE = (function(): number
+	for zoneIndex = 1, 12 do
+		if RarityConfig.jackpotRarityFor(zoneIndex) == "Secret" then
+			return zoneIndex
+		end
+	end
+	return math.huge
+end)()
+
+-- Player-facing colours, also used for rarity beams, labels and zone-sign caps.
+-- Every tier in `Order` MUST have one; validate.luau enforces it.
 RarityConfig.Colors = {
 	Common = Color3.fromRGB(198, 205, 216),
 	Uncommon = Color3.fromRGB(96, 220, 118),
 	Rare = Color3.fromRGB(74, 156, 255),
 	Epic = Color3.fromRGB(180, 106, 255),
 	Legendary = Color3.fromRGB(255, 178, 46),
+	Mythic = Color3.fromRGB(255, 78, 78),
+	Cosmic = Color3.fromRGB(72, 240, 226),
 	Secret = Color3.fromRGB(255, 74, 140),
+	Eternal = Color3.fromRGB(255, 238, 150),
+	Divine = Color3.fromRGB(255, 255, 255),
 }
+
+--- Old rarity names that may sit in saved profiles. Every current name maps to
+--- itself, so this is only ever consulted for genuinely retired ids. Saved
+--- rarity is recomputed from LootConfig on load anyway (DataService.reconcile);
+--- this exists so a display path reading a raw stored value cannot show a blank.
+RarityConfig.RarityAliases = {} :: { [string]: string }
+
+--- Always safe: returns a known tier name for any input.
+function RarityConfig.normaliseRarity(rarity: string?): string
+	if not rarity then
+		return "Common"
+	end
+	local mapped = RarityConfig.RarityAliases[rarity] or rarity
+	return if RarityConfig.Rank[mapped] then mapped else "Common"
+end
 
 -- ==========================================================
 -- VARIANTS
@@ -127,11 +255,15 @@ end
 RarityConfig.SizeById = byId(RarityConfig.Sizes)
 RarityConfig.MutationById = byId(RarityConfig.Mutations)
 
---- FinalIncome = base * size * mutation. Rolled once, then frozen on the
---- instance: never reroll after a successful steal.
+--- FinalIncome = base * size * mutation.
+---
+--- Rolled once when the instance spawns and then frozen ON THE INSTANCE - never
+--- rerolled after a successful steal. It is, however, RECOMPUTED from the
+--- authoritative config whenever a profile loads, so an economy change reaches
+--- every saved trophy instead of leaving old numbers earning forever.
 function RarityConfig.finalIncome(baseIncome: number, sizeId: string, mutationId: string): number
 	local size = RarityConfig.SizeById[sizeId]
-	local mutation = RarityConfig.MutationById[mutationId]
+	local mutation = RarityConfig.MutationById[RarityConfig.normaliseMutation(mutationId)]
 	if not size or not mutation then
 		return baseIncome
 	end

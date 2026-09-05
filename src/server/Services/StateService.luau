@@ -133,6 +133,21 @@ function StateService.sound(player: Player, cue: string)
 	Remotes.get("SoundCue"):FireClient(player, cue)
 end
 
+--- The same toast to everybody. Used for genuinely server-wide events - the loot
+--- refresh countdown and a jackpot appearing - and deliberately not for anything
+--- personal, so a broadcast always means "look up, something happened to the
+--- world".
+function StateService.announce(kind: string, message: string, detail: any?, cue: string?)
+	local notifyRemote = Remotes.get("Notify")
+	local soundRemote = if cue then Remotes.get("SoundCue") else nil
+	for _, player in Players:GetPlayers() do
+		notifyRemote:FireClient(player, kind, message, detail)
+		if soundRemote and cue then
+			soundRemote:FireClient(player, cue)
+		end
+	end
+end
+
 function StateService.start()
 	EconomyService.onChanged(StateService.markDirty)
 
