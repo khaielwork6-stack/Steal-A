@@ -37,7 +37,9 @@ Recent commits:
 | `efa4644` | Wire in imported Zone 1 art; add reusable mutation VFX system |
 | `c119838` | Merge the UI pack migration into master |
 | `02164f0` | Phase 9 — the Loot Index (see §12) |
-| *(this session)* | Zone 1/2 art pipeline, Storage UI rebuild, tutorial dedupe, audio pass |
+| `dd50eee` | Zone 1/2 art pipeline, Storage UI rebuild, tutorial dedupe, audio pass |
+| `4e74e35` | Fix loot being unstealable when its art nests in sub-models (see §13) |
+| `a533337` | Phase 11 — Robux treadmill tiers, idempotent ProcessReceipt (see §14) |
 
 ---
 
@@ -80,9 +82,13 @@ Two edits were also made **inside** the place that are not in git:
   `IndexController` panel. Per-zone set completion, claimable rewards
   (cash / Speed / a permanent income multiplier) and the all-96 completionist
   reward. See §12.
-- **Phase 10 (UI/VFX/audio): mostly done.** All UI is on the pack, mutation VFX,
-  upgrade VFX and real Zone 1 models are in. **Audio is untouched.**
-- **Phases 11–13 (monetization, multiplayer hardening, polish): not started.**
+- **Phase 10 (UI/VFX/audio): done, one blocked asset.** All UI is on the pack,
+  mutation VFX, upgrade VFX and the Zone 1/2 models are in, and the audio system
+  is built (see §11). 17 of 18 cues play; the lobby music id is rejected by
+  Roblox — see §7.
+- **Phase 11 (monetization): COMPLETE.** Developer Products for treadmill tiers,
+  an idempotent `ProcessReceipt`, and the Upgrades panel. See §14.
+- **Phases 12–13 (multiplayer hardening, polish): not started.**
 
 ---
 
@@ -273,8 +279,6 @@ was six times too large.
   trophies are both a `Placeholder` part tinted by rarity. The Storage cards show
   a rarity-coloured swatch instead of the pack's demo creature. Swap point is in
   `InventoryController.buildCard`.
-- **Zone 1 has 8 items but only 4 models** (`AncientVase`, `Ruby`, `GoldenCrown`,
-  `Diamond` still use placeholders). Zones 2–12 have none.
 - **Rejoin persistence is unverified** — DataStore API access is off in Studio, so
   profiles are in-memory. The save schema was never touched, but this needs a
   live-server check.
@@ -328,12 +332,20 @@ was six times too large.
 ## 9. Suggested next steps
 
 1. Confirm the place is **saved and published** (§0).
-2. **Fix the lobby-music asset permission** (see §7) — one blocked asset id.
-3. Add `Museum_Ruby` and `Pirate_CursedCoin`, then zones 3–12, using the naming
+2. **Paste the real Developer Product ids** into `MonetizationConfig` once they
+   exist in the Creator Dashboard. Everything else for Phase 11 is done and
+   tested; until an id is filled in, the Robux button stays hidden by design.
+3. **Fix the lobby-music asset permission** (see §7) — one blocked asset id.
+4. Add `Museum_Ruby` and `Pirate_CursedCoin`, then zones 3–12, using the naming
    contract in §6. No code needed, and no manual resizing.
-4. Phase 11 (monetization), then 12–13.
+5. Phase 12 (multiplayer hardening) — this also covers the unverified rejoin
+   persistence — then Phase 13.
 
-12. **A character-shaped guardian costume gets ADOPTED by the rig's Humanoid.**
+---
+
+## 5b. One more bug worth its own entry
+
+**A character-shaped guardian costume gets ADOPTED by the rig's Humanoid.**
     The Pirate Captain import has parts named `Torso`, `Head`, `Left Arm` … and
     its own `HumanoidRootPart`. Parent that into a model containing a `Humanoid`
     and Roblox claims those reserved names and **re-enables `CanCollide` on the
@@ -344,6 +356,51 @@ was six times too large.
     prefixes every reserved part name with `Shell_`, and re-asserts
     `CanCollide = false` AFTER parenting. The Cop never hit this because it is an
     unnamed mesh prop.
+
+---
+
+## 14. Phase 11 — monetization
+
+Treadmill tiers are **Developer Products**, not Gamepasses, because each purchase
+advances one tier and is repeatable. `MonetizationService` owns all of it.
+
+Four rules, each of which the code exists to enforce:
+
+1. **`ProcessReceipt` is the only grant path.** `PromptProductPurchaseFinished`
+   is deliberately not connected anywhere — it reports that a dialog closed, not
+   that Roblox took the money.
+2. **Receipts are safe to replay.** Roblox retries until it gets
+   `PurchaseGranted`, across rejoins and servers, so granted `PurchaseId`s live
+   in the **profile** (schema v3), not in memory. An in-memory set would hand out
+   a free tier on every post-rejoin retry. The list is trimmed oldest-first at
+   100 entries.
+3. **An unconfigured product grants nothing** and the receipt is left OPEN
+   (`NotProcessedYet`) rather than consumed, so a purchase made against a
+   half-configured build still grants once the id is pasted in.
+4. **A purchase is never silently lost.** The grant is always the tier the player
+   is *next in line for*, never the tier named on the product — which covers them
+   earning it with Cash while the receipt was in flight, and cannot be abused to
+   skip tiers.
+
+`PurchaseGranted` is only returned once the grant is **durable**, because it
+consumes the receipt permanently. A failed save returns `NotProcessedYet` and the
+retry re-drives the save (rule 2 already recorded the grant, so it cannot double
+up). `DataService.isPersistent()` exists so Studio — where nothing can be saved —
+does not refuse every receipt.
+
+**The client never names a product id.** It sends `PurchaseRequest("treadmill")`
+and the server decides which product that is, so a tampered client cannot prompt
+for an arbitrary product.
+
+`UpgradesController` fills in the pack's `Frames.Upgrades`, whose card already
+ships a `Money` and a `Robux` button in one row plus a `Lvl N -> Lvl N+1` display.
+The Robux button is hidden unless the tier being sold has a real id.
+
+**Testing.** Robux cannot be spent in Studio, so use the debug bridge:
+`receipt("configure" | "clear" | "seed", n | "setlevel", n | "deliver", productId, purchaseId)`.
+Note `configure` mutates only the **server's** copy of `MonetizationConfig` — the
+client reads its own, so it cannot be used to test the Robux button's visibility.
+For that, paste an id into the file and restart, which is the real path anyway.
 
 ---
 
