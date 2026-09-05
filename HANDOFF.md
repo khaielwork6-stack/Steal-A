@@ -2,6 +2,11 @@
 
 Written for the next Claude session. Read this before touching anything.
 
+> **START AT §18.** It is the end of this file and it says exactly where the last
+> session stopped, what is verified, what is not, and what to pick up. §0 below
+> is still the first thing you must *act* on, but §18 is the current state of the
+> world; §9's "next steps" list is older than §16–§18 and is superseded by them.
+
 ---
 
 ## 0. DO THIS FIRST — the place file may be unsaved
@@ -62,9 +67,9 @@ lost if the place is not saved:
 
 | Location | Contents |
 |---|---|
-| `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`) |
-| `ServerStorage.GameAssets.Loot` | Zone 1: all but `Museum_Ruby`. Zone 2: all but `Pirate_CursedCoin` |
-| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop`, `Zone02_PirateCaptain` |
+| `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`), including the `DROP BUTTON NEW` the DROP button is built from |
+| `ServerStorage.GameAssets.Loot` | **38 items.** All of zones 1–5 EXCEPT `Museum_Ruby` and `Pirate_CursedCoin`. Zones 6–12 have none |
+| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop`, `Zone02_PirateCaptain`, `Zone03_RoyalGuard`, `Zone04_Agent`, `Zone05_ElfGuard` |
 | `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
 | `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
 | `ReplicatedStorage.GameAssets.Treadmills` | All 9 treadmill models (see §15) |
@@ -93,11 +98,15 @@ Two edits were also made **inside** the place that are not in git:
   an idempotent `ProcessReceipt`, and the Upgrades panel (§14). The nine
   treadmill models are normalised and wired into both the world and that panel
   (§15).
-- **Phases 12–13 (multiplayer hardening, polish): not started.**
+- **Phases 12–13 (multiplayer hardening, polish): not started.** Phase 12 is now
+  the largest remaining risk — nothing in this project has ever been tested with
+  two players. See §18.
 - **Economy/progression rebalance: COMPLETE.** The old economy is gone. Read
   §16 before touching any income, rarity or spawn-timing number — several
   things in this document that were true before it are now wrong, and §16 says
   which.
+- **Zones 3–5 art, the chase fix, the DROP button, the Hold-E fix, the treadmill
+  facing fix: COMPLETE.** See §17.
 
 ---
 
@@ -867,3 +876,120 @@ while off, movement restored each time.
 All eight `MonetizationConfig.ListedPriceRobux` values were stale — the products
 are priced 16/24/32/40/56/72/96/120, not 19/29/39/49/69/89/119/149. Display only
 (the panel already trusts `GetProductInfo`), but it was warning on every open.
+
+---
+
+## 18. WHERE THE LAST SESSION STOPPED — read this first
+
+Two sessions of work sit above this: **§16** (the economy/progression rebalance)
+and **§17** (zones 3–5 art, the chase fix, the DROP button, the Hold-E fix, the
+treadmill facing fix). This section is the state of the world as they left it.
+
+### Repo
+
+- Branch **`master`**, clean, at **`48381ea`**, pushed to
+  `https://github.com/khaielwork6-stack/Steal-A.git`.
+- `gh` is not installed; pushes go over HTTPS. An early push in the previous
+  session was refused with a 403 (the local git user is `Fallendead1`, the repo
+  is owned by `khaielwork6-stack`) and then succeeded on retry, so if a push is
+  denied, retry before assuming anything is broken.
+- Nothing is half-finished. There is no work-in-progress branch, no stash and no
+  uncommitted file.
+
+### 🔴 THE ONE URGENT THING
+
+**Ask the user whether they have saved and published the place.**
+
+The previous session moved **27 art assets** in Studio — all 24 Zone 3/4/5 items
+plus the three bosses — out of `Workspace` and into
+`ServerStorage.GameAssets.Loot` / `.Guardians`, renaming each to its ItemId.
+**That change exists only in the `.rbxl`.** If the place was not saved, zones 3–5
+lose every model and all three bosses revert to placeholder blocks, and it is not
+recoverable from git. There is no save/publish tool in the Studio MCP
+integration, so you cannot do it for them.
+
+### What is genuinely verified
+
+Everything below was observed running in Play mode, not just written:
+
+- 849 config validation checks pass (`require(...Config.validate)()`).
+- Fresh account: $0 → steals a $1/s vase → placement bridges to exactly $1,000 →
+  activation consumes it → treadmill level 1. 50 attacks on the grant path paid
+  out $0.
+- A stolen socket is still empty at 26s; the global refresh refills it; a caught
+  thief gets the SAME item back; a PvP drop returns without an extra roll.
+- Normal rarity roller lands within 0.11pp of 35/27/18/11/6/2.5/0.5 over 300k
+  rolls, with zero jackpots. Jackpot roll converges on 0.0996 over 200k, max one
+  injection per refresh.
+- Chase: 0 backward samples in 128 over an 850-stud pursuit. Speed-10 player in
+  the 10K zone caught in 3.4s. Player *at* the 10K gate never closed on across
+  468 studs with the chase live the whole way.
+- Hold-E prompt: exactly one copy, always visible when it should be, across
+  steals, range cycles, a guardian catch and a full death/respawn.
+- DROP button: appears on carry, drops through the shared `forceDrop`, hides on
+  the server's word, item returns to its own socket with its own variant.
+- Treadmill: 3 enter/leave cycles, lateral offset 0.000, +8 Speed/s on, 0 off,
+  movement restored each time.
+- Studio Output is clean apart from two KNOWN pre-existing warnings: Studio
+  DataStore API access is off, and the lobby-music asset id is not approved.
+
+### What is NOT verified — do not claim these work
+
+1. **No multiplayer test has ever been run.** Both sessions drove a single
+   client. Simultaneous steal on one socket, a shared refresh seen by two
+   players, cross-base isolation and guardian cross-targeting are all unobserved.
+   The single-player halves hold up (the `Reserved` state gates a double claim,
+   refresh is one server loop, income is keyed per Player) but that is reasoning,
+   not observation. Use Studio's **Start Server + 2 Players**.
+2. **Rejoin persistence.** DataStore API access is off in Studio, so profiles are
+   in-memory and the v4 economy migration has never survived a real save/load
+   round trip. It is idempotent and was unit-tested via `migrationTest`, but a
+   live-server check is still owed.
+3. **Treadmill facing on tiers 2–9.** Only Rusty was verified (visually and
+   geometrically). The other eight rely on the nine models being authored
+   consistently. If one is backwards, flip `TreadmillConfig.PLAYER_FACING_SIGN`
+   — but that turns ALL nine, so check them before flipping.
+4. **The chase on foot, by a human.** It was driven by script at the player's
+   exact WalkSpeed. Feel is unmeasured.
+5. **The DROP button on a phone**, where it clamps to its 132px minimum.
+
+### Suggested next steps, in the order they are worth doing
+
+1. Confirm the place is saved (above). Nothing else matters until that is true.
+2. **Add `Museum_Ruby` and `Pirate_CursedCoin` art.** The Cursed Coin is now a
+   **$220,000/s jackpot** — the single most exciting object in the first two
+   zones — and it renders as a rarity-tinted placeholder block. Drop them into
+   `ServerStorage.GameAssets.Loot` under those exact ids; no code needed, no
+   manual resizing.
+3. **Zones 6–12 have no art at all**, loot or guardians. Same contract (§6).
+4. **Phase 12 — multiplayer hardening.** This closes items 1 and 2 above and is
+   the largest remaining risk in the project.
+5. Fix the lobby-music asset permission (§7) — one blocked id, not a code bug.
+
+### Things that are deliberately NOT in scope
+
+- **Trails.** The user is handling that in a separate pass and explicitly asked
+  for no TrailService, trail shop, UI, multipliers, DataStore fields or
+  placeholders. There is a harmless unused `Trail` entry in `MutationVfx`'s
+  effect-class allow-list; leave it alone and do not expand it.
+- **Airport (zone 12) economy.** It is our own extension past the reference
+  progression and is marked in `LootConfig` as a separate tuning layer. Zones
+  1–11 were rebalanced; zone 12's numbers were deliberately not touched.
+- **A post-placement "securing"/appraising timer**, and the under-speed Robux
+  prompt. Neither system exists in the codebase. Both were "preserve if present"
+  requests, so neither was built.
+
+### Traps that will cost you an hour if you forget them
+
+- `execute_luau` runs in a **separate Lua VM**. `require`-ing a server module
+  there gives a fresh instance with empty state, and an event connection made
+  there dies with the script. Go through
+  `game.ServerStorage.DebugInvoke:Invoke(command, playerNameOrNil, ...)`.
+- **Rojo syncs into the Edit DataModel only.** Play mode clones from Edit at
+  start, so any file you change while Play is running does not take effect until
+  you stop and restart Play. Also, an Edit-mode `require` returns a CACHED module
+  even after Rojo replaces its Source — Edit-mode requires will lie to you about
+  config values. Test in Play.
+- **StreamingEnabled is on** (1600 stud radius). Anything you build far from the
+  player is not replicated to the client, and a screenshot of it is sky.
+- Full debug command list: `DebugInvoke:Invoke("nope")` returns it.
