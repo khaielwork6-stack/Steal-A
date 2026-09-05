@@ -372,6 +372,31 @@ function LootService.get(lootId: string): LootInstance?
 	return byId[lootId]
 end
 
+--- Resolves the loot instance that owns any descendant - typically the part a
+--- ProximityPrompt is parented to.
+---
+--- Do NOT use `FindFirstAncestorOfClass("Model")` for this. It returns the
+--- NEAREST model, and imported art keeps its parts inside nested Models: the
+--- vase lives at `Museum_AncientVase > brass_vase_01 > Circle.001`, so the
+--- nearest model is the artist's inner group, which carries no LootId. The steal
+--- then silently did nothing on exactly the items that have real art - including
+--- the tutorial vase, which blocked the whole opening.
+---
+--- Walking for the ATTRIBUTE instead of for a class is also immune to however
+--- deeply a future import nests itself. Bounded at workspace, which is itself a
+--- Model and would otherwise be walked into.
+function LootService.fromDescendant(instance: Instance?): LootInstance?
+	local current = instance
+	while current and current ~= workspace do
+		local lootId = current:GetAttribute("LootId")
+		if type(lootId) == "string" then
+			return byId[lootId]
+		end
+		current = current.Parent
+	end
+	return nil
+end
+
 --- Pins a specific item into a socket, used for the tutorial's guaranteed
 --- Ancient Vase. Refuses if the socket is mid-steal so a player escaping with
 --- something can never have it swapped out from under them. Returns the

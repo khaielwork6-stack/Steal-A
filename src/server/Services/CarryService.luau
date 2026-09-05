@@ -374,13 +374,15 @@ function CarryService.start()
 		if prompt.Name ~= "StealPrompt" then
 			return
 		end
-		local model = prompt:FindFirstAncestorOfClass("Model")
-		local lootId = model and model:GetAttribute("LootId")
-		if type(lootId) ~= "string" then
-			return
-		end
-		local loot = LootService.get(lootId)
+		-- Walks up for the LootId attribute rather than for the nearest Model:
+		-- imported art nests its parts inside sub-Models, so the nearest Model is
+		-- the artist's own group and carries no id. See LootService.fromDescendant.
+		local loot = LootService.fromDescendant(prompt)
 		if not loot then
+			-- Never fail silently here. An unresolvable steal prompt means the
+			-- player is holding E on a real object and nothing at all happens,
+			-- which is indistinguishable from the game being frozen.
+			warn(`[CarryService] StealPrompt at {prompt:GetFullName()} resolved to no loot`)
 			return
 		end
 

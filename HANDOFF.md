@@ -413,3 +413,31 @@ so eight items are exactly two rows.
 Verified end to end in Play mode: gating, double-claim refusal, the completionist
 order requirement, the multiplier reaching real income (60,577 → 61,788 = ×1.02),
 the opener badge, and 20 open/close cycles leaking nothing.
+
+---
+
+## 13. The nested-model regression (read before adding art)
+
+Imported art keeps its parts inside its own sub-Models — the vase is
+`Museum_AncientVase > brass_vase_01 > Circle.001`. The steal handler used
+`prompt:FindFirstAncestorOfClass("Model")`, which returns the **nearest** model —
+the artist's inner group — which carries no `LootId`. The steal then resolved to
+nothing and returned **silently**, so holding E on a real object did nothing at
+all and looked like the game was frozen.
+
+It only affected items with real art whose source Model nests, and the tutorial
+pins the Ancient Vase into socket 1 — so the very first item a new player touches
+was the broken one, and it read as "I cannot pick ANYTHING up".
+
+Fixed with `LootService.fromDescendant`, which walks ancestors looking for the
+**attribute** rather than for a class, and is therefore immune to however deeply
+a future import nests itself. It is bounded at `workspace`, which is itself a
+Model. That path now also `warn`s instead of failing silently.
+
+**Testing note:** verifying this is fiddly and two artifacts will mislead you.
+Teleporting a character next to a pedestal makes it FALL, so by the time a
+1-second hold completes it is out of the 22-stud range and the steal is refused
+as "Too far away" — raycast for ground and let it settle for ~3s first. And a
+stationary character is caught by the guardian almost instantly, so "carrying:
+nothing" a second later is a successful steal that was already reclaimed. Watch
+the `Notify` stream, not the carry slot.

@@ -37,6 +37,11 @@ local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
 local LootModel = {}
 
+--- How wide an asset may get relative to its target height. Scaling purely by
+--- height turns a flat, wide object (a crown, a shield) into something far wider
+--- than the pedestal it sits on, so whichever of the two limits binds first wins.
+LootModel.MAX_WIDTH_RATIO = 1.5
+
 -- ==========================================================
 -- MEASUREMENT
 -- ==========================================================
@@ -197,9 +202,27 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 	-- asked for.
 	local scale = options.sizeScale or 1
 	if isReal then
-		local height = LootModel.worldHeight(built)
-		if height and height > 0.01 then
-			scale *= options.targetHeight / height
+		local min, max = LootModel.worldExtents(built)
+		if min and max then
+			local size = max - min
+			local fit = math.huge
+
+			-- Height is the primary target...
+			if size.Y > 0.01 then
+				fit = options.targetHeight / size.Y
+			end
+
+			-- ...but a flat, wide object must not be blown up sideways to reach it.
+			-- The crown is 1.25 wide by 0.51 tall as authored: matching its HEIGHT
+			-- to 5 studs made it 12 studs across, wider than the pedestal.
+			local widest = math.max(size.X, size.Z)
+			if widest > 0.01 then
+				fit = math.min(fit, (options.targetHeight * LootModel.MAX_WIDTH_RATIO) / widest)
+			end
+
+			if fit < math.huge then
+				scale *= fit
+			end
 		end
 	end
 
