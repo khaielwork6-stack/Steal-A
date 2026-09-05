@@ -37,6 +37,7 @@ local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationC
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local TreadmillModel = require(ReplicatedStorage.Shared.Util.TreadmillModel)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
@@ -65,6 +66,7 @@ local lockedHint: TextLabel? = nil
 
 local latestState: any = nil
 local lastLevel: number? = nil
+local lastPreviewLevel: number? = nil
 
 -- Live Robux prices, fetched once per product.
 local priceCache: { [number]: number } = {}
@@ -195,63 +197,39 @@ end
 -- TREADMILL PREVIEW
 -- ==========================================================
 
---- Renders the player's ACTUAL treadmill in a ViewportFrame. It is built from
---- parts by MapBuilder, so a clone of those parts is a true preview rather than
---- borrowed art.
-local function fillViewport(target: ViewportFrame)
+--- Renders the treadmill for `level` in a ViewportFrame.
+---
+--- The model comes from the SAME library and the SAME builder the world uses
+--- (TreadmillModel), so the treadmill a player is shopping for is exactly the
+--- one they receive - not borrowed art, and not the generic placeholder rig this
+--- used to clone off the plot.
+---
+--- Framing is computed from the model's true bounds, so a future treadmill with
+--- wider wings or a taller arch fits automatically with no per-model camera.
+local function fillViewport(target: ViewportFrame, level: number)
 	for _, child in target:GetChildren() do
 		if not child:IsA("Camera") then
 			child:Destroy()
 		end
 	end
 
-	local bases = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Bases")
-	local plot: Instance? = nil
-	if bases then
-		for _, candidate in bases:GetChildren() do
-			if candidate:GetAttribute("OwnerUserId") == player.UserId then
-				plot = candidate
-			end
-		end
-	end
-	local source = plot and plot:FindFirstChild("Treadmill")
-	if not source then
+	local built = TreadmillModel.build(level)
+	if not built then
 		return
 	end
 
 	local holder = Instance.new("Model")
 	holder.Name = "Preview"
+	for _, child in built:GetChildren() do
+		child.Parent = holder
+	end
+	built:Destroy()
 
 	-- True world-axis extents from part corners. Model:GetBoundingBox returns a
 	-- box ORIENTED to the pivot, which is not the size you can frame a camera
 	-- against once the model is rotated.
-	local minV = Vector3.new(math.huge, math.huge, math.huge)
-	local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
-	local count = 0
-	for _, part in source:GetDescendants() do
-		-- The training trigger is an invisible volume; it would box the preview.
-		if part:IsA("BasePart") and part.Name ~= "TrainingTrigger" then
-			local copy = part:Clone()
-			copy.Anchored = true
-			copy.CanCollide = false
-			copy.CastShadow = false
-			copy.Transparency = 0
-			copy.Parent = holder
-			count += 1
-
-			local half = part.Size / 2
-			for x = -1, 1, 2 do
-				for y = -1, 1, 2 do
-					for z = -1, 1, 2 do
-						local corner = (part.CFrame * CFrame.new(half.X * x, half.Y * y, half.Z * z)).Position
-						minV = minV:Min(corner)
-						maxV = maxV:Max(corner)
-					end
-				end
-			end
-		end
-	end
-	if count == 0 then
+	local minV, maxV = TreadmillModel.worldExtents(holder)
+	if not minV or not maxV then
 		holder:Destroy()
 		return
 	end
@@ -274,9 +252,21 @@ local function fillViewport(target: ViewportFrame)
 	-- Fit the camera to the object instead of guessing a distance: back off far
 	-- enough that the largest dimension spans the frame, with a little padding.
 	-- The treadmill is long and low, so a fixed offset left it a speck.
+	--
+	-- The padding is only just over 1: the frame is small on a phone, and the
+	-- fit is computed from the model's true bounds, so wings and arches are
+	-- already inside the radius and cannot be cropped.
 	local radius = math.max(extent.X, extent.Y, extent.Z) * 0.5
-	local distance = (radius / math.tan(math.rad(camera.FieldOfView) / 2)) * 1.5
+	local distance = (radius / math.tan(math.rad(camera.FieldOfView) / 2)) * 1.12
 	local direction = Vector3.new(0.62, 0.42, 0.66).Unit
+
+	-- A ViewportFrame has no world lighting, and the default LightDirection
+	-- points straight down - which lit the top of the belt and left every face
+	-- the camera can actually see in shadow. Throw the light along the view
+	-- instead, with a downward bias so the form still reads.
+	target.LightDirection = (-direction + Vector3.new(0, -0.35, 0)).Unit
+	target.Ambient = Color3.fromRGB(198, 206, 220)
+	target.LightColor = Color3.fromRGB(255, 252, 244)
 	camera.CFrame = CFrame.lookAt(direction * distance, Vector3.zero)
 end
 
@@ -303,6 +293,16 @@ local function render(state: any)
 	local nextTier = TreadmillConfig.nextTier(level)
 	local maxed = nextTier == nil and level >= TreadmillConfig.MAX_LEVEL
 	local locked = state.baseActivated ~= true
+
+	-- The preview shows what the player is SHOPPING FOR - the next tier - and
+	-- falls back to the one they already own once maxed. Tracked on its own value
+	-- rather than hanging off the "level went up" branch below, so it also fills
+	-- on first open and repaints the instant an upgrade lands, with no reopen.
+	local previewLevel = if nextTier then nextTier.level else math.max(level, 1)
+	if viewport and previewLevel ~= lastPreviewLevel then
+		lastPreviewLevel = previewLevel
+		fillViewport(viewport :: ViewportFrame, previewLevel)
+	end
 
 	if unlockedLabel then
 		unlockedLabel.Text = `{math.max(level, 0)} / {TreadmillConfig.MAX_LEVEL} TREADMILLS UNLOCKED`
@@ -413,7 +413,8 @@ local function render(state: any)
 		if body then
 			UIAnim.punch(body, 0.06)
 		end
-		fillViewport(viewport :: ViewportFrame)
+		-- The preview itself is repainted by the previewLevel check above, which
+		-- also covers first open and the maxed case.
 	end
 	lastLevel = level
 end
@@ -475,8 +476,8 @@ local function buildCard(card: Frame, scroll: ScrollingFrame)
 	view.AnchorPoint = Vector2.new(0.5, 0.5)
 	view.Position = UDim2.fromScale(0.26, 0.31)
 	view.Size = UDim2.fromScale(0.42, 0.31)
-	view.BackgroundColor3 = Color3.fromRGB(34, 58, 34)
-	view.BackgroundTransparency = 0.15
+	view.BackgroundColor3 = Color3.fromRGB(64, 96, 58)
+	view.BackgroundTransparency = 0.05
 	view.BorderSizePixel = 0
 	-- Bright ambient: a ViewportFrame gets no world lighting, so the default is
 	-- a near-black silhouette.
@@ -705,7 +706,9 @@ local function buildPanel(ui: ScreenGui): boolean
 
 	found:GetPropertyChangedSignal("Visible"):Connect(function()
 		if found.Visible then
-			fillViewport(viewport :: ViewportFrame)
+			-- Force the next render to rebuild the preview, so reopening the panel
+			-- always shows a live model even if the tier has not changed.
+			lastPreviewLevel = nil
 			render(latestState)
 			if body then
 				UIAnim.popIn(body, 0.94)

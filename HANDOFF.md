@@ -39,7 +39,9 @@ Recent commits:
 | `02164f0` | Phase 9 — the Loot Index (see §12) |
 | `dd50eee` | Zone 1/2 art pipeline, Storage UI rebuild, tutorial dedupe, audio pass |
 | `4e74e35` | Fix loot being unstealable when its art nests in sub-models (see §13) |
-| `a533337` | Phase 11 — Robux treadmill tiers, idempotent ProcessReceipt (see §14) |
+| `a533337` | Phase 11 — Robux treadmill tiers, idempotent ProcessReceipt |
+| `ede4b9e` | Wire the real Developer Products; rebuild the Upgrades panel |
+| *(this session)* | Normalise and wire the 9 treadmill models (see §15) |
 
 ---
 
@@ -65,6 +67,7 @@ lost if the place is not saved:
 | `ServerStorage.GameAssets.Guardians` | `Zone01_Cop`, `Zone02_PirateCaptain` |
 | `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
 | `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
+| `ReplicatedStorage.GameAssets.Treadmills` | All 9 treadmill models (see §15) |
 
 Two edits were also made **inside** the place that are not in git:
 
@@ -87,7 +90,9 @@ Two edits were also made **inside** the place that are not in git:
   is built (see §11). 17 of 18 cues play; the lobby music id is rejected by
   Roblox — see §7.
 - **Phase 11 (monetization): COMPLETE.** Developer Products for treadmill tiers,
-  an idempotent `ProcessReceipt`, and the Upgrades panel. See §14.
+  an idempotent `ProcessReceipt`, and the Upgrades panel (§14). The nine
+  treadmill models are normalised and wired into both the world and that panel
+  (§15).
 - **Phases 12–13 (multiplayer hardening, polish): not started.**
 
 ---
@@ -498,3 +503,63 @@ as "Too far away" — raycast for ground and let it settle for ~3s first. And a
 stationary character is caught by the guardian almost instantly, so "carrying:
 nothing" a second later is a successful steal that was already reclaimed. Watch
 the `Notify` stream, not the carry slot.
+
+---
+
+## 15. Treadmills — the nine models
+
+Nine AI-generated treadmill models drive the Speed progression. They are the
+player-facing reward for every treadmill tier, so they are normalised hard.
+
+**Where they live:** `ReplicatedStorage.GameAssets.Treadmills.<Key>` — deliberately
+*Replicated*Storage, not ServerStorage, because the Upgrades panel renders them
+client-side in a ViewportFrame. Keys match `TreadmillConfig.Tiers[i].modelKey`.
+
+**Tier order (do not reorder):** Rusty, Velocity, Voltic, Inferno, Frostbite,
+Midas, Overclock, Eclipse, Ascendant. `Midas` was imported as "Aurum"; the
+Studio-side model has already been renamed.
+
+### The gameplay rig is never the art
+
+Every model is a single MeshPart with `Default` collision fidelity — a crude
+hull, not the real surface. Trusting it means players catching on handlebars or
+falling through a belt that only looks solid. So:
+
+```
+Treadmill/            Folder on the plot (MapBuilder)
+  Frame               INVISIBLE collision deck - the only thing you stand on
+  TrainingTrigger     INVISIBLE detection volume - what SpeedService reads
+  Belt                thin cosmetic strip, kept for the activation tint
+  Model/              decorative art, swapped by SpeedService on upgrade
+```
+
+The art is always `Anchored`, `CanCollide/CanQuery/CanTouch = false`, and any
+script inside it is stripped. MapBuilder builds only the invisible rig and knows
+nothing about tiers, so an upgrade is a pure model swap against a fixed frame.
+
+### Normalisation (`TreadmillModel`)
+
+- **Uniform scale only.** Long axis matched to `STANDARD_LENGTH = 13`; no axis is
+  ever stretched independently, so wings and arches stay undeformed. Eight of the
+  nine were authored at exactly 13, so only Inferno actually scales (×1.717).
+- **Deck height is measured, not guessed.** `deckHeight` per tier is where that
+  model's real belt sits, found by raycasting a grid over the mesh. Each model is
+  then SUNK by `deckHeight - STANDARD_DECK_HEIGHT` so every belt lands on the
+  same plane. Regenerate with `DebugInvoke:Invoke("treadmills", nil, "measure")`.
+- **`STANDARD_DECK_HEIGHT = 1.6`** is identical to the old placeholder deck, so
+  safe volumes, corridor clearance and map layout are untouched — and it stays
+  under humanoid step height, which is what lets a player walk straight on.
+- **Orientation is normalised twice**: long axis onto the deck axis, then
+  front-to-back via `tallestEndZ` (a treadmill's tallest feature is its console).
+  Three of the nine were authored 180° from the rest.
+
+Verified across all nine: belt length 13.00, belt plane 1.60, player stands at
+4.60, footprint centred to 0.00, all facing the same way, zero colliding parts.
+
+### Upgrades preview
+
+`UpgradesController.fillViewport(target, level)` builds from the SAME library and
+builder the world uses, so the shop shows exactly what you receive. It shows the
+NEXT tier (falling back to current at max), auto-fits the camera from real model
+bounds — so wings cannot be cropped and no per-model camera is needed — and
+repaints the instant an upgrade lands, with no reopen.

@@ -22,6 +22,7 @@ local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+local TreadmillModel = require(ReplicatedStorage.Shared.Util.TreadmillModel)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
@@ -164,6 +165,52 @@ function SpeedService.refreshTreadmill(player: Player)
 		frame.Color = if active then MapPalette.Treadmill else Color3.fromRGB(96, 100, 112)
 	end
 
+	-- Dress the rig with the art for this tier. The invisible deck and trigger
+	-- never move, so an upgrade is purely a model swap and the player's standing
+	-- height and position are identical on every tier.
+	if frame and frame:IsA("BasePart") then
+		local wanted = math.max(profile.TreadmillLevel, 1)
+		local existing = treadmill:FindFirstChild(TreadmillModel.MODEL_NAME)
+
+		-- Rebuilding an unchanged model every push would churn parts under a
+		-- player who is standing on it, so only swap on an actual change.
+		if not existing or existing:GetAttribute("TreadmillLevel") ~= wanted then
+			if existing then
+				existing:Destroy()
+			end
+			local built = TreadmillModel.build(wanted)
+			if built then
+				local deckTop = frame.Position.Y + frame.Size.Y / 2
+				TreadmillModel.align(built, frame.Position, deckTop, frame.CFrame)
+				built.Parent = treadmill
+				existing = built
+			end
+		end
+
+		-- Dark and lifeless until the base is activated, matching the belt. The
+		-- authored look is restored from the attributes stashed at build time,
+		-- never from the part's current colour - which may already be the grey.
+		if existing then
+			for _, part in existing:GetDescendants() do
+				if part:IsA("BasePart") then
+					if active then
+						local lit = part:GetAttribute("LitColor")
+						if typeof(lit) == "Color3" then
+							part.Color = lit
+						end
+						local material = part:GetAttribute("LitMaterial")
+						if type(material) == "string" then
+							part.Material = (Enum.Material :: any)[material] or part.Material
+						end
+					else
+						part.Color = Color3.fromRGB(74, 78, 88)
+						part.Material = Enum.Material.Slate
+					end
+				end
+			end
+		end
+	end
+
 	-- Activation pad disappears once used.
 	if pad and pad:IsA("BasePart") then
 		pad.Transparency = if active then 1 else 0
@@ -174,15 +221,27 @@ function SpeedService.refreshTreadmill(player: Player)
 		end
 	end
 
-	-- Label above the treadmill.
+	-- Label above the treadmill. Its height is derived from whatever model is
+	-- attached, not fixed: the tiers range from a low 8-stud frame to an 11-stud
+	-- ice arch, and a constant offset left the name and price buried inside the
+	-- taller ones.
 	local anchor = frame or belt
 	if anchor and anchor:IsA("BasePart") then
+		local labelY = 8
+		local attached = treadmill:FindFirstChild(TreadmillModel.MODEL_NAME)
+		if attached and attached:IsA("Model") then
+			local _, top = TreadmillModel.worldExtents(attached)
+			if top then
+				labelY = (top.Y - anchor.Position.Y) + 3
+			end
+		end
+
 		local gui = anchor:FindFirstChild("TreadmillLabel") :: BillboardGui?
 		if not gui then
 			local created = Instance.new("BillboardGui")
 			created.Name = "TreadmillLabel"
 			created.Size = UDim2.fromScale(12, 3.4)
-			created.StudsOffsetWorldSpace = Vector3.new(0, 8, 0)
+			created.StudsOffsetWorldSpace = Vector3.new(0, labelY, 0)
 			created.MaxDistance = 200
 			created.Adornee = anchor
 			created.Parent = anchor
@@ -208,6 +267,11 @@ function SpeedService.refreshTreadmill(player: Player)
 
 			gui = created
 		end
+
+		-- Re-applied every refresh, not just on creation: the model underneath it
+		-- changes with the tier, so a height fixed at creation would be wrong for
+		-- every subsequent upgrade.
+		;(gui :: BillboardGui).StudsOffsetWorldSpace = Vector3.new(0, labelY, 0)
 
 		local title = (gui :: BillboardGui):FindFirstChild("Title") :: TextLabel
 		local detail = (gui :: BillboardGui):FindFirstChild("Detail") :: TextLabel

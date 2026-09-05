@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
+local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local MapLandmarks = require(script.Parent.MapLandmarks)
 
 local MapBuilder = {}
@@ -720,38 +721,45 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	spawn.Parent = base
 
 	-- Treadmill stands in the corridor directly in front of the plot.
+	--
+	-- Only the INVISIBLE gameplay rig is built here. The decorative model is
+	-- attached by SpeedService, which knows the player's tier - keeping this
+	-- builder ignorant of progression means upgrading is a model swap against a
+	-- fixed frame, and the player's standing position never moves.
+	--
+	-- The deck is deliberately the same height as the old solid box it replaces,
+	-- so safe volumes, corridor clearance and every other layout number are
+	-- unchanged. It is under humanoid step height, which is what lets a player
+	-- walk straight on without a ramp.
 	local treadmill = folder("Treadmill", base)
-	local tSize = MapConfig.TREADMILL_SIZE
+	local tSize = TreadmillConfig.DECK_SIZE
 	local tZ = -halfD - MapConfig.TREADMILL_STANDOFF
-	makePart({
+
+	-- The one solid surface. Invisible: the art sits on top of it.
+	local deck = makePart({
 		name = "Frame",
 		size = tSize,
 		cframe = at(0, tSize.Y / 2, tZ),
 		color = MapPalette.Treadmill,
 		parent = treadmill,
 	})
+	deck.Transparency = 1
+
+	-- Kept only so refreshTreadmill has something to tint when the base is
+	-- inactive; the art covers it entirely once a model is attached.
 	makePart({
 		name = "Belt",
-		size = Vector3.new(tSize.X - 4, 0.6, tSize.Z - 4),
-		cframe = at(0, tSize.Y + 0.1, tZ),
+		size = Vector3.new(tSize.X - 4, 0.4, tSize.Z - 3),
+		cframe = at(0, tSize.Y + 0.05, tZ),
 		color = MapPalette.TreadmillBelt,
 		parent = treadmill,
 		canCollide = false,
 	})
-	for _, sign in { -1, 1 } do
-		makePart({
-			name = "Rail",
-			size = Vector3.new(1.6, 7, tSize.Z - 8),
-			cframe = at(sign * (tSize.X / 2 - 0.8), tSize.Y + 3.5, tZ),
-			color = MapPalette.Treadmill,
-			parent = treadmill,
-			canCollide = false,
-		})
-	end
+
 	makeVolume(
 		"TrainingTrigger",
-		Vector3.new(tSize.X, 12, tSize.Z),
-		at(0, 8, tZ),
+		TreadmillConfig.TRIGGER_SIZE,
+		at(0, TreadmillConfig.TRIGGER_SIZE.Y / 2, tZ),
 		treadmill
 	)
 

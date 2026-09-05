@@ -317,6 +317,89 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return IndexService.summarise(player)
 	end,
 
+	--- Treadmill inspection and re-measurement.
+	---   treadmills()            -> what the library holds vs what config expects
+	---   treadmills(nil,"measure") -> raycast every model and print paste-ready
+	---                                scale/deckHeight rows for TreadmillConfig
+	---   treadmills(nil,"set",N)   -> jump this player to treadmill level N
+	treadmills = function(player, action: string?, level: number?)
+		local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+		local TreadmillModel = require(ReplicatedStorage.Shared.Util.TreadmillModel)
+
+		if action == "set" and level then
+			local profile = DataService.get(player)
+			if not profile then
+				return { error = "no profile" }
+			end
+			profile.TreadmillLevel = math.clamp(math.floor(level), 1, TreadmillConfig.MAX_LEVEL)
+			profile.BaseActivated = true
+			require(script.Parent.SpeedService).refreshTreadmill(player)
+			StateService.pushNow(player)
+			return { level = profile.TreadmillLevel, name = TreadmillConfig.tier(profile.TreadmillLevel).name }
+		end
+
+		if action == "measure" then
+			-- Raycasting needs the mesh solid and in the world, so each model is
+			-- measured in a scratch clone far from anything and then removed.
+			local rows = {}
+			for _, tier in TreadmillConfig.Tiers do
+				local source = TreadmillModel.source(tier.modelKey)
+				if not source then
+					table.insert(rows, `{tier.modelKey} = MISSING`)
+					continue
+				end
+				local probe = source:Clone()
+				for _, d in probe:GetDescendants() do
+					if d:IsA("BasePart") then
+						d.Anchored, d.CanCollide, d.CanQuery = true, true, true
+					end
+				end
+				probe.Parent = workspace
+				probe:PivotTo(CFrame.new(0, 5000, 0))
+
+				local mn, mx = TreadmillModel.worldExtents(probe)
+				local size = mx - mn
+				local long = math.max(size.X, size.Z)
+				local scale = TreadmillConfig.STANDARD_LENGTH / long
+
+				local params = RaycastParams.new()
+				params.FilterType = Enum.RaycastFilterType.Include
+				params.FilterDescendantsInstances = { probe }
+
+				local lows, RES = {}, 28
+				for r = 1, RES do
+					local z = mn.Z + (r - 0.5) / RES * size.Z
+					for c = 1, RES do
+						local x = mn.X + (c - 0.5) / RES * size.X
+						local hit = workspace:Raycast(Vector3.new(x, mx.Y + 5, z), Vector3.new(0, -(size.Y + 10), 0), params)
+						if hit then
+							local h = hit.Position.Y - mn.Y
+							-- The belt is the large FLAT LOW area; the upper half is
+							-- arches, wings and handlebars.
+							if h <= size.Y * 0.55 then
+								table.insert(lows, h)
+							end
+						end
+					end
+				end
+				table.sort(lows)
+				local deck = (lows[math.max(1, math.floor(#lows * 0.5))] or 0) * scale
+				probe:Destroy()
+
+				table.insert(rows, string.format("%s = { scale = %.4f, deckHeight = %.3f },", tier.modelKey, scale, deck))
+			end
+			return { measured = rows }
+		end
+
+		local report = {}
+		for _, tier in TreadmillConfig.Tiers do
+			table.insert(report, string.format("%d %-10s art=%s", tier.level, tier.name,
+				tostring(TreadmillModel.source(tier.modelKey) ~= nil)))
+		end
+		return { tiers = report, standardLength = TreadmillConfig.STANDARD_LENGTH,
+			deckHeight = TreadmillConfig.STANDARD_DECK_HEIGHT }
+	end,
+
 	--- Wipes progress the way a fresh account looks, to re-run the tutorial.
 	resetTutorial = function(player)
 		local profile = DataService.get(player)
