@@ -5,7 +5,7 @@
 	"Action UI" billboard rather than hand-drawn frames.
 
 	SOURCE OF THE VISUAL
-	  StarterGui.MainUI.Surface/Billboards.Action UI
+	  StarterGui.MainUI.Surface/Billboards.<the interact billboard>
 	    Frame
 	      E [TextButton]        <- keycap
 	        Frame
@@ -13,6 +13,10 @@
 	          Title             <- the letter shown on the keycap
 	      Object                <- item name
 	      Action                <- what holding will do
+
+	It is located by SHAPE, not by name - see findActionTemplate. The pack has
+	shipped this billboard as both "Action UI" and "Action", and matching on the
+	name meant a re-import silently disabled every interact prompt in the game.
 
 	WHY ONE SHARED BILLBOARD
 	Roblox draws its default prompt UI for EVERY ProximityPrompt in range. A base
@@ -69,6 +73,51 @@ local function stopHoldTweens()
 	table.clear(holdTweens)
 end
 
+--- True when a BillboardGui is the pack's interact prompt: what we actually
+--- depend on is its SHAPE, not its name.
+local function isActionTemplate(candidate: Instance): boolean
+	if not candidate:IsA("BillboardGui") then
+		return false
+	end
+	local panel = candidate:FindFirstChild("Frame")
+	if not panel or not panel:IsA("Frame") then
+		return false
+	end
+	local key = panel:FindFirstChild("E")
+	local inner = key and key:FindFirstChild("Frame")
+	return (key ~= nil and key:IsA("GuiObject"))
+		and (inner ~= nil and inner:FindFirstChild("Title") ~= nil)
+		and panel:FindFirstChild("Object") ~= nil
+		and panel:FindFirstChild("Action") ~= nil
+end
+
+--- Finds the pack's interact billboard.
+---
+--- MATCHED BY SHAPE, NOT BY NAME. This looked up exactly
+--- `Surface/Billboards.Action UI`, and when the pack folder was re-imported the
+--- billboard came back named just "Action" - so a perfectly good, fully intact
+--- prompt sat there while every interact prompt in the game silently turned
+--- itself off. The known names are still tried first because they are cheap and
+--- unambiguous; the scan is what stops a rename from disabling the feature
+--- again.
+local function findActionTemplate(mainUi: Instance): BillboardGui?
+	local surface = mainUi:FindFirstChild("Surface/Billboards") or mainUi
+	for _, name in { "Action UI", "Action", "ActionUI" } do
+		local named = surface:FindFirstChild(name) or mainUi:FindFirstChild(name, true)
+		if named and isActionTemplate(named) then
+			return named :: BillboardGui
+		end
+	end
+
+	for _, descendant in mainUi:GetDescendants() do
+		if isActionTemplate(descendant) then
+			warn(`[InteractController] adopted interact billboard by shape: {descendant:GetFullName()}`)
+			return descendant :: BillboardGui
+		end
+	end
+	return nil
+end
+
 --- Clones the pack's Action UI once. Returns false if the pack is missing, in
 --- which case the controller stays inert rather than inventing a replacement.
 local function build(): boolean
@@ -79,10 +128,12 @@ local function build(): boolean
 		return false
 	end
 
-	local surface = mainUi:FindFirstChild("Surface/Billboards")
-	local template = surface and surface:FindFirstChild("Action UI")
-	if not template or not template:IsA("BillboardGui") then
-		warn("[InteractController] 'Action UI' not found in the pack - interact prompt disabled.")
+	local template = findActionTemplate(mainUi)
+	if not template then
+		warn(
+			"[InteractController] no interact billboard found in the pack - prompt disabled. "
+				.. "Expected a BillboardGui under MainUI containing Frame > {E > Frame > Title, Object, Action}."
+		)
 		return false
 	end
 

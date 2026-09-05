@@ -309,6 +309,12 @@ was six times too large.
   When a click appears to do nothing, click a **pack** button the same way as a
   control before concluding the harness is at fault — that is what exposed the
   `Active = false` bug below.
+- **Find pack elements by SHAPE, not by name.** The interact billboard has
+  shipped as both `Action UI` and `Action`. InteractController matched the name,
+  so a re-import of `Surface/Billboards` left a perfectly intact prompt sitting
+  there while every interact prompt in the game silently disabled itself.
+  `findActionTemplate` now tries the known names and then falls back to scanning
+  for the required hierarchy.
 - **A clone of a pack button is inert until you fix two properties.** Pack
   buttons ship `Active = false` (the pack drives them from `InputBegan`, not
   `Activated`) and already carry `_UIHandlerSetup`. So a clone bound with
