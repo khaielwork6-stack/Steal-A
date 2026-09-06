@@ -327,13 +327,16 @@ local function build(): boolean
 		local button = dropSource:Clone()
 		button.Name = "Claim"
 		button.Visible = true
-		button.Size = UDim2.fromScale(0.5, 0.16)
-		button.Position = UDim2.fromScale(0.5, 0.92)
+		-- GIANT, per the brief: two thirds of the panel wide and tall enough to
+		-- be the obvious thing on the screen. The aspect constraint keeps it a
+		-- pill rather than a bar as the panel scales.
+		button.Size = UDim2.fromScale(0.66, 0.2)
+		button.Position = UDim2.fromScale(0.5, 0.905)
 		button.AnchorPoint = Vector2.new(0.5, 0.5)
 		button.ZIndex = 4
 		local ratio = button:FindFirstChildOfClass("UIAspectRatioConstraint")
 		if ratio then
-			ratio.AspectRatio = 4.2
+			ratio.AspectRatio = 4.6
 		end
 		for _, extra in button:GetChildren() do
 			if extra.Name == "_RippleContainer" or extra:IsA("UIScale") then
