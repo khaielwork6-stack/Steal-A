@@ -22,6 +22,7 @@ local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Validate = require(ReplicatedStorage.Shared.Util.Validate)
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
@@ -621,11 +622,10 @@ function PvPService.start()
 	end)
 
 	Remotes.get("TrapPlaceRequest").OnServerEvent:Connect(function(player, position)
-		local requested: Vector3? = nil
-		if typeof(position) == "Vector3" then
-			requested = position
-		end
-		PvPService.tryPlaceTrap(player, requested)
+		-- A Vector3 with a NaN component is still a Vector3; it would turn the
+		-- clamp below into a NaN target and the ground raycast into garbage. A
+		-- malformed hint simply falls back to "just ahead of the player".
+		PvPService.tryPlaceTrap(player, Validate.vector3(position))
 	end)
 
 	local function onPlayer(player: Player)

@@ -70,6 +70,9 @@ local lastPreviewLevel: number? = nil
 
 -- Live Robux prices, fetched once per product.
 local priceCache: { [number]: number } = {}
+-- When a failed lookup may be retried, per product.
+local priceRetryAt: { [number]: number } = {}
+local PRICE_RETRY_AFTER = 30
 
 -- Guards overlapping fit passes when the viewport changes rapidly.
 local fitToken = 0
@@ -137,11 +140,17 @@ local function robuxPrice(productId: number, key: string?): number?
 	if cached then
 		return cached
 	end
+	local listed = if key then MonetizationConfig.ListedPriceRobux[key] else nil
+	-- render() runs on every StatePush. A lookup that just failed (offline,
+	-- throttled, Studio) would otherwise be retried - a yielding web call - up
+	-- to four times a second for as long as the panel is open.
+	if (priceRetryAt[productId] or 0) > os.clock() then
+		return listed
+	end
 	local ok, info = pcall(function()
 		return MarketplaceService:GetProductInfo(productId, Enum.InfoType.Product)
 	end)
 	local live = if ok and type(info) == "table" then tonumber(info.PriceInRobux) else nil
-	local listed = if key then MonetizationConfig.ListedPriceRobux[key] else nil
 
 	if live then
 		-- Roblox is the authority. A mismatch means the config is stale, which
@@ -157,7 +166,9 @@ local function robuxPrice(productId: number, key: string?): number?
 	end
 
 	-- GetProductInfo failed (offline, throttled, Studio). Fall back rather than
-	-- showing nothing, and do not cache a guess as though it were confirmed.
+	-- showing nothing, and do not cache a guess as though it were confirmed -
+	-- just hold off asking again for a while.
+	priceRetryAt[productId] = os.clock() + PRICE_RETRY_AFTER
 	return listed
 end
 

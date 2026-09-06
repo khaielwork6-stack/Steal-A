@@ -460,9 +460,30 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { placed = ok, reason = reason, slot = target, income = EconomyService.getIncome(player) }
 	end,
 
+	--- Sells the item displayed in `slotIndex` the way a player would: store it
+	--- first, then sell it out of Storage. There is no direct sell-from-display
+	--- path in the game (PlacementService.sell was retired with it), which is
+	--- why this used to error with "attempt to call a nil value".
 	sell = function(player, slotIndex: number)
 		local PlacementService = require(script.Parent.PlacementService)
-		local ok, reason = PlacementService.sell(player, slotIndex)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local instanceId: string? = nil
+		for _, item in profile.DisplayItems do
+			if item.SlotIndex == slotIndex then
+				instanceId = item.InstanceId
+			end
+		end
+		if not instanceId then
+			return { sold = false, reason = `slot {slotIndex} is empty` }
+		end
+		local stored, storeReason = PlacementService.store(player, slotIndex)
+		if not stored then
+			return { sold = false, reason = storeReason }
+		end
+		local ok, reason = PlacementService.sellStored(player, instanceId)
 		return { sold = ok, reason = reason, cash = EconomyService.getCash(player), income = EconomyService.getIncome(player) }
 	end,
 

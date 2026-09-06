@@ -2,9 +2,9 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §21**, then §20, §19 and §18. Between them they say exactly where
-> the last sessions stopped, what is verified, what is not, and what to pick
-> up. §0 below is still the first thing you must *act* on (§20 moved 61 models
+> **START AT §22**, then §21, §20, §19 and §18. Between them they say exactly
+> where the last sessions stopped, what is verified, what is not, and what to
+> pick up. §0 below is still the first thing you must *act* on (§20 moved 61 models
 > that live only in the place file); §9's "next steps" list is older than
 > §16–§21 and is superseded by them.
 
@@ -1519,3 +1519,160 @@ button (owned + equipped, cash −75K), click a Robux button (prompt), Shop →
 2x Cash and one Speed card (prompts), a catch for the boss card, GIFT →
 CLAIM (group prompt). Flip `PngCard.DEBUG_HITBOXES` to eyeball the regions,
 then back.
+
+---
+
+## 22. Deep audit, test, optimisation and polish pass
+
+A full read of every server service, every client controller, every shared
+util and config, and the map builder, followed by a live test battery in
+Studio. Nothing was redesigned; every change below fixes a confirmed defect
+or removes confirmed waste. The §21 "NOT verified" list is now closed (see
+"Verified" below).
+
+### Fixed — CRITICAL
+
+- **NaN through the remotes → permanent save failure.** `type(x) == "number"`
+  accepts NaN, and NaN passes every `<`/`>` bounds test. `PlaceLootRequest(0/0)`
+  therefore reached `PlacementService.place`, was written into the profile as
+  `SlotIndex = nan`, and from then on every `UpdateAsync` of that profile
+  failed (DataStores cannot serialise NaN) — one packet, data loss. New
+  `src/shared/Util/Validate.luau` (`finite`, `integer(min,max)`, `vector3`)
+  guards `PlaceLootRequest`, `InventoryRequest("store")`,
+  `IndexClaimRequest("claim")` and `TrapPlaceRequest` (a Vector3 with a NaN
+  component poisoned the clamp and the ground raycast).
+
+### Fixed — HIGH
+
+- **Player leaves while their profile is loading.** `DataService.load` yields
+  on `GetAsync`; a player who left inside that window had already had
+  `release` run, so the profile stored afterwards lived forever and was
+  re-saved on every autosave (memory + DataStore budget on a ghost). Now
+  dropped when `player.Parent` is nil after the read.
+- **Plot leak on the same race.** `BaseService.start` waited on the profile
+  and then called `assign` regardless; `assign` claims the plot BEFORE its
+  own wait. A player gone by then leaked one of seven plots for the server's
+  life. `assign` now refuses a departed player up front and unassigns after
+  its own wait if they left during it.
+- **Server over capacity.** `Players.MaxPlayers` is **60** in the place while
+  there are 7 plots (`GameConfig.MAX_PLAYERS = 7` is defined but nothing can
+  apply it — the property is read-only to scripts, and `Players.MaxPlayers = 7`
+  from the Edit command bar is refused). Player 8+ had no base, no spawn and
+  nowhere to place. `assign` now kicks with "This server is full - please
+  join another one!" after a 1 s grace when no plot is free. **OWNER ACTION:
+  set Max Players to 7 in File → Game Settings → Places** (that is the real
+  fix; the kick is the safety net).
+
+### Fixed — MEDIUM / POLISH
+
+- `InventoryController` rebuilt every Storage row on every StatePush (1/s
+  from income, 4/s while training) while the panel was open: hover lost,
+  presses straddling a rebuild never became clicks, visible flicker. Rows now
+  rebuild only when an item signature (id/rarity/size/mutation/income)
+  changes. Verified live: rows survive pushes by identity.
+- `BaseSignController` reset `affordable = nil` on every push, restarting
+  the green bar's breathing loop from phase 0 once a second (a visible
+  stutter). Only a price change or a rebuilt sign forces a repaint now.
+- `GuardianFxController` spawned a Zzz BillboardGui every 0.85 s per sleeping
+  guardian (12 of them) for the whole session, including ones past the
+  billboard's own 320-stud MaxDistance. Cadence kept, object skipped when the
+  camera is beyond that distance.
+- `UpgradesController.robuxPrice` retried a failed `GetProductInfo` (a
+  yielding web call) on every StatePush while the panel was open. Failed
+  lookups now back off 30 s (`priceRetryAt`).
+- `DebugService.sell` called the long-retired `PlacementService.sell` and
+  errored; it now stores the slot and sells it out of Storage, the way a
+  player does.
+- **Map:** five floating import leftovers (`_ImportedAssets` folder with three
+  accessories, two `Meshes/possion_*` MeshParts anchored at Y≈90, an
+  unanchored "Ancient Scroll" and a "Cyan Plasma" model) sat in the sky above
+  the safe zone. Moved (not deleted) to `ServerStorage._UnusedImports` with
+  ChangeHistory; nothing in `src/` references any of them. **This is in the
+  place file — it survived the last save; delete the folder when convenient.**
+
+### Audited and left alone (deliberately)
+
+- Lighting is a complete, deliberate grade (Atmosphere 0.20/haze 0.5, Bloom
+  0.5/24/1.6, ColorCorrection +0.22 sat / +0.08 contrast, SunRays, sky,
+  ClockTime 14, EnvDiffuse 0.55). Per the brief's "same map, preserve visual
+  identity", it was not retuned. Map: 1295 parts, 0 unions/meshes/decals/
+  lights beyond the authored ones, StreamingEnabled on.
+- Per-frame work is already gated (Heartbeat/RenderStepped loops early-out
+  when idle; ChaseWarning connects its loop only while live). Measured at
+  60 fps client and 60 Hz server heartbeat with `HeartbeatTimeMs 0.01`,
+  worst frame 18.9 ms, no instance growth across the whole battery
+  (ActiveAudio 0, SpeedPopup/Burst/Toast 0, ZzzPuff bounded at 3).
+- `SellLootRequest` and `StealRequest` are declared but have no server
+  handler (sell goes through Storage, steal through the ProximityPrompt).
+  Harmless dead remotes; left so client code that names them keeps
+  compiling.
+- `Lifetime.CashEarned` counts purchased Cash packs (cosmetic, leaderboard
+  "money" is Cash). Noted, not changed.
+
+### Verified live (Studio Play, single player)
+
+- Boot clean, server and client. Only console noise: LobbyMusic
+  `92804804272270` "not approved for the requester" (see owner actions).
+- 33 malformed/hostile payloads across every remote (NaN, ±inf, wrong types,
+  tables, junk actions): zero server errors, zero state change beyond the
+  legitimately-argument-free `DropLootRequest`/`GroupGiftRequest`.
+- Same-frame spam: 12× index claim → one claim; 16× place → one placement;
+  10× `buyCash` → one purchase, one deduction; 10× upgradeStorage → one
+  tier. Receipt replay: `Cash24K` granted once (+24,000), replay of the same
+  PurchaseId returns Granted with +0, unknown product → NotProcessedYet.
+- Steal → chase (`Chased` attr + guardian `Chasing`) → drop ends chase →
+  loot back in its socket; goHome/place/income tick/store/equip/sell/base
+  upgrade/storage upgrade/treadmill train + stop/treadmill upgrade/index
+  discover + claim (2x pass doubles it, as designed)/gift claim (once)/trail
+  buy + equip + unequip/trap placement outside the safe zone (refused inside)/
+  bat swing on a dummy (refused inside the safe zone).
+- Death while carrying: loot returned, chase cleared, respawn on own plot.
+  Death while training: SpeedPower stops rising.
+- **Painted UI (§21's open list):** Shop (2x Cash OWNED pill, five Cash
+  packs, four Speed packs, scroll), Trail Shop (ten cards; repaint after
+  `monetize disown` shows $ + R$ on every card, $ only on Grey), Free Gift
+  (backdrop, CLAIM/X/Join regions), boss offer (zone 6 → `Product_Speed1M`
+  art with the X). Real clicks on the invisible hitboxes: gift **X** closed
+  panel + backdrop; Blue **$** bought and equipped Blue (200,000 → 125,000,
+  ×2.5, card repainted ✓ EQUIPPED / OWNED); Purple **R$** raised the gamepass
+  prompt (input then reports "hits CoreGUI", i.e. the CoreGui dialog is up).
+
+### NOT verified — and why
+
+- Multiplayer (PvP hits between real players, plot assignment for a second
+  player, leave-mid-load in the wild): one client only in Studio MCP.
+- Real DataStore round-trips: Studio API access is off (in-memory profiles).
+- The full-server kick and the `MaxPlayers` setting: needs 8 real players.
+- Hover/press micro-animations were not captured mid-tween (a press capture
+  happens after the 0.08 s tween has settled); the states are visibly
+  correct in the stills.
+- Pack panel close **X** buttons and the rail while a pack panel is open:
+  virtual input reports "hits CoreGUI" for the whole screen while the pack's
+  modal is up, so those were exercised by the earlier pack-verification
+  sessions, not this one.
+
+### Owner actions
+
+1. **Game Settings → Places → Max Players = 7** (see HIGH above).
+2. **Lobby music**: `AudioConfig.LobbyMusic` (`92804804272270`) is not
+   approved for this experience, so the lobby bed never plays in production
+   either. Replace it with an audio asset the group owns or a Creator Store
+   track inserted into this experience; do not guess an id.
+3. Save the place (the `_UnusedImports` move is Studio-side).
+
+### Studio tooling notes (learned this pass)
+
+- A 1×1 client viewport (captures time out, tweens freeze) means the Studio
+  window is minimised OR a script tab is in front. Restore with PowerShell
+  `ShowWindowAsync(hwnd, 9)`, then `WScript.Shell.SendKeys("^{TAB}")` to
+  cycle back to the game tab.
+- `user_mouse_input`: use `instance_path`, not coordinates; `mouseButtonDown`
+  and `mouseButtonUp` must be in the SAME call (a later call has no position
+  and leaves the button stuck down — "duplicate button state"). The top bar
+  strip (y < ~60) and the whole screen while a pack modal or a CoreGui
+  purchase prompt is open report "hits CoreGUI".
+- `screen_capture` needs a `capture_id` string. It never draws CoreGui.
+- The trail shop opens server-side when the character is inside the booth
+  ring (`teleport -75 6 -30`); no key press needed.
+- Launching Studio via desktop automation, or reconnecting Rojo after a
+  Studio restart, changes the `studio_id` — call `list_roblox_studios`.

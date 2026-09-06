@@ -32,6 +32,7 @@ local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Validate = require(ReplicatedStorage.Shared.Util.Validate)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local DataService = require(script.Parent.DataService)
@@ -295,8 +296,9 @@ function IndexService.start()
 		end
 
 		local ok, reason
-		if action == "claim" and type(argument) == "number" then
-			ok, reason = IndexService.claimZone(player, math.floor(argument))
+		local zone = Validate.integer(argument, 1, ZoneConfig.COUNT)
+		if action == "claim" and zone then
+			ok, reason = IndexService.claimZone(player, zone)
 		elseif action == "claimAll" then
 			ok, reason = IndexService.claimAll(player)
 		else

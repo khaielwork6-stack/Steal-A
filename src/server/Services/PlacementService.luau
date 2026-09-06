@@ -25,6 +25,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StorageConfig = require(ReplicatedStorage.Shared.Config.StorageConfig)
+local Validate = require(ReplicatedStorage.Shared.Util.Validate)
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
@@ -696,10 +697,14 @@ function PlacementService.start()
 
 	-- Same validated paths, reachable from UI once it exists.
 	Remotes.get("PlaceLootRequest").OnServerEvent:Connect(function(player, slotIndex)
-		if type(slotIndex) ~= "number" then
+		-- Validate.integer, not type(): NaN is a number and passes every range
+		-- test, and a NaN SlotIndex written into the profile makes every later
+		-- save fail (DataStores cannot serialise it).
+		local index = Validate.integer(slotIndex, 1, GameConfig.MAX_DISPLAY_SLOTS)
+		if not index then
 			return
 		end
-		local ok, reason = PlacementService.place(player, math.floor(slotIndex))
+		local ok, reason = PlacementService.place(player, index)
 		if not ok and reason then
 			notify(player, "error", reason)
 		end
@@ -717,8 +722,8 @@ function PlacementService.start()
 			ok, reason = PlacementService.sellStored(player, argument)
 		elseif action == "equip" and type(argument) == "string" then
 			ok, reason = PlacementService.equip(player, argument)
-		elseif action == "store" and type(argument) == "number" then
-			ok, reason = PlacementService.store(player, math.floor(argument))
+		elseif action == "store" and Validate.integer(argument, 1, GameConfig.MAX_DISPLAY_SLOTS) then
+			ok, reason = PlacementService.store(player, Validate.integer(argument, 1, GameConfig.MAX_DISPLAY_SLOTS) :: number)
 		elseif action == "upgradeStorage" then
 			ok, reason = PlacementService.upgradeStorage(player)
 		else

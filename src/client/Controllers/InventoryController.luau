@@ -324,7 +324,21 @@ end
 -- REFRESH
 -- ==========================================================
 
+--- What the row list was last built from. Anything that changes how a row is
+--- drawn is in here; anything that is not (cash, capacity) is deliberately
+--- left out so it cannot force a rebuild.
+local builtSignature: string? = nil
+
+local function inventorySignature(inventory: { any }): string
+	local parts = table.create(#inventory)
+	for index, item in inventory do
+		parts[index] = `{item.InstanceId}:{item.ItemId}:{item.Rarity}:{item.Size}:{item.Mutation}:{item.FinalIncome}`
+	end
+	return table.concat(parts, "|")
+end
+
 local function clearList()
+	builtSignature = nil
 	local list = scroll
 	if not list then
 		return
@@ -380,9 +394,22 @@ local function refresh(state: any)
 		return -- the pack owns visibility; do not build rows behind a closed panel
 	end
 
+	-- Only rebuild the rows when the ITEMS changed. StatePush arrives every
+	-- second from the income tick alone (and four times a second while
+	-- training), and tearing the list down and re-cloning it on each one made
+	-- every button under the cursor a brand-new instance: hover state vanished,
+	-- a press that straddled the rebuild never became a click, and the whole
+	-- panel visibly flickered. Cash and capacity changes are painted above
+	-- without touching the rows.
+	local inventory = state.inventory or {}
+	local signature = inventorySignature(inventory)
+	if signature == builtSignature then
+		return
+	end
+	builtSignature = signature
+
 	clearList()
 
-	local inventory = state.inventory or {}
 	for index, item in inventory do
 		local card = buildCard(item, index)
 		if card then

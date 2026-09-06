@@ -15,6 +15,8 @@ local GuardianFxController = {}
 
 local SLEEP_COLOR = Color3.fromRGB(180, 226, 255)
 local ALERT_COLOR = Color3.fromRGB(255, 74, 74)
+--- Matches the Zzz billboard's MaxDistance: beyond this nothing would render.
+local PUFF_VISIBLE_DISTANCE = 320
 
 --- One rising, fading "Z" / "Zz" / "Zzz" puff.
 local function puff(adornee: BasePart, stage: number)
@@ -117,8 +119,15 @@ local function watch(model: Model)
 		if sleeping then
 			if os.clock() >= nextPuff then
 				stage = stage % 3 + 1
-				puff(root, stage)
 				nextPuff = os.clock() + 0.85
+				-- Twelve sleepers each spawning a billboard every 0.85s is a steady
+				-- trickle of instances for the whole session, and the ones past the
+				-- billboard's own MaxDistance are never drawn. Keep the cadence,
+				-- skip the object.
+				local camera = workspace.CurrentCamera
+				if not camera or (camera.CFrame.Position - root.Position).Magnitude <= PUFF_VISIBLE_DISTANCE then
+					puff(root, stage)
+				end
 			end
 		elseif wasSleeping then
 			-- Woke up this frame: kill the Zzz immediately, then react.

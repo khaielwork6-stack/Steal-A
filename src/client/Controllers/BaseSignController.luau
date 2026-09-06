@@ -225,6 +225,8 @@ local function ensureClickLayer()
 		clickButton = nil
 	end
 	boundBoard = board
+	-- A new board means a freshly painted sign: repaint it whatever we last knew.
+	affordable = nil
 
 	-- The bar itself gets a UIScale so hover/press can lift the PAINTED button
 	-- (what the player sees) rather than an invisible rectangle.
@@ -296,9 +298,14 @@ function BaseSignController.start()
 			return
 		end
 		cash = tonumber(state.cash) or 0
-		nextCost = tonumber(state.slotsNextCost)
-		-- A new upgrade tier means a new price; force a repaint.
-		affordable = nil
+		local cost = tonumber(state.slotsNextCost)
+		-- A new upgrade tier means a new price; force a repaint. Only THEN: this
+		-- used to reset on every push, which restarted the green bar's breathing
+		-- loop from phase zero once a second and made it visibly stutter.
+		if cost ~= nextCost then
+			affordable = nil
+		end
+		nextCost = cost
 		ensureClickLayer()
 		paint()
 	end)

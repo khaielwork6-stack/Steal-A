@@ -297,6 +297,13 @@ function BaseService.assign(player: Player): (Model | Folder)?
 	if assignments[player] then
 		return assignments[player]
 	end
+	-- Callers reach here after yielding on the profile. A player who left during
+	-- that wait has already had PlayerRemoving fire, so a plot claimed for them
+	-- now would never be released - and with seven plots per server, one leaked
+	-- plot is one seventh of the server gone for good.
+	if not player.Parent then
+		return nil
+	end
 
 	local bases = getBases()
 	for _, plot in bases:GetChildren() do
@@ -308,6 +315,13 @@ function BaseService.assign(player: Player): (Model | Folder)?
 			local profile = DataService.waitForProfile(player)
 			if profile then
 				BaseService.rebuildDisplays(player)
+			end
+			if not player.Parent then
+				-- Left while the profile was loading. PlayerRemoving may have run
+				-- before the claim above landed, in which case nothing will free
+				-- the plot but us.
+				BaseService.unassign(player)
+				return nil
 			end
 
 			-- Put the player on their own plot immediately.
@@ -322,7 +336,18 @@ function BaseService.assign(player: Player): (Model | Folder)?
 		end
 	end
 
+	-- Every plot is taken. This only happens when the place's Max Players is set
+	-- above BaseConfig.PLOT_COUNT (it is a Game Settings value, not something a
+	-- script can set). A player with no plot has no base, no spawn, nowhere to
+	-- place loot and no treadmill - the game is unplayable for them - so the
+	-- honest thing is to say so and let matchmaking put them in a server with
+	-- room, rather than leave them wandering a map that cannot pay them.
 	warn(`[BaseService] no free plot for {player.Name} (server over {BaseConfig.PLOT_COUNT} players?)`)
+	task.delay(1, function()
+		if player.Parent and not assignments[player] then
+			player:Kick("This server is full - please join another one!")
+		end
+	end)
 	return nil
 end
 

@@ -382,8 +382,18 @@ function DataService.load(player: Player)
 		profile = defaultProfile()
 	end
 
-	profiles[player] = reconcile(profile :: Profile)
 	loading[player] = nil
+
+	-- The read above yields, and a player can join and leave inside that window
+	-- (a mis-click, a bad connection). PlayerRemoving has already fired for
+	-- them, so `release` already ran and nothing will ever run it again: a
+	-- profile stored now would sit in memory for the life of the server and be
+	-- re-saved on every autosave, spending DataStore budget on a ghost.
+	if not player.Parent then
+		return
+	end
+
+	profiles[player] = reconcile(profile :: Profile)
 end
 
 function DataService.save(player: Player): boolean
