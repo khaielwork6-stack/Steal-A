@@ -139,25 +139,35 @@ local function adopt(source: Instance): Model?
 	-- artist hands over that is neither a Model nor a bare part, and it is shaped
 	-- the same way - the art is the Handle. Both are unwrapped identically.
 	if source:IsA("Accoutrement") or source:IsA("Tool") then
-		local handle = source:FindFirstChild("Handle", true)
-			or source:FindFirstChildWhichIsA("BasePart", true)
-		if handle and handle:IsA("BasePart") then
-			local part = handle:Clone()
-			-- A Handle carries attachments, welds and (on a Tool) scripts and grip
-			-- data meant for a character. On a pedestal they do nothing but can
-			-- re-parent the part or run code we never asked for.
-			for _, child in part:GetDescendants() do
-				if
-					child:IsA("Attachment")
-					or child:IsA("JointInstance")
-					or child:IsA("WeldConstraint")
-					or child:IsA("BaseScript")
-				then
-					child:Destroy()
-				end
+		-- EVERY part comes across, not just the Handle. The zone 6-12 imports
+		-- include Tools built from several parts welded to a Handle (the Gym's
+		-- barbell, the Bank's briefcases, the Lab's containment tank); keeping
+		-- only the Handle left a bar with no plates. The parts are flattened
+		-- into our Model and anchored by build(), so the welds that held them
+		-- together are not needed and are stripped with the rest.
+		local shell = source:Clone()
+		for _, descendant in shell:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				descendant.Parent = model
 			end
-			part.Parent = model
-			model.PrimaryPart = part
+		end
+		shell:Destroy()
+		-- A Handle carries attachments, welds and (on a Tool) scripts and grip
+		-- data meant for a character. On a pedestal they do nothing but can
+		-- re-parent the part or run code we never asked for.
+		for _, child in model:GetDescendants() do
+			if
+				child:IsA("Attachment")
+				or child:IsA("JointInstance")
+				or child:IsA("WeldConstraint")
+				or child:IsA("BaseScript")
+			then
+				child:Destroy()
+			end
+		end
+		local handle = model:FindFirstChild("Handle") or model:FindFirstChildWhichIsA("BasePart")
+		if handle and handle:IsA("BasePart") then
+			model.PrimaryPart = handle
 			return model
 		end
 	end
@@ -205,6 +215,15 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 			descendant.Anchored = true
 			descendant.CanCollide = false
 			descendant.CastShadow = false
+			-- An import's throne is a working Seat; brushing past the pedestal
+			-- would sit the player on the loot.
+			if descendant:IsA("Seat") or descendant:IsA("VehicleSeat") then
+				descendant.Disabled = true
+			end
+		elseif descendant:IsA("Humanoid") or descendant:IsA("BaseScript") then
+			-- A character-shaped import brings a Humanoid (a floating name tag
+			-- and a physics driver) and the odd script. Loot is scenery.
+			descendant:Destroy()
 		end
 	end
 

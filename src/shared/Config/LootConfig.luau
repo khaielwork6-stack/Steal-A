@@ -111,61 +111,77 @@ local Seeds: { { ItemSeed } } = {
 		{ id = "NorthPole_SantasGiftSack", name = "Santa's Gift Sack", income = 5e6 },
 		{ id = "NorthPole_ChristmasStar", name = "Christmas Star", income = 65e6 },
 	},
+	-- ======================================================================
+	-- ZONES 6-12 FOLLOW THE STUDIO MODELS, NOT THE GDD
+	-- ======================================================================
+	-- The art for these zones arrived as "Zone N <thing>" imports, and those
+	-- imports are the roster: a model that exists is in, a GDD item without a
+	-- model is out, and nothing was renamed back to its GDD name. Each model
+	-- took the ladder slot of the GDD item it replaced (or interpolated between
+	-- its neighbours), so the income curve and the rarity ladder are exactly
+	-- what they were - only the objects changed.
+	--
+	-- Where the new model is the same kind of object as the GDD item in that
+	-- slot, the ItemId is KEPT and only the display name changes (a Shiny Coin
+	-- is still `Bank_RareCoin`), because ids are save keys. A genuinely
+	-- different object gets a new id. Two slots have no model yet and keep
+	-- their GDD row as a placeholder: `Egypt_GoldenAnkh`, `SecretLab_PortalBattery`.
+	--
 	-- Zone 06 ANCIENT EGYPT
 	{
 		{ id = "Egypt_CanopicJar", name = "Canopic Jar", income = 180 },
-		{ id = "Egypt_AncientScroll", name = "Ancient Scroll", income = 850 },
-		{ id = "Egypt_GoldenScarab", name = "Golden Scarab", income = 9500 },
-		{ id = "Egypt_GoldenAnkh", name = "Golden Ankh", income = 11e3 },
-		{ id = "Egypt_RoyalScepter", name = "Royal Scepter", income = 55e3 },
-		{ id = "Egypt_PharaohCrown", name = "Pharaoh Crown", income = 8e6 },
-		{ id = "Egypt_PharaohMask", name = "Pharaoh Mask", income = 85e6 },
-		{ id = "Egypt_GoldenSarcophagus", name = "Golden Sarcophagus", income = 100e6 },
+		{ id = "Egypt_Shawarma", name = "Shawarma", income = 850 },
+		{ id = "Egypt_AncientMau", name = "Ancient Mau", income = 9500 },
+		{ id = "Egypt_GoldenAnkh", name = "Golden Ankh", income = 11e3 }, -- no art yet
+		{ id = "Egypt_Mummy", name = "Mummy", income = 55e3 },
+		{ id = "Egypt_ThroneOfRa", name = "Throne of Ra", income = 8e6 },
+		{ id = "Egypt_NemesMask", name = "Nemes Mask", income = 85e6 },
+		{ id = "Egypt_EgyptianPyramid", name = "Egyptian Pyramid", income = 100e6 },
 	},
 	-- Zone 07 GYM
 	{
-		{ id = "Gym_ProteinTub", name = "Protein Tub", income = 220 },
-		{ id = "Gym_CoachsWhistle", name = "Coach's Whistle", income = 1100 },
-		{ id = "Gym_VIPGymBag", name = "VIP Gym Bag", income = 15e3 },
-		{ id = "Gym_GoldenDumbbell", name = "Golden Dumbbell", income = 80e3 },
-		{ id = "Gym_WorldRecordMedal", name = "World Record Medal", income = 700e3 },
-		{ id = "Gym_Trophy", name = "Trophy", income = 850e3 },
-		{ id = "Gym_ChampionshipBelt", name = "Championship Belt", income = 15e6 },
+		{ id = "Gym_Water", name = "Water", income = 220 },
+		{ id = "Gym_Creatine", name = "Creatine", income = 1100 },
+		{ id = "Gym_CoachsWhistle", name = "Gym Whistle", income = 15e3 },
+		{ id = "Gym_VanillaMilkshake", name = "Vanilla Milkshake", income = 80e3 },
+		{ id = "Gym_Airpods", name = "Airpods", income = 700e3 },
+		{ id = "Gym_GoldenDumbbell", name = "Golden Dumbbells", income = 850e3 },
+		{ id = "Gym_Trophy", name = "Trophy", income = 15e6 },
 		{ id = "Gym_GoldenBarbell", name = "Golden Barbell", income = 130e6 },
 	},
 	-- Zone 08 BANK
 	-- The $32M -> $25M step at positions 6/7 is INTENTIONAL. Do not sort.
 	{
 		{ id = "Bank_MoneyStack", name = "Money Stack", income = 280 },
-		{ id = "Bank_CashBag", name = "Cash Bag", income = 22e3 },
-		{ id = "Bank_VaultKey", name = "Vault Key", income = 120e3 },
-		{ id = "Bank_RareCoin", name = "Rare Coin", income = 1.2e6 },
+		{ id = "Bank_CashBag", name = "Cash Briefcase", income = 22e3 },
+		{ id = "Bank_VaultKey", name = "Master Key", income = 120e3 },
+		{ id = "Bank_RareCoin", name = "Shiny Coin", income = 1.2e6 },
 		{ id = "Bank_GoldBar", name = "Gold Bar", income = 1.5e6 },
 		{ id = "Bank_BankersBriefcase", name = "Banker's Briefcase", income = 32e6 },
-		{ id = "Bank_DiamondBriefcase", name = "Diamond Briefcase", income = 25e6 },
-		{ id = "Bank_GoldenCreditCard", name = "Golden Credit Card", income = 180e6 },
+		{ id = "Bank_PlatinumBullionStack", name = "Platinum Bullion Stack", income = 25e6 },
+		{ id = "Bank_VendingMachine", name = "Vending Machine", income = 180e6 },
 	},
 	-- Zone 09 SECRET LAB
 	{
-		{ id = "SecretLab_SecretFormula", name = "Secret Formula", income = 1500 },
-		{ id = "SecretLab_PrototypeChip", name = "Prototype Chip", income = 30e3 },
-		{ id = "SecretLab_GlowingSerum", name = "Glowing Serum", income = 180e3 },
-		{ id = "SecretLab_RobotBrain", name = "Robot Brain", income = 2.2e6 },
-		{ id = "SecretLab_MutationCrystal", name = "Mutation Crystal", income = 45e6 },
-		{ id = "SecretLab_PortalBattery", name = "Portal Battery", income = 60e6 },
-		{ id = "SecretLab_EnergyCore", name = "Energy Core", income = 250e6 },
-		{ id = "SecretLab_ForbiddenExperiment", name = "Forbidden Experiment", income = 1e9 },
+		{ id = "SecretLab_SecretFormula", name = "Chemical Flask", income = 1500 },
+		{ id = "SecretLab_ChemicalCylinder", name = "Chemical Cylinder", income = 30e3 },
+		{ id = "SecretLab_ContainmentTank", name = "Containment Tank", income = 180e3 },
+		{ id = "SecretLab_RobotSpider", name = "Robot Spider", income = 2.2e6 },
+		{ id = "SecretLab_MutationCrystal", name = "Blue Crystal", income = 45e6 },
+		{ id = "SecretLab_PortalBattery", name = "Portal Battery", income = 60e6 }, -- no art yet
+		{ id = "SecretLab_EnergyCore", name = "Energy Canister", income = 250e6 },
+		{ id = "SecretLab_RadiationChamber", name = "Radiation Chamber", income = 1e9 },
 	},
 	-- Zone 10 GRANDMA'S HOUSE
 	-- The final value here is a balancing TARGET rather than a locked number.
 	{
-		{ id = "Grandma_CandyBowl", name = "Candy Bowl", income = 4e3 },
-		{ id = "Grandma_KnittedSweater", name = "Knitted Sweater", income = 74e3 },
-		{ id = "Grandma_SecretRecipe", name = "Secret Recipe", income = 450e3 },
+		{ id = "Grandma_CandyBowl", name = "Colorful Bowl", income = 4e3 },
+		{ id = "Grandma_KnittedSweater", name = "Red Shirt", income = 74e3 },
+		{ id = "Grandma_WalkingCane", name = "Walking Cane", income = 450e3 },
 		{ id = "Grandma_GoldenTeapot", name = "Golden Teapot", income = 7.5e6 },
-		{ id = "Grandma_AntiqueClock", name = "Antique Clock", income = 12e6 },
-		{ id = "Grandma_GrandmasPurse", name = "Grandma's Purse", income = 145e6 },
-		{ id = "Grandma_FamilyJewelryBox", name = "Family Jewelry Box", income = 600e6 },
+		{ id = "Grandma_AntiqueClock", name = "Grandfather Clock", income = 12e6 },
+		{ id = "Grandma_GrandmasPurse", name = "Pink Handbag", income = 145e6 },
+		{ id = "Grandma_LegendaryGiftBox", name = "Legendary Gift Box", income = 600e6 },
 		{ id = "Grandma_CookieJar", name = "Cookie Jar", income = 4e9 },
 	},
 	-- Zone 11 CONSTRUCTION SITE
@@ -173,10 +189,10 @@ local Seeds: { { ItemSeed } } = {
 		{ id = "Construction_Blueprints", name = "Blueprints", income = 95e3 },
 		{ id = "Construction_RareSafetyVest", name = "Rare Safety Vest", income = 130e3 },
 		{ id = "Construction_ForemansToolbox", name = "Foreman's Toolbox", income = 750e3 },
-		{ id = "Construction_MasterKey", name = "Master Key", income = 3e6 },
+		{ id = "Construction_MetalFence", name = "Metal Fence", income = 3e6 },
 		{ id = "Construction_GoldenHardHat", name = "Golden Hard Hat", income = 17.5e6 },
 		{ id = "Construction_GoldenDrill", name = "Golden Drill", income = 215e6 },
-		{ id = "Construction_ConstructionTrophy", name = "Construction Trophy", income = 880e6 },
+		{ id = "Construction_BossLadder", name = "Boss Ladder", income = 880e6 },
 		{ id = "Construction_DiamondHammer", name = "Diamond Hammer", income = 6e9 },
 	},
 	-- ======================================================================
@@ -194,10 +210,10 @@ local Seeds: { { ItemSeed } } = {
 		{ id = "Airport_VIPPassport", name = "VIP Passport", income = 484e6 },
 		{ id = "Airport_PilotsHat", name = "Pilot's Hat", income = 928e6 },
 		{ id = "Airport_LostBriefcase", name = "Lost Briefcase", income = 1.16e9 },
-		{ id = "Airport_AirportMasterKey", name = "Airport Master Key", income = 2.32e9 },
-		{ id = "Airport_BlackBox", name = "Black Box", income = 5.42e9 },
-		{ id = "Airport_GoldenSuitcase", name = "Golden Suitcase", income = 13.54e9 },
-		{ id = "Airport_DutyFreeDiamond", name = "Duty-Free Diamond", income = 46.42e9 },
+		{ id = "Airport_UnknownBriefcase", name = "Unknown Briefcase", income = 2.32e9 },
+		{ id = "Airport_PilotsLuggage", name = "Pilot's Luggage", income = 5.42e9 },
+		{ id = "Airport_AirTower", name = "Air Tower", income = 13.54e9 },
+		{ id = "Airport_PrivateJet", name = "Private Jet", income = 46.42e9 },
 	},
 }
 

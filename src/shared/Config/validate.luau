@@ -236,7 +236,7 @@ return function(): Report
 	-- The Bank's non-monotonic step is intentional and has been "corrected" by
 	-- well-meaning passes before. Assert it so it stays broken on purpose.
 	check(
-		LootConfig.ById["Bank_BankersBriefcase"].income > LootConfig.ById["Bank_DiamondBriefcase"].income,
+		LootConfig.ById["Bank_BankersBriefcase"].income > LootConfig.ById["Bank_PlatinumBullionStack"].income,
 		"the Bank's $32M -> $25M step is intentional and must not be sorted"
 	)
 	check(

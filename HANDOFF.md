@@ -69,7 +69,7 @@ lost if the place is not saved:
 | Location | Contents |
 |---|---|
 | `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`), including the `DROP BUTTON NEW` the DROP button is built from |
-| `ServerStorage.GameAssets.Loot` | **38 items.** All of zones 1–5 EXCEPT `Museum_Ruby` and `Pirate_CursedCoin`. Zones 6–12 have none |
+| `ServerStorage.GameAssets.Loot` | **92 items.** Zones 1–5 except `Museum_Ruby` and `Pirate_CursedCoin`; zones 6–12 complete except `Egypt_GoldenAnkh` and `SecretLab_PortalBattery` (54 models moved in from Workspace in §20 — **unsaved until the place is saved**) |
 | `ServerStorage.GameAssets.Guardians` | All twelve: `Zone01_Cop` … `Zone05_ElfGuard`, plus `Zone06_MummyGuardian`, `Zone07_Bodybuilder`, `Zone08_BankGuard`, `Zone09_MadScientist`, `Zone10_Grandma`, `Zone11_Foreman`, `Zone12_AirportSecurity` (moved in from Workspace in §20 — **unsaved until the place is saved**) |
 | `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
 | `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
@@ -962,8 +962,8 @@ Everything below was observed running in Play mode, not just written:
    zones — and it renders as a rarity-tinted placeholder block. Drop them into
    `ServerStorage.GameAssets.Loot` under those exact ids; no code needed, no
    manual resizing.
-3. **Zones 6–12 have no loot art** (their guardians were adopted in §20). Same
-   contract (§6).
+3. *(Done in §20 — zones 6–12 loot and guardians are all adopted; only
+   `Egypt_GoldenAnkh` and `SecretLab_PortalBattery` still want art.)*
 4. **Phase 12 — multiplayer hardening.** This closes items 1 and 2 above and is
    the largest remaining risk in the project.
 5. Fix the lobby-music asset permission (§7) — one blocked id, not a code bug.
@@ -1156,9 +1156,66 @@ ChangeHistory step, nothing destroyed) out of `Workspace` into
 | `Zone 12 Pilot` | `Zone12_AirportSecurity` |
 
 **If the place is not saved, all seven revert to placeholder bodies.** §0
-applies. The other loose models (`Zone 11 Boss Ladder`, `Zone 11 Foreman's
-Toolbox`, `Zone 12 Pilot's Hat `, `Zone 12 Pilots Luggage`) are loot art, not
-bosses, and were left where they were.
+applies.
+
+The **54 "Zone N …" loot models** staged alongside them were moved the same
+way, into `ServerStorage.GameAssets.Loot` under the ItemIds below (one more
+undoable ChangeHistory step, again unsaved until the place is saved). Nothing
+zone-labelled is left loose in Workspace.
+
+### Zones 6–12 loot: the roster now follows the Studio models
+
+The brief for this pass was explicit: the current models are the source of
+truth, "Zone N" naming says where a thing belongs, the GDD is only the shape
+of the curve, and old GDD items are not to be resurrected. This was missed on
+the first pass through Part 13 (only the bosses were adopted) and done after
+the user asked. What was done, in order:
+
+1. Inventoried every loose `Zone 6`–`Zone 12` model (54 items + 7 bosses).
+2. Rewrote the zone 6–12 pools in `LootConfig` around those models. Each
+   model took the ladder slot of the GDD item it replaced, or slotted between
+   its neighbours, so **no income number changed and the rarity ladders are
+   untouched** — only the objects did. Where the new model is the same kind
+   of object as the GDD item in that slot the ItemId was KEPT and only the
+   display name changed (ids are save keys); a genuinely different object got
+   a new id. Two slots have no model and keep their GDD row as a placeholder.
+3. Moved and renamed the models under the §6 contract.
+
+| Zone | Ladder, position 1 → 8 (kept id = same id as before; *new* = new id) |
+|---|---|
+| 6 Egypt | Canopic Jar (kept) · Shawarma (*new*) · Ancient Mau (*new*) · **Golden Ankh (kept, NO ART)** · Mummy (*new*) · Throne of Ra (*new*) · Nemes Mask (*new*) · Egyptian Pyramid (*new*, jackpot) |
+| 7 Gym | Water (*new*) · Creatine (*new*) · Gym Whistle (kept `Gym_CoachsWhistle`) · Vanilla Milkshake (*new*) · Airpods (*new*) · Golden Dumbbells (kept) · Trophy (kept) · Golden Barbell (kept, jackpot) |
+| 8 Bank | Money Stack (kept) · Cash Briefcase (kept `Bank_CashBag`) · Master Key (kept `Bank_VaultKey`) · Shiny Coin (kept `Bank_RareCoin`) · Gold Bar (kept) · Banker's Briefcase (kept) · Platinum Bullion Stack (*new*, the deliberate $25M step) · Vending Machine (*new*, jackpot) |
+| 9 Secret Lab | Chemical Flask (kept `SecretLab_SecretFormula`) · Chemical Cylinder (*new*) · Containment Tank (*new*) · Robot Spider (*new*) · Blue Crystal (kept `SecretLab_MutationCrystal`) · **Portal Battery (kept, NO ART)** · Energy Canister (kept `SecretLab_EnergyCore`) · Radiation Chamber (*new*, jackpot) |
+| 10 Grandma | Colorful Bowl (kept `Grandma_CandyBowl`) · Red Shirt (kept `Grandma_KnittedSweater`) · Walking Cane (*new*) · Golden Teapot (kept) · Grandfather Clock (kept `Grandma_AntiqueClock`) · Pink Handbag (kept `Grandma_GrandmasPurse`) · Legendary Gift Box (*new*) · Cookie Jar (kept, jackpot) |
+| 11 Construction | Blueprints · Rare Safety Vest · Foreman's Toolbox (all kept) · Metal Fence (*new*) · Golden Hard Hat · Golden Drill (kept) · Boss Ladder (*new*) · Diamond Hammer (kept, jackpot) |
+| 12 Airport | First-Class Ticket · VIP Passport · Pilot's Hat · Lost Briefcase (all kept) · Unknown Briefcase (*new*) · Pilot's Luggage (*new*) · Air Tower (*new*) · Private Jet (*new*, jackpot) |
+
+Retired ids (no model, dropped from the pools): `Egypt_AncientScroll`,
+`Egypt_GoldenScarab`, `Egypt_RoyalScepter`, `Egypt_PharaohCrown`,
+`Egypt_PharaohMask`, `Egypt_GoldenSarcophagus`, `Gym_ProteinTub`,
+`Gym_VIPGymBag`, `Gym_WorldRecordMedal`, `Gym_ChampionshipBelt`,
+`Bank_DiamondBriefcase`, `Bank_GoldenCreditCard`, `SecretLab_PrototypeChip`,
+`SecretLab_GlowingSerum`, `SecretLab_RobotBrain`,
+`SecretLab_ForbiddenExperiment`, `Grandma_SecretRecipe`,
+`Grandma_FamilyJewelryBox`, `Construction_MasterKey`,
+`Construction_ConstructionTrophy`, `Airport_AirportMasterKey`,
+`Airport_BlackBox`, `Airport_GoldenSuitcase`, `Airport_DutyFreeDiamond`.
+A saved trophy carrying one of these is left untouched by `reconcileItem`
+(it never zeroes an id it does not ship), so nothing breaks; it just cannot
+be rolled again. `validate.luau`'s Bank assertion now names
+`Bank_PlatinumBullionStack`. Total stays 96, eight per zone.
+
+`LootModel` had to grow for these imports: a **Tool now contributes every
+part**, not just its Handle (the Gym barbell, the Bank briefcases and the Lab
+tank are multi-part Tools and came out as a bare handle), **Humanoids and
+scripts inside loot are destroyed** on build (the VIP Passport import carried
+a Humanoid, which means a floating name tag), and **Seats are disabled** (the
+Throne of Ra is a working Seat; brushing the pedestal would sit you on it).
+
+Verified in play: `LootService` filled 12 x 4 sockets with validate passing,
+zones 6–12 sockets came up 27 real / 1 placeholder (the Golden Ankh), and the
+Shawarma renders on its pedestal at loot height with the right label.
 
 ### What changed, by part of the brief
 
