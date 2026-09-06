@@ -641,34 +641,18 @@ function PlacementService.start()
 			pad.Material = Enum.Material.SmoothPlastic
 			pad.CastShadow = false
 		end
-		if pad and pad:IsA("BasePart") and not pad:FindFirstChild("UpgradePrompt") then
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.Name = "UpgradePrompt"
-			prompt.ActionText = "Upgrade Base"
-			prompt.ObjectText = "Display Slots"
-			prompt.HoldDuration = 0.5
-			prompt.MaxActivationDistance = 12
-			prompt.RequiresLineOfSight = false
-			prompt.Enabled = false -- owner-only, enabled client-side
-			prompt:SetAttribute("ServerEnabled", true)
-			prompt.Parent = pad
+		-- No Hold-E prompt any more: the sign's own green bar is the button. The
+		-- client (BaseSignController) lays a real button over it and fires
+		-- BaseUpgradeRequest, which lands in the same upgradeCapacity with the
+		-- same validation. A prompt still sitting on a baked pad from an older
+		-- build is removed, so the two paths can never both be live.
+		local stale = pad and pad:FindFirstChild("UpgradePrompt")
+		if stale then
+			stale:Destroy()
 		end
 	end
 
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-		if prompt.Name == "UpgradePrompt" then
-			local plot = prompt.Parent and prompt.Parent.Parent
-			if BaseService.getPlot(player) ~= plot then
-				notify(player, "error", "That is not your base.")
-				return
-			end
-			local ok, reason = PlacementService.upgradeCapacity(player)
-			if not ok and reason then
-				notify(player, "error", reason)
-			end
-			return
-		end
-
 		if prompt.Name ~= "SlotPrompt" then
 			return
 		end

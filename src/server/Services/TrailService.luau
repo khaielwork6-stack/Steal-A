@@ -300,7 +300,11 @@ end
 --- Where the booth stands: in the plaza apron on the safe side of the red line,
 --- off to one side of the corridor mouth so it is passed on the way out but
 --- never blocks the run.
-local BOOTH_CFRAME = CFrame.new(-72, 0, -30) * CFrame.Angles(0, math.rad(35), 0)
+-- Yaw 215: the counter, the board and the circle are all on the booth's +Z side,
+-- and at 35 that side pointed up the corridor - a player coming out of the
+-- plots saw the back of the stall. Turned to face the plaza and the plots, which
+-- is where every customer arrives from. One CFrame moves the whole stall.
+local BOOTH_CFRAME = CFrame.new(-72, 0, -30) * CFrame.Angles(0, math.rad(215), 0)
 --- The interaction circle sits in FRONT of the counter, where a customer stands.
 local ZONE_OFFSET = CFrame.new(0, 0, 9)
 local ZONE_RADIUS = 8.5

@@ -15,9 +15,8 @@
 	  MainUI
 	    Bottom.Currencies.{Cash, Income, Speed}.Amount
 	    Bottom.Hotbar.Hotbar.<slot>.Frame.{Icon, Count, Earns}
-	    Buttons.Left.{Shop, Backpack, Index, Settings}
-	    Top.Base
-	    ZoneProgress.Frame.{LEVEL, AMOUNT, Frame}
+	    Buttons.Left.{Shop, Upgrades, Index, Storage}
+	    Top.{SettingsGear, GiftOpener}
 	    Frames.{Shop, Backpack, Index, Upgrades, Settings}
 	    Notifications.{Spawned, PickedUp, InventoryFull, Collected}
 ]]
@@ -31,7 +30,6 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local EffectsController = require(script.Parent.EffectsController)
 local ToastController = require(script.Parent.ToastController)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
-local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local HUDController = {}
 
@@ -41,9 +39,6 @@ local ui: ScreenGui
 local cashLabel: TextLabel?
 local incomeLabel: TextLabel?
 local speedLabel: TextLabel?
-local zoneTitle: TextLabel?
-local zoneAmount: TextLabel?
-local zoneFill: Frame?
 
 local lastCash = 0
 
@@ -67,52 +62,6 @@ local function pulse(label: TextLabel?)
 	end
 	UIAnim.flashColor(label, Color3.fromRGB(190, 255, 200))
 	UIAnim.punch(label, 0.06)
-end
-
--- ==========================================================
--- ZONE PROGRESS
--- ==========================================================
-
---- Repurposed from the pack's boss bar: shows progress toward the NEXT zone's
---- recommended Speed, which is the game's actual long-term goal.
-local function updateZoneProgress(speedPower: number)
-	if not zoneTitle or not zoneAmount or not zoneFill then
-		return
-	end
-
-	local nextZone: ZoneConfig.ZoneDef? = nil
-	for _, zone in ZoneConfig.Zones do
-		if zone.recommendedSpeed > speedPower then
-			nextZone = zone
-			break
-		end
-	end
-
-	if not nextZone then
-		zoneTitle.Text = "MAX"
-		zoneAmount.Text = "All zones unlocked"
-		zoneFill.Size = UDim2.fromScale(1, zoneFill.Size.Y.Scale)
-		return
-	end
-
-	-- Progress runs from the previous gate to the next one, not from zero, so
-	-- the bar actually moves instead of sitting near-empty for hours.
-	local previous = 0
-	for _, zone in ZoneConfig.Zones do
-		if zone.index == nextZone.index - 1 then
-			previous = zone.recommendedSpeed
-		end
-	end
-
-	local span = math.max(nextZone.recommendedSpeed - previous, 1)
-	local progress = math.clamp((speedPower - previous) / span, 0, 1)
-
-	zoneTitle.Text = `NEXT: {nextZone.name}`
-	zoneAmount.Text = `{NumberFormat.short(speedPower)} / {NumberFormat.short(nextZone.recommendedSpeed)} Speed`
-
-	-- The pack's fill was centre-anchored, so it grew outward from the middle
-	-- instead of filling left to right. Anchor left and tween the width.
-	UIAnim.setBarFill(zoneFill, progress)
 end
 
 -- ==========================================================
@@ -177,12 +126,14 @@ function HUDController.start()
 	incomeLabel = findLabel(currencies and currencies:FindFirstChild("Income"), "Amount")
 	speedLabel = findLabel(currencies and currencies:FindFirstChild("Speed"), "Amount")
 
+	-- The pack's boss bar used to be repurposed as a "NEXT: <zone>" Speed
+	-- progress readout across the top of the screen. Retired: the top-centre now
+	-- belongs to the chase warning and the loss offer, and zone gating itself is
+	-- server-side (ZoneConfig.recommendedSpeed) and unaffected by this.
 	local bar = ui:FindFirstChild("ZoneProgress")
-	local barFrame = bar and bar:FindFirstChild("Frame")
-	zoneTitle = barFrame and findLabel(barFrame, "LEVEL")
-	zoneAmount = barFrame and findLabel(barFrame, "AMOUNT")
-	local fill = barFrame and barFrame:FindFirstChild("Frame")
-	zoneFill = if fill and fill:IsA("Frame") then fill else nil
+	if bar then
+		bar:Destroy()
+	end
 
 	-- The Income chip inherited a Rebirths icon; drop it so the number owns the
 	-- chip and stays readable on a phone.
@@ -191,14 +142,6 @@ function HUDController.start()
 		and currencies.Income:FindFirstChild("Icon")
 	if incomeIcon then
 		incomeIcon:Destroy()
-	end
-
-	-- "BASE" teleports you home. Long map, one plot: this earns its place.
-	local baseButton = ui:FindFirstChild("Top") and ui.Top:FindFirstChild("Base")
-	if baseButton and baseButton:IsA("GuiButton") then
-		baseButton.Activated:Connect(function()
-			Remotes.get("TeleportHomeRequest"):FireServer()
-		end)
 	end
 
 	-- Buttons inside MainUI are deliberately NOT bound here. The pack's own
@@ -235,7 +178,6 @@ function HUDController.start()
 			speedLabel.Text = `Speed {NumberFormat.short(state.speedPower)}`
 		end
 
-		updateZoneProgress(state.speedPower)
 		updateDisplayCount(state)
 	end)
 

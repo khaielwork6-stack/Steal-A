@@ -35,7 +35,7 @@ local player = Players.LocalPlayer
 --- Top-level MainUI children that make up "the normal HUD". Panels the player
 --- opens themselves (Frames) are NOT in this list: hiding those would fight the
 --- pack's own open/close logic.
-local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "ZoneProgress", "StatHUD" }
+local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD" }
 
 local claims: { [string]: boolean } = {}
 local remembered: { [Instance]: boolean } = {}

@@ -11,6 +11,11 @@
 	The result is the pack's shop language applied to a screen the pack never
 	shipped, which is what makes it feel native instead of bolted on.
 
+	PAINTED CARDS. A trail whose config carries an `image` is drawn from that
+	PNG instead, with invisible buttons over its printed prices (TrailCardPng).
+	Today that is the Green Trail only - a test of the method before any other
+	card is converted. Both kinds of card speak the same TrailRequest.
+
 	IT OPENS FROM THE WORLD, NOT FROM A BUTTON.
 	The server fires `TrailRequest("open")` when the player walks into the glowing
 	circle in front of the booth, and "close" when they walk out. There is
@@ -31,6 +36,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
+local TrailCardPng = require(ReplicatedStorage.Shared.Util.TrailCardPng)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local UIStateController = require(script.Parent.UIStateController)
@@ -39,9 +45,20 @@ local TrailShopController = {}
 
 local player = Players.LocalPlayer
 
+--- The panel opens from this scale and closes back to it: a short, confident
+--- pop rather than a leap from nothing.
+local PANEL_REST_SCALE = 0.92
+local PANEL_CLOSE = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
 local panel: Frame? = nil
 local grid: Frame? = nil
 local cards: { [string]: Frame } = {}
+--- Painted cards, by trail key. A trail with an `image` gets one of these
+--- INSTEAD of a pack card; see TrailCardPng.
+local pngCards: { [string]: TrailCardPng.Card } = {}
+--- Whichever open or close tween is running on the panel's UIScale, so the
+--- two can cancel each other instead of fighting.
+local panelTween: Tween? = nil
 local open = false
 local latest: any = nil
 --- Ownership as of the LAST push, so a trail that has just been unlocked can be
@@ -61,17 +78,59 @@ local function close()
 	end
 	local scale = frame:FindFirstChildOfClass("UIScale")
 	if scale then
-		local tween = TweenService:Create(scale, UIAnim.SHRINK, { Scale = 0.85 })
-		tween:Play()
+		-- A short settle back to the size it opened from, then hide. Reopening
+		-- mid-close cancels this, so the panel never snaps to 1 under a pop-in.
+		if panelTween then
+			panelTween:Cancel()
+		end
+		local tween = TweenService:Create(scale, PANEL_CLOSE, { Scale = PANEL_REST_SCALE })
+		panelTween = tween
 		tween.Completed:Once(function()
+			if panelTween ~= tween then
+				return
+			end
+			panelTween = nil
 			if not open and frame.Parent then
 				frame.Visible = false
 			end
-			scale.Scale = 1
 		end)
+		tween:Play()
 	else
 		frame.Visible = false
 	end
+end
+
+--- A painted card for a trail that ships as a PNG. The art is the whole look;
+--- the buttons underneath route into the SAME TrailRequest the pack cards use,
+--- under the same rule: send a key, never a price. The card learns ownership
+--- from StatePush in refresh() and nowhere else.
+local function buildPngCard(holder: Frame, index: number, trail: MonetizationConfig.TrailDef, image: number)
+	local remote = Remotes.get("TrailRequest")
+	local onRobux: ((TrailCardPng.State) -> ())? = nil
+	if trail.gamePassId then
+		onRobux = function()
+			remote:FireServer("buyRobux", trail.key)
+		end
+	end
+	local card = TrailCardPng.build({
+		image = image,
+		onCash = function(state)
+			if state.owned then
+				-- Owned: the printed price sits under an EQUIP pill, and pressing
+				-- it equips instead of asking to buy again.
+				remote:FireServer("equip", trail.key)
+			else
+				remote:FireServer("buyCash", trail.key)
+			end
+		end,
+		onRobux = onRobux,
+		-- No sound hooks: AudioController already sounds every button under
+		-- MainUI, these included.
+	})
+	card.frame.Name = `Trail_{trail.key}`
+	card.frame.LayoutOrder = index
+	card.frame.Parent = holder
+	pngCards[trail.key] = card
 end
 
 --- The window itself: the pack's Shop frame, emptied and retitled.
@@ -176,8 +235,14 @@ local function build(): boolean
 	panel = clone
 	grid = holder
 
-	-- One card per tier, in progression order.
+	-- One card per tier, in progression order. A trail with painted art gets
+	-- the PNG card; everything else is built from the pack.
 	for index, trail in MonetizationConfig.Trails do
+		local image = trail.image
+		if image then
+			buildPngCard(holder, index, trail, image)
+			continue
+		end
 		local card = ShopKit.card()
 		if card then
 			card.Name = `Trail_{trail.key}`
@@ -257,8 +322,18 @@ local function refresh()
 	previousOwned = nowOwned
 
 	for index, trail in MonetizationConfig.Trails do
-		local card = cards[trail.key]
 		local row = latest.trails[index]
+		local png = pngCards[trail.key]
+		if png and row then
+			-- Painted card: the art never changes, only the state pills over the
+			-- printed prices, and a bounce on the one that just sold.
+			png.setState({ owned = row.owned == true, equipped = row.equipped == true })
+			if unlocked[trail.key] then
+				UIAnim.punch(png.frame, 0.2)
+			end
+			continue
+		end
+		local card = cards[trail.key]
 		if card and row then
 			local body = card:FindFirstChild("Frame")
 			local choose = body and body:FindFirstChild("Choose")
@@ -329,12 +404,24 @@ local function show()
 	frame.Visible = true
 	local scale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 	scale.Parent = frame
-	scale.Scale = 0.85
-	TweenService:Create(scale, UIAnim.POP, { Scale = 1 }):Play()
+	if panelTween then
+		panelTween:Cancel()
+	end
+	scale.Scale = PANEL_REST_SCALE
+	local pop = TweenService:Create(scale, UIAnim.POP, { Scale = 1 })
+	panelTween = pop
+	pop.Completed:Once(function()
+		if panelTween == pop then
+			panelTween = nil
+		end
+	end)
+	pop:Play()
 
-	local list = {}
+	-- Cards stagger in behind the panel, painted and pack-built alike.
+	local list: { GuiObject } = {}
 	for _, trail in MonetizationConfig.Trails do
-		local card = cards[trail.key]
+		local png = pngCards[trail.key]
+		local card: GuiObject? = if png then png.frame else cards[trail.key]
 		if card then
 			table.insert(list, card)
 		end

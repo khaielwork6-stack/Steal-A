@@ -26,6 +26,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local PhysicsService = game:GetService("PhysicsService")
 local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -194,52 +195,71 @@ end
 
 --- Dresses a functional rig in an imported model.
 ---
---- The imports are static props - 28 anchored parts, no Humanoid, no Motor6D -
---- so they cannot be animated by Roblox's animation system and cannot drive a
---- Humanoid themselves. Rather than rebuild the artist's model into a rig (which
---- risks breaking it), the model is welded on as a costume over the working
---- rig: physics and pathfinding stay with the invisible root, and the costume
---- is posed procedurally in animateShell().
---- Part names a Humanoid treats as its own body. A costume that uses them gets
---- ADOPTED by the rig's Humanoid once parented, which re-enables collision on
---- the torso and can rebind the root - so the guardian jams in place a few studs
---- from its target and never lands a catch.
-local RESERVED_PART_NAMES = {
-	HumanoidRootPart = true,
-	Head = true,
-	Torso = true,
-	UpperTorso = true,
-	LowerTorso = true,
-	["Left Arm"] = true,
-	["Right Arm"] = true,
-	["Left Leg"] = true,
-	["Right Leg"] = true,
-}
+--- Some imports are static props - 28 anchored parts, no Humanoid, no Motor6D -
+--- and the later zones are full R6/R15 characters with clothing, body colours
+--- and body meshes. Neither kind can drive the rig, so rather than rebuild the
+--- artist's model (which risks breaking it), the model is welded on as a
+--- COSTUME over the working rig: physics and pathfinding stay with the
+--- invisible root, and the costume is posed procedurally in animateShell().
+---
+--- THE COSTUME KEEPS ITS OWN HUMANOID, SWITCHED OFF. Shirts, pants,
+--- CharacterMeshes and BodyColors only render for parts that sit beside a
+--- Humanoid under their canonical names, so destroying the import's Humanoid
+--- (as this once did) put every character-shaped guardian on duty in its
+--- underwear - the Egyptian boss was a bare tan block under a pharaoh's hat.
+--- EvaluateStateMachine = false makes that Humanoid a pure renderer: no state
+--- machine, no forces, no standing up, no dying. The costume lives in its own
+--- nested Model, so the rig's Humanoid never sees those parts as limbs.
+---
+--- Belt and braces, every costume part goes in a collision group that collides
+--- with nothing. A Humanoid re-asserting CanCollide on a torso then still
+--- cannot push the guardian around or jam it in a doorway - which is exactly
+--- the failure the old rename-and-destroy approach was guarding against.
+local SHELL_COLLISION_GROUP = "GuardianShell"
+local shellGroupReady = false
+
+local function ensureShellCollisionGroup()
+	if shellGroupReady then
+		return
+	end
+	shellGroupReady = true
+	-- Registering an existing group is harmless, but a place could in theory
+	-- ship the name already; never let that stop the guardians being built.
+	pcall(function()
+		PhysicsService:RegisterCollisionGroup(SHELL_COLLISION_GROUP)
+	end)
+	pcall(function()
+		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, "Default", false)
+		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, SHELL_COLLISION_GROUP, false)
+	end)
+end
 
 local function dressRig(model: Model, root: BasePart, shell: Model)
+	ensureShellCollisionGroup()
 	shell.Name = "Shell"
 	shell:PivotTo(root.CFrame)
 
-	-- A character-shaped import brings its own Humanoid and its own body-part
-	-- names. Both have to go before it is parented: two Humanoids in one model
-	-- is undefined, and the reserved names are what let the surviving Humanoid
-	-- take the costume over. Purely decorative geometry from here on.
+	-- A character-shaped import brings its own Humanoid. It stays, as a
+	-- renderer only: the clothing, body meshes and colours hang off it.
 	for _, descendant in shell:GetDescendants() do
 		if descendant:IsA("Humanoid") then
-			descendant:Destroy()
+			descendant.EvaluateStateMachine = false
+			descendant.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			descendant.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+			descendant.BreakJointsOnDeath = false
+			descendant.RequiresNeck = false
+			descendant.AutoRotate = false
 		end
 	end
 
 	for _, descendant in shell:GetDescendants() do
 		if descendant:IsA("BasePart") then
-			if RESERVED_PART_NAMES[descendant.Name] then
-				descendant.Name = `Shell_{descendant.Name}`
-			end
 			descendant.Anchored = false
 			descendant.CanCollide = false
 			descendant.CanQuery = false
 			descendant.CanTouch = false
 			descendant.Massless = true
+			descendant.CollisionGroup = SHELL_COLLISION_GROUP
 		end
 	end
 
@@ -301,8 +321,17 @@ local function buildRig(zoneIndex: number): (Model, number)
 		else nil
 
 	-- Guardians grow zone by zone so a later zone reads as dangerous on sight.
+	--
+	-- TWO SIZES, ON PURPOSE. `targetHeight` is what the costume is scaled to -
+	-- the table in GameConfig, climbing to forty studs at the Airport. `growth`
+	-- is what the PHYSICS body follows, and it stops at a cap: the invisible
+	-- collider, the hip height, the step height and the catch radius all come
+	-- from this, so a late-zone boss is a giant to look at and a guardian-sized
+	-- thing to chase you - it corners, fits the lane and catches exactly like
+	-- the early zones do. A collider that grew with the costume jammed on
+	-- doorways it dwarfed and caught players from half a zone away.
 	local targetHeight = GameConfig.guardianHeightFor(zoneIndex)
-	local growth = targetHeight / GameConfig.GUARDIAN_HEIGHT
+	local growth = GameConfig.guardianPhysicsGrowthFor(zoneIndex)
 
 	-- The HumanoidRootPart doubles as the COLLIDABLE body. A rig whose parts all
 	-- have CanCollide off never leaves Freefall, and a Humanoid in Freefall
@@ -346,7 +375,22 @@ local function buildRig(zoneIndex: number): (Model, number)
 			shell:ScaleTo(shell:GetScale() * (targetHeight / height))
 		end
 
-		dressRig(model, root, shell)
+		local motor = dressRig(model, root, shell)
+
+		-- FEET ON THE FLOOR. The costume is pivoted onto the root, but an import's
+		-- pivot sits wherever it was authored - the Elf Guard's is at its head -
+		-- so every shell was sinking into the ground by up to five studs, and a
+		-- costume several times taller than its collider would bury itself. The
+		-- shell's lowest corner is measured and the difference to the collider's
+		-- underside is baked into the motor's C1 (C0 is what animateShell drives
+		-- every frame, so it cannot carry a constant). The pose animation then
+		-- bobs a correctly grounded costume.
+		local lowest = LootModel.worldExtents(shell)
+		if lowest then
+			local rootBottom = root.Position.Y - root.Size.Y / 2
+			local lift = rootBottom - lowest.Y
+			motor.C1 = CFrame.new(0, -lift, 0)
+		end
 		model:SetAttribute("HasShell", true)
 	else
 		-- No art for this zone yet: keep the readable placeholder body.

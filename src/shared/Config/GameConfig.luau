@@ -109,18 +109,52 @@ GameConfig.LOOT_TROPHY_HEIGHT = 6 -- on a base pedestal, seen up close
 -- Guardians grow zone by zone, so walking into a later zone reads as dangerous
 -- before the player has read a single number. Zone 1's Cop is the baseline the
 -- tutorial was tuned against and does not move.
-GameConfig.GUARDIAN_HEIGHT = 7 -- zone 1
-GameConfig.GUARDIAN_HEIGHT_GROWTH = 0.085 -- compounding, per zone past the first
-GameConfig.GUARDIAN_HEIGHT_MAX = 15 -- hard ceiling; the containment walls are 22
+GameConfig.GUARDIAN_HEIGHT = 7 -- zone 1; every other zone is authored relative to this
+
+--- VISUAL height of each zone's guardian, in studs. THE ONE PLACE boss size
+--- lives - buildRig scales the imported costume to exactly this. Authored as a
+--- table rather than a growth rate because the brief wants the jump to READ:
+--- zones 1-5 ease up, 6-12 climb hard, and the Airport guard is meant to be
+--- frightening. The containment walls are 80 studs, so even 40 stays framed.
+GameConfig.GUARDIAN_HEIGHTS = {
+	7, -- 1  Museum      normal
+	7.8, -- 2  Pirate      slightly larger
+	8.8, -- 3  Castle      larger
+	10, -- 4  Area 51     clearly larger
+	11.5, -- 5  North Pole  intimidating
+	14, -- 6  Egypt       large
+	17, -- 7  Gym         very large
+	20.5, -- 8  Bank        huge
+	24.5, -- 9  Secret Lab  imposing
+	29, -- 10 Grandma     massive
+	34, -- 11 Construction enormous
+	40, -- 12 Airport     frighteningly huge
+}
+
+--- The PHYSICS body does not grow with the costume past this multiple of the
+--- zone-1 body. A 40-stud costume on a 40-stud collider jams on every doorway
+--- and reads as a wall coming at you; a big costume over a body capped at
+--- roughly two players tall still chases, corners and catches exactly like the
+--- early zones. Catch radius scales with THIS, not with the visual height.
+GameConfig.GUARDIAN_PHYSICS_MAX_GROWTH = 2.0
 
 --- Costume height for a zone's guardian. Compounding rather than linear so the
 --- early steps stay subtle and the late ones land: zone 1 is 7 studs, zone 6 is
 --- ~10.4, zone 12 is capped near 15 - imposing, and still comfortably under the
 --- lane walls, which is what stops a guardian from reading as a broken import.
+--- The costume height for a zone, straight from the table. A zone past the end
+--- of the table (a future thirteenth) gets the last entry rather than an error.
 function GameConfig.guardianHeightFor(zoneIndex: number): number
-	local steps = math.max(0, zoneIndex - 1)
-	local height = GameConfig.GUARDIAN_HEIGHT * (1 + GameConfig.GUARDIAN_HEIGHT_GROWTH) ^ steps
-	return math.min(height, GameConfig.GUARDIAN_HEIGHT_MAX)
+	local heights = GameConfig.GUARDIAN_HEIGHTS
+	return heights[math.clamp(zoneIndex, 1, #heights)]
+end
+
+--- How much bigger than zone 1's the PHYSICS body may be. Follows the costume
+--- up to the cap and then holds, so the late zones look enormous and still
+--- play like guardians rather than like moving buildings.
+function GameConfig.guardianPhysicsGrowthFor(zoneIndex: number): number
+	local growth = GameConfig.guardianHeightFor(zoneIndex) / GameConfig.GUARDIAN_HEIGHT
+	return math.min(growth, GameConfig.GUARDIAN_PHYSICS_MAX_GROWTH)
 end
 
 -- ==========================================================

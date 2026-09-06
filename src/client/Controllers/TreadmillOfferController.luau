@@ -8,17 +8,17 @@
 	`StatePush.monetization.nextSpeedTier` is derived server-side from live
 	gamepass ownership, so this renders whatever the player is actually next in
 	line for. It cannot offer a tier out of order, and when the field is nil -
-	they own 1,024x - it shows a MAXED state instead of another purchase.
+	they own 1,024x - it shows nothing at all.
 
 	IT DOES NOT DETECT THE TREADMILL ITSELF.
 	`TreadmillController` already runs the same oriented-box test the server uses
 	and knows, on the first frame, whether the player is training. This listens to
 	that rather than adding a second detector that could disagree with it.
 
-	THE HUD GOES THROUGH UIStateController.
-	Nothing here sets `Visible` on a HUD element directly. It claims a suppressor
-	and releases it, so leaving the treadmill while a shop is also open cannot
-	strand the HUD hidden.
+	THE HUD STAYS UP.
+	This is a side card, not a mode: the Shop, the stat card and the rail all
+	remain usable while it is showing. It hides itself when there is no next tier
+	to sell rather than showing a MAXED state.
 ]]
 
 local Players = game:GetService("Players")
@@ -30,7 +30,6 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
-local UIStateController = require(script.Parent.UIStateController)
 
 local TreadmillOfferController = {}
 
@@ -41,19 +40,28 @@ local holder: Frame? = nil
 local shown = false
 local floatConnection: RBXScriptConnection? = nil
 local latest: any = nil
+--- Forward-declared: `repaint` hides the card when there is nothing to sell,
+--- and `hide` is defined further down.
+local hide: () -> ()
 
 -- A SIDE CARD, NOT A POPUP.
 --
 -- The first version sat centre-screen over the treadmill and the player - the
 -- one place a purchase card must not be while someone is trying to train. The
--- reference is a small clean card down the left, under the navigation. So:
--- anchored to the left edge, parked below the nav rail, sliding in from just
--- off-screen and back out. It is part of the HUD, not something in front of it.
+-- reference is a small clean card down the left. The first cut parked it under
+-- the nav rail, which put it straight on top of the stat card - the one HUD
+-- element a training player is actually watching, because the Speed counter
+-- is what the treadmill moves. So: BESIDE the stat card, bottom-aligned with
+-- it, sliding up from below the screen edge and back down. It is part of the
+-- HUD, not something in front of it.
 --
--- Positioned in SCALE against the screen, with a pixel floor and ceiling, so it
--- holds its place under the rail on a phone and on a 4K monitor alike.
-local SHOWN_POSITION = UDim2.new(0, 0, 0.845, 0)
-local HIDDEN_POSITION = UDim2.new(-0.25, 0, 0.845, 0)
+-- Placed at runtime from the stat card's own Position and Size (same parent,
+-- same units), so it follows the card if the HUD is ever rearranged. The
+-- fallback below is only for a HUD that has no stat card to sit beside.
+local GAP_FROM_STATS = 10
+local FALLBACK_SHOWN_POSITION = UDim2.new(0.16, 24, 1, -14)
+--- How far below the bottom edge the card parks while hidden.
+local HIDDEN_DROP = 140
 --- Roughly the width of the nav rail and the height of one of its buttons.
 local CARD_SIZE = UDim2.fromScale(0.17, 0.115)
 local CARD_MIN = Vector2.new(190, 62)
@@ -64,8 +72,6 @@ local EDGE_INSET = 14
 -- Bright cyan/blue like the reference. The pack's own studs and rays do the rest.
 local CARD_COLOR = Color3.fromRGB(80, 210, 255)
 local CARD_ACCENT = Color3.fromRGB(20, 120, 210)
-local MAXED_COLOR = Color3.fromRGB(255, 214, 120)
-local MAXED_ACCENT = Color3.fromRGB(196, 130, 16)
 
 --- The card's parts, resolved once.
 local headline: TextLabel? = nil
@@ -101,8 +107,8 @@ local function build(): boolean
 
 	local frame = Instance.new("Frame")
 	frame.Name = "TreadmillOffer"
-	frame.AnchorPoint = Vector2.new(0, 0.5)
-	frame.Position = HIDDEN_POSITION
+	frame.AnchorPoint = Vector2.new(0, 1)
+	frame.Position = FALLBACK_SHOWN_POSITION
 	frame.Size = CARD_SIZE
 	frame.BackgroundTransparency = 1
 	frame.Visible = false
@@ -220,15 +226,34 @@ local function repaint()
 		end
 		paintColours(CARD_COLOR, CARD_ACCENT)
 	else
-		local owned = (latest and latest.speedMultiplier) or 1
-		if headline then
-			headline.Text = "MAXED"
-		end
-		if subline then
-			subline.Text = `{NumberFormat.comma(owned)}x SPEED`
-		end
-		paintColours(MAXED_COLOR, MAXED_ACCENT)
+		-- Nothing left to sell. No MAXED card: a purchase card with nothing to
+		-- buy is clutter, and the player who owns 1,024x already knows.
+		hide()
 	end
+end
+
+--- Where the card sits when shown: immediately right of the stat card and
+--- bottom-aligned with it. Both share MainUI as parent and the same anchor
+--- (bottom-left), so the stat card's scale and offset carry straight over.
+local function shownPosition(): UDim2
+	local parent = holder and holder.Parent
+	local stats = parent and parent:FindFirstChild("StatHUD")
+	if stats and stats:IsA("GuiObject") then
+		local position, size = stats.Position, stats.Size
+		return UDim2.new(
+			position.X.Scale + size.X.Scale,
+			position.X.Offset + size.X.Offset + GAP_FROM_STATS,
+			position.Y.Scale,
+			position.Y.Offset
+		)
+	end
+	return FALLBACK_SHOWN_POSITION
+end
+
+--- Parked below the bottom edge, straight under its shown spot.
+local function hiddenPosition(): UDim2
+	local shown = shownPosition()
+	return UDim2.new(shown.X.Scale, shown.X.Offset, 1, HIDDEN_DROP)
 end
 
 local function show()
@@ -243,17 +268,22 @@ local function show()
 	end
 	shown = true
 	repaint()
+	-- Maxed: repaint hid the card and cleared the flag. Nothing to animate in.
+	if not shown then
+		return
+	end
 
 	local frame = holder :: Frame
-	UIStateController.claim("treadmill")
+	-- The HUD stays. An earlier pass hid the whole interface while training,
+	-- which took the Shop with it; this card is a side panel, not a mode.
 
 	frame.Visible = true
-	frame.Position = HIDDEN_POSITION
+	frame.Position = hiddenPosition()
 	local scale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 	scale.Parent = frame
 	scale.Scale = 0.7
 
-	TweenService:Create(frame, UIAnim.SETTLE, { Position = SHOWN_POSITION }):Play()
+	TweenService:Create(frame, UIAnim.SETTLE, { Position = shownPosition() }):Play()
 	TweenService:Create(scale, UIAnim.GROW, { Scale = 1 }):Play()
 
 	-- Idle float starts only after the entrance has settled, so the two do not
@@ -265,7 +295,7 @@ local function show()
 	end)
 end
 
-local function hide()
+hide = function()
 	if not shown then
 		return
 	end
@@ -274,14 +304,13 @@ local function hide()
 		floatConnection:Disconnect()
 		floatConnection = nil
 	end
-	UIStateController.release("treadmill")
 
 	local frame = holder
 	if not frame then
 		return
 	end
 	local scale = frame:FindFirstChildOfClass("UIScale")
-	TweenService:Create(frame, UIAnim.SHRINK, { Position = HIDDEN_POSITION }):Play()
+	TweenService:Create(frame, UIAnim.SHRINK, { Position = hiddenPosition() }):Play()
 	if scale then
 		local tween = TweenService:Create(scale, UIAnim.SHRINK, { Scale = 0.75 })
 		tween:Play()

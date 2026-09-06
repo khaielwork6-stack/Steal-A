@@ -24,7 +24,6 @@ Remotes.NAMES = {
 	"BatSwingRequest",
 	"TrapPlaceRequest",
 	"IndexClaimRequest",
-	"TeleportHomeRequest",
 	-- The DROP button. Carries no payload at all: the server already knows what
 	-- this player is carrying, and asking the client which item to drop would be
 	-- handing it a target it has no business choosing.

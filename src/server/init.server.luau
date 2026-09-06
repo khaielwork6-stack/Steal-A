@@ -63,6 +63,12 @@ end)
 
 CarryService.setZoneBusyCheck(GuardianService.isZoneBusy)
 
+-- The tutorial vase goes straight back to its pedestal when dropped, instead of
+-- lying on the floor while the tutorial pins a replacement into the socket -
+-- which is how a new player could mint duplicates by stealing and dropping in a
+-- loop. Every other item keeps the normal reclaimable drop.
+CarryService.returnsHomeOnDrop = TutorialService.isTutorialLoot
+
 -- The DROP button lives on StatePush, so a steal has to push immediately rather
 -- than waiting for the next thing that happens to dirty the state.
 StateService.setCarryProvider(CarryService.summariseCarry)
@@ -256,18 +262,6 @@ BaseService.start()
 -- profiles, both of which want every earlier service in place.
 GroupGiftService.start()
 LeaderboardService.start()
-
--- HUD "BASE" button. Refused while carrying so it cannot skip an escape run.
-require(ReplicatedStorage.Shared.Remotes).get("TeleportHomeRequest").OnServerEvent:Connect(function(player)
-	if CarryService.getCarried(player) then
-		StateService.notify(player, "error", "Not while carrying loot - run it home!")
-		return
-	end
-	local ok, reason = BaseService.teleportHome(player)
-	if not ok and reason then
-		StateService.notify(player, "error", reason)
-	end
-end)
 
 DebugService.start()
 

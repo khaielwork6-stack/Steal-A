@@ -1,26 +1,42 @@
 --!strict
 --[[
 	BaseSignController
-	The UPGRADE BASE sign's purchase bar is GREEN when you can afford the next
-	level and RED when you cannot, live, as your Cash moves.
+	The UPGRADE BASE sign's green bar IS the button, and it is green or red for
+	YOU depending on whether you can afford the next level.
 
-	WHY THIS IS CLIENT-SIDE
-	The sign is a SurfaceGui the server builds once per plot. Whether YOU can
-	afford it is a fact about you, not about the sign - two players looking at
-	the same plot could see two different colours - so the recolour is done on
-	each client against its own StatePush, which already carries both the Cash
-	and the next upgrade's cost. The server keeps deciding the purchase; a client
-	that paints the bar green early still gets refused and told why.
+	HOW THE CLICK WORKS
+	The sign is a SurfaceGui the server builds once per plot; its "Button" is a
+	plain Frame painted with the price. This controller lays a SurfaceGui of its
+	own in PlayerGui, adorned to the same Board, carrying one INVISIBLE
+	TextButton sized and positioned to exactly the bar's region - so the tap
+	target is the visible green button and nothing else, and it works on
+	desktop, touch and gamepad through Activated. A PlayerGui SurfaceGui with an
+	Adornee is the one form of in-world button whose input is guaranteed.
 
-	It touches ONLY the owner's own sign. Other players' signs stay the server's
-	authored red, because there is nothing for a visitor to buy there.
+	Pressing it sends `BaseUpgradeRequest`, empty. The SERVER decides: it owns
+	the plot lookup, the price, the balance and the atomic spend, and answers
+	with a toast on refusal. The old Hold-E prompt is gone; this is the only
+	way to buy, so the two can never race.
+
+	WHY THE COLOUR IS CLIENT-SIDE
+	Whether YOU can afford it is a fact about you, not the sign - two players at
+	the same plot would see two colours - so it is painted per-client from your
+	own StatePush, which already carries Cash and the next cost. Only your own
+	sign: a visitor has nothing to buy there.
+
+	FEEDBACK
+	Hover: a short brighten and a 3% lift on the bar. Press: 0.96 compression,
+	rebound, and the request goes out immediately - it never waits on the
+	tween. Refused (red): a small sideways shake and the denied cue. A local
+	0.6s lock stops a double-tap sending two requests; the server's rate limit
+	and atomic spend stand behind it.
 ]]
 
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -30,37 +46,69 @@ local BaseSignController = {}
 local player = Players.LocalPlayer
 
 local GREEN = Color3.fromRGB(58, 200, 96)
+local GREEN_BRIGHT = Color3.fromRGB(96, 240, 130)
 local GREEN_EDGE = Color3.fromRGB(24, 120, 52)
 local RED = Color3.fromRGB(232, 58, 62)
 local RED_EDGE = Color3.fromRGB(150, 26, 32)
+
+--- Matches PlacementService.ensureSign: ButtonEdge is 0.9 x 0.35 at (0.05, 0.56)
+--- of the face. The hit area is the bar, not the sign.
+local BAR_POSITION = UDim2.fromScale(0.05, 0.56)
+local BAR_SIZE = UDim2.fromScale(0.9, 0.35)
+
+local HOVER = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local PRESS = TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+local REBOUND = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local CLICK_LOCK = 0.6
 
 local cash = 0
 local nextCost: number? = nil
 local affordable: boolean? = nil
 local pulse: RBXScriptConnection? = nil
 
---- The owner's own sign face, or nil until the plot and sign exist.
-local function ownSignFace(): (Frame?, Frame?)
+local clickGui: SurfaceGui? = nil
+local clickButton: TextButton? = nil
+local boundBoard: BasePart? = nil
+local barScale: UIScale? = nil
+local hovering = false
+local pressed = false
+local lockedUntil = 0
+
+-- ==========================================================
+-- RESOLUTION
+-- ==========================================================
+
+local function ownPlot(): Instance?
 	local map = workspace:FindFirstChild("Map")
 	local bases = map and map:FindFirstChild("Bases")
 	if not bases then
-		return nil, nil
+		return nil
 	end
 	for _, plot in bases:GetChildren() do
 		if plot:GetAttribute("OwnerUserId") == player.UserId then
-			local sign = plot:FindFirstChild("UpgradeSign")
-			local board = sign and sign:FindFirstChild("Board")
-			local gui = board and board:FindFirstChildOfClass("SurfaceGui")
-			local edge = gui and gui:FindFirstChild("ButtonEdge")
-			local button = edge and edge:FindFirstChild("Button")
-			if edge and edge:IsA("Frame") and button and button:IsA("Frame") then
-				return edge, button
-			end
-			return nil, nil
+			return plot
 		end
 	end
-	return nil, nil
+	return nil
 end
+
+--- The owner's own sign: its board, and the painted bar (edge + button).
+local function ownSign(): (BasePart?, Frame?, Frame?)
+	local plot = ownPlot()
+	local sign = plot and plot:FindFirstChild("UpgradeSign")
+	local board = sign and sign:FindFirstChild("Board")
+	local gui = board and board:FindFirstChildOfClass("SurfaceGui")
+	local edge = gui and gui:FindFirstChild("ButtonEdge")
+	local button = edge and edge:FindFirstChild("Button")
+	if board and board:IsA("BasePart") and edge and edge:IsA("Frame") and button and button:IsA("Frame") then
+		return board, edge, button
+	end
+	return nil, nil, nil
+end
+
+-- ==========================================================
+-- COLOUR
+-- ==========================================================
 
 local function stopPulse()
 	if pulse then
@@ -78,14 +126,15 @@ local function startPulse(edge: Frame, button: Frame)
 			stopPulse()
 			return
 		end
-		local wave = (math.sin((os.clock() - start) * 2.4) + 1) / 2
-		button.BackgroundColor3 = GREEN:Lerp(Color3.fromRGB(96, 240, 130), wave * 0.6)
+		-- Hover holds the bright end; otherwise breathe between the two.
+		local wave = if hovering then 1 else (math.sin((os.clock() - start) * 2.4) + 1) / 2 * 0.6
+		button.BackgroundColor3 = GREEN:Lerp(GREEN_BRIGHT, wave)
 		edge.BackgroundColor3 = GREEN_EDGE
 	end)
 end
 
 local function paint()
-	local edge, button = ownSignFace()
+	local _, edge, button = ownSign()
 	if not edge or not button then
 		return
 	end
@@ -108,11 +157,22 @@ local function paint()
 	end
 end
 
---- A tiny sideways shake on the bar when a refused upgrade is attempted, plus
---- the denied cue. The server has already declined and sent its toast; this is
---- the physical "no".
+-- ==========================================================
+-- FEEDBACK
+-- ==========================================================
+
+local function setBarScale(target: number, info: TweenInfo)
+	local scale = barScale
+	if scale then
+		TweenService:Create(scale, info, { Scale = target }):Play()
+	end
+end
+
+--- A tiny sideways shake on the bar plus the denied cue: the physical "no" for
+--- a press the player could not afford. The server has already declined and
+--- sent its toast.
 local function denied()
-	local edge = ownSignFace()
+	local _, edge = ownSign()
 	if not edge then
 		return
 	end
@@ -127,6 +187,109 @@ local function denied()
 	end)
 end
 
+local function onActivated()
+	local now = os.clock()
+	if now < lockedUntil then
+		return
+	end
+	lockedUntil = now + CLICK_LOCK
+
+	if affordable == false then
+		denied()
+		-- Still ask: the server's answer is the truth, and its toast says why.
+	else
+		Audio.play("UiClick")
+	end
+	-- Fire FIRST, animate after. The purchase never waits on a tween.
+	Remotes.get("BaseUpgradeRequest"):FireServer()
+end
+
+-- ==========================================================
+-- THE CLICK LAYER
+-- ==========================================================
+
+--- (Re)builds the invisible button over the owner's bar. Idempotent per board:
+--- a rebuild of the plot (new Board instance) gets a fresh layer, the same
+--- board never gets two.
+local function ensureClickLayer()
+	local board, edge = ownSign()
+	if not board or not edge then
+		return
+	end
+	if boundBoard == board and clickGui and clickGui.Parent then
+		return
+	end
+	if clickGui then
+		clickGui:Destroy()
+		clickGui = nil
+		clickButton = nil
+	end
+	boundBoard = board
+
+	-- The bar itself gets a UIScale so hover/press can lift the PAINTED button
+	-- (what the player sees) rather than an invisible rectangle.
+	local scale = edge:FindFirstChildOfClass("UIScale")
+	if not scale then
+		scale = Instance.new("UIScale")
+		scale.Parent = edge
+	end
+	barScale = scale
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "UpgradeSignClick"
+	gui.Adornee = board
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 48
+	gui.AlwaysOnTop = false
+	gui.ResetOnSpawn = false
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	local button = Instance.new("TextButton")
+	button.Name = "Upgrade"
+	button.Position = BAR_POSITION
+	button.Size = BAR_SIZE
+	button.BackgroundTransparency = 1
+	button.TextTransparency = 1
+	button.Text = ""
+	button.AutoButtonColor = false
+	button.Active = true
+	button.Parent = gui
+
+	button.MouseEnter:Connect(function()
+		hovering = true
+		if not pressed then
+			setBarScale(1.03, HOVER)
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		hovering = false
+		if not pressed then
+			setBarScale(1, HOVER)
+		end
+	end)
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			pressed = true
+			setBarScale(0.96, PRESS)
+		end
+	end)
+	button.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			pressed = false
+			setBarScale(if hovering and not UserInputService.TouchEnabled then 1.03 else 1, REBOUND)
+		end
+	end)
+	button.Activated:Connect(onActivated)
+
+	clickGui = gui
+	clickButton = button
+end
+
+-- ==========================================================
+-- START
+-- ==========================================================
+
 function BaseSignController.start()
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		if type(state) ~= "table" then
@@ -136,28 +299,24 @@ function BaseSignController.start()
 		nextCost = tonumber(state.slotsNextCost)
 		-- A new upgrade tier means a new price; force a repaint.
 		affordable = nil
+		ensureClickLayer()
 		paint()
 	end)
 
 	-- The sign is built by the server after the plot is assigned, which can be
-	-- after the first push. Repaint when it appears.
+	-- after the first push. Bind and repaint when it appears or is rebuilt.
 	local map = workspace:WaitForChild("Map", 20)
 	if map then
 		map.DescendantAdded:Connect(function(descendant)
 			if descendant.Name == "UpgradeSign" then
 				task.defer(function()
 					affordable = nil
+					ensureClickLayer()
 					paint()
 				end)
 			end
 		end)
 	end
-
-	ProximityPromptService.PromptTriggered:Connect(function(prompt)
-		if prompt.Name == "UpgradePrompt" and affordable == false then
-			denied()
-		end
-	end)
 end
 
 return BaseSignController

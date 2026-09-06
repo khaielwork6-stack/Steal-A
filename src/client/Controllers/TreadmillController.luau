@@ -20,11 +20,17 @@
 	for the reward, so a tampered client can change what it SEES and never what it
 	earns.
 
-	THE CENTRE HOLD IS SOFT
-	The player is eased to the middle of the belt and turned to face along it, but
-	ONLY while they are giving no movement input. The moment they push a stick or
-	a key the hold releases entirely, so walking off is instant and the controls
-	are never fought. A hard lock would trap players who wanted to leave.
+	YOU ARE ON THE BELT UNTIL YOU JUMP
+	Stepping on starts a session: the player is eased to the middle of the belt,
+	turned to face along it, and their movement input is overridden to zero one
+	frame-step after the ControlModule writes it - so WASD and the thumbstick do
+	nothing, and the character is still an ordinary Humanoid (no anchoring, no
+	WalkSpeed edits, nothing the server has to know). JUMP is the exit - Space,
+	the mobile Jump button, a gamepad A - and it hands movement straight back.
+	After a jump the belt will not re-engage until the player has actually left
+	it, so a hop cannot land them straight back into the lock. Death, respawn, a
+	teleport, a destroyed treadmill or leaving the trigger all end the session
+	through the same one path.
 
 	THE ANIMATION IS THE PLAYER'S OWN
 	Rather than shipping an animation id - which would be one more asset that can
@@ -275,6 +281,43 @@ local function announceTraining(value: boolean)
 	end
 end
 
+--- After a jump exit the player is still standing inside the trigger. Without
+--- this the very next frame would lock them straight back on. Set by the jump,
+--- cleared the moment they are OUTSIDE the volume, so re-engaging means
+--- actually stepping off and back on.
+local lockedOut = false
+
+--- The lock. While training, the ControlModule keeps writing the player.s move
+--- vector every frame; this runs one priority later and overwrites it with zero,
+--- so WASD and the thumbstick move nothing while jump - which the ControlModule
+--- routes through Humanoid.Jump, not through Move - still works. No anchoring,
+--- no WalkSpeed games, no state the server has to know about: the character is
+--- a normal Humanoid standing still.
+local LOCK_STEP = "TreadmillLock"
+local lockBound = false
+
+local function lockMovement()
+	if lockBound then
+		return
+	end
+	lockBound = true
+	RunService:BindToRenderStep(LOCK_STEP, Enum.RenderPriority.Input.Value + 5, function()
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+		if humanoid then
+			humanoid:Move(Vector3.zero, true)
+		end
+	end)
+end
+
+local function unlockMovement()
+	if not lockBound then
+		return
+	end
+	lockBound = false
+	RunService:UnbindFromRenderStep(LOCK_STEP)
+end
+
 local function leaveTreadmill()
 	if not training then
 		return
@@ -282,6 +325,7 @@ local function leaveTreadmill()
 	training = false
 	announceTraining(false)
 	stopRunning()
+	unlockMovement()
 	-- Anything banked but not yet shown is dropped: a popup appearing after the
 	-- player has walked away is noise, and the Speed is already in their total.
 	pendingGain = 0
@@ -364,12 +408,30 @@ local function step(dt: number)
 	end
 
 	local on = isOnTreadmill(root)
-	if on and not training then
+	if not on then
+		-- Off the belt: any jump-exit hold is over, and the session ends.
+		lockedOut = false
+		if training then
+			leaveTreadmill()
+		end
+		return
+	end
+
+	-- THE EXIT. Jump - Space, the mobile Jump button, or the gamepad - is the
+	-- one input the lock lets through, and it ends the session: movement is
+	-- handed back and the player is held off until they have physically left
+	-- the belt, so a jump cannot land them straight back into the lock.
+	if training and (humanoid.Jump or humanoid:GetState() == Enum.HumanoidStateType.Jumping) then
+		lockedOut = true
+		leaveTreadmill()
+		return
+	end
+
+	if not training and not lockedOut then
 		training = true
 		announceTraining(true)
 		startRunning(character, humanoid)
-	elseif not on and training then
-		leaveTreadmill()
+		lockMovement()
 	end
 
 	if not training then
@@ -442,6 +504,9 @@ function TreadmillController.start()
 		-- The old track belonged to a Humanoid that no longer exists.
 		runTrack = nil
 		training = false
+		-- A lock bound to the old character must not outlive it.
+		lockedOut = false
+		unlockMovement()
 		pendingGain = 0
 		refreshPlot()
 	end)

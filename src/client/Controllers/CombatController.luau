@@ -19,59 +19,56 @@ local CombatController = {}
 
 local player = Players.LocalPlayer
 
---- Local-only swing. Purely cosmetic; the server is deciding the hit in
---- parallel, so a client that skips this gains nothing.
+--- The swing. Purely cosmetic on this side; the server resolves the hit at
+--- PvPConfig.BAT_STRIKE_DELAY regardless, so a client that skips this gains
+--- nothing.
 ---
---- THREE BEATS, TIMED TO THE SERVER. A short pull BACK, a fast snap THROUGH
---- that arrives exactly at PvPConfig.BAT_STRIKE_DELAY - the frame the server
---- resolves the hit and plays the connect sound - and an elastic settle back to
---- the grip. The strike lands where the eye expects it to, which is what makes
---- a hit read as "I connected" rather than "something happened near me".
+--- A REAL ANIMATION, NOT AN INVENTED ONE. This project has no uploaded swing
+--- asset, and none is fabricated here. Roblox's own Animate script - the one
+--- every avatar spawns with - ships a per-rig `toolslash` animation and plays it
+--- whenever a StringValue named "toolanim" with the value "Slash" is added to
+--- the equipped Tool (the mechanism the classic sword used, still honoured by
+--- the current R15 and R6 scripts, verified on this rig). That gives a proper
+--- arm-and-bat swing through the Animator, replicated to everyone, from an
+--- animation Roblox owns.
 ---
---- Driven through the tool's own grip weld (the RightGrip Roblox creates on
---- equip) rather than an uploaded animation, so it needs no asset and works on
---- every rig the avatar system produces.
+--- The Animate script consumes the StringValue and only ever plays one slash
+--- at a time, so hammering the button cannot stack tracks; the cooldown gate in
+--- hookTool below stops the requests before that anyway.
+---
+--- FALLBACK: a character without an Animate script (a custom StarterCharacter,
+--- say) gets the old grip-weld swing so the bat still visibly moves.
 local WINDUP = 0.06
 local SETTLE = 0.34
 
-local function playSwing(tool: Tool)
+local function gripSwing(tool: Tool)
 	local handle = tool:FindFirstChild("Handle")
 	if not handle or not handle:IsA("BasePart") then
 		return
 	end
-
-	-- The grip weld lives on the right hand/arm, with Part1 = Handle.
 	local character = player.Character
-	local motor: Motor6D | Weld | nil = nil
+	local motor: Weld? = nil
 	if character then
 		for _, descendant in character:GetDescendants() do
-			if (descendant:IsA("Weld") or descendant:IsA("Motor6D")) and descendant.Part1 == handle then
+			if (descendant:IsA("Weld") or descendant:IsA("Motor6D")) and (descendant :: any).Part1 == handle then
 				motor = descendant :: any
 				break
 			end
 		end
 	end
 	if not motor then
-		motor = (handle:FindFirstChildWhichIsA("Weld") or handle:FindFirstChildWhichIsA("Motor6D")) :: any
-	end
-	if not motor then
 		return
 	end
 	local grip = motor :: Weld
-
-	-- Never restart from a half-finished swing's C1: the rest pose is remembered
-	-- once, so rapid swings cannot walk the bat out of the hand.
 	local rest = grip:GetAttribute("_RestC1") :: CFrame?
 	if not rest then
 		rest = grip.C1
 		grip:SetAttribute("_RestC1", rest)
 	end
 	local restC1 = rest :: CFrame
-
 	local back = restC1 * CFrame.Angles(math.rad(35), math.rad(-20), 0)
 	local through = restC1 * CFrame.Angles(math.rad(-110), math.rad(25), 0)
 	local strikeTime = math.max(0.02, PvPConfig.BAT_STRIKE_DELAY - WINDUP)
-
 	grip.C1 = restC1
 	local windup = TweenService:Create(grip, TweenInfo.new(WINDUP, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C1 = back })
 	windup:Play()
@@ -84,7 +81,37 @@ local function playSwing(tool: Tool)
 	end)
 end
 
+local function playSwing(tool: Tool)
+	local character = player.Character
+	local animate = character and character:FindFirstChild("Animate")
+	if animate and animate:FindFirstChild("toolslash") then
+		-- Consumed by the Animate script on the next frame; it destroys it.
+		local cue = Instance.new("StringValue")
+		cue.Name = "toolanim"
+		cue.Value = "Slash"
+		cue.Parent = tool
+		-- Belt and braces: if a modified Animate script ignores it, it must not
+		-- pile up inside the tool.
+		task.delay(0.5, function()
+			if cue.Parent then
+				cue:Destroy()
+			end
+		end)
+		return
+	end
+	gripSwing(tool)
+end
+
 local function hookTool(tool: Tool)
+	-- A Tool moves between Backpack and Character on every equip and unequip,
+	-- and both containers are watched, so the same tool arrives here again and
+	-- again. Hook it ONCE, or each equip would add another Activated connection
+	-- and one click would swing - and request - several times.
+	if tool:GetAttribute("_CombatHooked") then
+		return
+	end
+	tool:SetAttribute("_CombatHooked", true)
+
 	if tool.Name == "Bat" then
 		local cooling = false
 		tool.Activated:Connect(function()

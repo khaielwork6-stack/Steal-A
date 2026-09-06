@@ -740,8 +740,11 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	deck.Transparency = 1
 
 	-- Kept only so refreshTreadmill has something to tint when the base is
-	-- inactive; the art covers it entirely once a model is attached.
-	makePart({
+	-- inactive. INVISIBLE: on a plot nobody has been assigned (so no art model
+	-- has been attached) it read as a stray navy slab floating in the corridor,
+	-- and under an attached model it peeked through the belt. The physics deck
+	-- above is what the player stands on; this part carries no gameplay.
+	local belt = makePart({
 		name = "Belt",
 		size = Vector3.new(tSize.X - 4, 0.4, tSize.Z - 3),
 		cframe = at(0, tSize.Y + 0.05, tZ),
@@ -749,6 +752,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		parent = treadmill,
 		canCollide = false,
 	})
+	belt.Transparency = 1
 
 	makeVolume(
 		"TrainingTrigger",

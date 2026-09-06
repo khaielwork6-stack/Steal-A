@@ -89,6 +89,9 @@ export type TrailDef = {
 	cash: number,
 	gamePassId: number?, -- nil = cash-only (Grey)
 	robux: number?,
+	--- Painted card artwork asset id. Present only on trails that have moved to
+	--- the PNG card workflow; absent means the pack-built card.
+	image: number?,
 	color: Color3,
 	accent: Color3,
 }
@@ -104,6 +107,9 @@ MonetizationConfig.Trails = {
 		color = Color3.fromRGB(206, 212, 222), accent = Color3.fromRGB(150, 158, 172) },
 	{ key = "Green", name = "Green Trail", rarity = "Uncommon", multiplier = 2, cash = 5e3,
 		gamePassId = 1970564658, robux = 14,
+		-- Painted card artwork (the PNG workflow, piloted on this one trail). A
+		-- trail WITHOUT an image keeps the pack-built card. See TrailCardPng.
+		image = 111545352261958,
 		color = Color3.fromRGB(96, 220, 118), accent = Color3.fromRGB(46, 160, 70) },
 	{ key = "Blue", name = "Blue Trail", rarity = "Rare", multiplier = 2.5, cash = 75e3,
 		gamePassId = 1970224666, robux = 25,

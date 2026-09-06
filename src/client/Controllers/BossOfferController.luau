@@ -37,7 +37,6 @@ local card: GuiObject? = nil
 local currentKey: string? = nil
 local offeredAmount: number? = nil
 local lastSpeedPower: number? = nil
-local dismissAt = 0
 local visible = false
 
 -- MEASURED OFF THE REFERENCE SHOT, not chosen by eye: a 290x75 pill on a
@@ -50,9 +49,13 @@ local visible = false
 -- y -48..13 and the banner landed on -43..11, directly across it. Dropped to sit
 -- just underneath, keeping the proportions and the top-centre placement while
 -- leaving both readable.
-local SHOWN_POSITION = UDim2.new(0.5, 0, 0.16, 0)
+-- AT THE TOP. The zone-progress bar that used to occupy this slot is retired, so
+-- the banner takes the top-centre with clean padding under the Roblox topbar
+-- (MainUI ignores the inset, so 0.085 of the screen clears it on every device).
+-- The RUN!! warning shares this exact slot; the two hand off, never overlap.
+local SHOWN_POSITION = UDim2.new(0.5, 0, 0.085, 0)
 --- Slides DOWN into place from just off the top edge.
-local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.06, 0)
+local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.08, 0)
 --- 290/1918 wide, 75/1008 tall, clamped so it stays a banner on any screen.
 -- LARGER than the first pass. At 213x54 the headline measured 23px and read as a
 -- notification, not an offer; the reference is a big clean banner you cannot
@@ -61,7 +64,15 @@ local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.06, 0)
 local BANNER_SIZE = UDim2.fromScale(0.27, 0.115)
 local BANNER_MIN = Vector2.new(320, 72)
 local BANNER_MAX = Vector2.new(480, 108)
-local AUTO_DISMISS = 12
+--- Seconds the banner stays before leaving on its own.
+local AUTO_DISMISS = 6.5
+--- Delay between the RUN!! warning fading and this sliding into the same slot:
+--- long enough that they never overlap, short enough to read as one motion.
+local HANDOFF_DELAY = 0.15
+--- Every show() bumps this; a dismiss timer only fires if it still matches. A
+--- second catch inside the window therefore restarts the clock instead of
+--- leaving two timers to fight over one banner.
+local showToken = 0
 
 local OFFER_COLOR = Color3.fromRGB(96, 240, 200)
 local OFFER_ACCENT = Color3.fromRGB(26, 128, 176)
@@ -237,7 +248,16 @@ local function show(offer: any)
 
 	currentKey = offer.productKey
 	offeredAmount = tonumber(offer.amount)
-	dismissAt = os.clock() + AUTO_DISMISS
+
+	-- The latest offer owns the clock. Any earlier timer wakes, sees a newer
+	-- token, and does nothing.
+	showToken += 1
+	local token = showToken
+	task.delay(AUTO_DISMISS + (if visible then 0 else HANDOFF_DELAY), function()
+		if token == showToken then
+			hide()
+		end
+	end)
 
 	local face = built:FindFirstChild("Frame")
 	if face then
@@ -282,26 +302,35 @@ local function show(offer: any)
 		return
 	end
 
+	-- Claimed now, entered after the handoff: the RUN!! warning is fading out
+	-- of this same slot, and the banner waits the one beat it takes to clear.
+	-- A second offer landing inside that beat re-texts (the branch above) rather
+	-- than starting a second entrance.
 	visible = true
-	frame.Visible = true
-	frame.Position = HIDDEN_POSITION
-	local scale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-	scale.Parent = frame
-	scale.Scale = 0.7
-
-	TweenService:Create(frame, UIAnim.SETTLE, { Position = SHOWN_POSITION }):Play()
-	-- Back easing overshoots and settles: 0.7 -> ~1.08 -> 1.0 in one tween.
-	TweenService:Create(scale, UIAnim.GROW, { Scale = 1 }):Play()
-	task.delay(0.3, function()
-		if visible then
-			ShopKit.shine(built)
-			-- The amount itself punches once as the banner lands, so the eye goes
-			-- to the number before anything else.
-			local headline = built:FindFirstChild("Headline", true)
-			if headline and headline:IsA("GuiObject") then
-				UIAnim.punch(headline, 0.28)
-			end
+	task.delay(HANDOFF_DELAY, function()
+		if token ~= showToken or not visible or not frame.Parent then
+			return
 		end
+		frame.Visible = true
+		frame.Position = HIDDEN_POSITION
+		local scale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+		scale.Parent = frame
+		scale.Scale = 0.7
+
+		TweenService:Create(frame, UIAnim.SETTLE, { Position = SHOWN_POSITION }):Play()
+		-- Back easing overshoots and settles: 0.7 -> ~1.08 -> 1.0 in one tween.
+		TweenService:Create(scale, UIAnim.GROW, { Scale = 1 }):Play()
+		task.delay(0.3, function()
+			if visible and token == showToken then
+				ShopKit.shine(built)
+				-- The amount itself punches once as the banner lands, so the eye
+				-- goes to the number before anything else.
+				local headline = built:FindFirstChild("Headline", true)
+				if headline and headline:IsA("GuiObject") then
+					UIAnim.punch(headline, 0.28)
+				end
+			end
+		end)
 	end)
 end
 
@@ -341,14 +370,6 @@ function BossOfferController.start()
 		end
 	end)
 
-	task.spawn(function()
-		while true do
-			task.wait(0.5)
-			if visible and os.clock() >= dismissAt then
-				hide()
-			end
-		end
-	end)
 end
 
 return BossOfferController

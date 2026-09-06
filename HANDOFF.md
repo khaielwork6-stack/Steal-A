@@ -2,10 +2,11 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §19**, then §18. Between them they say exactly where the last
-> sessions stopped, what is verified, what is not, and what to pick up. §0 below
-> is still the first thing you must *act* on, but §18 is the current state of the
-> world; §9's "next steps" list is older than §16–§19 and is superseded by them.
+> **START AT §20**, then §19 and §18. Between them they say exactly where the
+> last sessions stopped, what is verified, what is not, and what to pick up. §0
+> below is still the first thing you must *act* on (§20 adds seven more models
+> that live only in the place file); §9's "next steps" list is older than
+> §16–§20 and is superseded by them.
 
 ---
 
@@ -69,7 +70,7 @@ lost if the place is not saved:
 |---|---|
 | `StarterGui.MainUI` | The purchased UI pack (art + its own animation `LocalScript`), including the `DROP BUTTON NEW` the DROP button is built from |
 | `ServerStorage.GameAssets.Loot` | **38 items.** All of zones 1–5 EXCEPT `Museum_Ruby` and `Pirate_CursedCoin`. Zones 6–12 have none |
-| `ServerStorage.GameAssets.Guardians` | `Zone01_Cop`, `Zone02_PirateCaptain`, `Zone03_RoyalGuard`, `Zone04_Agent`, `Zone05_ElfGuard` |
+| `ServerStorage.GameAssets.Guardians` | All twelve: `Zone01_Cop` … `Zone05_ElfGuard`, plus `Zone06_MummyGuardian`, `Zone07_Bodybuilder`, `Zone08_BankGuard`, `Zone09_MadScientist`, `Zone10_Grandma`, `Zone11_Foreman`, `Zone12_AirportSecurity` (moved in from Workspace in §20 — **unsaved until the place is saved**) |
 | `ReplicatedStorage.GameAssets.Mutations` | `Shiny`, `Golden`, `Flaming`, `Corrupted` |
 | `ReplicatedStorage.GameAssets.Effects` | `LevelUpBlue`, `LevelUpGold` |
 | `ReplicatedStorage.GameAssets.Treadmills` | All 9 treadmill models (see §15) |
@@ -961,17 +962,17 @@ Everything below was observed running in Play mode, not just written:
    zones — and it renders as a rarity-tinted placeholder block. Drop them into
    `ServerStorage.GameAssets.Loot` under those exact ids; no code needed, no
    manual resizing.
-3. **Zones 6–12 have no art at all**, loot or guardians. Same contract (§6).
+3. **Zones 6–12 have no loot art** (their guardians were adopted in §20). Same
+   contract (§6).
 4. **Phase 12 — multiplayer hardening.** This closes items 1 and 2 above and is
    the largest remaining risk in the project.
 5. Fix the lobby-music asset permission (§7) — one blocked id, not a code bug.
 
 ### Things that are deliberately NOT in scope
 
-- **Trails.** The user is handling that in a separate pass and explicitly asked
-  for no TrailService, trail shop, UI, multipliers, DataStore fields or
-  placeholders. There is a harmless unused `Trail` entry in `MutationVfx`'s
-  effect-class allow-list; leave it alone and do not expand it.
+- **Trails.** *(Stale — trails were built in a later pass: `TrailService`, the
+  walk-in Trail Shop, `MonetizationConfig.Trails`, and in §20 the painted Green
+  Trail card. Kept here only as history.)*
 - **Airport (zone 12) economy.** It is our own extension past the reference
   progression and is marked in `LootConfig` as a separate tuning layer. Zones
   1–11 were rebalanced; zone 12's numbers were deliberately not touched.
@@ -1129,3 +1130,206 @@ ran through the red panel and hid the price.
 
 Verified: insufficient funds refused, exact money accepted, **five rapid attempts
 granted exactly one upgrade**, and the sign repainted to the next tier instantly.
+
+---
+
+## 20. Second polish pass — booth, HUD trims, bat swing, treadmill, tutorial vase, zones 6–12 bosses, the painted Green Trail card
+
+Sits on top of §19 and the first polish pass (`91427b1`, `e960bcc`: group gift,
+world leaderboards, bat combat, RUN warning, HUD reorganisation, base sign,
+traps). Everything below is in one commit after `e960bcc`.
+
+### 🔴 Studio-side work that is NOT in git
+
+Seven boss models were **moved** (renamed + reparented, one undoable
+ChangeHistory step, nothing destroyed) out of `Workspace` into
+`ServerStorage.GameAssets.Guardians`, under the names `buildRig` looks up:
+
+| Was (loose in Workspace) | Now |
+|---|---|
+| `Zone 6 Boss` | `Zone06_MummyGuardian` |
+| `Zone 7 Sam Sulek` | `Zone07_Bodybuilder` |
+| `Zone 8 Uncle Sam` | `Zone08_BankGuard` |
+| `Zone 9 Mad Scientist` | `Zone09_MadScientist` |
+| `Zone 10 Grandma` | `Zone10_Grandma` |
+| `Zone 11 Foreman` | `Zone11_Foreman` |
+| `Zone 12 Pilot` | `Zone12_AirportSecurity` |
+
+**If the place is not saved, all seven revert to placeholder bodies.** §0
+applies. The other loose models (`Zone 11 Boss Ladder`, `Zone 11 Foreman's
+Toolbox`, `Zone 12 Pilot's Hat `, `Zone 12 Pilots Luggage`) are loot art, not
+bosses, and were left where they were.
+
+### What changed, by part of the brief
+
+1. **Trail booth faces the plaza.** `TrailService.BOOTH_CFRAME` yaw 35 → 215
+   (one CFrame moves the whole stall); the board's SurfaceGui face is `Back`.
+2. **BASE button gone.** `GroupGiftController.buildOpener` clones `Top.Base`
+   for the GIFT button's look, then destroys the original. The
+   `TeleportHomeRequest` remote and its server handler are deleted.
+3. **Bat swing animation** without inventing an animation id:
+   `CombatController.playSwing` drops a `StringValue` named `toolanim` with
+   value `"Slash"` into the equipped Tool, which is the cue Roblox's own
+   `Animate` script listens for and answers with its licensed `ToolSlashAnim`.
+   Falls back to the grip-weld swing on a rig without `Animate.toolslash`.
+   `PvPConfig.BAT_STRIKE_DELAY` is 0.2 to land on the slash's forward pass.
+   `hookTool` is guarded by a `_CombatHooked` attribute so equip/unequip cycles
+   never stack `Activated` connections.
+4. **Upgrade the base by clicking the sign.** `BaseSignController` (rewritten)
+   lays a PlayerGui `SurfaceGui` on the sign's `Board` with one invisible
+   `TextButton` exactly over the painted `ButtonEdge` (`0.05,0.56 / 0.9,0.35`),
+   fires the existing `BaseUpgradeRequest`, paints green/red from `StatePush`
+   (`cash` vs `slotsNextCost`), pulses when affordable, shakes + `UiDenied` when
+   not, 0.6 s click lock. The Hold-E `UpgradePrompt` is removed from
+   `PlacementService`; the slot prompts are untouched.
+5. **Treadmill helper parts invisible.** `MapBuilder` sets the Belt to
+   `Transparency 1`; `SpeedService.start` does the same for the baked map.
+6. **Treadmill lock.** `TreadmillController` binds a RenderStep at
+   `Input + 5` calling `humanoid:Move(Vector3.zero, true)` while training, so
+   WASD cannot walk you off; **Space** ends training and sets `lockedOut` until
+   you are physically off the belt, so a jump does not immediately re-engage.
+7. **The UI is not hidden on the treadmill.** `TreadmillOfferController` no
+   longer claims `UIStateController("treadmill")`; the Shop stays usable. The
+   2X card is a side card — and **as of this pass it sits beside the stat card,
+   bottom-aligned**, placed at runtime from `StatHUD`'s own Position/Size
+   (`shownPosition()`). Its first position (under the nav rail) was found in
+   testing to sit on top of the Speed counter, the one number a training player
+   is watching.
+9. **NEXT-area bar removed** from the HUD (`HUDController`; zone progression
+   logic is server-side and untouched). `UIStateController.HUD_ELEMENTS` no
+   longer lists `ZoneProgress`.
+10. **NPC-hit offer** top-centre (`BossOfferController.SHOWN_POSITION 0.5,
+    0.085`), auto-dismisses after 6.5 s via a `showToken` pattern (a newer
+    show invalidates the older dismiss) instead of the old `while true` loop
+    that was hiding it on a stale timer.
+11. **RUN!!** top-centre in the same spot (`ChaseWarningController`, size
+    `0.42 x 0.11`), and `stop()` is a 0.14 s shrink-fade so the offer can take
+    the spot cleanly.
+12. **Tutorial vase duplication.** Dropping the pinned tutorial vase sends it
+    back to its pedestal instead of leaving a second one on the floor:
+    `CarryService.returnsHomeOnDrop` is a provider injected from
+    `init.server.luau` with `TutorialService.isTutorialLoot` (item id, zone 1
+    socket 1, stage before INCOME), and `maintainTutorialLoot` no longer re-pins
+    while the pinned vase is out being carried.
+13. **Bosses much bigger, still chaseable.** `GameConfig.GUARDIAN_HEIGHTS`
+    (7, 7.8, 8.8, 10, 11.5, 14, 17, 20.5, 24.5, 29, 34, 40) is the VISUAL
+    height; `GUARDIAN_PHYSICS_MAX_GROWTH = 2.0` caps the collider, hip height,
+    step height and catch radius at twice zone 1's. Feet are grounded by baking
+    the costume's lowest-corner offset into `ShellMotor.C1` (C0 is what
+    `animateShell` drives). Measured in play: heights 14.2 / 17.1 / 21.0 /
+    24.9 / 30.0 / 34.5 / 40.8, feet within 0.6 studs of the floor, zone 6 wakes,
+    chases, catches and returns exactly like zone 1.
+14. **The painted Green Trail card** — next section.
+
+### The painted card — `src/shared/Util/TrailCardPng.luau`
+
+A trail whose `MonetizationConfig` entry carries `image = <assetId>` is drawn
+from that PNG instead of the pack card. Only **Green** (`111545352261958`,
+group-owned, 1024x720) has one. The Trail Shop branches on `trail.image` in
+`build()` and `refresh()`; every other trail is the pack card, unchanged.
+
+- **The art is untouched.** `ImageRectOffset (52,218)` / `ImageRectSize
+  (918,300)` crop the transparent padding; the label carries a
+  `UIAspectRatioConstraint` at `918/300`, so the art letterboxes inside the
+  grid cell rather than stretching (251x82 inside a 263x82 cell at 1415x670).
+- **Real buttons over the print.** Two transparent `TextButton`s, positioned in
+  SCALE fractions of the art (`cash 0.4496,0.638 / 0.2525,0.29`; `robux
+  0.7187,0.638 / 0.255,0.29`), measured off a probe render of the PNG and
+  verified pixel-on with a tinted overlay. Because they are children of the
+  aspect-locked art, the fractions hold at every size.
+- **`TrailCardPng.DEBUG_HITBOXES = false`.** Flip to true to see them (green
+  cash, blue Robux). Ships false; the buttons also keep their debug colour with
+  transparency 1, so at runtime you can just set `BackgroundTransparency` on
+  them from the client command bar.
+- **Behaviour:** hover wash on the printed button, 0.96 press → Back-eased
+  rebound, 2.5 % card lift, 0.5 s press lock. `AudioController` already sounds
+  every button under MainUI, so the card passes no sound hooks.
+- **The client decides nothing.** Cash → `TrailRequest("buyCash","Green")`,
+  Robux → `TrailRequest("buyRobux","Green")` (gamepass `1970564658`, from
+  config), owned → `("equip","Green")`. Same remote, same server validation as
+  the pack cards. Ownership arrives on `StatePush.monetization`; the card only
+  ever calls `setState`.
+- **State overlays:** `EQUIP` / `✓ EQUIPPED` pill over the printed `$5K`, an
+  `OWNED` pill over `R$14` and the Robux button retired once owned by either
+  route. Nothing is drawn over the art until then.
+- **To convert another trail:** author it on the same layout, upload, put
+  `image = <id>` on its config row. Nothing else. If a future PNG uses a
+  different layout, `TEMPLATE` needs a sibling, not an edit.
+
+Trail Shop polish in the same pass: opens 0.92 → 1.0 (`UIAnim.POP`), closes to
+0.92 in 0.18 s, the two tweens cancel each other (`panelTween`), cards stagger
+in (`ShopKit.cascadeIn`, painted and pack cards alike).
+
+### Guardian costumes keep their Humanoid now (`GuardianService.dressRig`)
+
+Adopting zones 6 and 12 (R6 characters with Shirt/Pants/BodyColors) exposed
+that `dressRig` was destroying the import's Humanoid and renaming its limbs to
+`Shell_*` — and **clothing, CharacterMeshes and BodyColors only render beside
+a Humanoid under canonical limb names**. The Egyptian boss stood there as a
+bare tan block under a pharaoh's hat; the Pirate, Agent and Elf had been
+losing their outfits the same way since §17.
+
+Now the costume's Humanoid stays with `EvaluateStateMachine = false` (a pure
+renderer: no state machine, no forces, no dying), names are left alone, and
+every costume part goes in the `GuardianShell` collision group, which collides
+with nothing. That last part is what makes it safe: the Humanoid does still
+flip `CanCollide` back on for one part per costume (measured), and the group
+makes that inert, so §5b's "adopted torso jams the guardian" failure cannot
+come back. The costume is a nested Model, so the rig's own Humanoid never
+treats those parts as limbs. Verified: zone 6 and zone 12 fully dressed at
+14 and 40 studs, zone 6 chase → catch → return in under 2 s.
+
+### Verified this pass (Studio, one player, in-memory profiles)
+
+- Trail Shop opens from the booth circle (server-fired), Green card renders,
+  hitboxes on the print, `$0` cash → server refuses and grants nothing, `$12K`
+  → `buyCash` deducts 5K, owns, auto-equips, visual attached, pills flip;
+  `buyRobux` reaches the server and opens the real gamepass prompt; X closes.
+- Bosses: all twelve shells build; heights as above; zone 6 catch loop; zone 6
+  and 12 costumes.
+- NPC-hit offer at top-centre after a catch; `ChaseWarning.Run` is at
+  `0.5, 0.085` sized `0.42 x 0.11`.
+- Treadmill: HUD stays visible, W does not move you (1.60 → 1.60 studs from
+  the trigger), Speed ticks up, Space then W walks you 90 studs off and the
+  ticks stop, the 2X side card shows beside the stat card and hides off-belt.
+  Belt parts invisible (7/7).
+- Tutorial vase: steal → drop → back on the pedestal, one instance throughout,
+  re-stealable.
+- Bat: `toolanim` cue appears, `ToolSlashAnim` plays.
+- Base sign: click layer present over the Board; red at `$0` vs `$1M`.
+
+### NOT verified
+
+- The gamepass prompt was **cancelled by stopping play**, not completed — the
+  Studio test-purchase flow was not exercised. `PromptGamePassPurchaseFinished`
+  handling is unchanged from before.
+- RUN!! was verified by geometry, not by eye: with one stationary player the
+  chase is over before a capture lands.
+- Touch input, other resolutions, and more than one player.
+- The group-join gift's live `PromptJoinAsync` flow (unchanged from §19's pass).
+
+### Debug knobs that made this testable
+
+- `monetize disown` — the place creator owns every gamepass, so on this account
+  every trail card reads OWNED and the treadmill card reads MAXED until you
+  pin the passes off. `monetize clear` is not enough (§14).
+- `steal <zone> <socket>`, `drop`, `carry`, `standOnTreadmill`, `stepOff`,
+  `setSpeed`, `trail buy|equip|unequip`, `resetTutorial`, `cash`.
+- Anchoring a guardian's root from the command bar holds it in `Chasing` for a
+  capture; unanchor it afterwards.
+
+### Traps
+
+- **The Studio command bar does not share the server's module cache.**
+  `require(DataService)` from the Server command bar returns a fresh copy with
+  no profiles. Go through `ServerStorage.DebugInvoke` for anything stateful.
+- **MCP tool calls in one response run one after another**, in order. A client
+  "watcher" issued alongside a server action starts only after the action has
+  finished.
+- **An open Roblox purchase prompt swallows all virtual input** ("hits
+  CoreGUI"); Escape is a core-bound key the tool cannot send. Stop play to
+  clear it.
+- `screen_capture` does not draw CoreGui, so an open purchase prompt is
+  invisible in captures but still blocks clicks.
+- Far zones are not streamed until a character is near them; a camera capture
+  of zone 12 from spawn shows sky and water.

@@ -486,6 +486,11 @@ local function buildOpener(ui: ScreenGui)
 		end
 	end)
 	opener = button
+
+	-- BASE is retired. It only ever teleported the player home, which the
+	-- respawn already does, and it was the one thing in the strip pulling
+	-- attention from GIFT. It survives just long enough to donate its look.
+	source:Destroy()
 end
 
 -- ==========================================================

@@ -110,8 +110,11 @@ local function build()
 	-- titles use, red so it belongs to the warning and not to a notification.
 	local label = Instance.new("TextLabel")
 	label.Name = "Run"
-	label.Size = UDim2.fromScale(0.5, 0.14)
-	label.Position = UDim2.fromScale(0.5, 0.24)
+	-- TOP-CENTRE, in the slot the loss offer takes over the moment a catch
+	-- lands. Same anchor and height as the banner, so the handoff is a swap in
+	-- place rather than one thing leaving and another appearing elsewhere.
+	label.Size = UDim2.fromScale(0.42, 0.11)
+	label.Position = UDim2.fromScale(0.5, 0.085)
 	label.AnchorPoint = Vector2.new(0.5, 0.5)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.FredokaOne
@@ -185,15 +188,22 @@ local function stop()
 	if not screen then
 		return
 	end
-	-- Fade whatever is mid-pulse rather than cutting it, then switch off.
+	-- Fade whatever is mid-pulse rather than cutting it, then switch off. Fast:
+	-- the offer banner starts its entrance 0.15s after the catch, into this same
+	-- slot, and RUN!! must be gone by then. The label also shrinks away so the
+	-- exit reads as a deliberate motion, not a fade to nothing.
 	for _, strip in edges do
-		TweenService:Create(strip, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(strip, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
 	end
 	local label = runLabel
 	if label then
-		TweenService:Create(label, TweenInfo.new(0.2), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		TweenService:Create(label, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+		local scale = runScale
+		if scale then
+			TweenService:Create(scale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.8 }):Play()
+		end
 	end
-	task.delay(0.22, function()
+	task.delay(0.16, function()
 		if not loop and screen.Parent then
 			screen.Enabled = false
 		end

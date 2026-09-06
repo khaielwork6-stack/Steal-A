@@ -276,6 +276,27 @@ local function evaluate(player: Player)
 	end
 end
 
+--- True for THE tutorial vase in the hands of someone still doing the tutorial:
+--- the pinned item, from the pinned socket, carried by a player who has not yet
+--- reached the income stage. CarryService asks this before turning a drop into
+--- a floor item; for this one case the drop sends the vase straight home.
+function TutorialService.isTutorialLoot(player: Player, loot: LootService.LootInstance): boolean
+	if loot.itemId ~= GameConfig.TUTORIAL_ITEM_ID then
+		return false
+	end
+	if loot.zoneIndex ~= GameConfig.TUTORIAL_ZONE or loot.socketIndex ~= GameConfig.TUTORIAL_SOCKET then
+		return false
+	end
+	local profile = DataService.get(player)
+	return profile ~= nil and profile.TutorialStage < STAGE.INCOME
+end
+
+--- The vase this service last pinned. Held so the maintainer can tell "the
+--- socket is empty because MY vase is out being carried" from "the socket is
+--- empty because that vase is gone" - the two used to look identical, and the
+--- first case was being answered with a brand-new vase.
+local pinnedVase: LootService.LootInstance? = nil
+
 --- Keeps the guaranteed Ancient Vase in its socket while anyone still needs it.
 local function maintainTutorialLoot()
 	local needed = false
@@ -290,13 +311,26 @@ local function maintainTutorialLoot()
 		return
 	end
 
-	LootService.forceSocket(
+	-- ONE VASE. If the last pinned instance is still tracked and is anywhere but
+	-- sitting in its socket - reserved, carried, dropped, on its way back - then
+	-- it IS the tutorial vase and the socket is empty on purpose. Re-pinning here
+	-- is exactly how duplicates were minted. Only once it has been placed or
+	-- retired (LootService forgets it) is a fresh one pinned.
+	local pinned = pinnedVase
+	if pinned and LootService.get(pinned.id) == pinned and pinned.state ~= "Spawned" then
+		return
+	end
+
+	local result = LootService.forceSocket(
 		GameConfig.TUTORIAL_ZONE,
 		GameConfig.TUTORIAL_SOCKET,
 		GameConfig.TUTORIAL_ITEM_ID,
 		"Normal",
 		"Normal"
 	)
+	if result then
+		pinnedVase = result
+	end
 end
 
 function TutorialService.start()

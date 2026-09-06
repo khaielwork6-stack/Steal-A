@@ -450,6 +450,23 @@ function SpeedService.start()
 		end
 	end)
 
+	-- The map is baked into the place, so MapBuilder's change to the cosmetic
+	-- Belt strip does not reach plots that already exist. Hide every one here:
+	-- it carries no gameplay (the invisible Frame deck is the standing surface
+	-- and TrainingTrigger is the detector) and on unassigned plots it was a navy
+	-- slab floating in the corridor.
+	local map = workspace:FindFirstChild("Map")
+	local bases = map and map:FindFirstChild("Bases")
+	if bases then
+		for _, plot in bases:GetChildren() do
+			local treadmill = plot:FindFirstChild("Treadmill")
+			local belt = treadmill and treadmill:FindFirstChild("Belt")
+			if belt and belt:IsA("BasePart") then
+				belt.Transparency = 1
+			end
+		end
+	end
+
 	print("[SpeedService] treadmill training online")
 end
 

@@ -329,10 +329,34 @@ function CarryService.reclaim(loot: LootService.LootInstance)
 	LootService.returnToOrigin(loot, GameConfig.GUARDIAN_RETURN_DELAY)
 end
 
---- PvP hit: the item drops where the carrier stood and is reclaimable for 8s.
+--- Whether a dropped item goes STRAIGHT HOME instead of lying where it fell.
+--- Overridden by init with TutorialService's answer: true only for the pinned
+--- tutorial vase while its carrier is still in the tutorial. Everywhere else a
+--- drop stays a drop, reclaimable for the usual window.
+function CarryService.returnsHomeOnDrop(_player: Player, _loot: LootService.LootInstance): boolean
+	return false
+end
+
+--- PvP hit or the DROP button: the item drops where the carrier stood and is
+--- reclaimable for 8s.
 function CarryService.forceDrop(loot: LootService.LootInstance)
 	local player = loot.carrier
 	if not player then
+		return
+	end
+
+	-- THE TUTORIAL VASE NEVER LIES ON THE GROUND. The tutorial keeps a vase
+	-- pinned in its socket for whoever still needs one, and a steal empties that
+	-- socket - so a vase left on the floor plus a socket that wants filling was
+	-- how a new player could steal, drop, steal, drop and mint a pile of them.
+	-- For that one item the drop is a cancel: the SAME instance goes back to the
+	-- pedestal it came from, immediately, and nothing is ever cloned.
+	if CarryService.returnsHomeOnDrop(player, loot) then
+		detach(loot)
+		clearCarry(player)
+		loot.carrier = nil
+		notify(player, "info", `The {loot.name} went back to its pedestal.`)
+		LootService.returnToOrigin(loot)
 		return
 	end
 

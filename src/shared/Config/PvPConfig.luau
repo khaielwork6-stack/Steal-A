@@ -16,10 +16,11 @@ PvPConfig.BAT_RANGE = 6
 -- this is the number that decides, and a client that swings faster is refused.
 PvPConfig.BAT_COOLDOWN = 0.50
 --- Seconds after the swing starts before the bat is "through" the target. The
---- client's wind-up and the server's hit resolution both key off this, so the
---- connect lands on the frame the bat visually arrives rather than at the
---- moment the button is pressed.
-PvPConfig.BAT_STRIKE_DELAY = 0.12
+--- server resolves the hit here, and the client's swing is Roblox's own
+--- toolslash animation, whose forward pass crosses the body at about this
+--- point - so the connect lands on the frame the bat visually arrives rather
+--- than at the moment the button is pressed.
+PvPConfig.BAT_STRIKE_DELAY = 0.2
 PvPConfig.BAT_ARC_DEGREES = 100
 PvPConfig.RAGDOLL_DURATION = 1.25
 PvPConfig.KNOCKBACK_SPEED = 46
