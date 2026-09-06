@@ -37,6 +37,9 @@ local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 
 local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
+-- DataService is a leaf module (config only), so requiring it here creates no
+-- cycle. The chase needs the thief's real SpeedPower to decide how hard to run.
+local DataService = require(script.Parent.DataService)
 
 local GuardianService = {}
 
@@ -356,10 +359,46 @@ local function buildRig(zoneIndex: number): (Model, number)
 	return model, growth
 end
 
+--- A guardian's WalkSpeed, derived from the SAME recommendation the zone sign
+--- shows the player and through the SAME conversion the player's own Speed uses.
+---
+--- The handicap is applied to the STAT and the result is then converted. Doing
+--- it the other way round - converting first, then shaving the WalkSpeed - is
+--- what made the recommendations meaningless, because WalkSpeed is logarithmic
+--- in Speed and a couple of percent off it is a quarter off the stat. See
+--- ZoneConfig.GUARDIAN_GATE_MARGIN.
+--- Baseline: exactly GUARDIAN_GATE_MARGIN studs/s slower than a player who meets
+--- the zone's recommendation, through the SAME conversion that player's own
+--- Speed goes through. That is what makes the number on the sign a threshold.
 local function guardianSpeed(zoneIndex: number): number
 	local zone = ZoneConfig.Zones[zoneIndex]
-	local matched = GameConfig.walkSpeedFromPower(math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER))
-	return matched * ZoneConfig.GUARDIAN_SPEED_FACTOR
+	local recommended = math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER)
+	local atGate = GameConfig.walkSpeedFromPower(recommended)
+	return math.max(atGate - ZoneConfig.GUARDIAN_GATE_MARGIN, GameConfig.WALKSPEED_MIN * 0.5)
+end
+
+GuardianService.speedForZone = guardianSpeed
+
+--- The speed a guardian ACTUALLY runs at against a particular thief.
+---
+--- Baseline is the zone's own recommendation (above). On top of that it reacts
+--- to how far SHORT of that recommendation the thief is: at or above it, the
+--- guardian is fractionally slower and the thief escapes; below it, the guardian
+--- runs them down harder the bigger the shortfall.
+---
+--- This is what makes the number on the zone sign mean something. The sign-space
+--- fix alone left a 127K thief only 1.5 studs/s slower than a 170K guardian,
+--- which over 894 studs of lane is not enough to overturn a head start - the
+--- thief still escaped. Both halves are needed.
+function GuardianService.speedForChase(zoneIndex: number, thiefPower: number): number
+	local zone = ZoneConfig.Zones[zoneIndex]
+	local recommended = math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER)
+	local base = guardianSpeed(zoneIndex)
+
+	-- 0 when the thief meets or beats the recommendation, approaching 1 the
+	-- further under it they are.
+	local deficit = math.clamp(1 - (math.max(thiefPower, 0) / recommended), 0, 1)
+	return base * (1 + ZoneConfig.GUARDIAN_DEFICIT_CATCHUP * deficit)
 end
 
 -- ==========================================================
@@ -490,6 +529,15 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 	guardian.lootId = loot.id
 	guardian.wakeAt = os.clock() + WAKE_DELAY
 	resetSteering(guardian)
+
+	-- Speed is set PER CHASE, not once at spawn, because it depends on how far
+	-- under the zone's recommendation this particular thief is. Read from the
+	-- server's own profile, never from anything the client can influence.
+	local profile = DataService.get(thief)
+	local power = if profile then profile.SpeedPower else GameConfig.STARTING_SPEED_POWER
+	if guardian.humanoid then
+		guardian.humanoid.WalkSpeed = GuardianService.speedForChase(loot.zoneIndex, power)
+	end
 
 	-- The snore has to stop the instant it wakes, not fade out over the chase.
 	Audio.stopLoop("Snoring", guardian.root)

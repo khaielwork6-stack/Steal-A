@@ -439,8 +439,8 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		profile.DisplayItems = {}
 		profile.Cash = 0
 		profile.SpeedPower = 10
-		profile.BaseActivated = false
-		profile.TreadmillLevel = 0
+		profile.BaseActivated = true -- always active; a base cannot be un-claimed
+		profile.TreadmillLevel = 1
 		profile.TrapCount = GameConfig.STARTING_TRAPS
 		BaseService.rebuildDisplays(player)
 		EconomyService.recalculate(player)
@@ -607,29 +607,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			task.wait(0.15)
 		end
 		return { incomes = incomes, trophies = trophies }
-	end,
-
-	--- Cheat: flips the flag without paying. Use activateBase for the real path.
-	activate = function(player)
-		local profile = DataService.get(player)
-		if not profile then
-			return { error = "no profile" }
-		end
-		profile.BaseActivated = true
-		StateService.pushNow(player)
-		return { activated = true }
-	end,
-
-	activateBase = function(player)
-		local SpeedService = require(script.Parent.SpeedService)
-		local ok, reason = SpeedService.activateBase(player)
-		local profile = DataService.get(player)
-		return {
-			activated = ok,
-			reason = reason,
-			cash = EconomyService.getCash(player),
-			treadmillLevel = profile and profile.TreadmillLevel,
-		}
 	end,
 
 	upgradeTreadmill = function(player)
@@ -1092,6 +1069,61 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Audits EVERY zone guardian against the recommendation its sign displays.
+	---
+	--- This is the check the "127K outruns a 170K Santa" bug failed. For each
+	--- zone it reports the guardian's WalkSpeed alongside a player at 75%, 100%
+	--- and 150% of that zone's recommendation, and states who is faster. The
+	--- sign must be: below loses, at the recommendation narrowly wins, above
+	--- clearly wins.
+	speedAudit = function()
+		local rows = {}
+		for index = 1, ZoneConfig.COUNT do
+			local zone = ZoneConfig.Zones[index]
+			local recommended = math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER)
+			local guardian = require(script.Parent.GuardianService).speedForZone(index)
+
+			-- Compared against the speed the guardian ACTUALLY runs at for a thief
+			-- of that Speed, deficit catch-up included - not the static baseline.
+			local function verdict(fraction: number): string
+				local power = recommended * fraction
+				local ws = GameConfig.walkSpeedFromPower(power)
+				local chaser = require(script.Parent.GuardianService).speedForChase(index, power)
+				local margin = ws - chaser
+				return string.format("%5.2f vs %5.2f (%+.2f %s)", ws, chaser, margin,
+					if margin > 0 then "escapes" else "CAUGHT")
+			end
+
+			table.insert(rows, string.format(
+				"Zone %2d %-18s rec %8s | guard %6.2f | 75%% %s | 100%% %s | 150%% %s",
+				index, zone.name, NumberFormat.short(zone.recommendedSpeed), guardian,
+				verdict(0.75), verdict(1.0), verdict(1.5)))
+		end
+		return {
+			gateMargin = ZoneConfig.GUARDIAN_GATE_MARGIN,
+			deficitCatchup = ZoneConfig.GUARDIAN_DEFICIT_CATCHUP,
+			boostMax = GameConfig.SPEED_BOOST_MAX,
+			rows = rows,
+			rule = "75% must be CAUGHT, 100% must escape (narrowly), 150% must escape clearly",
+		}
+	end,
+
+	--- The physical-movement curve, old versus new, so the progression feel can
+	--- be checked without guessing.
+	speedCurve = function()
+		local rows = {}
+		local samples = { 10, 100, 900, 10e3, 40e3, 127e3, 170e3, 700e3, 2.5e6, 18e6, 700e6, 2.5e9, 7e9, 20e9, 100e9 }
+		for _, power in samples do
+			-- What the old formula produced, for comparison.
+			local old = math.clamp(16 + 7.5 * math.log10(1 + power / 10), 18, 90)
+			local new = GameConfig.walkSpeedFromPower(power)
+			table.insert(rows, string.format(
+				"Speed %10s | was %6.2f | now %6.2f | x%.3f | progression %3.0f%%",
+				NumberFormat.short(power), old, new, new / old, GameConfig.progressionAlpha(power) * 100))
+		end
+		return rows
+	end,
+
 	--- Sets SpeedPower directly, so the "a player below the gate gets caught, a
 	--- player at the gate escapes" acceptance test can be run without grinding a
 	--- treadmill for it. Server-side only, exactly like every other grant.
@@ -1118,36 +1150,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	---        which must be 0 once the flag is set. This has to run in the SERVER
 	---        VM - a require from the command bar gets a fresh module with an
 	---        empty profile table and would report a meaningless zero.
-	bridge = function(player, mode: string?, times: number?)
-		local profile = DataService.get(player)
-		if not profile then
-			return { error = "no profile" }
-		end
-
-		if mode == "reset" then
-			profile.TutorialBridgeGranted = false
-		elseif mode == "spam" then
-			local PlacementService = require(script.Parent.PlacementService)
-			local before = profile.Cash
-			local paid = 0
-			for _ = 1, math.floor(times or 50) do
-				paid += PlacementService.grantTutorialBridge(player)
-			end
-			return {
-				attempts = math.floor(times or 50),
-				totalPaidOut = paid,
-				cashBefore = before,
-				cashAfter = profile.Cash,
-				granted = profile.TutorialBridgeGranted,
-			}
-		end
-
-		return {
-			granted = profile.TutorialBridgeGranted,
-			cash = profile.Cash,
-			target = GameConfig.TUTORIAL_CASH_BRIDGE,
-		}
-	end,
 }
 
 function DebugService.start()

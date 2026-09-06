@@ -1,17 +1,19 @@
 --!strict
 --[[
 	BaseConfig
-	Display capacity tiers and base activation (GDD section 8).
+	Display capacity tiers.
 
-	The $1,000 Base Activation is NOT the $1M capacity upgrade. Activation unlocks
-	the treadmill and tutorial progression; the player already owns 7 slots. The
-	first true capacity upgrade takes 7 -> 8 for $1M.
+	A player owns 7 display slots from the start; the first capacity upgrade
+	takes them 7 -> 8 for $1M.
+
+	RETIRED: BaseConfig.ACTIVATION_COST. A base is claimed and ACTIVE from the
+	moment it is assigned, so there is nothing to activate and nothing to pay
+	for. The first real Cash sink is now the $15,000 treadmill upgrade.
 ]]
 
 local BaseConfig = {}
 
 BaseConfig.PLOT_COUNT = 7
-BaseConfig.ACTIVATION_COST = 1000
 
 export type CapacityTier = {
 	tier: number,

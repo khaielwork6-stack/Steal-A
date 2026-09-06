@@ -146,9 +146,6 @@ function MonetizationService.promptTreadmillUpgrade(player: Player): (boolean, s
 	if not profile then
 		return false, "Your data is still loading."
 	end
-	if not profile.BaseActivated then
-		return false, "Activate your base first."
-	end
 
 	local productId, _, level = MonetizationService.nextTreadmillProduct(player)
 	if not level then

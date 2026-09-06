@@ -82,9 +82,14 @@ local function defaultProfile(): Profile
 		SchemaVersion = SCHEMA_VERSION,
 		Cash = GameConfig.STARTING_CASH,
 		SpeedPower = GameConfig.STARTING_SPEED_POWER,
-		BaseActivated = false,
+		-- A base is ACTIVE from the moment it is assigned. There is no longer a
+		-- separate "activate your base" purchase - being given a plot IS the
+		-- activation. `reconcile` forces this true on every load, including for
+		-- profiles saved back when it was something you had to buy.
+		BaseActivated = true,
 		BaseCapacityTier = 0,
-		TreadmillLevel = 0,
+		-- Level 1 comes with the base, for the same reason.
+		TreadmillLevel = 1,
 		TrapCount = GameConfig.STARTING_TRAPS,
 		TutorialStage = 0,
 		HighestZoneReached = 1,
@@ -137,17 +142,14 @@ local function migrate(profile: Profile): Profile
 	end
 
 	if version < 4 then
-		-- v4 is the economy rebalance. Two things happen here.
+		-- v4 is the economy rebalance.
 		--
-		-- 1. The one-time tutorial Cash bridge. A profile that already activated
-		--    its base is past the point the bridge exists to get them to, so it
-		--    is marked spent - otherwise every existing player would be handed a
-		--    top-up they were never meant to receive.
-		if type(profile.TutorialBridgeGranted) ~= "boolean" then
-			profile.TutorialBridgeGranted = profile.BaseActivated == true
-		end
-
-		-- 2. Stored per-item income. NOT done here: `reconcile` recomputes
+		-- The one-time tutorial Cash bridge used to be seeded here. It is now
+		-- retired entirely (base activation is free, so there was nothing left
+		-- for it to pay for) and `reconcile` marks every profile as having had
+		-- it, so nothing can be granted retroactively.
+		--
+		-- Stored per-item income is NOT migrated here: `reconcile` recomputes
 		--    BaseIncome, Rarity and FinalIncome from the live config on EVERY
 		--    load, for every profile, at every version. Doing it as a one-shot
 		--    migration would freeze today's numbers into the save and leave the
@@ -244,8 +246,19 @@ local function reconcile(profile: Profile): Profile
 		profile.ProcessedReceipts = {}
 	end
 
+	-- THE BASE IS ALWAYS ACTIVE. Forced here rather than only in the default
+	-- profile, so a save written while activation was still a purchase loads as
+	-- active too. Everything that gates on this - placement, storage, income,
+	-- the treadmill, prompts, the tutorial - therefore initialises correctly on
+	-- the very first push, with no separate unlock step to go wrong.
+	profile.BaseActivated = true
+	profile.TreadmillLevel = math.max(1, math.floor(tonumber(profile.TreadmillLevel) or 1))
+
+	-- Deprecated. The one-time onboarding grant existed only to pay for the
+	-- $1,000 base activation; with activation free it has nothing to buy, so it
+	-- is no longer awarded. The field is kept so old saves still load cleanly.
 	if type(profile.TutorialBridgeGranted) ~= "boolean" then
-		profile.TutorialBridgeGranted = profile.BaseActivated == true
+		profile.TutorialBridgeGranted = true
 	end
 
 	-- Recompute every stored item's economy from the live config. Runs on EVERY

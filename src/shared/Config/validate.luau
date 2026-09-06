@@ -250,9 +250,79 @@ return function(): Report
 
 	check(GameConfig.STARTING_SPEED_POWER == 10, "starting Speed must be 10")
 	check(GameConfig.STARTING_CASH == 0, "starting Cash must be 0")
-	check(GameConfig.TUTORIAL_CASH_BRIDGE == 1000, "the tutorial bridge must top up to $1,000")
-	check(BaseConfig.ACTIVATION_COST == 1000, "base activation must cost $1,000")
 	check((GameConfig :: any).SOCKET_REFILL_DELAY == nil, "the per-socket refill delay must not come back")
+	-- Both retired together: a base is active on assignment, so there is nothing
+	-- to buy and nothing for the onboarding grant to pay for. A grant landing on
+	-- top of a $1/s income is indistinguishable from a broken economy.
+	check((GameConfig :: any).TUTORIAL_CASH_BRIDGE == nil, "the tutorial Cash bridge must not come back")
+	check((BaseConfig :: any).ACTIVATION_COST == nil, "base activation must not come back")
+
+	-- ==========================================================
+	-- SPEED CURVE
+	-- ==========================================================
+	-- A new player must be untouched by the progression boost, and the top of the
+	-- curve must actually reach it.
+	check(
+		math.abs(GameConfig.progressionAlpha(GameConfig.STARTING_SPEED_POWER)) < 1e-9,
+		"the progression boost must be exactly zero at the starting Speed"
+	)
+	check(
+		math.abs(GameConfig.progressionAlpha(20e9) - 1) < 1e-9,
+		"the progression boost must reach full at the last zone's gate"
+	)
+	-- Monotonic, with no breakpoints: every step up in Speed is a step up in
+	-- WalkSpeed, all the way along.
+	do
+		local previous = -1
+		local ok = true
+		for exponent = 1, 11 do
+			local ws = GameConfig.walkSpeedFromPower(10 ^ exponent)
+			if ws < previous then
+				ok = false
+			end
+			previous = ws
+		end
+		check(ok, "walkSpeedFromPower must never decrease as Speed increases")
+	end
+	check(
+		GameConfig.walkSpeedFromPower(20e9) > GameConfig.WALKSPEED_MAX * 0.8,
+		"the top of the curve must not be swallowed by WALKSPEED_MAX"
+	)
+
+	-- ==========================================================
+	-- GUARDIANS MATCH THEIR OWN RECOMMENDATIONS
+	-- ==========================================================
+	-- The check the "127K outruns a 170K Santa" bug failed. A player at a zone's
+	-- recommended Speed must be able to escape it, and a player well below must
+	-- not. Both sides go through the same conversion, so this is the assertion
+	-- that keeps the number on the sign honest.
+	for index = 2, ZoneConfig.COUNT do
+		local recommended = ZoneConfig.Zones[index].recommendedSpeed
+		local baseline = GameConfig.walkSpeedFromPower(recommended) - ZoneConfig.GUARDIAN_GATE_MARGIN
+
+		-- A player who meets the bar must be faster, by the full margin.
+		check(
+			GameConfig.walkSpeedFromPower(recommended) - baseline >= ZoneConfig.GUARDIAN_GATE_MARGIN - 1e-6,
+			`zone {index}: a player AT the recommended Speed does not clear the guardian by the gate margin`
+		)
+
+		-- ...and a player at 75% must not, once the deficit catch-up is applied.
+		-- This is the assertion the "127K outruns a 170K Santa" bug failed.
+		local deficit = math.clamp(1 - 0.75, 0, 1)
+		local chasing = baseline * (1 + ZoneConfig.GUARDIAN_DEFICIT_CATCHUP * deficit)
+		check(
+			GameConfig.walkSpeedFromPower(recommended * 0.75) < chasing,
+			`zone {index}: a player at 75% of the recommendation still outruns its guardian`
+		)
+	end
+	check(
+		ZoneConfig.GUARDIAN_GATE_MARGIN > 0,
+		"the gate margin must be positive or a player who meets the bar can never escape"
+	)
+	check(
+		ZoneConfig.GUARDIAN_DEFICIT_CATCHUP > 0,
+		"the deficit catch-up must be positive or an under-Speed thief is never caught"
+	)
 	check(GameConfig.GLOBAL_REFRESH_INTERVAL == 300, "the global refresh must run every 300s")
 	check(
 		math.abs(GameConfig.JACKPOT_REFRESH_CHANCE - 0.10) < 1e-9,

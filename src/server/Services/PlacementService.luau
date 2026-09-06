@@ -18,6 +18,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
+local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -128,49 +129,7 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		IndexService.onDiscovered(player, loot.itemId)
 	end
 
-	PlacementService.grantTutorialBridge(player)
 	return true
-end
-
---- The one-time onboarding Cash bridge.
----
---- The Ancient Vase is worth $1/s under the current economy, so the honest
---- tutorial - "steal it, place it, now buy the $1,000 base activation" - would
---- otherwise ask a new player to wait about seventeen minutes. This tops them up
---- to exactly GameConfig.TUTORIAL_CASH_BRIDGE on their FIRST successful
---- placement, then never fires again.
----
---- It is a FLOOR, not a bonus: `max(0, target - cash)`. A player who somehow
---- already has more keeps what they have and is granted nothing.
----
---- Unfarmable by construction. The flag is durable (profile, schema v4) and is
---- set BEFORE the award, so none of resetting, selling the vase and re-stealing
---- it, rejoining, replaying the placement remote, or racing two placements can
---- produce a second grant - every one of those paths re-enters this function and
---- finds the flag already true.
-function PlacementService.grantTutorialBridge(player: Player): number
-	local profile = DataService.get(player)
-	if not profile or profile.TutorialBridgeGranted then
-		return 0
-	end
-
-	profile.TutorialBridgeGranted = true
-
-	local target = GameConfig.TUTORIAL_CASH_BRIDGE
-	local grant = math.max(0, target - profile.Cash)
-	if grant <= 0 then
-		return 0
-	end
-
-	EconomyService.award(player, grant)
-	StateService.pushNow(player)
-	notify(
-		player,
-		"success",
-		`FIRST HAUL BONUS  +{NumberFormat.cash(grant)}  -  now upgrade your base`,
-		"levelup"
-	)
-	return grant
 end
 
 -- ==========================================================
@@ -334,10 +293,6 @@ function PlacementService.upgradeCapacity(player: Player): (boolean, string?)
 		return false, "Your data is still loading."
 	end
 
-	if not profile.BaseActivated then
-		return false, "Activate your base first."
-	end
-
 	local next = BaseConfig.nextUpgrade(profile.BaseCapacityTier)
 	if not next then
 		return false, "Your base is fully upgraded!"
@@ -351,10 +306,235 @@ function PlacementService.upgradeCapacity(player: Player): (boolean, string?)
 	profile.BaseCapacityTier = next.tier
 	BaseService.rebuildDisplays(player)
 	PlacementService.refreshPrompts(player)
+	PlacementService.refreshUpgradeSign(player)
 	StateService.pushNow(player)
 
 	notify(player, "success", `Base upgraded — {next.slots} display slots!`, "levelup")
 	return true
+end
+
+-- ==========================================================
+-- THE UPGRADE SIGN
+-- ==========================================================
+--
+-- A chunky physical sign standing on the upgrade pad, rather than text floating
+-- over a part:
+--
+--         UPGRADE BASE          <- white, bold
+--       Level 1 > Level 2       <- green progression
+--     +---------------------+
+--     |  [icon]      $1M    |   <- red purchase panel
+--     +---------------------+
+--
+-- EVERY NUMBER IS READ FROM BaseConfig. There is no hardcoded cost anywhere in
+-- here: the level pair and the price come from the same `nextUpgrade` the
+-- purchase itself validates against, so the sign cannot advertise a price the
+-- server will not honour.
+--
+-- Built once and then only re-TEXTED. Rebuilding parts on every state push would
+-- churn instances under a player standing next to it.
+
+local SIGN_NAME = "UpgradeSign"
+local SIGN_WIDTH = 13
+local SIGN_HEIGHT = 7.4
+local SIGN_DEPTH = 0.9
+local SIGN_LIFT = 7.2
+
+--- Which way the sign should face: toward the plot's own spawn point, so it
+--- greets a player walking out of their base. Derived rather than assumed,
+--- because plots on opposite sides of the plaza face opposite ways.
+local function signFacing(plot: Instance, pad: BasePart): CFrame
+	local spawn = plot:FindFirstChild("Spawn")
+	if spawn and spawn:IsA("BasePart") then
+		local toSpawn = spawn.Position - pad.Position
+		local flat = Vector3.new(toSpawn.X, 0, toSpawn.Z)
+		if flat.Magnitude > 0.5 then
+			return CFrame.lookAt(pad.Position, pad.Position + flat.Unit)
+		end
+	end
+	return pad.CFrame
+end
+
+local function slab(name: string, size: Vector3, cf: CFrame, color: Color3, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+local function label(parent: Instance, name: string, size: UDim2, pos: UDim2, color: Color3, stroke: number): TextLabel
+	local text = Instance.new("TextLabel")
+	text.Name = name
+	text.Size = size
+	text.Position = pos
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.TextColor3 = color
+	text.TextStrokeTransparency = 0
+	text.TextStrokeColor3 = Color3.fromRGB(12, 16, 32)
+	text.ZIndex = stroke
+	text.Parent = parent
+	return text
+end
+
+--- Builds the sign if it is not there yet. Returns its SurfaceGui.
+local function ensureSign(plot: Instance, pad: BasePart): SurfaceGui?
+	local existing = plot:FindFirstChild(SIGN_NAME)
+	if existing then
+		local board = existing:FindFirstChild("Board")
+		local gui = board and board:FindFirstChildOfClass("SurfaceGui")
+		return gui :: SurfaceGui?
+	end
+
+	local model = Instance.new("Model")
+	model.Name = SIGN_NAME
+
+	local facing = signFacing(plot, pad)
+	local base = facing * CFrame.new(0, SIGN_LIFT, 0)
+
+	-- Post, then a dark edge slab, then the navy face a hair in front of it, so
+	-- the sign reads as a solid object with a border rather than a decal.
+	--
+	-- The post stops at the BOARD'S BOTTOM EDGE and does not run up behind it.
+	-- Sized to the full lift it passed straight through the red purchase panel
+	-- and hid the price, which is the one thing on the sign that has to be
+	-- readable.
+	local postTop = SIGN_LIFT - SIGN_HEIGHT / 2
+	slab("Post", Vector3.new(1.6, postTop, 1.6), facing * CFrame.new(0, postTop / 2, 0), MapPalette.SignPost, model)
+	slab("Edge", Vector3.new(SIGN_WIDTH + 0.9, SIGN_HEIGHT + 0.9, SIGN_DEPTH), base, MapPalette.SignEdge, model)
+	local board = slab("Board", Vector3.new(SIGN_WIDTH, SIGN_HEIGHT, SIGN_DEPTH + 0.12), base, MapPalette.SignBody, model)
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Face"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 48
+	gui.LightInfluence = 0
+	gui.AlwaysOnTop = false
+	gui.Adornee = board
+	gui.Parent = board
+
+	label(gui, "Title", UDim2.fromScale(0.94, 0.26), UDim2.fromScale(0.03, 0.05), MapPalette.SignTitle, 2)
+	label(gui, "Progress", UDim2.fromScale(0.94, 0.19), UDim2.fromScale(0.03, 0.32), MapPalette.SignProgress, 2)
+
+	-- The purchase panel, as its own framed block.
+	local buttonEdge = Instance.new("Frame")
+	buttonEdge.Name = "ButtonEdge"
+	buttonEdge.Size = UDim2.fromScale(0.9, 0.35)
+	buttonEdge.Position = UDim2.fromScale(0.05, 0.56)
+	buttonEdge.BackgroundColor3 = MapPalette.SignButtonEdge
+	buttonEdge.BorderSizePixel = 0
+	buttonEdge.ZIndex = 2
+	buttonEdge.Parent = gui
+	local edgeCorner = Instance.new("UICorner")
+	edgeCorner.CornerRadius = UDim.new(0, 10)
+	edgeCorner.Parent = buttonEdge
+
+	local button = Instance.new("Frame")
+	button.Name = "Button"
+	button.Size = UDim2.fromScale(0.94, 0.82)
+	button.Position = UDim2.fromScale(0.03, 0.09)
+	button.BackgroundColor3 = MapPalette.SignButton
+	button.BorderSizePixel = 0
+	button.ZIndex = 3
+	button.Parent = buttonEdge
+	local buttonCorner = Instance.new("UICorner")
+	buttonCorner.CornerRadius = UDim.new(0, 8)
+	buttonCorner.Parent = button
+
+	-- A chunky chevron-up icon, drawn rather than an asset id so it can never
+	-- come back "not approved for the requester" the way the lobby music did.
+	local icon = Instance.new("TextLabel")
+	icon.Name = "Icon"
+	icon.Size = UDim2.fromScale(0.2, 0.8)
+	icon.Position = UDim2.fromScale(0.04, 0.1)
+	icon.BackgroundTransparency = 1
+	icon.Font = Enum.Font.FredokaOne
+	icon.TextScaled = true
+	icon.Text = "▲"
+	icon.TextColor3 = MapPalette.SignButtonText
+	icon.TextStrokeTransparency = 0.4
+	icon.TextStrokeColor3 = MapPalette.SignButtonEdge
+	icon.ZIndex = 4
+	icon.Parent = button
+
+	local price = Instance.new("TextLabel")
+	price.Name = "Price"
+	price.Size = UDim2.fromScale(0.7, 0.8)
+	price.Position = UDim2.fromScale(0.26, 0.1)
+	price.BackgroundTransparency = 1
+	price.Font = Enum.Font.FredokaOne
+	price.TextScaled = true
+	price.TextColor3 = MapPalette.SignButtonText
+	price.TextStrokeTransparency = 0.35
+	price.TextStrokeColor3 = MapPalette.SignButtonEdge
+	price.ZIndex = 4
+	price.Parent = button
+
+	model.Parent = plot
+	return gui
+end
+
+--- Repaints the sign for whatever the player's next upgrade actually is.
+function PlacementService.refreshUpgradeSign(player: Player)
+	local plot = BaseService.getPlot(player)
+	local profile = DataService.get(player)
+	if not plot or not profile then
+		return
+	end
+	local pad = plot:FindFirstChild("BaseUpgradePad")
+	if not pad or not pad:IsA("BasePart") then
+		return
+	end
+
+	local gui = ensureSign(plot, pad)
+	if not gui then
+		return
+	end
+
+	local title = gui:FindFirstChild("Title") :: TextLabel?
+	local progress = gui:FindFirstChild("Progress") :: TextLabel?
+	local buttonEdge = gui:FindFirstChild("ButtonEdge")
+	local button = buttonEdge and buttonEdge:FindFirstChild("Button")
+	local price = button and button:FindFirstChild("Price") :: TextLabel?
+	local icon = button and button:FindFirstChild("Icon") :: TextLabel?
+	if not title or not progress or not price or not icon then
+		return
+	end
+
+	title.Text = "UPGRADE BASE"
+
+	-- Read straight from the same source the purchase validates against.
+	local next = BaseConfig.nextUpgrade(profile.BaseCapacityTier)
+	if next then
+		progress.Text = `Level {profile.BaseCapacityTier + 1} > Level {next.tier + 1}`
+		progress.TextColor3 = MapPalette.SignProgress
+		price.Text = NumberFormat.cash(next.cost)
+		icon.Text = "▲"
+		if button then
+			(button :: Frame).BackgroundColor3 = MapPalette.SignButton
+		end
+	else
+		progress.Text = `Level {profile.BaseCapacityTier + 1} · {BaseConfig.slotsForTier(profile.BaseCapacityTier)} slots`
+		progress.TextColor3 = MapPalette.SignMaxed
+		price.Text = "MAX"
+		icon.Text = "★"
+		if button then
+			(button :: Frame).BackgroundColor3 = MapPalette.SignButtonEdge
+		end
+	end
 end
 
 -- ==========================================================
@@ -395,8 +575,37 @@ function PlacementService.refreshPrompts(player: Player)
 		end
 
 		local occupied = slot:FindFirstChild("Trophy") ~= nil
+		local isUnlocked = index <= unlocked
+
+		-- SLOT LOOK. These used to be near-white 20x20 pads at 0.55 transparency,
+		-- fourteen per plot - a grid of blown-out white rectangles that washed the
+		-- whole base out. Now a dark slate pad with a bright rim: still obviously
+		-- a place to put something, without glowing. A locked slot is dimmer and
+		-- greyed, so capacity reads at a glance.
+		--
+		-- Applied here rather than at map-build time because the map is baked into
+		-- the place file; doing it at runtime restyles the plots already saved
+		-- there without anybody having to rebuild the world.
+		slot.Color = if isUnlocked then MapPalette.DisplaySlot else MapPalette.DisplaySlotLocked
+		slot.Material = Enum.Material.SmoothPlastic
+		slot.Transparency = if isUnlocked then 0.15 else 0.45
+		slot.CastShadow = false
+
+		local rim = slot:FindFirstChildOfClass("SelectionBox")
+		if not rim then
+			local created = Instance.new("SelectionBox")
+			created.Name = "SlotRim"
+			created.Adornee = slot
+			created.LineThickness = 0.06
+			created.SurfaceTransparency = 1
+			created.Parent = slot
+			rim = created
+		end
+		rim.Color3 = if isUnlocked then MapPalette.DisplaySlotRim else MapPalette.DisplaySlotLockedRim
+		rim.Transparency = if isUnlocked then 0.15 else 0.6
+
 		local p = prompt :: ProximityPrompt
-		p:SetAttribute("ServerEnabled", index <= unlocked)
+		p:SetAttribute("ServerEnabled", isUnlocked)
 		-- Taking an item off display STORES it. Selling is a deliberate action
 		-- taken later from the inventory panel, so a mis-click cannot destroy
 		-- a rare trophy.
@@ -416,6 +625,7 @@ end
 function PlacementService.start()
 	BaseService.onRebuilt(function(player)
 		PlacementService.refreshPrompts(player)
+		PlacementService.refreshUpgradeSign(player)
 	end)
 
 	-- Capacity pad on every plot. The pads exist in the map already; this just
@@ -536,6 +746,7 @@ function PlacementService.start()
 	for _, player in Players:GetPlayers() do
 		if BaseService.getPlot(player) then
 			PlacementService.refreshPrompts(player)
+			PlacementService.refreshUpgradeSign(player)
 		end
 	end
 end

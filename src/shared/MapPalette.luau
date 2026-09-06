@@ -47,9 +47,32 @@ MapPalette.PlotBorder = rgb(150, 100, 58)
 MapPalette.SafeLine = rgb(255, 60, 72)
 MapPalette.Treadmill = rgb(58, 132, 244)
 MapPalette.TreadmillBelt = rgb(38, 42, 58)
-MapPalette.PadActivate = rgb(64, 226, 122)
 MapPalette.PadUpgrade = rgb(255, 176, 46)
-MapPalette.DisplaySlot = rgb(248, 246, 232)
+
+-- Display slots used to be near-white (248,246,232) at 0.55 transparency and
+-- SIZE 20x20 - fourteen of them per plot. Lit from above that reads as a grid of
+-- blown-out white rectangles covering the whole base, which is what was killing
+-- the look. They are now a dark slate pad with a bright rim: the slot still
+-- reads instantly as a place to put something, without glowing.
+MapPalette.DisplaySlot = rgb(46, 54, 78)
+MapPalette.DisplaySlotRim = rgb(96, 214, 255)
+MapPalette.DisplaySlotLocked = rgb(38, 42, 54)
+MapPalette.DisplaySlotLockedRim = rgb(70, 78, 96)
+
+-- ==========================================================
+-- UPGRADE SIGN
+-- ==========================================================
+-- Chunky simulator signage: a dark navy body so it is never blinding, a bold
+-- white title, green progression text and a bright red purchase panel.
+MapPalette.SignBody = rgb(28, 38, 72)
+MapPalette.SignEdge = rgb(16, 22, 44)
+MapPalette.SignPost = rgb(150, 100, 58)
+MapPalette.SignTitle = rgb(255, 255, 255)
+MapPalette.SignProgress = rgb(96, 240, 118)
+MapPalette.SignButton = rgb(232, 58, 62)
+MapPalette.SignButtonEdge = rgb(150, 26, 32)
+MapPalette.SignButtonText = rgb(255, 255, 255)
+MapPalette.SignMaxed = rgb(255, 206, 84)
 MapPalette.LootSocket = rgb(255, 226, 110)
 
 -- ==========================================================

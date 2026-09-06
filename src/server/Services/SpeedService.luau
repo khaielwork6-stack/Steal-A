@@ -18,7 +18,6 @@ local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
@@ -53,32 +52,22 @@ function SpeedService.applyMovement(player: Player)
 end
 
 -- ==========================================================
--- ACTIVATION
+-- ACTIVATION - REMOVED ON PURPOSE
 -- ==========================================================
-
---- The $1,000 tutorial Base Activation. This is NOT the $1M capacity upgrade:
---- it unlocks the treadmill and moves the player to treadmill level 1.
-function SpeedService.activateBase(player: Player): (boolean, string?)
-	local profile = DataService.get(player)
-	if not profile then
-		return false, "Your data is still loading."
-	end
-	if profile.BaseActivated then
-		return false, "Your base is already active."
-	end
-
-	if not EconomyService.spend(player, BaseConfig.ACTIVATION_COST) then
-		return false, `You need {NumberFormat.cash(BaseConfig.ACTIVATION_COST)}.`
-	end
-
-	profile.BaseActivated = true
-	profile.TreadmillLevel = math.max(profile.TreadmillLevel, 1)
-
-	SpeedService.refreshTreadmill(player)
-	StateService.pushNow(player)
-	notify(player, "success", "Base activated! Your treadmill is online.", "unlock")
-	return true
-end
+--
+-- There is no longer a Base Activation step. Being assigned a plot IS the
+-- activation: `DataService` sets BaseActivated true in the default profile AND
+-- forces it true in `reconcile` on every load, so a player's base is claimed,
+-- active and fully usable from their first frame, and every system that gates
+-- on it (placement, storage, income, the treadmill, prompts, the tutorial)
+-- initialises correctly with nothing to unlock.
+--
+-- The old flow charged $1,000 for it, which is why the onboarding Cash bridge
+-- existed; both are gone together. `BaseConfig.ACTIVATION_COST` is retired and
+-- the activation pad is now hidden by refreshTreadmill.
+--
+-- Deliberately NOT left as a stub that flips the flag: nothing should be able to
+-- put a base into an inactive state, so there is no code path that can.
 
 -- ==========================================================
 -- UPGRADES
@@ -93,10 +82,6 @@ function SpeedService.upgradeTreadmill(player: Player): (boolean, string?)
 	if not profile then
 		return false, "Your data is still loading."
 	end
-	if not profile.BaseActivated then
-		return false, "Activate your base first."
-	end
-
 	local next = TreadmillConfig.nextTier(profile.TreadmillLevel)
 	if not next then
 		return false, "Your treadmill is fully upgraded!"
@@ -139,7 +124,8 @@ end
 -- TREADMILL PRESENTATION
 -- ==========================================================
 
---- Dark and dead until activation, lit and labelled afterwards (GDD section 4).
+--- Lit and labelled. There is no inactive state any more - a base is active
+--- from assignment, so the treadmill is always live (see the ACTIVATION section).
 function SpeedService.refreshTreadmill(player: Player)
 	local plot = BaseService.getPlot(player)
 	local profile = DataService.get(player)
@@ -148,21 +134,19 @@ function SpeedService.refreshTreadmill(player: Player)
 	end
 
 	local treadmill = plot:FindFirstChild("Treadmill")
-	local pad = plot:FindFirstChild("BaseActivationPad")
 	if not treadmill then
 		return
 	end
 
-	local active = profile.BaseActivated
 	local belt = treadmill:FindFirstChild("Belt")
 	local frame = treadmill:FindFirstChild("Frame")
 
 	if belt and belt:IsA("BasePart") then
-		belt.Color = if active then MapPalette.TreadmillBelt else Color3.fromRGB(58, 60, 68)
-		belt.Material = if active then Enum.Material.SmoothPlastic else Enum.Material.Slate
+		belt.Color = MapPalette.TreadmillBelt
+		belt.Material = Enum.Material.SmoothPlastic
 	end
 	if frame and frame:IsA("BasePart") then
-		frame.Color = if active then MapPalette.Treadmill else Color3.fromRGB(96, 100, 112)
+		frame.Color = MapPalette.Treadmill
 	end
 
 	-- Dress the rig with the art for this tier. The invisible deck and trigger
@@ -187,37 +171,23 @@ function SpeedService.refreshTreadmill(player: Player)
 			end
 		end
 
-		-- Dark and lifeless until the base is activated, matching the belt. The
-		-- authored look is restored from the attributes stashed at build time,
-		-- never from the part's current colour - which may already be the grey.
+		-- The authored look is restored from the attributes stashed at build
+		-- time, never from the part's current colour - an older build greyed
+		-- these out while the base was inactive, so a part reloaded from a saved
+		-- place may still be carrying the grey.
 		if existing then
 			for _, part in existing:GetDescendants() do
 				if part:IsA("BasePart") then
-					if active then
-						local lit = part:GetAttribute("LitColor")
-						if typeof(lit) == "Color3" then
-							part.Color = lit
-						end
-						local material = part:GetAttribute("LitMaterial")
-						if type(material) == "string" then
-							part.Material = (Enum.Material :: any)[material] or part.Material
-						end
-					else
-						part.Color = Color3.fromRGB(74, 78, 88)
-						part.Material = Enum.Material.Slate
+					local lit = part:GetAttribute("LitColor")
+					if typeof(lit) == "Color3" then
+						part.Color = lit
+					end
+					local material = part:GetAttribute("LitMaterial")
+					if type(material) == "string" then
+						part.Material = (Enum.Material :: any)[material] or part.Material
 					end
 				end
 			end
-		end
-	end
-
-	-- Activation pad disappears once used.
-	if pad and pad:IsA("BasePart") then
-		pad.Transparency = if active then 1 else 0
-		pad.CanCollide = false
-		local prompt = pad:FindFirstChild("ActivatePrompt") :: ProximityPrompt?
-		if prompt then
-			prompt:SetAttribute("ServerEnabled", not active)
 		end
 	end
 
@@ -276,21 +246,14 @@ function SpeedService.refreshTreadmill(player: Player)
 		local title = (gui :: BillboardGui):FindFirstChild("Title") :: TextLabel
 		local detail = (gui :: BillboardGui):FindFirstChild("Detail") :: TextLabel
 
-		if not active then
-			title.Text = "TREADMILL LOCKED"
-			title.TextColor3 = Color3.fromRGB(190, 195, 205)
-			detail.Text = `Activate base · {NumberFormat.cash(BaseConfig.ACTIVATION_COST)}`
-			detail.TextColor3 = Color3.fromRGB(255, 214, 120)
-		else
-			local tier = TreadmillConfig.tier(profile.TreadmillLevel)
-			local next = TreadmillConfig.nextTier(profile.TreadmillLevel)
-			title.Text = `{if tier then tier.name else "Basic"} · +{NumberFormat.short(TreadmillConfig.gainPerSecond(profile.TreadmillLevel))}/s`
-			title.TextColor3 = Color3.fromRGB(126, 236, 255)
-			detail.Text = if next
-				then `Upgrade · {NumberFormat.cash(next.cost)}`
-				else "MAX LEVEL"
-			detail.TextColor3 = if next then Color3.fromRGB(255, 214, 120) else Color3.fromRGB(140, 255, 160)
-		end
+		local tier = TreadmillConfig.tier(profile.TreadmillLevel)
+		local next = TreadmillConfig.nextTier(profile.TreadmillLevel)
+		title.Text = `{if tier then tier.name else "Basic"} · +{NumberFormat.short(TreadmillConfig.gainPerSecond(profile.TreadmillLevel))}/s`
+		title.TextColor3 = Color3.fromRGB(126, 236, 255)
+		detail.Text = if next
+			then `Upgrade · {NumberFormat.cash(next.cost)}`
+			else "MAX LEVEL"
+		detail.TextColor3 = if next then Color3.fromRGB(255, 214, 120) else Color3.fromRGB(140, 255, 160)
 	end
 
 	-- Upgrade prompt lives on the treadmill frame.
@@ -309,7 +272,7 @@ function SpeedService.refreshTreadmill(player: Player)
 			prompt = created
 		end
 		local p = prompt :: ProximityPrompt
-		p:SetAttribute("ServerEnabled", active and TreadmillConfig.nextTier(profile.TreadmillLevel) ~= nil)
+		p:SetAttribute("ServerEnabled", TreadmillConfig.nextTier(profile.TreadmillLevel) ~= nil)
 	end
 end
 
@@ -349,7 +312,7 @@ SpeedService.isOnOwnTreadmill = isOnOwnTreadmill
 local function trainingTick()
 	for _, player in Players:GetPlayers() do
 		local profile = DataService.get(player)
-		if not profile or not profile.BaseActivated then
+		if not profile then
 			continue
 		end
 
@@ -396,28 +359,26 @@ function SpeedService.start()
 		SpeedService.refreshTreadmill(player)
 	end)
 
-	-- Activation pads exist in the map; make them interactive.
+	-- The activation pad is retired. Any prompt left on one by an older build is
+	-- removed here rather than left hanging around offering an action that no
+	-- longer exists - the map is baked into the place file, so a stale prompt
+	-- would otherwise survive indefinitely.
 	local bases = workspace:WaitForChild("Map", 20):WaitForChild("Bases", 10)
 	for _, plot in bases:GetChildren() do
 		local pad = plot:FindFirstChild("BaseActivationPad")
-		if pad and pad:IsA("BasePart") and not pad:FindFirstChild("ActivatePrompt") then
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.Name = "ActivatePrompt"
-			prompt.ActionText = "Activate Base"
-			prompt.ObjectText = NumberFormat.cash(BaseConfig.ACTIVATION_COST)
-			prompt.HoldDuration = 0.5
-			prompt.MaxActivationDistance = 12
-			prompt.RequiresLineOfSight = false
-			prompt.Enabled = false -- owner-only, enabled client-side
-			prompt:SetAttribute("ServerEnabled", true)
-			prompt.Parent = pad
+		local stale = pad and pad:FindFirstChild("ActivatePrompt")
+		if stale then
+			stale:Destroy()
+		end
+		if pad and pad:IsA("BasePart") then
+			pad.Transparency = 1
+			pad.CanCollide = false
+			pad.CanQuery = false
 		end
 	end
 
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-		local isActivate = prompt.Name == "ActivatePrompt"
-		local isUpgrade = prompt.Name == "TreadmillPrompt"
-		if not isActivate and not isUpgrade then
+		if prompt.Name ~= "TreadmillPrompt" then
 			return
 		end
 
@@ -431,10 +392,7 @@ function SpeedService.start()
 			return
 		end
 
-		local ok, reason = if isActivate
-			then SpeedService.activateBase(player)
-			else SpeedService.upgradeTreadmill(player)
-
+		local ok, reason = SpeedService.upgradeTreadmill(player)
 		if not ok and reason then
 			notify(player, "error", reason)
 		end

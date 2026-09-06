@@ -4,7 +4,7 @@
 	The persistent T0-T9 opening (GDD section 4).
 
 	The single most important rule here: the stage is DERIVED from actual saved
-	data - is the vase discovered, is the base activated, has Speed moved - and
+	data - is the vase discovered, has Speed moved - and
 	never merely trusted from a stale TutorialStage integer. That means a player
 	who disconnects at any point, dies, gets caught, or rejoins on a different
 	plot resumes at the right place automatically, and no recovery special-case
@@ -17,7 +17,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -34,12 +33,19 @@ local TutorialService = {}
 
 -- Stage numbers. T1/T2 share one objective because "approach" and "steal" are
 -- the same instruction to the player.
+--- The stage NUMBERS are persisted in `Profile.TutorialStage` and must stay
+--- stable, so ACTIVATE keeps its slot even though nothing can reach it any more.
+--- Removing the number would silently move every saved player.
+---
+--- ACTIVATE is retired: a base is claimed and active the moment it is assigned,
+--- so there is nothing to buy and no objective to show. A profile saved at that
+--- stage re-derives forward to TRAIN on its next load.
 local STAGE = {
 	STEAL = 1,
 	ESCAPE = 3,
 	PLACE = 4,
 	INCOME = 5,
-	ACTIVATE = 6,
+	ACTIVATE = 6, -- RETIRED, never returned by deriveStage
 	TRAIN = 7,
 	NEXT_ZONE = 8,
 	COMPLETE = 9,
@@ -53,6 +59,7 @@ export type TutorialState = {
 }
 
 local nextZoneShownAt: { [Player]: number } = {}
+local incomeShownAt: { [Player]: number } = {}
 local cached: { [Player]: TutorialState } = {}
 
 -- ==========================================================
@@ -128,14 +135,11 @@ local function deriveStage(player: Player): number
 	local placedFirstItem = profile.Index[GameConfig.TUTORIAL_ITEM_ID] == true
 	local trained = profile.SpeedPower > GameConfig.STARTING_SPEED_POWER
 
-	if placedFirstItem and profile.BaseActivated and trained then
+	-- The base is always active, so placing the first item leads straight to the
+	-- treadmill. There is no ACTIVATE step between them any more; INCOME is a
+	-- short "look what it earns" beat that `evaluate` times out into TRAIN.
+	if placedFirstItem and trained then
 		return STAGE.NEXT_ZONE
-	end
-	if placedFirstItem and profile.BaseActivated then
-		return STAGE.TRAIN
-	end
-	if placedFirstItem and profile.Cash >= BaseConfig.ACTIVATION_COST then
-		return STAGE.ACTIVATE
 	end
 	if placedFirstItem then
 		return STAGE.INCOME
@@ -187,14 +191,6 @@ local function buildState(player: Player, stage: number): TutorialState
 			objective = `EARNING {NumberFormat.income(income)}`,
 			hint = "Displayed loot earns Cash every second.",
 		}
-	elseif stage == STAGE.ACTIVATE then
-		local pad = plotPart(player, "BaseActivationPad")
-		return {
-			stage = stage,
-			objective = `UPGRADE BASE - {NumberFormat.cash(BaseConfig.ACTIVATION_COST)}`,
-			hint = "This unlocks your treadmill.",
-			target = if pad then pad.Position else nil,
-		}
 	elseif stage == STAGE.TRAIN then
 		local frame = plotPart(player, "Frame")
 		return {
@@ -238,6 +234,18 @@ local function evaluate(player: Player)
 	end
 
 	local stage = deriveStage(player)
+
+	-- "EARNING $X/s" is a beat, not a task. It used to end when the player had
+	-- banked enough for the base activation; with activation gone it needs its
+	-- own dwell, or it would flash past in a single tick on the way to TRAIN.
+	if stage == STAGE.INCOME then
+		local shownAt = incomeShownAt[player]
+		if not shownAt then
+			incomeShownAt[player] = os.clock()
+		elseif os.clock() - shownAt >= GameConfig.TUTORIAL_INCOME_DWELL then
+			stage = STAGE.TRAIN
+		end
+	end
 
 	-- The zone-2 pointer is the one stage that ends on a timer rather than on a
 	-- player action, so the tutorial does not sit on screen forever.
@@ -297,6 +305,7 @@ function TutorialService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		cached[player] = nil
 		nextZoneShownAt[player] = nil
+		incomeShownAt[player] = nil
 	end)
 
 	task.spawn(function()

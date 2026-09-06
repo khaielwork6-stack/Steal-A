@@ -46,13 +46,65 @@ for _, zone in ZoneConfig.Zones do
 	ZoneConfig.ById[zone.id] = zone
 end
 
---- Guardians move just under the player who meets the recommendation, so a
---- Normal-size item is a narrow win and bigger loot demands a Speed buffer.
---- A player BELOW the recommendation is genuinely slower than the guardian and
---- is meant to be caught - that is the whole point of the Speed gate, and it
---- only holds because the guardian steers every frame rather than re-issuing a
---- goal on a timer (see GuardianService's STEERING section).
-ZoneConfig.GUARDIAN_SPEED_FACTOR = 0.98
+--- How much of its zone's recommended Speed a guardian effectively "has".
+---
+--- READ THIS BEFORE CHANGING IT. It is a fraction of the SPEED STAT, not of
+--- WalkSpeed, and the difference is the entire reason the recommendations used
+--- to be meaningless.
+---
+--- This was 0.98 applied to the guardian's finished WalkSpeed. WalkSpeed is a
+--- LOGARITHM of Speed, so shaving 2% off it does not shave 2% off the stat - it
+--- shaves about 25%. At the North Pole that turned a guardian who was supposed
+--- to represent 170K into one that moved like 127K, which is exactly the
+--- "127K casually outruns Santa" bug: the player and the guardian were, to four
+--- significant figures, the same speed.
+---
+--- Applied to the STAT and then converted, the sign is always right:
+---     player well below the recommendation  -> guardian is clearly faster
+---     player just below                     -> guardian closes, slowly
+---     player at the recommendation          -> escapes, narrowly
+---     player above                          -> pulls away
+--- Studs/second a player who exactly MEETS the recommendation is faster than the
+--- guardian by.
+---
+--- A fixed subtraction, deliberately, and it is not the bug this replaced. The
+--- old code multiplied the guardian's finished WalkSpeed by 0.98 - and because
+--- WalkSpeed is a logarithm of Speed, a 2% trim there quietly meant "25% less
+--- STAT", which is what made a 170K guardian behave like a 127K one.
+---
+--- A fixed margin has neither problem. It is expressed in the unit that actually
+--- decides a chase - studs of separation per second - it is the same at every
+--- zone, and it does not silently mean something different at 900 Speed than at
+--- 20B. At 1.5 studs/s a player who just meets the bar pulls away by roughly ten
+--- to thirty studs over a full run: escapable, and close enough to be tense.
+ZoneConfig.GUARDIAN_GATE_MARGIN = 1.5
+
+--- How much faster a guardian runs against a thief who is UNDER the zone's
+--- recommendation, at the point where they have none of it at all.
+---
+--- Fixing the stat-space bug above got the SIGN right - a 127K player is slower
+--- than a 170K guardian - but not the MARGIN. WalkSpeed is logarithmic in Speed,
+--- so 127K and 170K are only 1.5 studs/s apart, and over the 894 studs between
+--- the North Pole and the safe line that is not enough to close a head start.
+--- Measured: the 127K thief still escaped.
+---
+--- So the guardian also reacts to the DEFICIT. A thief at or above the
+--- recommendation gets the baseline guardian and escapes narrowly; the further
+--- below they are, the harder it runs them down. That is what makes the number
+--- on the zone sign a real threshold rather than a decoration, and it is derived
+--- from that same number rather than being a per-zone WalkSpeed hack.
+---
+--- TUNED AGAINST THE ACTUAL GEOMETRY, not by feel. A guardian starts 55-100
+--- studs from its own sockets, and a run to the safe line is 224 studs (Pirate
+--- Island) to 1,535 (the Bank). The binding case is the SHORT run with the BIG
+--- gap - Pirate Island, 83 studs to make up in about seven seconds - which needs
+--- roughly 11 studs/s of advantage against a thief at half the recommendation.
+---
+---     thief at 100%+ of the recommendation -> x1.00, escapes by the gate margin
+---     thief at  85%                        -> about the crossover
+---     thief at  75%                        -> x1.18, caught
+---     thief at  50%                        -> x1.35, caught comfortably
+ZoneConfig.GUARDIAN_DEFICIT_CATCHUP = 0.70
 
 --- Catch distance for a zone-1-sized guardian. Later guardians are physically
 --- larger and GuardianService scales this with them, so a fifteen-stud boss does

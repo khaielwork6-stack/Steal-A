@@ -2,10 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §18.** It is the end of this file and it says exactly where the last
-> session stopped, what is verified, what is not, and what to pick up. §0 below
+> **START AT §19**, then §18. Between them they say exactly where the last
+> sessions stopped, what is verified, what is not, and what to pick up. §0 below
 > is still the first thing you must *act* on, but §18 is the current state of the
-> world; §9's "next steps" list is older than §16–§18 and is superseded by them.
+> world; §9's "next steps" list is older than §16–§19 and is superseded by them.
 
 ---
 
@@ -993,3 +993,139 @@ Everything below was observed running in Play mode, not just written:
 - **StreamingEnabled is on** (1600 stud radius). Anything you build far from the
   player is not replicated to the client, and a screenshot of it is sky.
 - Full debug command list: `DebugInvoke:Invoke("nope")` returns it.
+
+---
+
+## 19. Physical speed, the guardian mismatch, the money scare, hollow decor,
+## automatic base activation, and the upgrade sign
+
+### The speed curve (`GameConfig`)
+
+Log compression alone was too flat at the top: every 10x of Speed only ever
+bought a fixed 7.5 studs/s, so the last orders of magnitude of progression felt
+like nothing. There is now a PROGRESSION BOOST layered on the same log measure -
+exactly 1.0 at the starting Speed, rising linearly in log space to
+`SPEED_BOOST_MAX = 1.5` at the Airport gate.
+
+| Speed | was | now | |
+|---|---|---|---|
+| 10 | 18.3 | 18.3 | x1.00 - a new player is untouched |
+| 900 | 30.7 | 33.5 | x1.09 |
+| 170K | 47.7 | 58.2 | x1.22 |
+| 18M | 62.9 | 83.7 | x1.33 |
+| 20B | 85.8 | 128.6 | x1.50 |
+
+Linear in log space means no breakpoints - 999K and 1M are imperceptibly apart.
+`WALKSPEED_MAX` went 90 -> 140 so the top of the curve is not swallowed by the
+clamp. **The displayed Speed stat is unchanged**; only its physical conversion
+moved.
+
+### Why "Recommended Speed" used to mean nothing
+
+Two separate faults, both fixed. Do not reintroduce either.
+
+**1. The handicap was applied in the wrong space.** It was
+`guardianWalkSpeed * 0.98`. WalkSpeed is a LOGARITHM of Speed, so trimming 2%
+off it does not trim 2% off the stat - it trims about 25%. A guardian meant to
+represent 170K therefore moved exactly like 127K, which is precisely the
+"127K casually outruns Santa" report: player and guardian were the same speed to
+four significant figures. It is now a FIXED margin in studs/s
+(`ZoneConfig.GUARDIAN_GATE_MARGIN = 1.5`), which is the unit that actually
+decides a chase and means the same thing at 900 Speed as at 20B.
+
+**2. The right sign was still the wrong margin.** Fixing (1) made a 127K thief
+genuinely slower - by 1.5 studs/s. Over the 894 studs between the North Pole and
+the safe line that is not enough to overturn the guardian's 80-100 stud starting
+gap, and the thief **still escaped** in testing. So the guardian also reacts to
+the DEFICIT: `GUARDIAN_DEFICIT_CATCHUP = 0.70` scales its speed by how far short
+of the recommendation the thief is. At or above the bar, nothing is added and the
+thief escapes by the gate margin.
+
+`GuardianService.speedForChase(zone, thiefPower)` is where both meet, and the
+speed is set **per chase** in `wake()` rather than once at spawn.
+
+Tuned against measured geometry, not feel: guardians start 55-100 studs from
+their own sockets, and runs to the line are 224 studs (Pirate Island) to 1,535
+(the Bank). The binding case is the short run with the big gap.
+
+**Verified live, two zones:**
+
+| | result |
+|---|---|
+| North Pole (170K) vs 75K | CAUGHT 6.3s |
+| North Pole vs **127K - the reported case** | **CAUGHT 11.8s** |
+| North Pole vs 170K (at the gate) | ESCAPED 14.8s |
+| North Pole vs 340K | ESCAPED 13.9s |
+| Pirate Island (900) vs 450 | CAUGHT 5.9s |
+| Pirate Island vs 900 | ESCAPED 7.0s |
+
+`DebugInvoke:Invoke("speedAudit")` prints the whole table for all twelve zones;
+`("speedCurve")` prints the old-vs-new conversion.
+
+### The money "bug"
+
+**The income pipeline was already correct and is unchanged.** Only
+`EconomyService.award` / `.spend` touch Cash, and there is exactly ONE passive
+loop - a single global `task.wait(INCOME_TICK)` that iterates players, so no
+per-player loop exists that could be duplicated by a respawn or a rejoin.
+
+What produced "UI says $3/s but I gained thousands" was almost certainly the
+**one-time $1,000 tutorial Cash bridge** landing on the first placement. That is
+now gone entirely (below), so nothing moves Cash on its own except the tick.
+
+Measured: 3 items, $11/s displayed, **$132 gained in 12.0s** (ratio 0.999), and
+still exact after a respawn, after removing an item, and after adding one.
+
+### Base activation is gone
+
+A base is claimed AND active from the moment it is assigned. `DataService` sets
+it in the default profile and **forces it true in `reconcile` on every load**, so
+saves written when it was a purchase come back active too, and everything that
+gates on it initialises on the first push.
+
+Removed with it: `SpeedService.activateBase`, the activation pad and its prompt,
+`BaseConfig.ACTIVATION_COST`, the "Activate your base first" guards in
+Placement/Monetization/Speed, the tutorial's ACTIVATE stage, and the
+"TREADMILL LOCKED" presentation. `validate.luau` asserts the constants stay gone.
+
+**The onboarding Cash bridge went with it** - it existed only to pay for the
+$1,000 activation, and a grant of a thousand dollars landing on a $1/s income is
+indistinguishable from a broken economy.
+
+Tutorial now runs: STEAL -> ESCAPE -> PLACE -> EARNING $X/s -> TRAIN -> NEXT
+ZONE. INCOME needed its own dwell (`TUTORIAL_INCOME_DWELL`) because it used to
+end when you could afford activation. Stage NUMBERS are unchanged - ACTIVATE = 6
+is kept as a retired slot so saved `TutorialStage` values do not shift.
+
+### Decor is hollow
+
+**186 decorative parts across the twelve zones were solid.** Every zone's scenery
+already lives in `Map.Zones.<zone>.Decorations`, so that folder IS the
+categorisation - `MapBuilder.applyDecorCollision()` flips collision on it and
+nothing else, and runs at server start because the map is baked into the place.
+
+Untouched: lane floors (2), walls (28), zone floors (12), treadmill decks,
+training triggers, safe zones, display slots, all 48 steal prompts. Verified by
+running a player through an 83x35 stud decorative wall at 72.5 studs/s - passed
+through, zero seconds blocked.
+
+### Base visuals and the upgrade sign
+
+Display slots were near-white 20x20 pads at 0.55 transparency, fourteen per plot
+- a grid of blown-out white rectangles. Now a dark slate pad with a bright rim,
+dimmer and greyed when locked. Restyled at RUNTIME in
+`PlacementService.refreshPrompts` because the map is baked; `MapPalette` holds
+the colours and MapBuilder matches for a fresh build.
+
+The upgrade station is a real chunky sign (`PlacementService.refreshUpgradeSign`)
+on a post: navy body with a darker edge, white "UPGRADE BASE", green
+"Level X > Level Y", red purchase panel with an icon and the price. **Every
+number comes from `BaseConfig.nextUpgrade`** - the same call the purchase
+validates against - so it cannot advertise a price the server will not honour.
+Built once, then only re-texted.
+
+The post is deliberately cut off at the board's bottom edge; at full height it
+ran through the red panel and hid the price.
+
+Verified: insufficient funds refused, exact money accepted, **five rapid attempts
+granted exactly one upgrade**, and the sign repainted to the next tier instantly.

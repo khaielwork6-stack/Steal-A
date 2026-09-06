@@ -16,18 +16,78 @@ GameConfig.STARTING_TRAPS = 3
 GameConfig.STARTING_DISPLAY_SLOTS = 7
 GameConfig.MAX_DISPLAY_SLOTS = 14
 
--- Movement compression (GDD section 5). Huge SpeedPower stays exciting without
--- handing the Humanoid billions of studs/second.
+-- ==========================================================
+-- MOVEMENT
+-- ==========================================================
+--
+-- SpeedPower spans 10 to twenty BILLION, so it cannot drive WalkSpeed directly.
+-- It is compressed logarithmically, then a PROGRESSION BOOST is layered on top.
+--
+-- WHY THE BOOST EXISTS
+-- Log compression alone is too flat at the top. A player at 20B Speed was moving
+-- 85 studs/s against a beginner's 18 - technically five times faster, but the
+-- last few orders of magnitude of progression bought almost nothing, because
+-- each 10x of Speed only ever adds a fixed 7.5 studs/s. The late game did not
+-- FEEL like the numbers said it should.
+--
+-- The boost scales that same log measure into a multiplier that starts at
+-- exactly 1.0 (so a new player is untouched and does not spawn zooming) and
+-- rises smoothly to MAX_BOOST at the top of the progression. It is linear in log
+-- space, which means it has no breakpoints - 999K and 1M are imperceptibly
+-- different, exactly as they should be.
+--
+-- Roughly what it produces, against the old curve:
+--     Speed 10     18.3  ->  18.3   (x1.00, unchanged)
+--     Speed 900    30.7  ->  33.5   (x1.09)
+--     Speed 10K    38.5  ->  44.3   (x1.15)
+--     Speed 170K   47.7  ->  58.1   (x1.22)
+--     Speed 18M    62.9  ->  83.7   (x1.33)
+--     Speed 2.5B   79.0  -> 114.5   (x1.45)
+--     Speed 20B    85.8  -> 128.6   (x1.50)
+--
+-- THIS DOES NOT CHANGE THE DISPLAYED STAT. A player with 127K Speed still reads
+-- 127K everywhere; only how far that carries them per second changes.
+
 GameConfig.WALKSPEED_BASE = 16
 GameConfig.WALKSPEED_COEFFICIENT = 7.5
 GameConfig.WALKSPEED_MIN = 18
-GameConfig.WALKSPEED_MAX = 90
+--- Raised from 90 to clear the top of the boosted curve (~129 at the Airport
+--- gate). Still a hard bound, so a runaway Speed value cannot produce a
+--- character the physics engine cannot keep on the ground.
+GameConfig.WALKSPEED_MAX = 140
 
---- RealWalkSpeed = clamp(16 + 7.5 * log10(1 + SpeedPower / 10), 18, 90)
+--- Multiplier at the very top of progression. 1.0 would be the old curve.
+GameConfig.SPEED_BOOST_MAX = 1.5
+
+--- The log-space window the boost ramps across: from a brand new player to the
+--- last zone's recommended Speed. Both ends are derived, not typed, so moving
+--- the starting Speed or the final gate re-fits the curve automatically.
+GameConfig.SPEED_BOOST_FLOOR_POWER = 10 -- STARTING_SPEED_POWER
+GameConfig.SPEED_BOOST_CEILING_POWER = 20e9 -- the Airport gate
+
+--- The compressed log measure everything below is built from.
+local function logMeasure(power: number): number
+	return math.log10(1 + math.max(power, 0) / 10)
+end
+
+--- How far through the progression a Speed value sits, 0 to 1, in log space.
+--- Exposed so the guardians and any UI can reason about it the same way.
+function GameConfig.progressionAlpha(power: number): number
+	local floor = logMeasure(GameConfig.SPEED_BOOST_FLOOR_POWER)
+	local ceiling = logMeasure(GameConfig.SPEED_BOOST_CEILING_POWER)
+	if ceiling <= floor then
+		return 0
+	end
+	return math.clamp((logMeasure(power) - floor) / (ceiling - floor), 0, 1)
+end
+
+--- WalkSpeed for a SpeedPower value. The single conversion in the game: the
+--- player, the guardians and every recommendation all go through this, which is
+--- what makes a displayed "Recommended Speed" mean something in the chase.
 function GameConfig.walkSpeedFromPower(power: number): number
-	local raw = GameConfig.WALKSPEED_BASE
-		+ GameConfig.WALKSPEED_COEFFICIENT * math.log10(1 + power / 10)
-	return math.clamp(raw, GameConfig.WALKSPEED_MIN, GameConfig.WALKSPEED_MAX)
+	local compressed = GameConfig.WALKSPEED_BASE + GameConfig.WALKSPEED_COEFFICIENT * logMeasure(power)
+	local boost = 1 + (GameConfig.SPEED_BOOST_MAX - 1) * GameConfig.progressionAlpha(power)
+	return math.clamp(compressed * boost, GameConfig.WALKSPEED_MIN, GameConfig.WALKSPEED_MAX)
 end
 
 -- Economy cadence.
@@ -98,17 +158,22 @@ GameConfig.TUTORIAL_ITEM_ID = "Museum_AncientVase"
 GameConfig.TUTORIAL_ZONE = 1
 GameConfig.TUTORIAL_SOCKET = 1
 GameConfig.TUTORIAL_FINISH_DELAY = 9 -- seconds the zone-2 pointer stays up
+--- Seconds the "EARNING $X/s" beat holds before the tutorial moves the player
+--- on to the treadmill. It is a moment to notice the payoff, not an objective.
+GameConfig.TUTORIAL_INCOME_DWELL = 5
 
---- One-time onboarding bridge. The Ancient Vase earns $1/s, so a fresh player
---- would otherwise stand still for a thousand seconds to afford the $1,000 base
---- activation. On their FIRST successful placement they are topped up to exactly
---- this balance - `max(0, TUTORIAL_CASH_BRIDGE - cash)`, so it is a floor and
---- never a bonus - and the flag that records it is persisted, which is what
---- makes it unfarmable by resetting, selling, rejoining or spamming the remote.
----
---- This exists so onboarding stays fast WITHOUT the worst item in the game
---- printing a real income forever.
-GameConfig.TUTORIAL_CASH_BRIDGE = 1000
+-- RETIRED: the one-time onboarding Cash bridge.
+--
+-- It existed for exactly one reason - a new player earning $1/s could not afford
+-- the $1,000 base activation in any reasonable time - so it topped them up on
+-- their first placement. Base activation is now automatic and free, so the
+-- bridge had nothing left to pay for.
+--
+-- It is deliberately gone rather than reduced. A grant of a thousand dollars
+-- landing the instant you place your first $1/s item is indistinguishable, from
+-- the player's side, from the income system being broken - which is exactly how
+-- it was reported. The only thing that moves Cash on its own now is the passive
+-- income tick, and that pays precisely what the HUD says it will.
 
 -- Anti-exploit: max accepted requests per player per second, per remote.
 GameConfig.RATE_LIMITS = {

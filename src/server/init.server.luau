@@ -184,6 +184,16 @@ end)
 
 DebugService.start()
 
+-- Scenery is visible but hollow: 186 decorative parts across the twelve zones
+-- were solid, which is what makes a fast player catch on a pillar and a guardian
+-- jam on a cactus. The map is baked into the place file, so this runs at startup
+-- rather than only at build time. See MapBuilder.applyDecorCollision.
+do
+	local MapBuilder = require(script.MapBuilder)
+	local cleared = MapBuilder.applyDecorCollision()
+	print(`[MapBuilder] decor made hollow: {cleared} part(s) no longer collide`)
+end
+
 -- Movement is owned by SpeedService/CarryService so the compressed formula and
 -- the carry penalty are applied in exactly one place.
 local function onPlayer(player: Player)

@@ -689,20 +689,14 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		end
 	end
 
+	-- No activation pad: a base is claimed and active from the moment it is
+	-- assigned, so there is nothing to walk onto and buy. SpeedService hides any
+	-- pad left behind in an already-baked map.
 	local frontZ = -halfD + 26
-	makePart({
-		name = "BaseActivationPad",
-		size = MapConfig.PAD_SIZE,
-		cframe = at(-layout.width / 5, 0.5, frontZ),
-		color = MapPalette.PadActivate,
-		material = Enum.Material.Neon,
-		parent = base,
-		castShadow = false,
-	})
 	makePart({
 		name = "BaseUpgradePad",
 		size = MapConfig.PAD_SIZE,
-		cframe = at(layout.width / 5, 0.5, frontZ),
+		cframe = at(0, 0.5, frontZ),
 		color = MapPalette.PadUpgrade,
 		material = Enum.Material.Neon,
 		parent = base,
@@ -800,6 +794,52 @@ local function buildSpawns(map: Instance)
 	s.Material = Enum.Material.Neon
 	s.Neutral = true
 	s.Parent = spawns
+end
+
+-- ==========================================================
+-- DECOR IS HOLLOW
+-- ==========================================================
+--
+-- Every zone's scenery lives in one place: `Map.Zones.<zone>.Decorations`. That
+-- container IS the categorisation, so nothing here has to guess at part names -
+-- it flips collision on a folder and nothing else.
+--
+-- WHY: this is a game about running fast down a corridor. Catching a shoulder on
+-- a decorative pillar at 120 studs/s, or watching a guardian jam on a cactus,
+-- ruins the one thing the game is for. Scenery stays fully VISIBLE and stops
+-- being solid.
+--
+-- WHAT IS DELIBERATELY NOT TOUCHED, because it is gameplay and not scenery:
+--   Map.LaneFloors, Map.Zones.<zone>.Floor  the ground you run on
+--   Map.Walls                               the containment the lane needs
+--   Map.SafeZone                            the red line and its volumes
+--   Map.Bases.*                             plot floors, treadmill decks,
+--                                           training triggers, display slots
+--   SpawnSockets                            already non-colliding; loot is
+--                                           anchored and sits on them regardless
+--
+-- CanQuery is left ON. Only collision is removed, so anything that raycasts
+-- against the world still sees the scenery.
+function MapBuilder.applyDecorCollision(map: Instance?): number
+	local target = map or workspace:FindFirstChild("Map")
+	local zones = target and target:FindFirstChild("Zones")
+	if not zones then
+		return 0
+	end
+
+	local cleared = 0
+	for _, zone in zones:GetChildren() do
+		local decorations = zone:FindFirstChild("Decorations")
+		if decorations then
+			for _, part in decorations:GetDescendants() do
+				if part:IsA("BasePart") and part.CanCollide then
+					part.CanCollide = false
+					cleared += 1
+				end
+			end
+		end
+	end
+	return cleared
 end
 
 -- ==========================================================
