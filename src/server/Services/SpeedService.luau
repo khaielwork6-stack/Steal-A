@@ -51,6 +51,13 @@ function SpeedService.applyMovement(player: Player)
 	CarryService.applyMovement(player)
 end
 
+--- The permanent Speed gamepass multiplier on TRAINING GAIN. Overridden by init
+--- so this service does not have to require MonetizationService; returns 1 until
+--- ownership is warmed, which is the safe direction.
+function SpeedService.trainingMultiplier(_player: Player): number
+	return 1
+end
+
 -- ==========================================================
 -- ACTIVATION - REMOVED ON PURPOSE
 -- ==========================================================
@@ -332,7 +339,17 @@ local function trainingTick()
 		end
 
 		local before = profile.SpeedPower
-		profile.SpeedPower += tier.gainPerTick
+		-- Base treadmill gain x the permanent Speed gamepass tier.
+		--
+		-- The multiplier scales what is EARNED from here on. It deliberately does
+		-- NOT touch `profile.SpeedPower` itself: multiplying the saved total on
+		-- purchase would compound every time they bought a tier and corrupt the
+		-- stat permanently.
+		--
+		-- Trails are NOT in this line. A trail multiplies MOVEMENT, not training
+		-- (see CarryService.applyMovement) - keeping them in separate formulas is
+		-- what stops the two from silently multiplying together.
+		profile.SpeedPower += tier.gainPerTick * SpeedService.trainingMultiplier(player)
 		SpeedService.applyMovement(player)
 		StateService.markDirty(player)
 

@@ -241,7 +241,7 @@ function PlacementService.sellStored(player: Player, instanceId: string): (boole
 			table.remove(profile.Inventory, index)
 
 			-- Index discovery survives a sale (GDD section 13).
-			EconomyService.award(player, payout)
+			EconomyService.earn(player, payout)
 			StateService.pushNow(player)
 			notify(
 				player,

@@ -51,6 +51,15 @@ function StateService.setCarryProvider(fn: (Player) -> any)
 	carryProvider = fn
 end
 
+--- And monetization: what the player owns, and what the shop should offer next.
+--- Riding the existing push rather than adding a channel means the treadmill
+--- card and the trail shop can never disagree with the HUD about ownership.
+local monetizationProvider: ((Player) -> any)? = nil
+
+function StateService.setMonetizationProvider(fn: (Player) -> any)
+	monetizationProvider = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -110,6 +119,7 @@ local function build(player: Player): ClientState?
 		plotName = if plot then plot.Name else nil,
 		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
 		carrying = if carryProvider then carryProvider(player) else nil,
+		monetization = if monetizationProvider then monetizationProvider(player) else nil,
 		inventory = profile.Inventory,
 		storageUsed = #profile.Inventory,
 		storageCapacity = StorageConfig.capacityForTier(profile.StorageTier),

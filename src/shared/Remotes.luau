@@ -29,6 +29,13 @@ Remotes.NAMES = {
 	-- this player is carrying, and asking the client which item to drop would be
 	-- handing it a target it has no business choosing.
 	"DropLootRequest",
+	-- Trail shop: buy with cash, buy with Robux, equip. Carries a trail KEY, never
+	-- a price or a gamepass id - the server looks both of those up itself.
+	"TrailRequest",
+	-- server -> client. The contextual "you were too slow" offer after a guardian
+	-- catch. Carries the product key and the zone; the client renders it and can
+	-- only ask to buy, never grant.
+	"BossOffer",
 	-- Asks the SERVER to open a Robux purchase prompt. The client never calls
 	-- PromptProductPurchase with an id of its own choosing, so a tampered client
 	-- cannot make the game prompt for an arbitrary product.

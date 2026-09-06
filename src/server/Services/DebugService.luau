@@ -1069,6 +1069,105 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Monetization test bridge. Robux cannot be spent in Studio, so gamepass
+	--- ownership is faked into the SERVER's cache (never the client's) and
+	--- products are delivered as synthetic receipts through the real
+	--- ProcessReceipt - the paths that must be proven are the grant and the
+	--- replay, not Roblox's dialog.
+	---   Invoke("monetize")                       config integrity + current state
+	---   Invoke("monetize", nil, "own", "Speed8x")  fake ownership of a pass
+	---   Invoke("monetize", nil, "clear")           forget all faked ownership
+	monetize = function(player, action: string?, key: string?)
+		local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
+		local MonetizationService = require(script.Parent.MonetizationService)
+		local TrailService = require(script.Parent.TrailService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		if action == "own" and key then
+			local id
+			local pass = MonetizationConfig.SpeedPassByKey[key]
+			if pass then
+				id = pass.gamePassId
+			elseif key == "Cash2x" then
+				id = MonetizationConfig.CashPass.gamePassId
+			else
+				local trail = MonetizationConfig.TrailByKey[key]
+				id = trail and trail.gamePassId
+			end
+			if not id then
+				return { error = `no gamepass for key "{key}"` }
+			end
+			MonetizationService.setOwnedForTesting(player, id, true)
+			return { faked = key, id = id, speedMultiplier = MonetizationService.speedMultiplier(player) }
+		elseif action == "clear" then
+			MonetizationService.clearOwnedForTesting(player)
+			return { cleared = true, speedMultiplier = MonetizationService.speedMultiplier(player) }
+		end
+
+		-- Config integrity: every id present, non-zero and unique.
+		local seen, dupes, zeros = {}, {}, {}
+		local function check(label, id)
+			if not id or id <= 0 then table.insert(zeros, label) end
+			if seen[id] then table.insert(dupes, `{label} shares id {id} with {seen[id]}`) end
+			seen[id] = label
+		end
+		for _, t in MonetizationConfig.SpeedMultiplierPasses do check(t.key, t.gamePassId) end
+		check("Cash2x", MonetizationConfig.CashPass.gamePassId)
+		for _, t in MonetizationConfig.Trails do
+			if t.gamePassId then check(t.key .. "Trail", t.gamePassId) end
+		end
+		for id, p in MonetizationConfig.ProductById do check(p.key, id) end
+
+		local nextTier = MonetizationService.nextSpeedTier(player)
+		return {
+			speedPasses = #MonetizationConfig.SpeedMultiplierPasses,
+			trails = #MonetizationConfig.Trails,
+			products = (function() local n = 0 for _ in MonetizationConfig.ProductById do n += 1 end return n end)(),
+			duplicateIds = dupes,
+			unconfiguredIds = zeros,
+			speedMultiplier = MonetizationService.speedMultiplier(player),
+			cashMultiplier = MonetizationService.cashMultiplier(player),
+			trailMultiplier = TrailService.multiplierFor(player),
+			nextSpeedTierOffered = if nextTier then `{nextTier.label} for {nextTier.robux} R$` else "MAXED",
+			equippedTrail = profile.EquippedTrail,
+			trailsOwnedByCash = profile.TrailsOwned,
+		}
+	end,
+
+	--- Buys / equips a trail through the REAL server paths, so validation,
+	--- deduction and persistence are all exercised.
+	trail = function(player, action: string?, key: string?)
+		local TrailService = require(script.Parent.TrailService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local ok, reason
+		if action == "buy" and key then
+			ok, reason = TrailService.buyWithCash(player, key)
+		elseif action == "equip" and key then
+			ok, reason = TrailService.equip(player, key)
+		elseif action == "unequip" then
+			ok, reason = TrailService.equip(player, "")
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+		return {
+			ok = ok,
+			reason = reason,
+			cash = profile.Cash,
+			equipped = profile.EquippedTrail,
+			owned = profile.TrailsOwned,
+			multiplier = TrailService.multiplierFor(player),
+			visualAttached = root ~= nil and root:FindFirstChild("EquippedTrail") ~= nil,
+			walkSpeed = if humanoid then humanoid.WalkSpeed else -1,
+		}
+	end,
+
 	--- Audits EVERY zone guardian against the recommendation its sign displays.
 	---
 	--- This is the check the "127K outruns a 170K Santa" bug failed. For each

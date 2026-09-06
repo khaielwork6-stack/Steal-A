@@ -200,7 +200,7 @@ local function payOut(player: Player, reward: IndexConfig.Reward, label: string)
 		return
 	end
 
-	EconomyService.award(player, reward.cash)
+	EconomyService.earn(player, reward.cash)
 	profile.SpeedPower += reward.speed
 
 	-- The permanent multiplier is read straight off ClaimedIndexRewards, so this

@@ -46,11 +46,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
+local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 
 local DataService = require(script.Parent.DataService)
+local EconomyService = require(script.Parent.EconomyService)
 local SpeedService = require(script.Parent.SpeedService)
 local StateService = require(script.Parent.StateService)
 
@@ -81,6 +83,127 @@ local function rememberGrant(profile: DataService.Profile, purchaseId: string)
 	while #profile.ProcessedReceipts > RECEIPT_HISTORY do
 		table.remove(profile.ProcessedReceipts, 1)
 	end
+end
+
+-- ==========================================================
+-- GAMEPASS OWNERSHIP
+-- ==========================================================
+--
+-- Roblox is the source of truth for a gamepass, but `UserOwnsGamePassAsync` is a
+-- web call - it yields, it can throw, and it must never be put anywhere that
+-- runs per frame or per training tick. So ownership is cached per player, warmed
+-- once on join, and refreshed only when there is a reason to think it changed.
+--
+-- A FAILED LOOKUP IS NOT A "NO". A network error caches nothing and is retried,
+-- because caching a false would silently strip a paying player of what they
+-- bought until they rejoined.
+
+local ownership: { [Player]: { [number]: boolean } } = {}
+
+local function ownsCached(player: Player, gamePassId: number): boolean?
+	local forPlayer = ownership[player]
+	return if forPlayer then forPlayer[gamePassId] else nil
+end
+
+--- Blocking check with caching. Safe to call from anywhere that can yield.
+function MonetizationService.ownsPass(player: Player, gamePassId: number): boolean
+	local cached = ownsCached(player, gamePassId)
+	if cached ~= nil then
+		return cached
+	end
+
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gamePassId)
+	end)
+	if not ok then
+		warn(`[MonetizationService] ownership check failed for {player.Name} / {gamePassId}: {owns}`)
+		return false -- NOT cached: a transient failure must not become permanent
+	end
+
+	local forPlayer = ownership[player]
+	if not forPlayer then
+		forPlayer = {}
+		ownership[player] = forPlayer
+	end
+	forPlayer[gamePassId] = owns
+	return owns
+end
+
+--- Non-yielding read for hot paths (the training tick, the movement formula).
+--- Returns false for anything not yet warmed rather than blocking on a web call.
+function MonetizationService.ownsPassCached(player: Player, gamePassId: number): boolean
+	return ownsCached(player, gamePassId) == true
+end
+
+--- Re-checks every pass this game sells. Called on join and after a purchase.
+function MonetizationService.refreshOwnership(player: Player)
+	ownership[player] = ownership[player] or {}
+	for _, id in MonetizationConfig.allGamePassIds() do
+		local ok, owns = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
+		end)
+		if ok then
+			ownership[player][id] = owns
+		end
+	end
+	MonetizationService.onOwnershipChanged(player)
+end
+
+--- Overridden by init so this service does not have to require the things that
+--- care (movement, training, the state push).
+function MonetizationService.onOwnershipChanged(_player: Player) end
+
+--- STUDIO TESTING ONLY. Robux cannot be spent in Studio, so ownership has to be
+--- faked to exercise the tier logic at all. Writes to the SERVER's cache, which
+--- no client can reach; the debug bridge that calls it does not exist outside
+--- Studio (DebugService is guarded by RunService:IsStudio).
+function MonetizationService.setOwnedForTesting(player: Player, gamePassId: number, owned: boolean)
+	ownership[player] = ownership[player] or {}
+	ownership[player][gamePassId] = owned
+	MonetizationService.onOwnershipChanged(player)
+end
+
+function MonetizationService.clearOwnedForTesting(player: Player)
+	ownership[player] = {}
+	MonetizationService.onOwnershipChanged(player)
+end
+
+-- ==========================================================
+-- WHAT OWNERSHIP BUYS
+-- ==========================================================
+
+--- A. The permanent treadmill-training multiplier: the HIGHEST owned tier, not
+--- the sum and not the product of the ones below it. Owning 2x, 4x and 8x is 8x.
+function MonetizationService.speedMultiplier(player: Player): number
+	local best = 1
+	for _, tier in MonetizationConfig.SpeedMultiplierPasses do
+		if MonetizationService.ownsPassCached(player, tier.gamePassId) then
+			best = math.max(best, tier.multiplier)
+		end
+	end
+	return best
+end
+
+--- The tier the shop should offer next, or nil once they own the top one.
+function MonetizationService.nextSpeedTier(player: Player): MonetizationConfig.PassTier?
+	return MonetizationConfig.nextSpeedTier(MonetizationService.speedMultiplier(player))
+end
+
+--- 2x on gameplay-generated Cash only.
+function MonetizationService.cashMultiplier(player: Player): number
+	return if MonetizationService.ownsPassCached(player, MonetizationConfig.CashPass.gamePassId)
+		then MonetizationConfig.CashPass.multiplier
+		else 1
+end
+
+--- Whether a trail is unlocked by its Robux gamepass. The cash route is stored
+--- in the profile instead - see TrailService.
+function MonetizationService.ownsTrailPass(player: Player, trailKey: string): boolean
+	local trail = MonetizationConfig.TrailByKey[trailKey]
+	if not trail or not trail.gamePassId then
+		return false
+	end
+	return MonetizationService.ownsPassCached(player, trail.gamePassId)
 end
 
 -- ==========================================================
@@ -201,9 +324,10 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		return pending
 	end
 
-	-- Rule 3.
-	local key = MonetizationConfig.keyForProductId(receiptInfo.ProductId)
-	if not key then
+	-- Rule 3. ONE lookup table for every product the game sells - Cash packs,
+	-- direct Speed grants and treadmill tiers all arrive here.
+	local product = MonetizationConfig.ProductById[receiptInfo.ProductId]
+	if not product then
 		warn(
 			`[MonetizationService] product {receiptInfo.ProductId} is not in MonetizationConfig - `
 				.. `receipt left OPEN for {player.Name}. Paste the id in and it will grant.`
@@ -211,37 +335,56 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		return pending
 	end
 
-	local intended = levelForProductKey(key)
-	if not intended then
-		warn(`[MonetizationService] product key "{key}" maps to no treadmill tier - receipt left open.`)
-		return pending
-	end
+	-- The grant itself. Dispatched on the product's own `kind`, so adding a
+	-- product is a config row rather than another branch in ProcessReceipt.
+	if product.kind == "Cash" then
+		-- FACE VALUE. The 2x Cash pass multiplies EARNINGS, never a purchased
+		-- pack - doubling this would be handing the player something they did
+		-- not buy, and halving the value of the pass they might buy later.
+		EconomyService.award(player, product.amount)
+		rememberGrant(profile, purchaseId)
+		StateService.notify(player, "success", `+{NumberFormat.short(product.amount)} CASH!`, "levelup")
 
-	-- Rule 4.
-	local level = resolveGrantLevel(profile.TreadmillLevel)
-	if not level then
-		warn(
-			`[MonetizationService] {player.Name} bought tier {intended} while already maxed. `
-				.. `Receipt left OPEN rather than consumed.`
+	elseif product.kind == "Speed" then
+		-- A DIRECT GRANT, not a rate. Never scaled by the permanent multiplier
+		-- or by a trail: those multiply what you EARN, and this is a quantity.
+		profile.SpeedPower += product.amount
+		SpeedService.applyMovement(player)
+		rememberGrant(profile, purchaseId)
+		StateService.notify(player, "success", `+{NumberFormat.short(product.amount)} SPEED!`, "levelup")
+
+	elseif product.kind == "TreadmillTier" then
+		-- Rule 4: always the tier they are NEXT in line for, never the one named
+		-- on the product, so a purchase in flight while they earned it with Cash
+		-- still gives them something.
+		local level = resolveGrantLevel(profile.TreadmillLevel)
+		if not level then
+			warn(
+				`[MonetizationService] {player.Name} bought tier {product.amount} while already maxed. `
+					.. `Receipt left OPEN rather than consumed.`
+			)
+			StateService.notify(player, "error", "You are already fully upgraded - contact support.")
+			return pending
+		end
+		if not SpeedService.grantTreadmillTier(player, level) then
+			warn(`[MonetizationService] grant of tier {level} refused for {player.Name} - receipt left open.`)
+			return pending
+		end
+		rememberGrant(profile, purchaseId)
+		local tier = TreadmillConfig.tier(level)
+		StateService.notify(
+			player,
+			"success",
+			`Treadmill {if tier then tier.name else level}! Thanks for the support.`,
+			"levelup"
 		)
-		StateService.notify(player, "error", "You are already fully upgraded - contact support.")
+
+	else
+		warn(`[MonetizationService] product "{product.key}" has unknown kind "{product.kind}" - receipt left open.`)
 		return pending
 	end
 
-	if not SpeedService.grantTreadmillTier(player, level) then
-		warn(`[MonetizationService] grant of tier {level} refused for {player.Name} - receipt left open.`)
-		return pending
-	end
-
-	rememberGrant(profile, purchaseId)
-
-	local tier = TreadmillConfig.tier(level)
-	StateService.notify(
-		player,
-		"success",
-		`Treadmill {if tier then tier.name else level}! Thanks for the support.`,
-		"levelup"
-	)
+	StateService.pushNow(player)
 
 	-- Only report success once the grant is durable.
 	if not DataService.isPersistent() or DataService.save(player) then
@@ -252,19 +395,172 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 	return pending
 end
 
+-- ==========================================================
+-- PROMPTING
+-- ==========================================================
+--
+-- THE CLIENT NEVER NAMES AN ID. Every one of these takes a KEY that the server
+-- looks up in its own config, so a tampered client can ask to buy "Cash200K" but
+-- cannot make the game prompt for an arbitrary product or gamepass.
+
+--- A Cash or Speed Developer Product, by config key.
+function MonetizationService.promptProduct(player: Player, key: string): (boolean, string?)
+	if not promptLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+	local product = MonetizationConfig.ProductByKey[key]
+	if not product or product.productId <= 0 then
+		return false, "That item is not available yet."
+	end
+	local ok, err = pcall(function()
+		MarketplaceService:PromptProductPurchase(player, product.productId)
+	end)
+	if not ok then
+		warn(`[MonetizationService] PromptProductPurchase failed for {player.Name}: {err}`)
+		return false, "Could not open the purchase."
+	end
+	return true
+end
+
+--- A gamepass, by id. Shared by the speed tiers, the cash pass and the trails.
+local function promptPass(player: Player, gamePassId: number): (boolean, string?)
+	if not promptLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+	local ok, err = pcall(function()
+		MarketplaceService:PromptGamePassPurchase(player, gamePassId)
+	end)
+	if not ok then
+		warn(`[MonetizationService] PromptGamePassPurchase failed for {player.Name}: {err}`)
+		return false, "Could not open the purchase."
+	end
+	return true
+end
+
+--- The NEXT speed tier, and only that one. The server re-derives which tier that
+--- is from live ownership, so a client asking for 1024x while owning nothing
+--- gets prompted for 2x.
+function MonetizationService.promptNextSpeedTier(player: Player): (boolean, string?)
+	local tier = MonetizationService.nextSpeedTier(player)
+	if not tier then
+		return false, "You already own the maximum Speed multiplier!"
+	end
+	return promptPass(player, tier.gamePassId)
+end
+
+function MonetizationService.promptCashPass(player: Player): (boolean, string?)
+	if MonetizationService.ownsPassCached(player, MonetizationConfig.CashPass.gamePassId) then
+		return false, "You already own 2x Cash!"
+	end
+	return promptPass(player, MonetizationConfig.CashPass.gamePassId)
+end
+
+function MonetizationService.promptTrailPass(player: Player, trailKey: string): (boolean, string?)
+	local trail = MonetizationConfig.TrailByKey[trailKey]
+	if not trail or not trail.gamePassId then
+		return false, "That trail has no Robux option."
+	end
+	if MonetizationService.ownsPassCached(player, trail.gamePassId) then
+		return false, "You already own that trail."
+	end
+	return promptPass(player, trail.gamePassId)
+end
+
+-- ==========================================================
+-- THE BOSS-LOSS OFFER
+-- ==========================================================
+--
+-- Shown when a zone's guardian catches a thief mid-chase, and ONLY then.
+--
+-- It is driven from `GuardianService`'s catch handler - the one path that means
+-- "you were carrying loot and the chase beat you". It is deliberately NOT hooked
+-- to Humanoid.Died, to touching a guardian, to resetting, to falling, or to
+-- dropping an item on purpose: none of those are the failure this offer answers,
+-- and firing on them would turn a purchase prompt into noise.
+
+local lastOfferAt: { [Player]: number } = {}
+
+--- Fires the contextual offer for `zoneIndex`, if there is one and the player is
+--- not still inside the cooldown.
+function MonetizationService.offerAfterCatch(player: Player, zoneIndex: number)
+	local key = MonetizationConfig.BossOfferByZone[zoneIndex]
+	if not key then
+		-- No configured offer for this zone. Zone 12 is deliberately in this
+		-- state: no price was specified for it, and inventing one for real money
+		-- is not a gap to fill with a guess.
+		return
+	end
+
+	local product = MonetizationConfig.ProductByKey[key]
+	if not product or product.productId <= 0 then
+		return
+	end
+
+	local now = os.clock()
+	local last = lastOfferAt[player]
+	if last and now - last < MonetizationConfig.BOSS_OFFER_COOLDOWN then
+		return -- caught again straight away; the offer is least welcome now
+	end
+	lastOfferAt[player] = now
+
+	Remotes.get("BossOffer"):FireClient(player, {
+		productKey = product.key,
+		amount = product.amount,
+		label = product.label,
+		robux = product.robux,
+		zoneIndex = zoneIndex,
+	})
+end
+
 function MonetizationService.start()
-	-- Deliberately the ONLY grant path. PromptProductPurchaseFinished is not
-	-- connected: it reports a closed dialog, not a completed transaction.
+	-- Deliberately the ONLY grant path for PRODUCTS. PromptProductPurchaseFinished
+	-- is not connected: it reports a closed dialog, not a completed transaction.
 	MarketplaceService.ProcessReceipt = MonetizationService.processReceipt
 
-	Remotes.get("PurchaseRequest").OnServerEvent:Connect(function(player, action)
-		if action ~= "treadmill" then
+	-- Gamepasses are different, and this is NOT the same mistake. Nothing is
+	-- granted here: the event only triggers a re-check, and the answer comes from
+	-- UserOwnsGamePassAsync - Roblox - not from the client's claim.
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, _id, purchased)
+		if purchased then
+			task.spawn(MonetizationService.refreshOwnership, player)
+		end
+	end)
+
+	Remotes.get("PurchaseRequest").OnServerEvent:Connect(function(player, action, argument)
+		if type(action) ~= "string" then
 			return
 		end
-		local ok, reason = MonetizationService.promptTreadmillUpgrade(player)
+
+		local ok, reason
+		if action == "treadmill" then
+			ok, reason = MonetizationService.promptTreadmillUpgrade(player)
+		elseif action == "speedTier" then
+			ok, reason = MonetizationService.promptNextSpeedTier(player)
+		elseif action == "cashPass" then
+			ok, reason = MonetizationService.promptCashPass(player)
+		elseif action == "product" and type(argument) == "string" then
+			ok, reason = MonetizationService.promptProduct(player, argument)
+		else
+			return
+		end
+
 		if not ok and reason then
 			StateService.notify(player, "error", reason)
 		end
+	end)
+
+	-- Warm ownership once per player rather than asking Roblox on demand.
+	local function warm(player: Player)
+		task.spawn(MonetizationService.refreshOwnership, player)
+	end
+	for _, player in Players:GetPlayers() do
+		warm(player)
+	end
+	Players.PlayerAdded:Connect(warm)
+	Players.PlayerRemoving:Connect(function(player)
+		ownership[player] = nil
+		lastOfferAt[player] = nil
+		promptLimiter:release(player)
 	end)
 
 	local configured = 0

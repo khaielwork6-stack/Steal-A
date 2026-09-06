@@ -68,6 +68,12 @@ export type Profile = {
 	-- Durable for the same reason as the receipt list: an in-memory flag would
 	-- hand out another $1,000 on every rejoin.
 	TutorialBridgeGranted: boolean,
+	-- Trails bought with CASH. Robux trails are not listed here - Roblox owns
+	-- that answer and MonetizationService asks it, so a refund or a revoke is
+	-- reflected instead of being frozen into the save.
+	TrailsOwned: { [string]: boolean },
+	-- The equipped trail's key, or "" for none. Exactly one at a time.
+	EquippedTrail: string,
 }
 
 local store: DataStore? = nil
@@ -102,6 +108,8 @@ local function defaultProfile(): Profile
 		Settings = { ReducedVFX = false, ScreenShake = true },
 		ProcessedReceipts = {},
 		TutorialBridgeGranted = false,
+		TrailsOwned = {},
+		EquippedTrail = "",
 	}
 end
 
@@ -259,6 +267,15 @@ local function reconcile(profile: Profile): Profile
 	-- is no longer awarded. The field is kept so old saves still load cleanly.
 	if type(profile.TutorialBridgeGranted) ~= "boolean" then
 		profile.TutorialBridgeGranted = true
+	end
+
+	-- Trails. Only CASH unlocks live here; Robux trails are answered by Roblox
+	-- ownership so a refund is reflected rather than frozen into the save.
+	if type(profile.TrailsOwned) ~= "table" then
+		profile.TrailsOwned = {}
+	end
+	if type(profile.EquippedTrail) ~= "string" then
+		profile.EquippedTrail = ""
 	end
 
 	-- Recompute every stored item's economy from the live config. Runs on EVERY

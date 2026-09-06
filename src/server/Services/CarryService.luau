@@ -101,6 +101,13 @@ end
 -- MOVEMENT
 -- ==========================================================
 
+--- The equipped trail's movement multiplier. Overridden by init so this service
+--- need not require TrailService; 1 means no trail, which is also the safe
+--- answer before a profile has loaded.
+function CarryService.trailMultiplierFor(_player: Player): number
+	return 1
+end
+
 --- Applies the carry penalty on top of the compressed Speed formula. Bigger
 --- loot demands a real Speed buffer rather than being free to haul.
 function CarryService.applyMovement(player: Player)
@@ -118,7 +125,20 @@ function CarryService.applyMovement(player: Player)
 		return
 	end
 
-	local speed = GameConfig.walkSpeedFromPower(profile.SpeedPower)
+	-- THE EQUIPPED TRAIL MULTIPLIES MOVEMENT, and it does so by scaling the
+	-- effective Speed fed into the conversion rather than the finished WalkSpeed.
+	--
+	-- That matters. WalkSpeed is logarithmic in Speed and hard-clamped, so a x14
+	-- trail applied to the OUTPUT would slam straight into WALKSPEED_MAX and every
+	-- tier above about x2 would feel identical. Applied to the INPUT it stays on
+	-- the same smooth curve the whole progression uses, and it can never break the
+	-- clamp.
+	--
+	-- It scales the effective value only - `profile.SpeedPower` is untouched, so
+	-- equipping and unequipping a trail can never inflate the saved stat. And it
+	-- is the ONLY place a trail is applied; training gain is a separate formula.
+	local effective = profile.SpeedPower * CarryService.trailMultiplierFor(player)
+	local speed = GameConfig.walkSpeedFromPower(effective)
 
 	local loot = carrying[player]
 	if loot then

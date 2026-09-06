@@ -187,6 +187,7 @@ GameConfig.RATE_LIMITS = {
 	IndexClaimRequest = 4,
 	PurchaseRequest = 2,
 	DropLootRequest = 3,
+	TrailRequest = 4,
 }
 
 return GameConfig

@@ -32,6 +32,7 @@ local TutorialService = require(Services.TutorialService)
 local RagdollService = require(Services.RagdollService)
 local PvPService = require(Services.PvPService)
 local MonetizationService = require(Services.MonetizationService)
+local TrailService = require(Services.TrailService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -59,9 +60,72 @@ CarryService.setCarryChangedHandler(function(player)
 	StateService.pushNow(player)
 end)
 
+-- ==========================================================
+-- MONETIZATION WIRING
+-- ==========================================================
+--
+-- The three Speed systems and the Cash pass are injected here rather than
+-- required, so the services that APPLY them never depend on the service that
+-- SELLS them. Each multiplier lands in exactly one formula:
+--
+--   Speed gamepass tier -> SpeedService training gain
+--   Equipped trail      -> CarryService movement conversion
+--   2x Cash             -> EconomyService income rate AND one-off earnings
+--
+-- Nothing here touches a saved stat, so none of them can compound.
+SpeedService.trainingMultiplier = function(player)
+	return MonetizationService.speedMultiplier(player)
+end
+CarryService.trailMultiplierFor = function(player)
+	return TrailService.multiplierFor(player)
+end
+EconomyService.cashMultiplierFor = function(player)
+	return MonetizationService.cashMultiplier(player)
+end
+TrailService.refreshMovement = function(player)
+	SpeedService.applyMovement(player)
+end
+
+-- What the shop UIs render. Derived server-side every push: the client is told
+-- what it owns and what it may be offered next, and decides neither.
+StateService.setMonetizationProvider(function(player)
+	local nextTier = MonetizationService.nextSpeedTier(player)
+	return {
+		speedMultiplier = MonetizationService.speedMultiplier(player),
+		cashMultiplier = MonetizationService.cashMultiplier(player),
+		ownsCashPass = MonetizationService.cashMultiplier(player) > 1,
+		-- nil once they own 1024x, which is what tells the treadmill card to
+		-- render its MAXED state instead of another purchase.
+		nextSpeedTier = if nextTier
+			then { key = nextTier.key, label = nextTier.label, robux = nextTier.robux, multiplier = nextTier.multiplier }
+			else nil,
+		trails = TrailService.summarise(player),
+	}
+end)
+
+-- Ownership is only known after an async check, so everything derived from it
+-- has to be re-applied once the answer lands - otherwise a player who owns 2x
+-- Cash sees the un-doubled rate until something else happens to dirty it.
+MonetizationService.onOwnershipChanged = function(player)
+	EconomyService.recalculate(player)
+	SpeedService.applyMovement(player)
+	TrailService.applyVisual(player)
+	StateService.pushNow(player)
+end
+
 -- A catch reclaims the loot; the launch itself is GuardianService's job.
+--
+-- This is ALSO the one legitimate trigger for the contextual Speed offer: it
+-- means "you were carrying loot and the chase beat you", which is precisely the
+-- failure the offer answers. The carrier is read BEFORE `reclaim`, which clears
+-- it. Deliberately not hooked to deaths, resets, falls or voluntary drops.
 GuardianService.setCatchHandler(function(loot)
+	local thief = loot.carrier
+	local zoneIndex = loot.zoneIndex
 	CarryService.reclaim(loot)
+	if thief then
+		MonetizationService.offerAfterCatch(thief, zoneIndex)
+	end
 end)
 
 -- Crossing the red line. Short and celebratory: the tutorial objective flips to
@@ -155,6 +219,7 @@ PlacementService.start()
 SpeedService.start()
 -- Must follow SpeedService: a receipt grants its tier through it.
 MonetizationService.start()
+TrailService.start()
 ZoneSignService.start()
 TutorialService.start()
 RagdollService.start()

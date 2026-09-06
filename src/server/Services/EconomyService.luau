@@ -48,11 +48,17 @@ function EconomyService.recalculate(player: Player): number
 		total += item.FinalIncome
 	end
 
-	-- The only global multiplier in the game: completed Index sets. Reading it
-	-- from the config keeps the reward defined in one place, and applying it here
-	-- means it lands on the aggregate rather than on each item's frozen
-	-- FinalIncome - so a claim never rewrites saved item data.
+	-- Completed Index sets. Reading it from the config keeps the reward defined in
+	-- one place, and applying it here means it lands on the aggregate rather than
+	-- on each item's frozen FinalIncome - so a claim never rewrites saved data.
 	total = math.floor(total * IndexConfig.incomeMultiplier(profile.ClaimedIndexRewards))
+
+	-- The 2x Cash gamepass is applied HERE as well as in `award`, deliberately.
+	-- The HUD renders this number, and the passive tick pays `award(income)` -
+	-- so if the pass doubled the payout but not this, the game would be back to
+	-- displaying one rate and paying another, which is the exact class of bug
+	-- this economy was last fixed for. One multiplier, both sides.
+	total = math.floor(total * EconomyService.cashMultiplierFor(player))
 
 	incomePerSecond[player] = total
 	notify(player)
@@ -68,6 +74,23 @@ function EconomyService.getCash(player: Player): number
 	return if profile then profile.Cash else 0
 end
 
+--- THE 2X CASH GAMEPASS LIVES IN EXACTLY TWO PLACES, and they must agree:
+---   * `recalculate`, so the HUD's $/s already includes it, and
+---   * `earn`, for one-off gameplay payouts that do not come from that rate.
+---
+--- Overridden by init so this service need not require MonetizationService.
+--- Returns 1 until ownership has been warmed, which is the safe direction: a
+--- missed double is recoverable, a doubled purchase is not.
+function EconomyService.cashMultiplierFor(_player: Player): number
+	return 1
+end
+
+--- Pays EXACTLY `amount`. Never multiplied by anything.
+---
+--- Use this for a value that is already final: the passive tick (whose rate
+--- `recalculate` has already multiplied) and Robux Cash packs (which must grant
+--- their face value - doubling a purchased pack hands the player more than the
+--- pack advertises and quietly devalues the pass itself).
 function EconomyService.award(player: Player, amount: number)
 	if amount <= 0 then
 		return
@@ -79,6 +102,15 @@ function EconomyService.award(player: Player, amount: number)
 	profile.Cash += amount
 	profile.Lifetime.CashEarned += amount
 	notify(player)
+end
+
+--- Pays `amount` scaled by the 2x Cash pass. Use for GAMEPLAY EARNINGS that are
+--- not derived from the aggregate rate - selling a trophy, an Index claim.
+function EconomyService.earn(player: Player, amount: number)
+	if amount <= 0 then
+		return
+	end
+	EconomyService.award(player, math.floor(amount * EconomyService.cashMultiplierFor(player)))
 end
 
 --- Atomic spend: returns false and changes nothing when the player cannot
