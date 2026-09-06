@@ -236,11 +236,27 @@ end
 -- STATE
 -- ==========================================================
 
+--- Listeners for "the player started / stopped training". Exposed so the
+--- treadmill offer UI can follow the SAME detection the reward uses, rather than
+--- running a second test that could disagree with it.
+local trainingListeners: { (boolean) -> () } = {}
+
+function TreadmillController.onTrainingChanged(callback: (boolean) -> ())
+	table.insert(trainingListeners, callback)
+end
+
+local function announceTraining(value: boolean)
+	for _, callback in trainingListeners do
+		task.spawn(callback, value)
+	end
+end
+
 local function leaveTreadmill()
 	if not training then
 		return
 	end
 	training = false
+	announceTraining(false)
 	stopRunning()
 	-- Anything banked but not yet shown is dropped: a popup appearing after the
 	-- player has walked away is noise, and the Speed is already in their total.
@@ -326,6 +342,7 @@ local function step(dt: number)
 	local on = isOnTreadmill(root)
 	if on and not training then
 		training = true
+		announceTraining(true)
 		startRunning(character, humanoid)
 	elseif not on and training then
 		leaveTreadmill()

@@ -1105,6 +1105,29 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		elseif action == "clear" then
 			MonetizationService.clearOwnedForTesting(player)
 			return { cleared = true, speedMultiplier = MonetizationService.speedMultiplier(player) }
+		elseif action == "disown" then
+			-- FORCES "owns nothing", which `clear` cannot do.
+			--
+			-- Roblox reports the place's own creator as owning every gamepass they
+			-- published, so on this account `clear` is immediately undone by the
+			-- next real ownership check and the treadmill card is permanently
+			-- MAXED. Pinning every pass to false is the only way to see the tier
+			-- ladder the way a new player sees it.
+			for _, tier in MonetizationConfig.SpeedMultiplierPasses do
+				MonetizationService.setOwnedForTesting(player, tier.gamePassId, false)
+			end
+			MonetizationService.setOwnedForTesting(player, MonetizationConfig.CashPass.gamePassId, false)
+			for _, trail in MonetizationConfig.Trails do
+				if trail.gamePassId then
+					MonetizationService.setOwnedForTesting(player, trail.gamePassId, false)
+				end
+			end
+			local tier = MonetizationService.nextSpeedTier(player)
+			return {
+				disowned = true,
+				speedMultiplier = MonetizationService.speedMultiplier(player),
+				nextSpeedTierOffered = if tier then tier.label else "MAXED",
+			}
 		end
 
 		-- Config integrity: every id present, non-zero and unique.

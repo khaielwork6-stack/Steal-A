@@ -32,6 +32,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
@@ -251,7 +252,138 @@ end
 -- START
 -- ==========================================================
 
+-- ==========================================================
+-- THE PHYSICAL SHOP
+-- ==========================================================
+--
+-- Trails are NOT a tab on the main Shop. The player walks to a keeper standing
+-- in the base plaza and holds E, using the same ProximityPrompt language every
+-- other interaction in the game uses - so it needs no new input teaching, and
+-- InteractController renders it with the pack's own prompt automatically.
+--
+-- The kiosk is built from parts rather than an imported model because no NPC
+-- asset was supplied. It reuses the sign construction the base upgrade station
+-- already uses, so it reads as part of the same world.
+
+local KEEPER_NAME = "TrailShopKeeper"
+
+local function slab(name: string, size: Vector3, cf: CFrame, color: Color3, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+local function buildKeeper()
+	local map = workspace:FindFirstChild("Map")
+	if not map or map:FindFirstChild(KEEPER_NAME) then
+		return
+	end
+
+	-- In the plaza, on the safe side of the red line, off to one side of the
+	-- corridor mouth so it is passed on the way out but never blocks the run.
+	local base = CFrame.new(-70, 0, -30) * CFrame.Angles(0, math.rad(35), 0)
+
+	local model = Instance.new("Model")
+	model.Name = KEEPER_NAME
+
+	slab("Pad", Vector3.new(14, 0.6, 14), base * CFrame.new(0, 0.3, 0), Color3.fromRGB(58, 46, 96), model)
+	slab("Post", Vector3.new(1.4, 7, 1.4), base * CFrame.new(0, 3.5, 0), Color3.fromRGB(150, 100, 58), model)
+	local board = slab("Board", Vector3.new(11, 4.4, 0.9), base * CFrame.new(0, 8.4, 0), Color3.fromRGB(78, 38, 128), model)
+	slab("Edge", Vector3.new(11.8, 5.2, 0.6), base * CFrame.new(0, 8.4, 0.25), Color3.fromRGB(38, 16, 68), model)
+
+	-- A ribbon of every tier's colour: the shop advertises what it sells without
+	-- needing a single piece of authored art.
+	for index, trail in MonetizationConfig.Trails do
+		local offset = (index - (#MonetizationConfig.Trails + 1) / 2) * 1.0
+		slab(
+			`Swatch{index}`,
+			Vector3.new(0.85, 0.85, 0.85),
+			base * CFrame.new(offset, 5.4, 0),
+			trail.color,
+			model
+		)
+	end
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Face"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 48
+	gui.LightInfluence = 0
+	gui.Adornee = board
+	gui.Parent = board
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.fromScale(0.94, 0.5)
+	title.Position = UDim2.fromScale(0.03, 0.06)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.TextStrokeTransparency = 0
+	title.TextStrokeColor3 = Color3.fromRGB(24, 8, 44)
+	title.Text = "TRAIL SHOP"
+	title.Parent = gui
+
+	local sub = Instance.new("TextLabel")
+	sub.Size = UDim2.fromScale(0.94, 0.34)
+	sub.Position = UDim2.fromScale(0.03, 0.58)
+	sub.BackgroundTransparency = 1
+	sub.Font = Enum.Font.FredokaOne
+	sub.TextScaled = true
+	sub.TextColor3 = Color3.fromRGB(126, 236, 255)
+	sub.TextStrokeTransparency = 0.3
+	sub.Text = "Run faster - hold E"
+	sub.Parent = gui
+
+	-- The interaction volume. Queryable and collidable-free: you walk up to it,
+	-- you do not walk into it.
+	local trigger = Instance.new("Part")
+	trigger.Name = "Trigger"
+	trigger.Size = Vector3.new(10, 10, 10)
+	trigger.CFrame = base * CFrame.new(0, 5, 0)
+	trigger.Transparency = 1
+	trigger.Anchored = true
+	trigger.CanCollide = false
+	trigger.CastShadow = false
+	trigger.Parent = model
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "TrailShopPrompt"
+	prompt.ActionText = "Trail Shop"
+	prompt.ObjectText = "Trails"
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = trigger
+
+	model.PrimaryPart = board
+	model.Parent = map
+end
+
 function TrailService.start()
+	buildKeeper()
+
+	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+		if prompt.Name ~= "TrailShopPrompt" then
+			return
+		end
+		-- The server opens it. The client cannot decide it is at the shop.
+		Remotes.get("TrailRequest"):FireClient(player, "open")
+		StateService.pushNow(player)
+	end)
+
 	Remotes.get("TrailRequest").OnServerEvent:Connect(function(player, action, argument)
 		if type(action) ~= "string" then
 			return
