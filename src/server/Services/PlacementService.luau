@@ -394,6 +394,11 @@ local function ensureSign(plot: Instance, pad: BasePart): SurfaceGui?
 	local existing = plot:FindFirstChild(SIGN_NAME)
 	if existing then
 		local board = existing:FindFirstChild("Board")
+		if board and board:IsA("BasePart") then
+			-- Baked signs were built by an older `slab` with CanQuery off; the
+			-- click layer needs the board to be hittable (see below).
+			board.CanQuery = true
+		end
 		local gui = board and board:FindFirstChildOfClass("SurfaceGui")
 		return gui :: SurfaceGui?
 	end
@@ -415,6 +420,11 @@ local function ensureSign(plot: Instance, pad: BasePart): SurfaceGui?
 	slab("Post", Vector3.new(1.6, postTop, 1.6), facing * CFrame.new(0, postTop / 2, 0), MapPalette.SignPost, model)
 	slab("Edge", Vector3.new(SIGN_WIDTH + 0.9, SIGN_HEIGHT + 0.9, SIGN_DEPTH), base, MapPalette.SignEdge, model)
 	local board = slab("Board", Vector3.new(SIGN_WIDTH, SIGN_HEIGHT, SIGN_DEPTH + 0.12), base, MapPalette.SignBody, model)
+	-- The board is the one sign part that must answer spatial queries: the
+	-- client's click layer (BaseSignController) is a SurfaceGui adorned to it,
+	-- and a SurfaceGui only receives input when the pointer ray can hit its
+	-- part. `slab` turns CanQuery off for decor; this part is a button.
+	board.CanQuery = true
 
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Face"

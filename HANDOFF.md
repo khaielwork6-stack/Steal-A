@@ -1287,8 +1287,11 @@ treats those parts as limbs. Verified: zone 6 and zone 12 fully dressed at
   `buyRobux` reaches the server and opens the real gamepass prompt; X closes.
 - Bosses: all twelve shells build; heights as above; zone 6 catch loop; zone 6
   and 12 costumes.
-- NPC-hit offer at top-centre after a catch; `ChaseWarning.Run` is at
-  `0.5, 0.085` sized `0.42 x 0.11`.
+- RUN!! seen by eye: red vignette, `RUN!!` top-centre, DROP button up, HUD
+  tinted, while a 2M-Speed player outran the zone 6 guardian. The NPC-hit
+  offer lands in the same top-centre spot after the catch and had cleared
+  within 8 s of its last show (the 6.5 s timer was not clocked precisely: a
+  second catch during the first card re-arms it, by design).
 - Treadmill: HUD stays visible, W does not move you (1.60 → 1.60 studs from
   the trigger), Speed ticks up, Space then W walks you 90 studs off and the
   ticks stop, the 2X side card shows beside the stat card and hides off-belt.
@@ -1296,15 +1299,24 @@ treats those parts as limbs. Verified: zone 6 and zone 12 fully dressed at
 - Tutorial vase: steal → drop → back on the pedestal, one instance throughout,
   re-stealable.
 - Bat: `toolanim` cue appears, `ToolSlashAnim` plays.
-- Base sign: click layer present over the Board; red at `$0` vs `$1M`.
+- Base sign: click layer present over the Board, red at `$0`, green at `$1M`
+  (both by eye), the invisible button is what the engine reports under the
+  cursor at the painted button's centre. `ensureSign` now forces
+  `Board.CanQuery = true` (the `slab` helper turns it off for decor, and a
+  SurfaceGui cannot take input through a part the pointer ray ignores).
 
 ### NOT verified
 
+- **The actual click on the base sign.** The Studio MCP's virtual mouse drives
+  2D ScreenGui buttons fine but never delivered a single event (not even
+  MouseEnter) to any SurfaceGui button, including a throwaway control button
+  on the same board — 3D GUI picking appears to follow the real OS cursor. One
+  real click on the green button in a playtest settles it: expect the
+  `BaseUpgradeRequest` round trip, `slotsUnlocked` 7 → 8 with enough cash, a
+  shake and `UiDenied` without.
 - The gamepass prompt was **cancelled by stopping play**, not completed — the
   Studio test-purchase flow was not exercised. `PromptGamePassPurchaseFinished`
   handling is unchanged from before.
-- RUN!! was verified by geometry, not by eye: with one stationary player the
-  chase is over before a capture lands.
 - Touch input, other resolutions, and more than one player.
 - The group-join gift's live `PromptJoinAsync` flow (unchanged from §19's pass).
 
@@ -1333,3 +1345,10 @@ treats those parts as limbs. Verified: zone 6 and zone 12 fully dressed at
   invisible in captures but still blocks clicks.
 - Far zones are not streamed until a character is near them; a camera capture
   of zone 12 from spawn shows sky and water.
+- **Anchoring a guardian's root does not hold it in place** — the chase
+  steering moves it by CFrame — so that trick does not freeze a chase. A
+  faster player running away (Speed 2M vs zone 6) does.
+- **Do not launch "Roblox Studio" from the desktop/computer-use side while a
+  Studio is already open.** It runs the installer, the MCP bridge reconnects
+  under a new `studio_id`, and the running playtest is dropped. Re-list
+  studios and carry on; the place itself was unaffected.
