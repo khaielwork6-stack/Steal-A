@@ -3,15 +3,18 @@
 	GroupGiftController
 	The "Free Gift!" popup: +10,000 Speed for joining the group.
 
-	BUILT FROM THE PACK, TO THE REFERENCE
-	  the Shop panel's frame, gradient and stroke -> the window
-	  the Shop panel's Top bar and Close X        -> "Free Gift!" header
-	  the Gamepass card, three times             -> Like / Favorite / Join cards
-	  the DROP button                            -> the giant CLAIM
-	Same reason as every other screen: it cannot look foreign to the game if it
-	is literally made of the game's parts.
+	THE PANEL IS ONE PAINTED PNG (PngUiConfig.Gift).
+	The whole interface - header, art, the three steps, the CLAIM button - is
+	drawn in the image. Roblox supplies what has to work: an invisible button
+	exactly over the printed CLAIM, one over the printed X, one over the
+	printed "Join Community", a breathing glow on CLAIM so it reads as live, a
+	CLAIMED! pill once the server says so, and the open/close motion.
 
-	WHAT THE CLIENT DOES AND DOES NOT DO
+	The previous, pack-built version of this screen is preserved verbatim at
+	`Client/Backups/FreeGiftUI_Backup_PrePNG` (never required, never started).
+	To roll back, copy it over this file.
+
+	WHAT THE CLIENT DOES AND DOES NOT DO - unchanged
 	  * It shows Roblox's OWN group prompt (GroupService:PromptJoinAsync). There
 	    is no imitation of that prompt anywhere here.
 	  * When that prompt closes, it sends `GroupGiftRequest`. Empty. A knock.
@@ -20,7 +23,7 @@
 	  It never grants, never decides membership, and never marks anything.
 
 	THE OPENER
-	A small "Gift" button sits in the HUD. It is NOT placed under `Buttons`, and
+	A small "GIFT" button sits in the HUD. It is NOT placed under `Buttons`, and
 	deliberately does not share a name with any frame in `Frames`, so the pack's
 	button script animates it but does not try to open a panel for it.
 ]]
@@ -28,10 +31,10 @@
 local GroupService = game:GetService("GroupService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
+local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -43,28 +46,43 @@ local GroupGiftController = {}
 local player = Players.LocalPlayer
 
 local panel: Frame? = nil
+local backdrop: TextButton? = nil
+local png: PngCard.Card? = nil
+local claimPill: TextLabel? = nil
+local claimGlow: Frame? = nil
+local glowTween: Tween? = nil
 local opener: GuiButton? = nil
-local claimButton: GuiButton? = nil
-local claimLabel: TextLabel? = nil
-local rewardLabel: TextLabel? = nil
-local art: GuiObject? = nil
-local floatConnection: RBXScriptConnection? = nil
 local open = false
+local closing = false
 local prompting = false
 local latest: any = nil
 
 local GIFT_COLOR = Color3.fromRGB(96, 200, 255)
 local GIFT_ACCENT = Color3.fromRGB(24, 110, 200)
-local CLAIM_COLOR = Color3.fromRGB(96, 230, 118)
-local CLAIM_ACCENT = Color3.fromRGB(28, 150, 66)
 local CLAIMED_COLOR = Color3.fromRGB(150, 156, 170)
 local CLAIMED_ACCENT = Color3.fromRGB(70, 74, 88)
 
-local STEPS = {
-	{ title = "1. Like the game!", body = "Hit the thumbs up on the game page." },
-	{ title = "2. Favorite the game!", body = "Tap the star so it's easy to find." },
-	{ title = "3. Join the community!", body = "Join our group, then press CLAIM." },
-}
+--- The panel's footprint inside the 16:9 layer. PngCard keeps it to the art's
+--- own aspect inside this box, so the number that matters is the smaller one.
+local PANEL_SIZE = UDim2.fromScale(0.62, 0.88)
+local PANEL_POSITION = UDim2.fromScale(0.5, 0.5)
+--- Opens from a touch lower and a touch smaller; closes back the same way.
+local PANEL_ENTER_FROM = UDim2.fromScale(0.5, 0.545)
+local PANEL_LEAVE_TO = UDim2.fromScale(0.5, 0.535)
+local BACKDROP_DIM = 0.45
+
+local ENTER_SCALE = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local ENTER_MOVE = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local ENTER_FADE = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local LEAVE = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local BACKDROP_IN = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+--- CLAIM breathes while the panel is open: a slow, soft rise and fall of a
+--- white wash over the printed button. Stopped the moment the panel closes.
+local BREATHE = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+local BREATHE_REST = 0.93
+local BREATHE_PEAK = 0.8
+--- After a successful claim the panel celebrates, then leaves on its own.
+local SUCCESS_LINGER = 1.4
 
 -- ==========================================================
 -- HELPERS
@@ -105,36 +123,76 @@ local function claimedState(): boolean
 	return latest ~= nil and latest.claimed == true
 end
 
+local function stopBreathing()
+	if glowTween then
+		glowTween:Cancel()
+		glowTween = nil
+	end
+	if claimGlow then
+		claimGlow.BackgroundTransparency = 1
+	end
+end
+
+local function startBreathing()
+	local glow = claimGlow
+	if not glow or claimedState() then
+		return
+	end
+	stopBreathing()
+	glow.BackgroundTransparency = BREATHE_REST
+	local tween = TweenService:Create(glow, BREATHE, { BackgroundTransparency = BREATHE_PEAK })
+	glowTween = tween
+	tween:Play()
+end
+
 -- ==========================================================
 -- CLOSE / OPEN
 -- ==========================================================
 
 local function close()
-	if not open then
+	if not open or closing then
 		return
 	end
 	open = false
+	closing = true
 	UIStateController.release("gift")
-	if floatConnection then
-		floatConnection:Disconnect()
-		floatConnection = nil
-	end
+	stopBreathing()
 	local frame = panel
+	local built = png
+	local dim = backdrop
 	if not frame then
+		closing = false
 		return
 	end
+	-- Nothing takes a click while the panel is on its way out.
+	if built then
+		built.setInteractive(false)
+		TweenService:Create(built.artwork, LEAVE, { ImageTransparency = 1 }):Play()
+	end
+	if dim then
+		dim.Active = false
+		TweenService:Create(dim, LEAVE, { BackgroundTransparency = 1 }):Play()
+	end
+	TweenService:Create(frame, LEAVE, { Position = PANEL_LEAVE_TO }):Play()
 	local scale = frame:FindFirstChildOfClass("UIScale")
 	if scale then
-		local tween = TweenService:Create(scale, UIAnim.SHRINK, { Scale = 0.85 })
+		local tween = TweenService:Create(scale, LEAVE, { Scale = 0.92 })
 		tween:Play()
 		tween.Completed:Once(function()
-			if not open and frame.Parent then
+			closing = false
+			if not open then
 				frame.Visible = false
+				if dim then
+					dim.Visible = false
+				end
 			end
-			scale.Scale = 1
 		end)
 	else
+		closing = false
 		frame.Visible = false
+		if dim then
+			dim.Visible = false
+		end
 	end
 end
 
@@ -142,12 +200,27 @@ end
 -- CLAIM FLOW
 -- ==========================================================
 
+--- Roblox's own group prompt. Returns once it closes, whatever was chosen.
+local function promptJoin(): boolean
+	local groupId = latest and tonumber(latest.groupId) or 0
+	if groupId <= 0 then
+		return false
+	end
+	local ok, status = pcall(function()
+		return GroupService:PromptJoinAsync(groupId)
+	end)
+	if not ok then
+		warn("[GroupGiftController] group prompt failed:", status)
+	end
+	return ok
+end
+
 --- CLAIM pressed. Shows Roblox's group prompt, then knocks on the server. If
 --- the player is already in the group the prompt returns AlreadyMember at once
 --- and the knock still goes out - which is exactly right for someone who joined
 --- from the website.
 local function claim()
-	if prompting or claimedState() then
+	if prompting or closing or claimedState() then
 		return
 	end
 	local groupId = latest and tonumber(latest.groupId) or 0
@@ -155,23 +228,29 @@ local function claim()
 		return
 	end
 	prompting = true
-
-	local button = claimButton
-	if button then
-		UIAnim.punch(button, 0.16)
+	local built = png
+	if built then
+		UIAnim.punch(built.artwork, 0.08)
 	end
-
 	task.spawn(function()
-		local ok, status = pcall(function()
-			return GroupService:PromptJoinAsync(groupId)
-		end)
+		promptJoin()
 		prompting = false
-		if not ok then
-			warn("[GroupGiftController] group prompt failed:", status)
-		end
 		-- Whatever the prompt said, the SERVER decides. It re-checks membership
 		-- itself and either pays out once or explains why not.
 		Remotes.get("GroupGiftRequest"):FireServer()
+	end)
+end
+
+--- The printed "Join Community" button: the group prompt on its own, no
+--- knock. CLAIM is still the thing that pays.
+local function joinOnly()
+	if prompting or closing then
+		return
+	end
+	prompting = true
+	task.spawn(function()
+		promptJoin()
+		prompting = false
 	end)
 end
 
@@ -179,220 +258,108 @@ end
 -- BUILD
 -- ==========================================================
 
-local function buildStepCard(parent: Instance, index: number, step: { title: string, body: string })
-	local card = ShopKit.card()
-	if not card then
-		return
-	end
-	card.Name = `Step{index}`
-	card.LayoutOrder = index
-	ShopKit.fillCard(card, {
-		title = step.title,
-		description = step.body,
-		price = "",
-		icon = if index == 3 then ShopKit.Icons.Shop else ShopKit.Icons.Speed,
-		color = GIFT_COLOR,
-		accent = GIFT_ACCENT,
-		hidePrice = true,
-	})
-	card.Parent = parent
-end
-
 local function build(): boolean
-	if panel then
+	if panel and png then
 		return true
 	end
 	local ui = mainUi()
-	local frames = ui and ui:FindFirstChild("Frames")
-	local shop = frames and frames:FindFirstChild("Shop")
 	local layer = ui and layerFor(ui)
-	if not ui or not shop or not shop:IsA("Frame") or not layer then
+	local layout = PngUiConfig.card("Gift")
+	if not ui or not layer or not layout then
+		if not layout then
+			warn("[GroupGiftController] PngUiConfig has no Gift card - gift panel disabled.")
+		end
 		return false
 	end
-	ShopKit.warm()
 
-	local clone = shop:Clone()
-	clone.Name = "GroupGift"
-	clone.Visible = false
-	clone.Parent = layer
+	-- A dim over the whole screen, under the layer. Tapping it closes.
+	local dim = Instance.new("TextButton")
+	dim.Name = "GiftBackdrop"
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.Position = UDim2.fromScale(0, 0)
+	dim.BackgroundColor3 = Color3.fromRGB(4, 8, 16)
+	dim.BackgroundTransparency = 1
+	dim.BorderSizePixel = 0
+	dim.Text = ""
+	dim.TextTransparency = 1
+	dim.AutoButtonColor = false
+	dim.Visible = false
+	dim.ZIndex = 9
+	dim.Parent = ui
+	dim.Activated:Connect(close)
 
-	-- Strip the scroll body entirely; this screen is a fixed composition.
-	local scroller = clone:FindFirstChild("ScrollingFrame")
-	if scroller then
-		scroller:Destroy()
+	local built = PngCard.build({
+		name = "GroupGift",
+		layout = layout,
+		familyAspect = PngUiConfig.Families.Gift,
+		regions = {
+			claim = { onActivated = claim },
+			close = { onActivated = close },
+			join = { onActivated = joinOnly },
+		},
+		hoverLift = 1.008,
+	})
+	local frame = built.frame
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = PANEL_POSITION
+	frame.Size = PANEL_SIZE
+	frame.Visible = false
+	frame.ZIndex = 11
+	frame.Parent = layer
+
+	-- CLAIMED! over the printed CLAIM once the server says so.
+	claimPill = built.pill("claim", "CLAIMED!", Color3.fromRGB(150, 255, 170))
+
+	-- The breathing glow: a soft rounded wash a hair larger than the printed
+	-- button, under the hit region so it never takes a click.
+	local position, size = built.rectFor("claim")
+	if position and size then
+		local glow = Instance.new("Frame")
+		glow.Name = "ClaimGlow"
+		glow.AnchorPoint = Vector2.new(0.5, 0.5)
+		glow.Position = UDim2.fromScale(position.X.Scale + size.X.Scale / 2, position.Y.Scale + size.Y.Scale / 2)
+		glow.Size = UDim2.fromScale(size.X.Scale * 1.03, size.Y.Scale * 1.12)
+		glow.BackgroundColor3 = Color3.fromRGB(190, 255, 200)
+		glow.BackgroundTransparency = 1
+		glow.BorderSizePixel = 0
+		glow.Active = false
+		glow.ZIndex = 3
+		glow.Parent = built.artwork
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.35, 0)
+		corner.Parent = glow
+		claimGlow = glow
 	end
 
-	local top = clone:FindFirstChild("Top")
-	local title = top and top:FindFirstChild("Frame") and top.Frame:FindFirstChild("Title")
-	if title and title:IsA("TextLabel") then
-		title.Text = "Free Gift!"
-	end
-	local closeButton = top and top:FindFirstChild("Close", true)
-	if closeButton and closeButton:IsA("TextButton") then
-		UIAnim.claimButton(closeButton)
-		closeButton.Activated:Connect(close)
-	end
-
-	-- BODY: art left, headline right, three cards across, CLAIM along the foot.
-	local body = Instance.new("Frame")
-	body.Name = "Body"
-	body.BackgroundTransparency = 1
-	body.Size = UDim2.fromScale(0.94, 0.8)
-	body.Position = UDim2.fromScale(0.5, 0.58)
-	body.AnchorPoint = Vector2.new(0.5, 0.5)
-	body.Parent = clone
-
-	-- The reward art: the Speed icon, big, on a soft glow. Floats gently.
-	local artHolder = Instance.new("Frame")
-	artHolder.Name = "Art"
-	artHolder.BackgroundTransparency = 1
-	artHolder.Size = UDim2.fromScale(0.34, 0.5)
-	artHolder.Position = UDim2.fromScale(0.02, 0.02)
-	artHolder.Parent = body
-
-	local glow = Instance.new("ImageLabel")
-	glow.Name = "Glow"
-	glow.BackgroundTransparency = 1
-	glow.Image = "rbxassetid://92627249277540" -- the pack's rays burst
-	glow.ImageColor3 = GIFT_COLOR
-	glow.ImageTransparency = 0.35
-	glow.Size = UDim2.fromScale(1.3, 1.3)
-	glow.Position = UDim2.fromScale(0.5, 0.5)
-	glow.AnchorPoint = Vector2.new(0.5, 0.5)
-	glow.ZIndex = 2
-	glow.Parent = artHolder
-	local glowRatio = Instance.new("UIAspectRatioConstraint")
-	glowRatio.AspectRatio = 1
-	glowRatio.Parent = glow
-
-	local icon = Instance.new("ImageLabel")
-	icon.Name = "Icon"
-	icon.BackgroundTransparency = 1
-	icon.Image = ShopKit.Icons.Speed
-	icon.Size = UDim2.fromScale(0.86, 0.86)
-	icon.Position = UDim2.fromScale(0.5, 0.5)
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.ZIndex = 3
-	icon.Parent = artHolder
-	local iconRatio = Instance.new("UIAspectRatioConstraint")
-	iconRatio.AspectRatio = 1
-	iconRatio.Parent = icon
-	art = artHolder
-
-	-- Headline: "~ LIMITED TIME! ~" over "10,000 SPEED!".
-	local function headline(name: string, text: string, color: Color3, y: number, height: number): TextLabel
-		local label = Instance.new("TextLabel")
-		label.Name = name
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.fromScale(0.6, height)
-		label.Position = UDim2.fromScale(0.38, y)
-		label.Font = Enum.Font.FredokaOne
-		label.TextScaled = true
-		label.Text = text
-		label.TextColor3 = color
-		label.TextStrokeColor3 = Color3.fromRGB(10, 14, 30)
-		label.TextStrokeTransparency = 0
-		label.ZIndex = 3
-		label.Parent = body
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2
-		stroke.Color = Color3.fromRGB(10, 14, 30)
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-		stroke.Parent = label
-		return label
-	end
-	headline("Limited", "~ LIMITED TIME! ~", Color3.fromRGB(255, 90, 90), 0.06, 0.16)
-	rewardLabel = headline("Reward", "10,000 SPEED!", Color3.fromRGB(96, 240, 160), 0.24, 0.24)
-
-	-- The three requirement cards.
-	local steps = Instance.new("Frame")
-	steps.Name = "Steps"
-	steps.BackgroundTransparency = 1
-	steps.Size = UDim2.fromScale(1, 0.26)
-	steps.Position = UDim2.fromScale(0, 0.55)
-	steps.Parent = body
-	local stepLayout = Instance.new("UIGridLayout")
-	stepLayout.CellSize = UDim2.fromScale(0.32, 1)
-	stepLayout.CellPadding = UDim2.fromScale(0.02, 0)
-	stepLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	stepLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	stepLayout.Parent = steps
-	for index, step in STEPS do
-		buildStepCard(steps, index, step)
-	end
-
-	-- CLAIM: the DROP button, recoloured. Same anatomy, so it animates the same.
-	local dropSource = ui:FindFirstChild("DROP BUTTON NEW")
-	if dropSource and dropSource:IsA("TextButton") then
-		local button = dropSource:Clone()
-		button.Name = "Claim"
-		button.Visible = true
-		-- GIANT, per the brief: two thirds of the panel wide and tall enough to
-		-- be the obvious thing on the screen. The aspect constraint keeps it a
-		-- pill rather than a bar as the panel scales.
-		button.Size = UDim2.fromScale(0.66, 0.2)
-		button.Position = UDim2.fromScale(0.5, 0.905)
-		button.AnchorPoint = Vector2.new(0.5, 0.5)
-		button.ZIndex = 4
-		local ratio = button:FindFirstChildOfClass("UIAspectRatioConstraint")
-		if ratio then
-			ratio.AspectRatio = 4.6
-		end
-		for _, extra in button:GetChildren() do
-			if extra.Name == "_RippleContainer" or extra:IsA("UIScale") then
-				extra:Destroy()
-			end
-		end
-		button:SetAttribute("_UIHandlerSetup", nil)
-		button:SetAttribute("AnimBound", nil)
-		local label = button:FindFirstChild("Title")
-		if label and label:IsA("TextLabel") then
-			label.Text = "CLAIM"
-			claimLabel = label
-		end
-		button.Parent = body
-		UIAnim.claimButton(button)
-		button.Activated:Connect(claim)
-		claimButton = button
-	end
-
-	panel = clone
+	panel = frame
+	backdrop = dim
+	png = built
 	return true
 end
 
---- Paints the CLAIM/CLAIMED state and the reward number from the push.
+--- Repaints from the server's word: CLAIMED! over the button and no more
+--- clicks once it has been paid; the opener dims to match.
 local function repaint()
-	local button = claimButton
-	local label = claimLabel
-	if rewardLabel and latest and tonumber(latest.reward) then
-		rewardLabel.Text = `{NumberFormat.comma(latest.reward)} SPEED!`
-	end
-	if not button or not label then
-		return
-	end
+	local built = png
 	local claimed = claimedState()
-	label.Text = if claimed then "CLAIMED!" else "CLAIM"
-	button.Active = not claimed
-	button.AutoButtonColor = false
-	button.BackgroundColor3 = if claimed then CLAIMED_ACCENT else CLAIM_ACCENT
-	local face = button:FindFirstChild("Frame")
-	local gradient = face and face:FindFirstChildOfClass("UIGradient")
-	if gradient then
-		gradient.Color = if claimed
-			then ColorSequence.new(CLAIMED_COLOR, CLAIMED_ACCENT)
-			else ColorSequence.new(CLAIM_COLOR, CLAIM_ACCENT)
-	end
-	local stroke = face and face:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		stroke.Color = if claimed then CLAIMED_COLOR else Color3.fromRGB(170, 255, 190)
+	if built then
+		built.setRegionEnabled("claim", not claimed)
+		if claimPill then
+			claimPill.Visible = claimed
+		end
+		if claimed then
+			stopBreathing()
+		elseif open and not glowTween then
+			startBreathing()
+		end
 	end
 	if opener then
 		-- The opener dims once there is nothing left to claim; it stays so the
 		-- player can re-read the steps, but it stops asking for attention.
-		local face2 = opener:FindFirstChild("Frame")
-		local grad2 = face2 and face2:FindFirstChildOfClass("UIGradient")
-		if grad2 then
-			grad2.Color = if claimed
+		local face = opener:FindFirstChild("Frame")
+		local gradient = face and face:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = if claimed
 				then ColorSequence.new(CLAIMED_COLOR, CLAIMED_ACCENT)
 				else ColorSequence.new(GIFT_COLOR, GIFT_ACCENT)
 		end
@@ -400,45 +367,41 @@ local function repaint()
 end
 
 local function show()
-	if open or not build() then
+	if open or closing or not build() then
 		return
 	end
 	open = true
-	repaint()
 	local frame = panel :: Frame
+	local built = png :: PngCard.Card
+	local dim = backdrop
 	UIStateController.claim("gift")
+
+	-- Backdrop first, then the panel rises into it: a touch small, a touch
+	-- low, scaling up with a small overshoot while it fades in.
+	if dim then
+		dim.Visible = true
+		dim.Active = true
+		dim.BackgroundTransparency = 1
+		TweenService:Create(dim, BACKDROP_IN, { BackgroundTransparency = BACKDROP_DIM }):Play()
+	end
 	frame.Visible = true
+	frame.Position = PANEL_ENTER_FROM
 	local scale = frame:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 	scale.Parent = frame
-	scale.Scale = 0.85
-	TweenService:Create(scale, UIAnim.POP, { Scale = 1 }):Play()
+	scale.Scale = 0.88
+	built.artwork.ImageTransparency = 1
+	built.setInteractive(true)
+	repaint()
 
-	-- Reward art bobs while the window is open. One connection, dropped on close.
-	local target = art
-	if target then
-		local start = os.clock()
-		local base = target.Position
-		if floatConnection then
-			floatConnection:Disconnect()
+	TweenService:Create(frame, ENTER_MOVE, { Position = PANEL_POSITION }):Play()
+	TweenService:Create(scale, ENTER_SCALE, { Scale = 1 }):Play()
+	TweenService:Create(built.artwork, ENTER_FADE, { ImageTransparency = 0 }):Play()
+	-- CLAIM comes alive once the panel has landed.
+	task.delay(0.32, function()
+		if open and not closing then
+			startBreathing()
 		end
-		floatConnection = RunService.RenderStepped:Connect(function()
-			if not target.Parent then
-				return
-			end
-			target.Position = base + UDim2.fromScale(0, math.sin((os.clock() - start) * 2.2) * 0.02)
-		end)
-	end
-
-	local list = {}
-	local steps = frame:FindFirstChild("Steps", true)
-	if steps then
-		for _, child in steps:GetChildren() do
-			if child:IsA("GuiObject") then
-				table.insert(list, child)
-			end
-		end
-	end
-	ShopKit.cascadeIn(list, 0.05)
+	end)
 end
 
 --- The HUD opener. Cloned from the Top "BASE" button so it matches, retitled,
@@ -509,10 +472,22 @@ function GroupGiftController.start()
 		local previous = latest
 		latest = state.groupGift
 		repaint()
-		-- The moment the server says claimed, celebrate on the button itself.
-		if previous and not previous.claimed and claimedState() and claimButton then
-			ShopKit.shine(claimButton :: GuiObject)
-			UIAnim.punch(claimButton :: GuiObject, 0.22)
+		-- The moment the server says claimed, celebrate on the button itself,
+		-- then let the panel leave on its own.
+		if previous and not previous.claimed and claimedState() and png then
+			local built = png :: PngCard.Card
+			if claimPill then
+				ShopKit.shine(claimPill)
+				UIAnim.punch(claimPill, 0.22)
+			end
+			UIAnim.punch(built.artwork, 0.06)
+			if open then
+				task.delay(SUCCESS_LINGER, function()
+					if open and claimedState() then
+						close()
+					end
+				end)
+			end
 		end
 	end)
 

@@ -2,11 +2,11 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §20**, then §19 and §18. Between them they say exactly where the
-> last sessions stopped, what is verified, what is not, and what to pick up. §0
-> below is still the first thing you must *act* on (§20 adds seven more models
+> **START AT §21**, then §20, §19 and §18. Between them they say exactly where
+> the last sessions stopped, what is verified, what is not, and what to pick
+> up. §0 below is still the first thing you must *act* on (§20 moved 61 models
 > that live only in the place file); §9's "next steps" list is older than
-> §16–§20 and is superseded by them.
+> §16–§21 and is superseded by them.
 
 ---
 
@@ -1409,3 +1409,113 @@ treats those parts as limbs. Verified: zone 6 and zone 12 fully dressed at
   Studio is already open.** It runs the installer, the MCP bridge reconnects
   under a new `studio_id`, and the running playtest is dropped. Re-list
   studios and carry on; the place itself was unaffected.
+
+---
+
+## 21. The painted UI pass — every shop, offer and gift card is a PNG
+
+The Green Trail experiment (§20) became the system. Every card in the Trail
+Shop, the main Shop's three sections, the boss-hit Speed offer and the whole
+Free Gift panel are now full-image PNGs with real, invisible Roblox buttons
+laid over the printed ones. Nothing about what is sold, for how much, by which
+gamepass/product id, or how it is granted changed: every button ends in the
+same `TrailRequest` / `PurchaseRequest` / `GroupGiftRequest` call the pack
+cards made.
+
+### The three pieces
+
+| File | Role |
+|---|---|
+| `src/shared/Config/PngUiConfig.luau` | Every painted card, MEASURED: image id, solid body box in canvas texels, printed-button rects as fractions of that body, and a family (`Trail`, `Cash`, `Speed`, `Pass`, `Gift`) with a common aspect. Nothing else in the game holds a crop or a hitbox number. |
+| `src/shared/Util/PngCard.luau` | Builds one card: cell Frame (family aspect) → art ImageLabel (cropped, own aspect nudged ≤4% towards the family, letterboxed for the rest, centred) → regions. Two modes: **regions** (each printed button is its own TextButton — trails) and **wholeCard** (one button the size of the art, printed button lights up — products, boss offer). Hover lift, wash, 0.96 press → Back rebound, 0.5 s press lock, `pill()` overlays, `retarget()` to swap art, `setInteractive()`, `preload()`. `DEBUG_HITBOXES` tints regions; ships false. |
+| `src/shared/Util/TrailCardPng.luau` | Thin trail layer over PngCard: cash + robux regions, EQUIP / ✓ EQUIPPED / OWNED pills. |
+
+### How the numbers were measured (repeat this for any new asset)
+
+In Studio, `AssetService:CreateEditableImageAsync(Content.fromAssetId(id))` →
+`ReadPixelsBuffer`. Body = bounding box of alpha > 200 (the glow at alpha
+10–200 is 1–3 px and is dropped). Buttons = column/row projection of the
+"button green" mask (g ≥ 150, g−r ≥ 45, g−b ≥ 45) in the lower-right of the
+body, widest runs first. The Green trail's background is green, so its two
+pills are the probe-render numbers from §20. The gift's X (red mask) and its
+"Join Community" (saturated blue, b ≥ 200, r ≤ 110) were found the same way.
+Requires **Game Settings → Security → Allow Mesh & Image APIs**, which is on.
+
+### Normalisation, and the one judgement call
+
+The ten trail bodies range from 2.72 (Blue) to 3.15 (Golden) wide-to-tall.
+The grid gives every cell the family aspect (2.97, the median); each card is
+stretched **at most 4%** towards it and letterboxed for the remainder, so the
+worst case (Blue) draws at 95% of the cell width with a 4% stretch nobody can
+see, and eight of the ten fill their cell exactly. The Cash family (3.35) and
+Speed family (2.975) are within budget throughout, so they all fill. This is
+the compromise between "no card 5% bigger than another" and "never distort";
+`PngUiConfig.STRETCH_BUDGET` is the dial.
+
+Grids are sized in PIXELS from the scroller's real width (two columns at
+47%, cell height = width / family aspect) and re-fitted on the scroller's
+`AbsoluteSize` and on every open — `TrailShopController.fitCells`,
+`ShopController.fitGrid/trackGrid`. That is what keeps painted cards the
+same shape at any resolution; hitboxes are children of the art in Scale, so
+they cannot drift from it.
+
+### Where each surface changed
+
+- **Trail Shop** — every trail has `image` in `MonetizationConfig.Trails`;
+  `TrailShopController.buildPngCard` takes `PngUiConfig.card("Trail_<key>")`.
+  Grey is cash-only and its art has one button, so it gets one region.
+- **Shop** — `ShopController` builds `Pass_Cash2x`, `Product_Cash*`,
+  `Product_Speed*` as whole-card PngCards (printed R$ lights up under the
+  pointer). The pack-card path is still there for any product without art.
+  Owned 2x Cash: an OWNED pill over the price and the card stops taking
+  clicks — the art is never redrawn.
+- **Boss-hit offer** — `BossOfferController` is one PngCard re-targeted per
+  offered product (`Product_<key>`), whole card buys, pack X rides the art's
+  corner. Entrance 0.85 → 1 Back + drop + fade; exit 0.18 s. Token
+  auto-dismiss, re-punch on repeat catches, purchase-landed detection are
+  all as before.
+- **Free Gift** — `GroupGiftController` is PNG-only now: backdrop (tap to
+  close), panel enters from 0.88 / slightly low with fade, CLAIM breathes
+  (looping wash, stopped on close/claimed), hit regions for CLAIM, X and
+  "Join Community" (group prompt only, no knock), CLAIMED! pill, auto-close
+  1.4 s after a successful claim. `claim()` is the same prompt-then-knock
+  flow. **The pre-PNG version is preserved verbatim at
+  `src/client/Backups/FreeGiftUI_Backup_PrePNG.luau`** (`Client.Backups.*`
+  in Studio); it is never required. To roll back, copy it over
+  `GroupGiftController.luau`.
+- **Preload** — `init.client.luau` calls `PngCard.preload(PngUiConfig.allImages())`
+  at boot, in the background.
+- **Not wired**: "10,000 Speed" (82539746649879) is a square illustration
+  with no button and there is no 10K product; recorded in
+  `PngUiConfig.Unused`.
+
+### Verified so far
+
+- Client boots clean with every controller (one Luau syntax slip in
+  `PngCard.rectFor` was caught by the console and fixed).
+- Trail grid: all ten cards painted, cells identical, art widths 92–100% of
+  the cell exactly as the budget predicts, both regions present per card and
+  one on Grey.
+- Shop: Passes / Cash / Speed grids hold PngCards with per-section cells.
+- Boss offer: a zone-6 catch produced the card with the zone's product art
+  (`Product_Speed1M`), whole-card button, X, and the auto-dismiss disabling
+  input on schedule.
+
+### NOT verified — Studio's viewport was minimised (1×1) for the whole test window
+
+TweenService and virtual input both stop while the Studio window is
+minimised, so none of these could be exercised by tool:
+
+- entrance/exit animations landing (positions/scale were frozen at their
+  start values), hover, press;
+- real clicks on any painted button: trail cash/Robux, shop products, 2x
+  Cash, the boss card, gift CLAIM / X / Join;
+- screenshots of the new cards, and the hitbox tint overlay on the nine
+  newly measured trails.
+
+Run those first next time, with the window up: open the Trail Shop (walk
+onto the booth ring), `monetize disown` + `cash 200000`, click Blue's $
+button (owned + equipped, cash −75K), click a Robux button (prompt), Shop →
+2x Cash and one Speed card (prompts), a catch for the boss card, GIFT →
+CLAIM (group prompt). Flip `PngCard.DEBUG_HITBOXES` to eyeball the regions,
+then back.

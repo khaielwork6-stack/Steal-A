@@ -102,38 +102,49 @@ export type TrailDef = {
 --- `rarity` deliberately reuses the game's own ten-tier rarity vocabulary
 --- (RarityConfig.Order) so trail cards inherit the colours and language the
 --- player already reads on loot.
+--- `image` is the painted card's IMAGE asset id (never a purchase id). Its
+--- crop and button hitboxes live in PngUiConfig under `Trail_<key>`; a trail
+--- without an image, or without a PngUiConfig entry, keeps the pack-built
+--- card. Every trail has one now; the field stays optional for the next one.
 MonetizationConfig.Trails = {
 	{ key = "Grey", name = "Grey Trail", rarity = "Common", multiplier = 1.5, cash = 100,
+		image = 127721075493076,
 		color = Color3.fromRGB(206, 212, 222), accent = Color3.fromRGB(150, 158, 172) },
 	{ key = "Green", name = "Green Trail", rarity = "Uncommon", multiplier = 2, cash = 5e3,
 		gamePassId = 1970564658, robux = 14,
-		-- Painted card artwork (the PNG workflow, piloted on this one trail). A
-		-- trail WITHOUT an image keeps the pack-built card. See TrailCardPng.
 		image = 111545352261958,
 		color = Color3.fromRGB(96, 220, 118), accent = Color3.fromRGB(46, 160, 70) },
 	{ key = "Blue", name = "Blue Trail", rarity = "Rare", multiplier = 2.5, cash = 75e3,
 		gamePassId = 1970224666, robux = 25,
+		image = 104546791326408,
 		color = Color3.fromRGB(74, 156, 255), accent = Color3.fromRGB(28, 92, 190) },
 	{ key = "Purple", name = "Purple Trail", rarity = "Epic", multiplier = 3, cash = 1.5e6,
 		gamePassId = 1970678645, robux = 39,
+		image = 113372749804594,
 		color = Color3.fromRGB(180, 106, 255), accent = Color3.fromRGB(112, 48, 190) },
 	{ key = "Golden", name = "Golden Trail", rarity = "Legendary", multiplier = 3.5, cash = 30e6,
 		gamePassId = 1967863183, robux = 59,
+		image = 134326224195619,
 		color = Color3.fromRGB(255, 200, 62), accent = Color3.fromRGB(196, 130, 16) },
 	{ key = "Red", name = "Red Trail", rarity = "Mythic", multiplier = 4, cash = 750e6,
 		gamePassId = 1968528982, robux = 89,
+		image = 91087636120554,
 		color = Color3.fromRGB(255, 78, 78), accent = Color3.fromRGB(176, 26, 32) },
 	{ key = "Galaxy", name = "Galaxy Trail", rarity = "Cosmic", multiplier = 5, cash = 20e9,
 		gamePassId = 1969586881, robux = 145,
+		image = 80929775598758,
 		color = Color3.fromRGB(72, 240, 226), accent = Color3.fromRGB(120, 60, 220) },
 	{ key = "Secret", name = "Secret Trail", rarity = "Secret", multiplier = 7, cash = 500e9,
 		gamePassId = 1969036894, robux = 255,
+		image = 134542331964427,
 		color = Color3.fromRGB(255, 74, 140), accent = Color3.fromRGB(60, 10, 48) },
 	{ key = "Eternal", name = "Eternal Trail", rarity = "Eternal", multiplier = 10, cash = 12.5e12,
 		gamePassId = 1966214537, robux = 435,
+		image = 94938242410097,
 		color = Color3.fromRGB(255, 238, 150), accent = Color3.fromRGB(120, 220, 255) },
 	{ key = "Divine", name = "Divine Trail", rarity = "Divine", multiplier = 14, cash = 300e12,
 		gamePassId = 1962656850, robux = 719,
+		image = 133374673004187,
 		color = Color3.fromRGB(255, 255, 255), accent = Color3.fromRGB(255, 214, 120) },
 } :: { TrailDef }
 

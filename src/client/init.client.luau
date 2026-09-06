@@ -28,6 +28,15 @@ local HUDLayoutController = require(script.Controllers.HUDLayoutController)
 local BaseSignController = require(script.Controllers.BaseSignController)
 local AudioController = require(script.Controllers.AudioController)
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
+local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
+
+-- Warm the painted UI (trail cards, shop cards, boss offer, gift) in the
+-- background from the first frame, so the first shop opened never shows a
+-- blank card popping in. A courtesy, not a gate: nothing waits on it.
+PngCard.preload(PngUiConfig.allImages())
+
 HUDController.start()
 -- Right after the HUD binds, before anything clones a nav button: the layout
 -- pass moves Settings out of the rail and recolours the buttons the Upgrades

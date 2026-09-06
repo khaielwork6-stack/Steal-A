@@ -27,6 +27,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
+local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -51,9 +53,13 @@ local PASS_COLOR = Color3.fromRGB(255, 206, 84)
 local PASS_ACCENT = Color3.fromRGB(196, 130, 16)
 
 local built = false
-local cashPassCard: Frame? = nil
+local cashPassCard: GuiObject? = nil
+--- The painted 2x Cash card, when the pass has art: its OWNED pill and its
+--- buttons are what ownership flips.
+local cashPassPng: PngCard.Card? = nil
+local cashPassOwnedPill: TextLabel? = nil
 --- Product key -> its card, so a landed purchase can flash the right one.
-local cardByKey: { [string]: Frame } = {}
+local cardByKey: { [string]: GuiObject } = {}
 local lastOwnsCashPass: boolean? = nil
 
 local function scroller(): ScrollingFrame?
@@ -69,8 +75,18 @@ end
 -- cards carry a UIAspectRatioConstraint of 2 - they are WIDE, not square. Square
 -- cells fight that constraint and the cards overflow their row, which is exactly
 -- how the first attempt came out clipped.
-local ROW_HEIGHT = 0.30
-local CELL_PADDING = UDim2.fromScale(0.02, 0.04)
+--- Cells are 47% of the scroller wide, two to a row, and as tall as their
+--- section's card aspect says (pixels, see fitGrid).
+local CELL_WIDTH = 0.47
+--- Vertical gap between rows, in pixels.
+local ROW_GAP = 8
+--- The pack's product card is authored 2:1; that is the shape a section falls
+--- back to when it has no painted art.
+local PACK_CARD_ASPECT = 2
+
+--- Every section grid with its row count and aspect, re-fitted whenever the
+--- scroller changes size so the pixel cells keep tracking the panel.
+local fitted: { { grid: Frame, count: number, aspect: number? } } = {}
 --- The pack's own header is 0.02 tall, which is legible only because its text
 --- scales. A little more room lets a section title actually read as one.
 local HEADER_HEIGHT = 0.075
@@ -93,12 +109,11 @@ local function section(parent: ScrollingFrame, title: string, order: number): Fr
 	grid.Name = `Grid_{title}`
 	grid.LayoutOrder = order + 1
 	grid.BackgroundTransparency = 1
-	grid.Size = UDim2.fromScale(1, ROW_HEIGHT)
+	grid.Size = UDim2.new(1, 0, 0, 100) -- fitted to its rows by fitGrid
 	grid.Parent = parent
 
 	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.fromScale(0.47, 0.94)
-	layout.CellPadding = CELL_PADDING
+	layout.CellPadding = UDim2.new(0.02, 0, 0, ROW_GAP)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = grid
@@ -106,17 +121,46 @@ local function section(parent: ScrollingFrame, title: string, order: number): Fr
 	return grid
 end
 
---- Sizes a grid to the rows it actually holds, so sections neither overlap each
---- other nor leave a hole. Two columns, so rows = ceil(n / 2).
-local function fitGrid(grid: Frame, count: number)
-	local rows = math.max(1, math.ceil(count / 2))
-	grid.Size = UDim2.fromScale(1, ROW_HEIGHT * rows)
-	-- Cell height is a fraction of the GRID, so it has to shrink as rows are
-	-- added or every row would be a full grid tall and they would overlap.
+--- Sizes a grid's cells in PIXELS from the scroller's real width - two
+--- columns at the section's card aspect - and the grid to exactly its rows,
+--- so sections neither overlap nor leave holes, and every painted card in a
+--- section comes out the same shape at any resolution. Re-run on resize.
+local function fitGrid(grid: Frame, count: number, aspect: number?)
+	local list = grid.Parent
 	local layout = grid:FindFirstChildOfClass("UIGridLayout")
-	if layout then
-		layout.CellSize = UDim2.fromScale(0.47, 0.94 / rows)
+	if not list or not list:IsA("GuiObject") or not layout then
+		return
 	end
+	local width = list.AbsoluteSize.X
+	if width <= 0 then
+		return
+	end
+	local cellWidth = width * CELL_WIDTH
+	local cellHeight = cellWidth / (aspect or PACK_CARD_ASPECT)
+	local rows = math.max(1, math.ceil(count / 2))
+	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
+	grid.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
+end
+
+local function trackGrid(grid: Frame, count: number, aspect: number?)
+	table.insert(fitted, { grid = grid, count = count, aspect = aspect })
+	fitGrid(grid, count, aspect)
+end
+
+--- A painted product card: the whole card buys (there is one price on it),
+--- and the printed R$ button is the part that lights up under the pointer.
+--- Purchases go through the same PurchaseRequest as the pack cards did.
+local function buildPngProduct(grid: Frame, name: string, order: number, layout: PngUiConfig.Layout, onBuy: () -> ()): PngCard.Card
+	local card = PngCard.build({
+		name = name,
+		layout = layout,
+		familyAspect = PngUiConfig.aspectFor(layout),
+		regions = { buy = {} },
+		wholeCard = onBuy,
+	})
+	card.frame.LayoutOrder = order
+	card.frame.Parent = grid
+	return card
 end
 
 local function buildShop()
@@ -143,90 +187,111 @@ local function buildShop()
 
 	local cards: { GuiObject } = {}
 
+	-- PAINTED OR PACK. A product whose art is in PngUiConfig gets the painted
+	-- card (whole card buys); anything without art keeps the pack card. Both
+	-- send the same PurchaseRequest with the same key.
+
 	-- PASSES ------------------------------------------------------------
 	local passGrid = section(list, "Passes", 10)
 	if passGrid then
-		local card = ShopKit.card()
-		if card then
-			card.Name = "Card_Cash2x"
-			card.Parent = passGrid
-			ShopKit.fillCard(card, {
-				title = MonetizationConfig.CashPass.label,
-				description = "Doubles every dollar you earn. Forever.",
-				price = `R$ {NumberFormat.comma(MonetizationConfig.CashPass.robux)}`,
-				icon = ShopKit.Icons.Cash,
-				color = PASS_COLOR,
-				accent = PASS_ACCENT,
-			})
-			ShopKit.bindBuy(card, function()
-				UIAnim.punch(card, 0.14)
+		local passLayout = PngUiConfig.card("Pass_Cash2x")
+		if passLayout then
+			local png = buildPngProduct(passGrid, "Card_Cash2x", 1, passLayout, function()
 				Remotes.get("PurchaseRequest"):FireServer("cashPass")
 			end)
-			cashPassCard = card
-			table.insert(cards, card)
+			cashPassPng = png
+			cashPassOwnedPill = png.pill("buy", "OWNED", Color3.fromRGB(255, 226, 120))
+			cashPassCard = png.frame
+			table.insert(cards, png.frame)
+			trackGrid(passGrid, 1, PngUiConfig.aspectFor(passLayout))
+		else
+			local card = ShopKit.card()
+			if card then
+				card.Name = "Card_Cash2x"
+				card.Parent = passGrid
+				ShopKit.fillCard(card, {
+					title = MonetizationConfig.CashPass.label,
+					description = "Doubles every dollar you earn. Forever.",
+					price = `R$ {NumberFormat.comma(MonetizationConfig.CashPass.robux)}`,
+					icon = ShopKit.Icons.Cash,
+					color = PASS_COLOR,
+					accent = PASS_ACCENT,
+				})
+				ShopKit.bindBuy(card, function()
+					UIAnim.punch(card, 0.14)
+					Remotes.get("PurchaseRequest"):FireServer("cashPass")
+				end)
+				cashPassCard = card
+				table.insert(cards, card)
+			end
+			trackGrid(passGrid, 1, nil)
 		end
-		fitGrid(passGrid, 1)
+	end
+
+	--- One developer-product section: painted where there is art, pack where
+	--- there is not. The section's cell aspect is the family of its art.
+	local function productSection(title: string, order: number, products: { MonetizationConfig.ProductDef }, color: Color3, accent: Color3, icon: string, titleOf: (MonetizationConfig.ProductDef) -> string)
+		local grid = section(list, title, order)
+		if not grid then
+			return
+		end
+		local aspect: number? = nil
+		for index, product in products do
+			local layout = PngUiConfig.card(`Product_{product.key}`)
+			if layout then
+				local png = buildPngProduct(grid, `Card_{product.key}`, index, layout, function()
+					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
+				end)
+				cardByKey[product.key] = png.frame
+				table.insert(cards, png.frame)
+				aspect = aspect or PngUiConfig.aspectFor(layout)
+			else
+				local card = ShopKit.card()
+				if card then
+					card.Name = `Card_{product.key}`
+					card.LayoutOrder = index
+					card.Parent = grid
+					ShopKit.fillCard(card, {
+						title = titleOf(product),
+						description = "",
+						price = `R$ {NumberFormat.comma(product.robux)}`,
+						icon = icon,
+						color = color,
+						accent = accent,
+					})
+					ShopKit.bindBuy(card, function()
+						UIAnim.punch(card, 0.14)
+						Remotes.get("PurchaseRequest"):FireServer("product", product.key)
+					end)
+					cardByKey[product.key] = card
+					table.insert(cards, card)
+				end
+			end
+		end
+		trackGrid(grid, #products, aspect)
 	end
 
 	-- CASH --------------------------------------------------------------
-	local cashGrid = section(list, "Cash", 20)
-	if cashGrid then
-		for index, product in MonetizationConfig.CashProducts do
-			local card = ShopKit.card()
-			if card then
-				card.Name = `Card_{product.key}`
-				card.LayoutOrder = index
-				card.Parent = cashGrid
-				ShopKit.fillCard(card, {
-					title = `${product.label}`,
-					description = "",
-					price = `R$ {NumberFormat.comma(product.robux)}`,
-					icon = ShopKit.Icons.Cash,
-					color = CASH_COLOR,
-					accent = CASH_ACCENT,
-				})
-				ShopKit.bindBuy(card, function()
-					UIAnim.punch(card, 0.14)
-					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
-				end)
-				cardByKey[product.key] = card
-				table.insert(cards, card)
-			end
-		end
-		fitGrid(cashGrid, #MonetizationConfig.CashProducts)
-	end
+	productSection("Cash", 20, MonetizationConfig.CashProducts, CASH_COLOR, CASH_ACCENT, ShopKit.Icons.Cash, function(product)
+		return `${product.label}`
+	end)
 
 	-- SPEED -------------------------------------------------------------
-	local speedGrid = section(list, "Speed", 30)
-	if speedGrid then
-		for index, product in MonetizationConfig.SpeedProducts do
-			local card = ShopKit.card()
-			if card then
-				card.Name = `Card_{product.key}`
-				card.LayoutOrder = index
-				card.Parent = speedGrid
-				ShopKit.fillCard(card, {
-					title = `+{product.label}`,
-					description = "",
-					price = `R$ {NumberFormat.comma(product.robux)}`,
-					icon = ShopKit.Icons.Speed,
-					color = SPEED_COLOR,
-					accent = SPEED_ACCENT,
-				})
-				ShopKit.bindBuy(card, function()
-					UIAnim.punch(card, 0.14)
-					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
-				end)
-				cardByKey[product.key] = card
-				table.insert(cards, card)
-			end
-		end
-		fitGrid(speedGrid, #MonetizationConfig.SpeedProducts)
-	end
+	productSection("Speed", 30, MonetizationConfig.SpeedProducts, SPEED_COLOR, SPEED_ACCENT, ShopKit.Icons.Speed, function(product)
+		return `+{product.label}`
+	end)
 
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.CanvasSize = UDim2.fromScale(0, 0)
 	list.ScrollBarThickness = 6
+
+	-- Pixel cells follow the panel: a resize, or the first real layout pass
+	-- after a build while the panel was hidden, re-fits every section.
+	list:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		for _, entry in fitted do
+			fitGrid(entry.grid, entry.count, entry.aspect)
+		end
+	end)
 
 	built = true
 	ShopKit.cascadeIn(cards)
@@ -255,7 +320,18 @@ local function refreshOwnership(monetization: any)
 	if not card or not monetization then
 		return
 	end
-	if monetization.ownsCashPass then
+	-- Painted card: the art stays as printed; an OWNED pill covers the price
+	-- and the card stops taking clicks. Nothing is redrawn.
+	local png = cashPassPng
+	if png then
+		local owns = monetization.ownsCashPass == true
+		if cashPassOwnedPill then
+			cashPassOwnedPill.Visible = owns
+		end
+		png.setInteractive(not owns)
+		return
+	end
+	if monetization.ownsCashPass and card:IsA("Frame") then
 		ShopKit.fillCard(card, {
 			title = "2X CASH",
 			description = "OWNED - every dollar you earn is doubled.",

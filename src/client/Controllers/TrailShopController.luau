@@ -33,6 +33,7 @@ local TweenService = game:GetService("TweenService")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
@@ -59,6 +60,10 @@ local pngCards: { [string]: TrailCardPng.Card } = {}
 --- Whichever open or close tween is running on the panel's UIScale, so the
 --- two can cancel each other instead of fighting.
 local panelTween: Tween? = nil
+--- Re-fits the grid's pixel cells to the scroller; set by build(), run again
+--- on every open so a layout pass the panel missed while hidden cannot leave
+--- stale cells behind.
+local refitCells: (() -> ())? = nil
 local open = false
 local latest: any = nil
 --- Ownership as of the LAST push, so a trail that has just been unlocked can be
@@ -104,7 +109,7 @@ end
 --- the buttons underneath route into the SAME TrailRequest the pack cards use,
 --- under the same rule: send a key, never a price. The card learns ownership
 --- from StatePush in refresh() and nowhere else.
-local function buildPngCard(holder: Frame, index: number, trail: MonetizationConfig.TrailDef, image: number)
+local function buildPngCard(holder: Frame, index: number, trail: MonetizationConfig.TrailDef, layout: PngUiConfig.Layout)
 	local remote = Remotes.get("TrailRequest")
 	local onRobux: ((TrailCardPng.State) -> ())? = nil
 	if trail.gamePassId then
@@ -113,7 +118,8 @@ local function buildPngCard(holder: Frame, index: number, trail: MonetizationCon
 		end
 	end
 	local card = TrailCardPng.build({
-		image = image,
+		layout = layout,
+		familyAspect = PngUiConfig.Families.Trail,
 		onCash = function(state)
 			if state.owned then
 				-- Owned: the printed price sits under an EQUIP pill, and pressing
@@ -204,27 +210,47 @@ local function build(): boolean
 	local holder = Instance.new("Frame")
 	holder.Name = "TrailGrid"
 	holder.BackgroundTransparency = 1
-	-- Ten trails, two to a row. The holder is sized so five rows PLUS their padding
-	-- fit inside it - overflow would be clipped, because AutomaticCanvasSize
-	-- measures the holder rather than what spills out of it.
-	holder.Size = UDim2.fromScale(1, 1.75)
+	-- Height is fitted to the rows below; AutomaticCanvasSize measures the
+	-- holder rather than what spills out of it, so it must be exactly as tall
+	-- as its rows.
+	holder.Size = UDim2.new(1, 0, 0, 100)
 	holder.Parent = scroller
 
-	-- The pack's card hangs its title a few pixels ABOVE its own body, so the top
-	-- row's names get sliced off against the scroll frame's edge. Rows after the
-	-- first are saved by the cell padding; the first row needs this.
+	-- A little air above the first row so nothing kisses the scroll frame's
+	-- top edge.
 	local inset = Instance.new("UIPadding")
 	inset.PaddingTop = UDim.new(0, 8)
 	inset.Parent = holder
 
 	local layout = Instance.new("UIGridLayout")
-	-- Five rows of two. A trail card carries a name, a rarity and two buttons, so
-	-- it needs the same wide shape the shop cards use rather than a square tile.
-	layout.CellSize = UDim2.fromScale(0.47, 0.17)
-	layout.CellPadding = UDim2.fromScale(0.02, 0.02)
+	layout.CellPadding = UDim2.new(0.02, 0, 0, 8)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = holder
+
+	-- CELLS SHAPED TO THE ART. Two columns, every cell the painted cards'
+	-- family aspect, sized in PIXELS from the scroller's real width and
+	-- re-fitted when it changes. That is what makes ten separately painted
+	-- banners come out the same shape in one grid at any resolution.
+	local function fitCells()
+		if not scroller or not scroller:IsA("ScrollingFrame") then
+			return
+		end
+		local width = scroller.AbsoluteSize.X
+		if width <= 0 then
+			return
+		end
+		local cellWidth = width * 0.47
+		local cellHeight = cellWidth / PngUiConfig.Families.Trail
+		layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
+		local rows = math.ceil(#MonetizationConfig.Trails / 2)
+		holder.Size = UDim2.new(1, 0, 0, 8 + rows * cellHeight + (rows - 1) * 8 + 8)
+	end
+	fitCells()
+	if scroller and scroller:IsA("ScrollingFrame") then
+		scroller:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitCells)
+	end
+	refitCells = fitCells
 
 	if scroller and scroller:IsA("ScrollingFrame") then
 		scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -238,9 +264,9 @@ local function build(): boolean
 	-- One card per tier, in progression order. A trail with painted art gets
 	-- the PNG card; everything else is built from the pack.
 	for index, trail in MonetizationConfig.Trails do
-		local image = trail.image
-		if image then
-			buildPngCard(holder, index, trail, image)
+		local layout = if trail.image then PngUiConfig.card(`Trail_{trail.key}`) else nil
+		if layout then
+			buildPngCard(holder, index, trail, layout)
 			continue
 		end
 		local card = ShopKit.card()
@@ -399,6 +425,9 @@ local function show()
 	end
 	open = true
 	refresh()
+	if refitCells then
+		refitCells()
+	end
 
 	UIStateController.claim("trailshop")
 	frame.Visible = true
