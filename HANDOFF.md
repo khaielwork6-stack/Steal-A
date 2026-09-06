@@ -1676,3 +1676,71 @@ or removes confirmed waste. The §21 "NOT verified" list is now closed (see
   ring (`teleport -75 6 -30`); no key press needed.
 - Launching Studio via desktop automation, or reconnecting Rojo after a
   Studio restart, changes the `studio_id` — call `list_roblox_studios`.
+- To film a moving guardian: pin the camera with a RenderStepped follow
+  stored in `_G.__guardianFollow` (a one-shot camera set is stale by the
+  time the capture lands), and slow the boss for the shot with
+  `workspace.Guardians.<Name>.Humanoid.WalkSpeed = 25` — WalkSpeed is reset
+  on the next wake.
+
+---
+
+## 23. Guardians walk with Roblox's own walk cycle
+
+### What changed
+
+- `dressRig` no longer welds every costume part to the pivot. A costume with
+  a **standard skeleton** (`shellSkeleton`: a Humanoid plus the canonical R6
+  or R15 part names and enough Motor6Ds) is welded at its HumanoidRootPart
+  only; its limbs stay on their Motor6Ds so an Animation can drive them.
+  Everything the rig carries through its own joints/welds/rigid constraints
+  (`partsCarriedBy`: accessories, the held prop) rides along; any part it
+  does not carry is pinned to the pivot as before, so nothing can fall off.
+  An `Animator` is created under the costume's Humanoid on the server and
+  the shell is stamped `Rigged = true`.
+- `prepareWalk` (called at spawn, after the model is in workspace — earlier
+  and LoadAnimation refuses) loads `GameConfig.GUARDIAN_WALK_ANIMATIONS[rigType]`
+  — the ids Roblox's default Animate script ships as `walk.WalkAnim`
+  (R6 `180426354`, R15 `913402848`), nothing uploaded or guessed — as a
+  looped Movement-priority track, and returns the studs/s one unit of rate
+  represents for this costume's height (`WALK_REFERENCE_SPEED[rig] ×
+  height / 5`).
+- `animateShell`: a rigged costume plays that track while Chasing/Returning
+  at `AdjustSpeed(clamp(horizontal velocity / walkSpeedPerRate, 0.45, 2.2))`
+  with a 7° forward lean, and stops it (0.25 s fade) on Sleeping/Waking; the
+  slump and the outrage shake still pose the pivot. Props and custom rigs
+  keep the rigid cartoon run untouched.
+
+### Who walks, who still bobs
+
+| Zone | Boss | Rig | Result |
+|---|---|---|---|
+| 2 | PirateCaptain | R6 | walks |
+| 3 | RoyalGuard | R6 | walks |
+| 4 | Agent | R6 | walks |
+| 6 | MummyGuardian | R6 | walks |
+| 8 | BankGuard | R6 | walks |
+| 9 | MadScientist | R6 | walks |
+| 11 | Foreman | R15 | walks |
+| 12 | AirportSecurity | R6 | walks |
+| 1 | Cop | 28 anchored meshes, no Humanoid, no joints | cartoon bob |
+| 5 | ElfGuard | Humanoid but 0 Motor6Ds | cartoon bob |
+| 7 | Bodybuilder | 54 anchored parts, no Humanoid | cartoon bob |
+| 10 | Grandma | Humanoid, custom joints (`RightArm`, one `feet` part) | cartoon bob |
+
+The four bobbers have no skeleton the stock walk can drive. **Drop a rigged
+R6/R15 version of any of them into `ServerStorage.GameAssets.Guardians`
+under the same name and it walks with no code change** — the detection is by
+rig shape, not by zone.
+
+### Verified live
+
+- Boot clean; all twelve guardians assembled (rigged ones: 1 pivot weld,
+  Motor6Ds intact, parts within the costume's own height of the root; props:
+  welded part-by-part exactly as before).
+- Pirate chase: track `180426354` playing, rate 1.41 at 31.9 studs/s; Left
+  Hip swings ±45°, Right Shoulder ±60° per sample on the server AND on the
+  client (replicated). Foreman chase: track `913402848`, rate 1.19–1.87.
+  Both stop within the fade once the guardian sleeps; root anchored.
+- Filmed mid-stride from a follow camera: Pirate Captain (R6) and Foreman
+  (R15), costumes and accessories intact, feet on the floor.
+- Catch, offer, drop, return and sleep unchanged.

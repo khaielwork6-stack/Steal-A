@@ -157,6 +157,17 @@ function GameConfig.guardianPhysicsGrowthFor(zoneIndex: number): number
 	return math.min(growth, GameConfig.GUARDIAN_PHYSICS_MAX_GROWTH)
 end
 
+--- The stock Roblox walk cycles, exactly the ids the default Animate script
+--- ships as `walk.WalkAnim` for each rig type. Played on guardian costumes that
+--- have a standard skeleton so a boss walks like a Roblox character; costumes
+--- with no skeleton keep the procedural run in GuardianService.animateShell.
+--- These are Roblox's own assets, playable in any experience - nothing here
+--- was uploaded or guessed.
+GameConfig.GUARDIAN_WALK_ANIMATIONS = {
+	R6 = "rbxassetid://180426354",
+	R15 = "rbxassetid://913402848",
+} :: { [string]: string }
+
 -- ==========================================================
 -- LOOT LIFECYCLE
 -- ==========================================================

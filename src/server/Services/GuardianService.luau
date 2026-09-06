@@ -57,6 +57,13 @@ type Guardian = {
 	lootId: string?,
 	wakeAt: number?,
 	shellMotor: Weld?, -- drives the imported costume's pose; nil when unskinned
+	--- Roblox's own walk cycle on a rigged costume; nil for props and custom
+	--- rigs, which keep the procedural run in animateShell.
+	walkTrack: AnimationTrack?,
+	--- Studs per second this costume covers at walk-cycle playback rate 1:
+	--- the Animate script's reference speed scaled by the costume's height,
+	--- so a forty-stud boss takes long strides instead of blurring its feet.
+	walkSpeedPerRate: number,
 	--- Catch distance, scaled to this guardian's physical size (see buildRig).
 	catchRadius: number,
 	-- Stuck detection. A guardian steering straight at its target will
@@ -79,6 +86,17 @@ local RUN_BOB = 0.85 -- studs of vertical pump per stride
 local RUN_ROLL = math.rad(17) -- side-to-side rock
 local RUN_YAW = math.rad(11) -- shoulder swing
 local RUN_LEAN = math.rad(-24) -- pitched forward, chasing his own centre of mass
+
+-- Walk-cycle pacing for RIGGED costumes (see prepareWalk). Roblox's Animate
+-- script plays the walk at rate 1 for a standard ~5-stud character covering
+-- 14.5 (R6) or 16 (R15) studs/s. A costume N times that tall takes strides N
+-- times longer, so its rate is divided by N; the clamp keeps a jammed or
+-- just-launched guardian from freezing mid-stride or blurring.
+local WALK_REFERENCE_SPEED: { [string]: number } = { R6 = 14.5, R15 = 16 }
+local STANDARD_RIG_HEIGHT = 5
+local WALK_RATE_MIN = 0.45
+local WALK_RATE_MAX = 2.2
+local WALK_LEAN = math.rad(-7) -- a slight forward lean while pursuing
 -- Tuned by measurement, not by feel: 110/72 threw the player 156 studs, which
 -- launched them clean across the safe line and into the base plaza. These land
 -- around 80-90 studs - clearly dramatic, still comfortably inside the lane.
@@ -197,10 +215,12 @@ end
 ---
 --- Some imports are static props - 28 anchored parts, no Humanoid, no Motor6D -
 --- and the later zones are full R6/R15 characters with clothing, body colours
---- and body meshes. Neither kind can drive the rig, so rather than rebuild the
---- artist's model (which risks breaking it), the model is welded on as a
---- COSTUME over the working rig: physics and pathfinding stay with the
---- invisible root, and the costume is posed procedurally in animateShell().
+--- and body meshes. Neither kind can drive the rig itself, so rather than
+--- rebuild the artist's model (which risks breaking it), the model is welded
+--- on as a COSTUME over the working rig: physics and pathfinding stay with the
+--- invisible root. A costume with a standard skeleton keeps its Motor6Ds and
+--- walks with Roblox's own walk cycle; a prop is posed procedurally. Both live
+--- in animateShell().
 ---
 --- THE COSTUME KEEPS ITS OWN HUMANOID, SWITCHED OFF. Shirts, pants,
 --- CharacterMeshes and BodyColors only render for parts that sit beside a
@@ -232,6 +252,84 @@ local function ensureShellCollisionGroup()
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, "Default", false)
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, SHELL_COLLISION_GROUP, false)
 	end)
+end
+
+--- The part names a standard skeleton must have for Roblox's own walk cycle to
+--- find its joints. An animation's poses are matched by PART name, so a rig
+--- with a Humanoid but home-made limbs (the Grandma: one "feet" part) would
+--- load the animation and move nothing - it is treated as a prop instead.
+local RIG_SIGNATURES: { [string]: { string } } = {
+	R6 = { "HumanoidRootPart", "Torso", "Left Leg", "Right Leg", "Left Arm", "Right Arm" },
+	R15 = { "HumanoidRootPart", "LowerTorso", "UpperTorso", "LeftUpperLeg", "RightUpperLeg" },
+}
+
+--- The costume's own standard skeleton, if it has one: its Humanoid and the
+--- HumanoidRootPart its joint tree hangs from. Nil for props and custom rigs.
+local function shellSkeleton(shell: Model): (Humanoid?, BasePart?)
+	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)
+	if not humanoid then
+		return nil, nil
+	end
+	local signature = RIG_SIGNATURES[humanoid.RigType.Name]
+	if not signature then
+		return nil, nil
+	end
+	local rootPart: BasePart? = nil
+	for _, name in signature do
+		local part = shell:FindFirstChild(name, true)
+		if not part or not part:IsA("BasePart") then
+			return nil, nil
+		end
+		if name == "HumanoidRootPart" then
+			rootPart = part
+		end
+	end
+	local motors = 0
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("Motor6D") then
+			motors += 1
+		end
+	end
+	if motors < #signature - 1 then
+		return nil, nil -- named like a rig, jointed like a prop (the Elf Guard)
+	end
+	return humanoid, rootPart
+end
+
+--- Every part a rig carries through its own joints, welds and rigid
+--- constraints, starting from its root. Accessories hang off the head by an
+--- AccessoryWeld, a held prop off the arm by a Motor6D: all of it counts.
+local function partsCarriedBy(rootPart: BasePart, shell: Model): { [BasePart]: boolean }
+	local links: { [BasePart]: { BasePart } } = {}
+	local function link(a: Instance?, b: Instance?)
+		if a and b and a ~= b and a:IsA("BasePart") and b:IsA("BasePart") then
+			links[a] = links[a] or {}
+			links[b] = links[b] or {}
+			table.insert(links[a], b)
+			table.insert(links[b], a)
+		end
+	end
+	for _, descendant in shell:GetDescendants() do
+		if descendant:IsA("JointInstance") or descendant:IsA("WeldConstraint") then
+			link((descendant :: any).Part0, (descendant :: any).Part1)
+		elseif descendant:IsA("RigidConstraint") then
+			local a0, a1 = descendant.Attachment0, descendant.Attachment1
+			link(if a0 then a0.Parent else nil, if a1 then a1.Parent else nil)
+		end
+	end
+
+	local carried: { [BasePart]: boolean } = { [rootPart] = true }
+	local queue = { rootPart }
+	while #queue > 0 do
+		local part = table.remove(queue) :: BasePart
+		for _, other in links[part] or {} do
+			if not carried[other] then
+				carried[other] = true
+				table.insert(queue, other)
+			end
+		end
+	end
+	return carried
 end
 
 local function dressRig(model: Model, root: BasePart, shell: Model)
@@ -276,13 +374,34 @@ local function dressRig(model: Model, root: BasePart, shell: Model)
 	pivot.CFrame = root.CFrame
 	pivot.Parent = model
 
+	-- What gets welded to the pivot depends on whether the costume has a
+	-- skeleton. A rigged character hangs off ONE weld at its HumanoidRootPart
+	-- and its limbs stay on their Motor6Ds, which is what lets an Animation
+	-- move them - welding every part (as this did for every costume) froze the
+	-- rig solid. A prop, or a rig with non-standard joints, is welded part by
+	-- part exactly as before. Anything a rig does NOT carry through its own
+	-- joints - a stray decoration with no weld - is pinned to the pivot too, so
+	-- nothing can fall off.
+	local skeletonHumanoid, skeletonRoot = shellSkeleton(shell)
+	local carried = if skeletonRoot then partsCarriedBy(skeletonRoot, shell) else nil
+
 	for _, descendant in shell:GetDescendants() do
-		if descendant:IsA("BasePart") then
+		if descendant:IsA("BasePart") and (not carried or descendant == skeletonRoot or not carried[descendant]) then
 			local weld = Instance.new("WeldConstraint")
 			weld.Part0 = pivot
 			weld.Part1 = descendant
 			weld.Parent = pivot
 		end
+	end
+
+	if skeletonHumanoid then
+		-- Created on the server, before the model replicates, so every client
+		-- receives the tracks the server plays on it.
+		if not skeletonHumanoid:FindFirstChildOfClass("Animator") then
+			local animator = Instance.new("Animator")
+			animator.Parent = skeletonHumanoid
+		end
+		shell:SetAttribute("Rigged", true)
 	end
 
 	shell.Parent = model
@@ -661,9 +780,56 @@ end
 -- STEP
 -- ==========================================================
 
---- Poses the imported costume. The models are static props with no skeleton, so
---- there is nothing to play an Animation on; instead the whole costume is
---- bobbed, leaned and rolled as one rigid piece.
+--- Loads Roblox's own walk cycle onto a rigged costume. Returns the track and
+--- the studs per second that one unit of playback rate represents for a
+--- costume of this height. Nil for props and custom rigs - those keep the
+--- procedural run - and nil, loudly, if the animation cannot be loaded.
+---
+--- Called after the model is in workspace: LoadAnimation refuses a rig that is
+--- not yet a descendant of the DataModel.
+local function prepareWalk(model: Model): (AnimationTrack?, number)
+	local shell = model:FindFirstChild("Shell")
+	if not shell or shell:GetAttribute("Rigged") ~= true then
+		return nil, 1
+	end
+	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)
+	local animator = if humanoid then humanoid:FindFirstChildOfClass("Animator") else nil
+	if not humanoid or not animator then
+		return nil, 1
+	end
+
+	local rigType = humanoid.RigType.Name
+	local id = GameConfig.GUARDIAN_WALK_ANIMATIONS[rigType]
+	if not id then
+		return nil, 1
+	end
+
+	local animation = Instance.new("Animation")
+	animation.AnimationId = id
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(animation)
+	end)
+	animation:Destroy()
+	if not ok or not track then
+		warn(`[GuardianService] could not load the {rigType} walk cycle for {model.Name}: {track}`)
+		return nil, 1
+	end
+
+	track.Priority = Enum.AnimationPriority.Movement
+	track.Looped = true
+
+	local height = tonumber(model:GetAttribute("Height")) or STANDARD_RIG_HEIGHT
+	local reference = WALK_REFERENCE_SPEED[rigType] or 16
+	return track, reference * math.max(height / STANDARD_RIG_HEIGHT, 0.5)
+end
+
+--- Poses the imported costume.
+---
+--- A RIGGED costume (a Humanoid over a standard R6/R15 skeleton, see dressRig)
+--- walks with Roblox's own walk cycle, paced to the ground the guardian is
+--- actually covering, with a slight forward lean. A prop with no skeleton, or
+--- a rig with non-standard joints, has nothing an Animation can drive, so the
+--- whole costume is bobbed, leaned and rolled as one rigid piece instead.
 ---
 --- That constraint is leaned into rather than hidden. A rigid body pumping up
 --- and down while pitched forward and rocking side to side reads as a cartoon
@@ -676,8 +842,12 @@ local function animateShell(guardian: Guardian, now: number)
 	end
 
 	local state = guardian.state
+	local track = guardian.walkTrack
 
 	if state == "Sleeping" then
+		if track and track.IsPlaying then
+			track:Stop(0.25)
+		end
 		-- Slumped forward, breathing slowly.
 		local breathe = math.sin(now * 1.5) * 0.07
 		motor.C0 = CFrame.new(0, breathe, 0) * CFrame.Angles(math.rad(14), 0, 0)
@@ -685,13 +855,31 @@ local function animateShell(guardian: Guardian, now: number)
 	end
 
 	if state == "Waking" then
+		if track and track.IsPlaying then
+			track:Stop(0.1)
+		end
 		-- Bolt upright and vibrate with outrage.
 		local shake = math.sin(now * 46) * math.rad(7)
 		motor.C0 = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
 		return
 	end
 
-	-- BOOKING IT.
+	if track then
+		-- WALKING, the Roblox way. Paced from real velocity rather than from
+		-- WalkSpeed, so a guardian jammed on a corner or easing into a turn
+		-- strides at the pace it is actually moving.
+		if not track.IsPlaying then
+			track:Play(0.2)
+		end
+		local root = guardian.root
+		local velocity = if root then root.AssemblyLinearVelocity else Vector3.zero
+		local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+		track:AdjustSpeed(math.clamp(speed / guardian.walkSpeedPerRate, WALK_RATE_MIN, WALK_RATE_MAX))
+		motor.C0 = CFrame.Angles(WALK_LEAN, 0, 0)
+		return
+	end
+
+	-- BOOKING IT, rigidly.
 	local t = now * RUN_CYCLE_SPEED
 	-- abs(sin) gives two bounces per cycle: one per footfall.
 	local bob = math.abs(math.sin(t)) * RUN_BOB
@@ -840,6 +1028,7 @@ function GuardianService.start()
 			stuckFor = 0,
 			sidestepUntil = 0,
 			sidestepSign = 1,
+			walkSpeedPerRate = 1,
 		}
 
 		humanoid.WalkSpeed = guardianSpeed(zoneIndex)
@@ -859,6 +1048,10 @@ function GuardianService.start()
 		guardian.root = root
 		local motor = root:FindFirstChild("ShellMotor")
 		guardian.shellMotor = if motor and motor:IsA("Weld") then motor else nil
+		-- Roblox's walk cycle, on the costumes that have a skeleton for it.
+		local walkTrack, walkSpeedPerRate = prepareWalk(model)
+		guardian.walkTrack = walkTrack
+		guardian.walkSpeedPerRate = walkSpeedPerRate
 		guardians[zoneIndex] = guardian
 
 		model:SetAttribute("ZoneIndex", zoneIndex)
