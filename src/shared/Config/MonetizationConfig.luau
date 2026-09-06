@@ -193,9 +193,13 @@ MonetizationConfig.BossOfferByZone = {
 	[9] = "Speed1B", [10] = "Speed1B", [11] = "Speed1B",
 } :: { [number]: string }
 
---- Seconds before the same player can be shown another loss offer. Losing twice
---- in quick succession is exactly when the offer is least welcome.
-MonetizationConfig.BOSS_OFFER_COOLDOWN = 90
+--- Seconds before the same player can be shown another loss offer.
+---
+--- ZERO ON PURPOSE: every catch shows the offer. The card is small, sits at the
+--- top of the screen, blocks nothing and re-texts in place rather than stacking,
+--- so a second loss re-punches the one card instead of piling up prompts. Raise
+--- this if it ever starts to read as nagging.
+MonetizationConfig.BOSS_OFFER_COOLDOWN = 0
 
 -- ==========================================================
 -- LOOKUPS (built once at require time)

@@ -10,9 +10,9 @@
 	death, a reset or a fall is, which is exactly why it cannot fire on one.
 
 	ONE CARD, REUSED.
-	Caught again while it is up and the existing card is re-texted and re-punched
-	rather than a second one being spawned. The server also holds a cooldown, so
-	the two together mean a bad run cannot bury the screen in purchase prompts.
+	The server cooldown is zero - every catch offers - so this is what keeps a bad
+	run from burying the screen. Caught again while it is up and the EXISTING
+	banner is re-texted and re-punched; a second one is never spawned.
 
 	IT NEVER BLOCKS PLAY.
 	Top-centre, no modal backdrop, an X to dismiss and an auto-dismiss behind it.
@@ -33,15 +33,30 @@ local BossOfferController = {}
 local player = Players.LocalPlayer
 
 local holder: Frame? = nil
-local card: Frame? = nil
+local card: GuiObject? = nil
 local currentKey: string? = nil
 local offeredAmount: number? = nil
 local lastSpeedPower: number? = nil
 local dismissAt = 0
 local visible = false
 
-local SHOWN_POSITION = UDim2.new(0.5, 0, 0.26, 0)
-local HIDDEN_POSITION = UDim2.new(0.5, 0, 0.13, 0)
+-- MEASURED OFF THE REFERENCE SHOT, not chosen by eye: a 290x75 pill on a
+-- 1918x1008 screen, centred horizontally with its middle 62px down. That is a
+-- banner across the top of the screen, not a card in the middle of it - which is
+-- the point. It has to read at a glance during a chase and be out of the way the
+-- moment it is ignored.
+--
+-- The reference's 0.062 is TAKEN in this game: the zone progress bar spans
+-- y -48..13 and the banner landed on -43..11, directly across it. Dropped to sit
+-- just underneath, keeping the proportions and the top-centre placement while
+-- leaving both readable.
+local SHOWN_POSITION = UDim2.new(0.5, 0, 0.16, 0)
+--- Slides DOWN into place from just off the top edge.
+local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.06, 0)
+--- 290/1918 wide, 75/1008 tall, clamped so it stays a banner on any screen.
+local BANNER_SIZE = UDim2.fromScale(0.151, 0.0744)
+local BANNER_MIN = Vector2.new(210, 54)
+local BANNER_MAX = Vector2.new(330, 86)
 local AUTO_DISMISS = 12
 
 local OFFER_COLOR = Color3.fromRGB(96, 240, 200)
@@ -77,9 +92,27 @@ local function build(): boolean
 	if not ui then
 		return false
 	end
-	local built = ShopKit.card()
-	if not built then
+	local donor = ShopKit.card()
+	if not donor then
 		warn("[BossOfferController] no pack card to build from - loss offer disabled.")
+		return false
+	end
+
+	-- THE PILL, NOT THE CARD.
+	--
+	-- The reference is a wide banner roughly four times as long as it is tall,
+	-- and the pack's product CARD does not survive being squashed into that: its
+	-- title strip came out under seven pixels high and its price under nine. The
+	-- pack's own BUY BUTTON, though, already IS that shape - rounded, gradient,
+	-- studs, rays, stroke - so the banner is built from the button and the card
+	-- is kept only long enough to donate it and the icon.
+	local donorBody = donor:FindFirstChild("Frame")
+	local donorChoose = donorBody and donorBody:FindFirstChild("Choose")
+	local pill = donorChoose and donorChoose:FindFirstChild("Buy")
+	local donorIcon = donorBody and donorBody:FindFirstChild("Icon")
+	if not pill or not pill:IsA("TextButton") then
+		warn("[BossOfferController] pack card has no Buy button - loss offer disabled.")
+		donor:Destroy()
 		return false
 	end
 
@@ -87,44 +120,96 @@ local function build(): boolean
 	frame.Name = "BossOffer"
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = HIDDEN_POSITION
-	frame.Size = UDim2.fromScale(0.23, 0.23)
+	frame.Size = BANNER_SIZE
 	frame.BackgroundTransparency = 1
 	frame.Visible = false
 	frame.ZIndex = 12
 	frame.Parent = ui
 
 	local limit = Instance.new("UISizeConstraint")
-	limit.MinSize = Vector2.new(180, 0)
-	limit.MaxSize = Vector2.new(320, math.huge)
+	limit.MinSize = BANNER_MIN
+	limit.MaxSize = BANNER_MAX
 	limit.Parent = frame
 
-	built.Size = UDim2.fromScale(1, 1)
-	built.Position = UDim2.fromScale(0.5, 0.5)
-	built.AnchorPoint = Vector2.new(0.5, 0.5)
-	built.Parent = frame
+	pill.Name = "Banner"
+	pill.AnchorPoint = Vector2.new(0.5, 0.5)
+	pill.Position = UDim2.fromScale(0.5, 0.5)
+	pill.Size = UDim2.fromScale(1, 1)
+	-- The button is authored 3:1 for a card corner. The banner owns its own size.
+	local pillAspect = pill:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if pillAspect then
+		pillAspect:Destroy()
+	end
+	pill.Parent = frame
 
-	ShopKit.bindBuy(built, function()
+	local face = pill:FindFirstChild("Frame")
+	if face then
+		-- The demo sale furniture, same as everywhere else.
+		for _, name in { "Promo", "Line" } do
+			local extra = face:FindFirstChild(name, true)
+			if extra and extra:IsA("GuiObject") then
+				extra.Visible = false
+			end
+		end
+
+		if donorIcon then
+			local icon = donorIcon:Clone()
+			icon.Name = "Icon"
+			icon.AnchorPoint = Vector2.new(0, 0.5)
+			icon.Position = UDim2.fromScale(0.015, 0.5)
+			icon.Size = UDim2.fromScale(0.26, 0.92)
+			icon.ZIndex = 6
+			icon.Parent = face
+		end
+
+		-- The pack's price label becomes the headline, moved out of the icon's
+		-- way and left-aligned so "+150K SPEED" reads as a statement rather than
+		-- as a centred price tag.
+		local headline = face:FindFirstChild("Price")
+		if headline and headline:IsA("TextLabel") then
+			headline.Name = "Headline"
+			headline.AnchorPoint = Vector2.new(0, 0)
+			headline.Position = UDim2.fromScale(0.29, 0.1)
+			headline.Size = UDim2.fromScale(0.68, 0.46)
+			headline.TextXAlignment = Enum.TextXAlignment.Left
+			headline.ZIndex = 6
+
+			-- The price rides underneath in the same voice, half the height, so
+			-- what it costs is on the banner rather than only in Roblox's prompt.
+			local cost = headline:Clone()
+			cost.Name = "Cost"
+			cost.Position = UDim2.fromScale(0.29, 0.56)
+			cost.Size = UDim2.fromScale(0.68, 0.32)
+			cost.Parent = face
+		end
+	end
+
+	UIAnim.claimButton(pill)
+	pill.Activated:Connect(function()
 		if not currentKey then
 			return
 		end
-		UIAnim.punch(built, 0.16)
+		UIAnim.punch(pill, 0.16)
 		-- The client names a config KEY, never a product id.
 		Remotes.get("PurchaseRequest"):FireServer("product", currentKey)
 	end)
 
+	donor:Destroy()
+
 	-- Dismiss. Borrowed from the pack's own shop header so the X matches the
-	-- rest of the game rather than being a drawn cross.
+	-- rest of the game rather than being a drawn cross. Sized in PIXELS: at
+	-- banner scale a proportional X is too small to hit on a phone.
 	local top = ShopKit.topBar()
 	-- The pack nests its X as Top.Frame.Close, so this has to search rather than
-	-- look one level down - a direct lookup finds nothing and the card comes up
+	-- look one level down - a direct lookup finds nothing and the banner comes up
 	-- with no way to dismiss it but the timer.
 	local packClose = top and top:FindFirstChild("Close", true)
 	if packClose and packClose:IsA("TextButton") then
 		local close = packClose:Clone()
 		close.Name = "Dismiss"
-		close.AnchorPoint = Vector2.new(1, 0)
-		close.Position = UDim2.fromScale(1.02, -0.04)
-		close.Size = UDim2.fromScale(0.2, 0.2)
+		close.AnchorPoint = Vector2.new(0.5, 0.5)
+		close.Position = UDim2.fromScale(1.015, 0.02)
+		close.Size = UDim2.fromOffset(26, 26)
 		close.ZIndex = 20
 		close.Parent = frame
 		UIAnim.claimButton(close)
@@ -135,7 +220,7 @@ local function build(): boolean
 	end
 
 	holder = frame
-	card = built
+	card = pill
 	return true
 end
 
@@ -144,20 +229,41 @@ local function show(offer: any)
 		return
 	end
 	local frame = holder :: Frame
-	local built = card :: Frame
+	local built = card :: GuiObject
 
 	currentKey = offer.productKey
 	offeredAmount = tonumber(offer.amount)
 	dismissAt = os.clock() + AUTO_DISMISS
 
-	ShopKit.fillCard(built, {
-		title = `+{offer.label} SPEED`,
-		description = "Too slow! Catch up and outrun the guard.",
-		price = `R$ {NumberFormat.comma(offer.robux)}`,
-		icon = ShopKit.Icons.Speed,
-		color = OFFER_COLOR,
-		accent = OFFER_ACCENT,
-	})
+	local face = built:FindFirstChild("Frame")
+	if face then
+		local headline = face:FindFirstChild("Headline")
+		if headline and headline:IsA("TextLabel") then
+			headline.Text = `+{offer.label} SPEED`
+		end
+		local cost = face:FindFirstChild("Cost")
+		if cost and cost:IsA("TextLabel") then
+			cost.Text = `R$ {NumberFormat.comma(offer.robux)}  ·  outrun the guard`
+		end
+		local gradient = face:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = ColorSequence.new(OFFER_COLOR, OFFER_ACCENT)
+		end
+		local icon = face:FindFirstChild("Icon")
+		if icon then
+			for _, layer in icon:GetDescendants() do
+				if layer:IsA("ImageLabel") then
+					layer.Image = ShopKit.Icons.Speed
+				end
+			end
+		end
+	end
+	local stroke = built:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		-- Colour only. Raising a pack stroke's authored thickness makes the engine
+		-- draw the border as a filled slab; see TrailShopController.
+		stroke.Color = OFFER_ACCENT
+	end
 
 	-- Already up: re-text and punch rather than stacking a second card.
 	if visible then

@@ -386,6 +386,11 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 
 	StateService.pushNow(player)
 
+	-- Tell the UI which card just paid off, so it can flash the right one. Sent
+	-- only from here - the single path that actually granted something - so the
+	-- animation cannot fire on a cancelled or failed purchase.
+	Remotes.get("PurchaseFeedback"):FireClient(player, product.key)
+
 	-- Only report success once the grant is durable.
 	if not DataService.isPersistent() or DataService.save(player) then
 		return granted

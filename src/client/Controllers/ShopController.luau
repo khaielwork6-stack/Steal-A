@@ -52,6 +52,9 @@ local PASS_ACCENT = Color3.fromRGB(196, 130, 16)
 
 local built = false
 local cashPassCard: Frame? = nil
+--- Product key -> its card, so a landed purchase can flash the right one.
+local cardByKey: { [string]: Frame } = {}
+local lastOwnsCashPass: boolean? = nil
 
 local function scroller(): ScrollingFrame?
 	local ui = ShopKit.mainUi()
@@ -186,6 +189,7 @@ local function buildShop()
 					UIAnim.punch(card, 0.14)
 					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 				end)
+				cardByKey[product.key] = card
 				table.insert(cards, card)
 			end
 		end
@@ -213,6 +217,7 @@ local function buildShop()
 					UIAnim.punch(card, 0.14)
 					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 				end)
+				cardByKey[product.key] = card
 				table.insert(cards, card)
 			end
 		end
@@ -225,6 +230,22 @@ local function buildShop()
 
 	built = true
 	ShopKit.cascadeIn(cards)
+end
+
+--- A card flashes when the thing it sells actually lands.
+---
+--- TOLD BY THE SERVER, NOT INFERRED FROM THE BALANCE.
+--- The first attempt matched the size of the cash jump against the pack list,
+--- which reads fine until you notice a late-game loot sale is comfortably worth
+--- more than the small packs - the shop would have celebrated an ordinary sale
+--- as a purchase. `PurchaseFeedback` is fired from inside ProcessReceipt, the one
+--- path that actually granted something, and carries a key and nothing else.
+local function celebrate(card: GuiObject?)
+	if not card then
+		return
+	end
+	ShopKit.shine(card)
+	UIAnim.punch(card, 0.2)
 end
 
 --- The 2x Cash card becomes an OWNED state once they have it, rather than
@@ -251,8 +272,24 @@ function ShopController.start()
 	-- Built lazily on the first push, so MainUI is certain to exist.
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		buildShop()
-		if state then
-			refreshOwnership(state.monetization)
+		if not state then
+			return
+		end
+		refreshOwnership(state.monetization)
+
+		-- Ownership is binary and permanent, so a false -> true flip is a real
+		-- unlock and cannot be confused with anything else. No signal needed.
+		local owns = state.monetization and state.monetization.ownsCashPass == true
+		local wasOwned = lastOwnsCashPass
+		lastOwnsCashPass = owns
+		if wasOwned == false and owns then
+			celebrate(cashPassCard)
+		end
+	end)
+
+	Remotes.get("PurchaseFeedback").OnClientEvent:Connect(function(key)
+		if type(key) == "string" then
+			celebrate(cardByKey[key])
 		end
 	end)
 end

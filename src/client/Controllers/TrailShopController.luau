@@ -44,6 +44,10 @@ local grid: Frame? = nil
 local cards: { [string]: Frame } = {}
 local open = false
 local latest: any = nil
+--- Ownership as of the LAST push, so a trail that has just been unlocked can be
+--- flashed. nil until the first push: the first one is a baseline, not a
+--- purchase, or every card the player already owns would celebrate on open.
+local previousOwned: { [string]: boolean }? = nil
 
 local function close()
 	if not open then
@@ -236,6 +240,22 @@ local function refresh()
 	if not latest or not latest.trails then
 		return
 	end
+
+	-- Which trails have only just become owned, so the card that sold one can
+	-- flash. Read from the server's own ownership view, so a client that lies to
+	-- itself gets a sparkle and nothing else.
+	local nowOwned: { [string]: boolean } = {}
+	local unlocked: { [string]: boolean } = {}
+	for index, trail in MonetizationConfig.Trails do
+		local row = latest.trails[index]
+		local owned = row ~= nil and row.owned == true
+		nowOwned[trail.key] = owned
+		if previousOwned and owned and not previousOwned[trail.key] then
+			unlocked[trail.key] = true
+		end
+	end
+	previousOwned = nowOwned
+
 	for index, trail in MonetizationConfig.Trails do
 		local card = cards[trail.key]
 		local row = latest.trails[index]
@@ -258,9 +278,9 @@ local function refresh()
 				description = description,
 				-- Owned cards show EQUIP instead of a price they cannot pay again.
 				price = if row.owned then "EQUIP" else NumberFormat.cash(trail.cash),
-					icon = ShopKit.Icons.Speed,
-					color = trail.color,
-					accent = trail.accent,
+				icon = ShopKit.Icons.Speed,
+				color = trail.color,
+				accent = trail.accent,
 			})
 
 			-- The Robux route disappears once it is owned by either route.
@@ -281,6 +301,14 @@ local function refresh()
 				stroke.Color = if row.equipped
 					then (RarityConfig.Colors[trail.rarity] or trail.color)
 					else trail.accent
+			end
+
+			-- Just unlocked: sweep and bounce the card that sold it. The toast
+			-- already says GREEN TRAIL UNLOCKED; this is what ties that message to
+			-- the thing on screen the player just pressed.
+			if unlocked[trail.key] then
+				ShopKit.shine(card)
+				UIAnim.punch(card, 0.2)
 			end
 		end
 	end

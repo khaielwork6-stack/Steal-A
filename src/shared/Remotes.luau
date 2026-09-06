@@ -40,6 +40,15 @@ Remotes.NAMES = {
 	-- PromptProductPurchase with an id of its own choosing, so a tampered client
 	-- cannot make the game prompt for an arbitrary product.
 	"PurchaseRequest",
+	-- server -> client, COSMETIC ONLY. Names the product key that just landed so
+	-- the card that sold it can flash. It grants nothing and is never listened to
+	-- on the server, so it cannot be used to ask for anything.
+	--
+	-- It exists because the alternative - inferring the purchase from the size of
+	-- the balance jump - produces FALSE POSITIVES: a late-game loot sale is
+	-- comfortably in the range of the smaller cash packs, and the shop would
+	-- celebrate a sale as a purchase.
+	"PurchaseFeedback",
 	-- server -> client
 	"StatePush",
 	"Notify",
