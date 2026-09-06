@@ -388,7 +388,8 @@ function PngCard.build(options: Options): Card
 			if isPointer(input) then
 				pressed = false
 				scaleAll(1, REBOUND)
-				TweenService:Create(lift, REBOUND, { Scale = hoverLift }):Play()
+				-- A mouse is still hovering after release; a finger is gone.
+				TweenService:Create(lift, REBOUND, { Scale = if touchOnly() then 1 else hoverLift }):Play()
 				washAll(if touchOnly() then 1 else WASH_HOVER, HOVER)
 			end
 		end)
