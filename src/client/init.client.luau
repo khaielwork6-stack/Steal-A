@@ -22,9 +22,17 @@ local ShopController = require(script.Controllers.ShopController)
 local TreadmillOfferController = require(script.Controllers.TreadmillOfferController)
 local BossOfferController = require(script.Controllers.BossOfferController)
 local TrailShopController = require(script.Controllers.TrailShopController)
+local ChaseWarningController = require(script.Controllers.ChaseWarningController)
+local GroupGiftController = require(script.Controllers.GroupGiftController)
+local HUDLayoutController = require(script.Controllers.HUDLayoutController)
+local BaseSignController = require(script.Controllers.BaseSignController)
 local AudioController = require(script.Controllers.AudioController)
 
 HUDController.start()
+-- Right after the HUD binds, before anything clones a nav button: the layout
+-- pass moves Settings out of the rail and recolours the buttons the Upgrades
+-- and Storage openers are cloned from.
+HUDLayoutController.start()
 GuardianFxController.start()
 BasePromptController.start()
 TutorialController.start()
@@ -38,6 +46,9 @@ DropController.start()
 -- UI visibility first: the treadmill card and the trail shop both claim through
 -- it, and a claim made before it is listening would never be released.
 UIStateController.start()
+ChaseWarningController.start()
+GroupGiftController.start()
+BaseSignController.start()
 ShopController.start()
 TreadmillOfferController.start()
 BossOfferController.start()

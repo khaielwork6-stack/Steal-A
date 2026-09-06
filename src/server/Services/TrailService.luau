@@ -32,7 +32,7 @@
 ]]
 
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
@@ -284,105 +284,229 @@ local function slab(name: string, size: Vector3, cf: CFrame, color: Color3, pare
 	return part
 end
 
+-- ==========================================================
+-- THE BOOTH
+-- ==========================================================
+--
+-- A small market stall, not a sign on a stick: four posts, a counter, a yellow
+-- and white striped awning, a TRAILS SHOP board across the front, and a ribbon
+-- of every tier's colour under it. In front of it, a glowing yellow circle on
+-- the floor. WALK INTO THE CIRCLE and the shop opens; walk out and it closes.
+-- There is no prompt and no key to hold.
+--
+-- Everything here is decorative and non-colliding except the counter and the
+-- posts, which a player can lean on but never get stuck in.
+
+--- Where the booth stands: in the plaza apron on the safe side of the red line,
+--- off to one side of the corridor mouth so it is passed on the way out but
+--- never blocks the run.
+local BOOTH_CFRAME = CFrame.new(-72, 0, -30) * CFrame.Angles(0, math.rad(35), 0)
+--- The interaction circle sits in FRONT of the counter, where a customer stands.
+local ZONE_OFFSET = CFrame.new(0, 0, 9)
+local ZONE_RADIUS = 8.5
+--- Poll cadence for who is standing in the circle. Five times a second is well
+--- under a stride at any Speed and costs one distance check per player.
+local ZONE_POLL = 0.2
+
+local ZONE_YELLOW = Color3.fromRGB(255, 226, 70)
+local AWNING_YELLOW = Color3.fromRGB(255, 208, 48)
+local AWNING_WHITE = Color3.fromRGB(250, 250, 245)
+local WOOD = Color3.fromRGB(142, 92, 52)
+local WOOD_DARK = Color3.fromRGB(96, 60, 32)
+local COUNTER_TOP = Color3.fromRGB(196, 150, 96)
+
+local function solid(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material, parent: Instance, collide: boolean): Part
+	local part = slab(name, size, cf, color, parent)
+	part.Material = material
+	part.CanCollide = collide
+	part.CanQuery = collide
+	part.CastShadow = true
+	return part
+end
+
 local function buildKeeper()
 	local map = workspace:FindFirstChild("Map")
 	if not map or map:FindFirstChild(KEEPER_NAME) then
 		return
 	end
 
-	-- In the plaza, on the safe side of the red line, off to one side of the
-	-- corridor mouth so it is passed on the way out but never blocks the run.
-	local base = CFrame.new(-70, 0, -30) * CFrame.Angles(0, math.rad(35), 0)
-
 	local model = Instance.new("Model")
 	model.Name = KEEPER_NAME
+	local base = BOOTH_CFRAME
 
-	slab("Pad", Vector3.new(14, 0.6, 14), base * CFrame.new(0, 0.3, 0), Color3.fromRGB(58, 46, 96), model)
-	slab("Post", Vector3.new(1.4, 7, 1.4), base * CFrame.new(0, 3.5, 0), Color3.fromRGB(150, 100, 58), model)
-	local board = slab("Board", Vector3.new(11, 4.4, 0.9), base * CFrame.new(0, 8.4, 0), Color3.fromRGB(78, 38, 128), model)
-	slab("Edge", Vector3.new(11.8, 5.2, 0.6), base * CFrame.new(0, 8.4, 0.25), Color3.fromRGB(38, 16, 68), model)
+	-- Footprint: 12 wide (X), 7 deep (Z). Counter along the front edge.
+	local width, depth = 12, 7
+	local postHeight = 9.5
 
-	-- A ribbon of every tier's colour: the shop advertises what it sells without
-	-- needing a single piece of authored art.
-	for index, trail in MonetizationConfig.Trails do
-		local offset = (index - (#MonetizationConfig.Trails + 1) / 2) * 1.0
-		slab(
-			`Swatch{index}`,
-			Vector3.new(0.85, 0.85, 0.85),
-			base * CFrame.new(offset, 5.4, 0),
-			trail.color,
-			model
+	-- Four posts at the corners.
+	for _, corner in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		solid(
+			"Post",
+			Vector3.new(0.9, postHeight, 0.9),
+			base * CFrame.new(corner[1] * (width / 2 - 0.45), postHeight / 2, corner[2] * (depth / 2 - 0.45)),
+			WOOD,
+			Enum.Material.Wood,
+			model,
+			true
 		)
 	end
 
+	-- Counter across the front: a body, a lighter top, a dark base rail.
+	solid("CounterBody", Vector3.new(width, 3.0, 1.6), base * CFrame.new(0, 1.5, depth / 2 - 0.8), WOOD_DARK, Enum.Material.WoodPlanks, model, true)
+	solid("CounterTop", Vector3.new(width + 0.6, 0.4, 2.2), base * CFrame.new(0, 3.2, depth / 2 - 0.8), COUNTER_TOP, Enum.Material.Wood, model, true)
+	solid("CounterRail", Vector3.new(width + 0.2, 0.3, 1.8), base * CFrame.new(0, 0.15, depth / 2 - 0.8), WOOD_DARK, Enum.Material.Wood, model, false)
+	-- A shelf behind the counter, so the stall has an inside.
+	solid("Shelf", Vector3.new(width - 1.8, 0.3, 1.4), base * CFrame.new(0, 4.6, -depth / 2 + 1.0), WOOD, Enum.Material.Wood, model, false)
+
+	-- Awning: a shallow pitched roof of alternating yellow and white strips,
+	-- overhanging the front, with a scalloped edge suggested by a row of short
+	-- tabs hanging off it.
+	local awningDepth = depth + 3
+	local stripCount = 9
+	local stripWidth = (width + 1.4) / stripCount
+	local pitch = math.rad(-12)
+	for index = 1, stripCount do
+		local x = -(width + 1.4) / 2 + stripWidth * (index - 0.5)
+		local color = if index % 2 == 1 then AWNING_YELLOW else AWNING_WHITE
+		solid(
+			"Awning",
+			Vector3.new(stripWidth + 0.02, 0.28, awningDepth),
+			base * CFrame.new(x, postHeight + 0.6, 0.6) * CFrame.Angles(pitch, 0, 0),
+			color,
+			Enum.Material.Fabric,
+			model,
+			false
+		)
+		solid(
+			"Scallop",
+			Vector3.new(stripWidth + 0.02, 1.1, 0.28),
+			base * CFrame.new(x, postHeight - 0.05, depth / 2 + 2.05),
+			color,
+			Enum.Material.Fabric,
+			model,
+			false
+		)
+	end
+
+	-- The TRAILS SHOP board across the front, above the counter.
+	local board = solid("Board", Vector3.new(width - 1.0, 2.4, 0.5), base * CFrame.new(0, postHeight - 2.0, depth / 2 - 0.2), Color3.fromRGB(38, 16, 68), Enum.Material.SmoothPlastic, model, false)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Face"
-	gui.Face = Enum.NormalId.Front
+	-- The customer stands on the booth's +Z side (where the circle is), which is
+	-- a part's BACK face. Front would paint the title toward the shelf.
+	gui.Face = Enum.NormalId.Back
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 48
 	gui.LightInfluence = 0
 	gui.Adornee = board
 	gui.Parent = board
-
 	local title = Instance.new("TextLabel")
-	title.Size = UDim2.fromScale(0.94, 0.5)
-	title.Position = UDim2.fromScale(0.03, 0.06)
+	title.Size = UDim2.fromScale(0.94, 0.86)
+	title.Position = UDim2.fromScale(0.03, 0.07)
 	title.BackgroundTransparency = 1
 	title.Font = Enum.Font.FredokaOne
 	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.TextColor3 = Color3.fromRGB(255, 226, 70)
 	title.TextStrokeTransparency = 0
 	title.TextStrokeColor3 = Color3.fromRGB(24, 8, 44)
-	title.Text = "TRAIL SHOP"
+	title.Text = "TRAILS SHOP"
 	title.Parent = gui
 
-	local sub = Instance.new("TextLabel")
-	sub.Size = UDim2.fromScale(0.94, 0.34)
-	sub.Position = UDim2.fromScale(0.03, 0.58)
-	sub.BackgroundTransparency = 1
-	sub.Font = Enum.Font.FredokaOne
-	sub.TextScaled = true
-	sub.TextColor3 = Color3.fromRGB(126, 236, 255)
-	sub.TextStrokeTransparency = 0.3
-	sub.Text = "Run faster - hold E"
-	sub.Parent = gui
+	-- A ribbon of every tier's colour along the counter front: the stall
+	-- advertises what it sells without a single piece of authored art.
+	for index, trail in MonetizationConfig.Trails do
+		local offset = (index - (#MonetizationConfig.Trails + 1) / 2) * 1.05
+		local swatch = solid(`Swatch{index}`, Vector3.new(0.8, 0.8, 0.3), base * CFrame.new(offset, 1.7, depth / 2 + 0.05), trail.color, Enum.Material.Neon, model, false)
+		swatch.CastShadow = false
+	end
 
-	-- The interaction volume. Queryable and collidable-free: you walk up to it,
-	-- you do not walk into it.
-	local trigger = Instance.new("Part")
-	trigger.Name = "Trigger"
-	trigger.Size = Vector3.new(10, 10, 10)
-	trigger.CFrame = base * CFrame.new(0, 5, 0)
-	trigger.Transparency = 1
-	trigger.Anchored = true
-	trigger.CanCollide = false
-	trigger.CastShadow = false
-	trigger.Parent = model
+	-- THE CIRCLE. A flat neon disc on the floor with a brighter ring around it,
+	-- pulsing gently. Non-colliding, unqueryable: it is a picture of the zone;
+	-- the zone itself is the distance check below.
+	local centre = (base * ZONE_OFFSET).Position
+	local disc = solid("Zone", Vector3.new(0.12, ZONE_RADIUS * 2, ZONE_RADIUS * 2), CFrame.new(centre + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, 0, math.rad(90)), ZONE_YELLOW, Enum.Material.Neon, model, false)
+	disc.Shape = Enum.PartType.Cylinder
+	disc.Transparency = 0.55
+	disc.CastShadow = false
+	local ring = solid("ZoneRing", Vector3.new(0.16, ZONE_RADIUS * 2 + 0.9, ZONE_RADIUS * 2 + 0.9), CFrame.new(centre + Vector3.new(0, 0.04, 0)) * CFrame.Angles(0, 0, math.rad(90)), ZONE_YELLOW, Enum.Material.Neon, model, false)
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Transparency = 0.15
+	ring.CastShadow = false
+	-- A few sparkles rising off the disc. Low rate; this runs forever.
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = disc
+	local sparkle = Instance.new("ParticleEmitter")
+	sparkle.Name = "Sparkle"
+	sparkle.Texture = "rbxassetid://241594419"
+	sparkle.Color = ColorSequence.new(ZONE_YELLOW, Color3.fromRGB(255, 255, 220))
+	sparkle.LightEmission = 0.8
+	sparkle.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	sparkle.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+	sparkle.Lifetime = NumberRange.new(1.2, 1.8)
+	sparkle.Rate = 6
+	sparkle.Speed = NumberRange.new(1.5, 2.5)
+	sparkle.SpreadAngle = Vector2.new(20, 20)
+	sparkle.EmissionDirection = Enum.NormalId.Right
+	sparkle.Parent = attachment
 
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "TrailShopPrompt"
-	prompt.ActionText = "Trail Shop"
-	prompt.ObjectText = "Trails"
-	prompt.HoldDuration = 0.4
-	prompt.MaxActivationDistance = 14
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = trigger
-
-	model.PrimaryPart = board
+	model:SetAttribute("ZoneRadius", ZONE_RADIUS)
 	model.Parent = map
+
+	-- The pulse: the disc and ring breathe between two transparencies. One tween
+	-- each, looped forever by the engine, costs nothing per frame.
+	TweenService:Create(disc, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Transparency = 0.3 }):Play()
+	TweenService:Create(ring, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Transparency = 0.4 }):Play()
+end
+
+-- ==========================================================
+-- THE ZONE
+-- ==========================================================
+--
+-- Who is standing in the circle, polled. Entering fires "open" ONCE; leaving
+-- fires "close" ONCE. Standing still inside fires nothing, so the panel cannot
+-- be reopened or reset every tick.
+
+local inZone: { [Player]: boolean } = {}
+
+local function stepZone()
+	local centre = (BOOTH_CFRAME * ZONE_OFFSET).Position
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local inside = false
+		if root and root:IsA("BasePart") then
+			local offset = root.Position - centre
+			inside = Vector3.new(offset.X, 0, offset.Z).Magnitude <= ZONE_RADIUS and math.abs(offset.Y) < 12
+		end
+		local was = inZone[player] == true
+		if inside and not was then
+			inZone[player] = true
+			-- The server opens it. The client cannot decide it is at the shop.
+			Remotes.get("TrailRequest"):FireClient(player, "open")
+			StateService.pushNow(player)
+		elseif not inside and was then
+			inZone[player] = nil
+			Remotes.get("TrailRequest"):FireClient(player, "close")
+		end
+	end
+end
+
+local function startZoneWatch()
+	task.spawn(function()
+		while true do
+			task.wait(ZONE_POLL)
+			stepZone()
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		inZone[player] = nil
+	end)
 end
 
 function TrailService.start()
 	buildKeeper()
 
-	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-		if prompt.Name ~= "TrailShopPrompt" then
-			return
-		end
-		-- The server opens it. The client cannot decide it is at the shop.
-		Remotes.get("TrailRequest"):FireClient(player, "open")
-		StateService.pushNow(player)
-	end)
+	startZoneWatch()
 
 	Remotes.get("TrailRequest").OnServerEvent:Connect(function(player, action, argument)
 		if type(action) ~= "string" then

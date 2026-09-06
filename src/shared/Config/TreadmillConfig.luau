@@ -95,9 +95,21 @@ TreadmillConfig.STANCE_OFFSET = 1.6
 --- if a future import arrives the other way round.
 TreadmillConfig.PLAYER_FACING_SIGN = -1
 
---- Playback rate of the borrowed run animation. Slightly above 1 reads as
---- effort without looking sped-up.
+--- Playback rate of the borrowed run animation, at the BOTTOM of progression.
+--- Slightly above 1 reads as effort without looking sped-up.
 TreadmillConfig.RUN_ANIMATION_SPEED = 1.15
+
+--- ...and at the TOP. The rate scales between the two with the player's real
+--- WalkSpeed (itself a log-compressed function of Speed, see GameConfig), so a
+--- fast player visibly sprints and a new one jogs, without the rate ever being
+--- multiplied by a raw Speed value - which at 40M would be absurd. 2.6x is the
+--- most the avatar run cycle takes before feet stop reading as footsteps.
+TreadmillConfig.RUN_ANIMATION_SPEED_MAX = 2.6
+
+--- How quickly the rate eases toward its target, per second. High enough to
+--- follow an upgrade within a stride, low enough that the tick-by-tick Speed
+--- gains never make it stutter.
+TreadmillConfig.RUN_ANIMATION_EASE = 4
 
 --- Floating "+N Speed" text.
 TreadmillConfig.POPUP_MIN_INTERVAL = 0.35 -- seconds between popups; gains between are summed

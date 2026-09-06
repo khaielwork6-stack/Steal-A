@@ -12,7 +12,14 @@ local PvPConfig = {}
 
 -- Bat: a permanent Tool every player owns. No health damage, ever.
 PvPConfig.BAT_RANGE = 6
-PvPConfig.BAT_COOLDOWN = 0.9
+-- Exactly half a second between VALID swings. The client mirrors this for feel;
+-- this is the number that decides, and a client that swings faster is refused.
+PvPConfig.BAT_COOLDOWN = 0.50
+--- Seconds after the swing starts before the bat is "through" the target. The
+--- client's wind-up and the server's hit resolution both key off this, so the
+--- connect lands on the frame the bat visually arrives rather than at the
+--- moment the button is pressed.
+PvPConfig.BAT_STRIKE_DELAY = 0.12
 PvPConfig.BAT_ARC_DEGREES = 100
 PvPConfig.RAGDOLL_DURATION = 1.25
 PvPConfig.KNOCKBACK_SPEED = 46

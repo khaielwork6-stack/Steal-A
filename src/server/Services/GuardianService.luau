@@ -151,6 +151,18 @@ local function publishState(guardian: Guardian)
 	end
 end
 
+--- Tells the thief's OWN client that a guardian is on them, for the RUN!! screen
+--- warning. An attribute on the Player rather than a remote: it is a boolean
+--- that flips a handful of times a run, it replicates on its own, and a client
+--- that joins mid-state reads the current value instead of missing an event.
+--- Set true when a guardian takes a target and false the moment it lets go, so
+--- it can never outlive the chase.
+local function setChased(player: Player?, on: boolean)
+	if player and player.Parent then
+		player:SetAttribute("Chased", on)
+	end
+end
+
 local function sleepPose(guardian: Guardian)
 	local root = guardian.root
 	if not root then
@@ -506,6 +518,9 @@ local function resetSteering(guardian: Guardian)
 end
 
 local function goHome(guardian: Guardian)
+	-- Whatever ended the chase - catch, escape, a dropped item, the thief
+	-- leaving - the warning on their screen ends here with it.
+	setChased(guardian.target, false)
 	guardian.state = "Returning"
 	guardian.target = nil
 	guardian.lootId = nil
@@ -529,6 +544,7 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 	guardian.lootId = loot.id
 	guardian.wakeAt = os.clock() + WAKE_DELAY
 	resetSteering(guardian)
+	setChased(thief, true)
 
 	-- Speed is set PER CHASE, not once at spawn, because it depends on how far
 	-- under the zone's recommendation this particular thief is. Read from the

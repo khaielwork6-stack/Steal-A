@@ -188,6 +188,7 @@ GameConfig.RATE_LIMITS = {
 	PurchaseRequest = 2,
 	DropLootRequest = 3,
 	TrailRequest = 4,
+	GroupGiftRequest = 1,
 }
 
 return GameConfig

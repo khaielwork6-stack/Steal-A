@@ -33,6 +33,9 @@ local RagdollService = require(Services.RagdollService)
 local PvPService = require(Services.PvPService)
 local MonetizationService = require(Services.MonetizationService)
 local TrailService = require(Services.TrailService)
+local StatsService = require(Services.StatsService)
+local GroupGiftService = require(Services.GroupGiftService)
+local LeaderboardService = require(Services.LeaderboardService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -45,6 +48,13 @@ EconomyService.start()
 StateService.setIndexProvider(IndexService.summarise)
 StateService.start()
 IndexService.start()
+
+-- Roblox's own player list (Tab) shows Speed | Money. It is fed from the SAME
+-- snapshot the client HUD gets, on the same push, so the two can never differ.
+StatsService.start()
+StateService.onPushed(function(player, state)
+	StatsService.reflect(player, state.cash, state.speedPower)
+end)
 
 -- Cross-service wiring is done here so the services themselves stay decoupled.
 CarryService.setNotifier(function(player, kind, message)
@@ -85,6 +95,13 @@ end
 TrailService.refreshMovement = function(player)
 	SpeedService.applyMovement(player)
 end
+GroupGiftService.refreshMovement = function(player)
+	SpeedService.applyMovement(player)
+end
+
+-- The group gift's claimed/unclaimed state rides the push, so the popup shows
+-- CLAIMED on a reconnect without asking.
+StateService.setGroupGiftProvider(GroupGiftService.summarise)
 
 -- What the shop UIs render. Derived server-side every push: the client is told
 -- what it owns and what it may be offered next, and decides neither.
@@ -234,6 +251,11 @@ PvPService.start()
 -- PlacementService existed, their prompts were never created, and they simply
 -- could not place anything - invisible to tests that call place() directly.
 BaseService.start()
+
+-- After BaseService: the group gift pushes state, and the world boards read
+-- profiles, both of which want every earlier service in place.
+GroupGiftService.start()
+LeaderboardService.start()
 
 -- HUD "BASE" button. Refused while carrying so it cannot skip an escape run.
 require(ReplicatedStorage.Shared.Remotes).get("TeleportHomeRequest").OnServerEvent:Connect(function(player)

@@ -36,21 +36,41 @@ local TreadmillOfferController = {}
 
 local player = Players.LocalPlayer
 
-local card: Frame? = nil
+local card: GuiObject? = nil
 local holder: Frame? = nil
 local shown = false
 local floatConnection: RBXScriptConnection? = nil
 local latest: any = nil
 
-local SHOWN_POSITION = UDim2.new(0.5, 0, 0.30, 0)
-local HIDDEN_POSITION = UDim2.new(0.5, 0, 0.10, 0)
+-- A SIDE CARD, NOT A POPUP.
+--
+-- The first version sat centre-screen over the treadmill and the player - the
+-- one place a purchase card must not be while someone is trying to train. The
+-- reference is a small clean card down the left, under the navigation. So:
+-- anchored to the left edge, parked below the nav rail, sliding in from just
+-- off-screen and back out. It is part of the HUD, not something in front of it.
+--
+-- Positioned in SCALE against the screen, with a pixel floor and ceiling, so it
+-- holds its place under the rail on a phone and on a 4K monitor alike.
+local SHOWN_POSITION = UDim2.new(0, 0, 0.845, 0)
+local HIDDEN_POSITION = UDim2.new(-0.25, 0, 0.845, 0)
+--- Roughly the width of the nav rail and the height of one of its buttons.
+local CARD_SIZE = UDim2.fromScale(0.17, 0.115)
+local CARD_MIN = Vector2.new(190, 62)
+local CARD_MAX = Vector2.new(300, 96)
+--- Inset from the screen edge, matching the rail's own margin.
+local EDGE_INSET = 14
 
--- Bright cyan-green, matching the reference's energy without depending on its
--- art. The pack's own gradient and rays do the rest.
-local CARD_COLOR = Color3.fromRGB(96, 240, 200)
-local CARD_ACCENT = Color3.fromRGB(28, 150, 190)
+-- Bright cyan/blue like the reference. The pack's own studs and rays do the rest.
+local CARD_COLOR = Color3.fromRGB(80, 210, 255)
+local CARD_ACCENT = Color3.fromRGB(20, 120, 210)
 local MAXED_COLOR = Color3.fromRGB(255, 214, 120)
 local MAXED_ACCENT = Color3.fromRGB(196, 130, 16)
+
+--- The card's parts, resolved once.
+local headline: TextLabel? = nil
+local subline: TextLabel? = nil
+local iconImage: ImageLabel? = nil
 
 local function build(): boolean
 	if card then
@@ -60,80 +80,165 @@ local function build(): boolean
 	if not ui then
 		return false
 	end
-	local built = ShopKit.card()
-	if not built then
+	local donor = ShopKit.card()
+	if not donor then
 		warn("[TreadmillOfferController] no pack card to build from - treadmill offer disabled.")
 		return false
 	end
 
-	-- A holder gives the card a stable anchor and a size independent of the
-	-- grid cell it was authored for.
+	-- THE PILL, NOT THE CARD - same reasoning as the boss banner. The pack's
+	-- product card does not survive being squeezed to a side-card; its buy
+	-- BUTTON already is one: rounded, gradient, studs, rays, stroke.
+	local donorBody = donor:FindFirstChild("Frame")
+	local donorChoose = donorBody and donorBody:FindFirstChild("Choose")
+	local pill = donorChoose and donorChoose:FindFirstChild("Buy")
+	local donorIcon = donorBody and donorBody:FindFirstChild("Icon")
+	if not pill or not pill:IsA("TextButton") then
+		warn("[TreadmillOfferController] pack card has no Buy button - treadmill offer disabled.")
+		donor:Destroy()
+		return false
+	end
+
 	local frame = Instance.new("Frame")
 	frame.Name = "TreadmillOffer"
-	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.AnchorPoint = Vector2.new(0, 0.5)
 	frame.Position = HIDDEN_POSITION
-	frame.Size = UDim2.fromScale(0.24, 0.24)
+	frame.Size = CARD_SIZE
 	frame.BackgroundTransparency = 1
 	frame.Visible = false
 	frame.ZIndex = 8
 	frame.Parent = ui
 
 	local limit = Instance.new("UISizeConstraint")
-	limit.MinSize = Vector2.new(190, 0)
-	limit.MaxSize = Vector2.new(340, math.huge)
+	limit.MinSize = CARD_MIN
+	limit.MaxSize = CARD_MAX
 	limit.Parent = frame
 
-	built.Size = UDim2.fromScale(1, 1)
-	built.Position = UDim2.fromScale(0.5, 0.5)
-	built.AnchorPoint = Vector2.new(0.5, 0.5)
-	built.Parent = frame
+	local inset = Instance.new("UIPadding")
+	inset.PaddingLeft = UDim.new(0, EDGE_INSET)
+	inset.Parent = frame
 
-	ShopKit.bindBuy(built, function()
+	pill.Name = "Card"
+	pill.AnchorPoint = Vector2.new(0, 0.5)
+	pill.Position = UDim2.fromScale(0, 0.5)
+	pill.Size = UDim2.fromScale(1, 1)
+	local pillAspect = pill:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if pillAspect then
+		pillAspect:Destroy()
+	end
+	pill.Parent = frame
+
+	local face = pill:FindFirstChild("Frame")
+	if face then
+		for _, name in { "Promo", "Line" } do
+			local extra = face:FindFirstChild(name, true)
+			if extra and extra:IsA("GuiObject") then
+				extra.Visible = false
+			end
+		end
+
+		if donorIcon then
+			local icon = donorIcon:Clone()
+			icon.Name = "Icon"
+			icon.AnchorPoint = Vector2.new(0, 0.5)
+			icon.Position = UDim2.fromScale(0.02, 0.5)
+			icon.Size = UDim2.fromScale(0.3, 0.9)
+			icon.ZIndex = 6
+			icon.Parent = face
+			iconImage = icon:FindFirstChildWhichIsA("ImageLabel", true)
+			for _, layer in icon:GetDescendants() do
+				if layer:IsA("ImageLabel") then
+					layer.Image = ShopKit.Icons.Speed
+				end
+			end
+		end
+
+		-- "2X SPEED" big, "ONLY R$ 3" small under it - the reference's hierarchy.
+		local price = face:FindFirstChild("Price")
+		if price and price:IsA("TextLabel") then
+			price.Name = "Headline"
+			price.AnchorPoint = Vector2.new(0, 0)
+			price.Position = UDim2.fromScale(0.34, 0.08)
+			price.Size = UDim2.fromScale(0.64, 0.5)
+			price.TextXAlignment = Enum.TextXAlignment.Left
+			price.ZIndex = 6
+			headline = price
+
+			local sub = price:Clone()
+			sub.Name = "Subline"
+			sub.Position = UDim2.fromScale(0.34, 0.58)
+			sub.Size = UDim2.fromScale(0.64, 0.3)
+			sub.Parent = face
+			subline = sub
+		end
+	end
+
+	UIAnim.claimButton(pill)
+	pill.Activated:Connect(function()
 		if not latest or not latest.nextSpeedTier then
 			return
 		end
-		UIAnim.punch(built, 0.14)
+		UIAnim.punch(pill, 0.14)
 		-- The client asks; the server picks the gamepass id from its own config.
 		Remotes.get("PurchaseRequest"):FireServer("speedTier")
 	end)
 
+	donor:Destroy()
 	holder = frame
-	card = built
+	card = pill
 	return true
 end
 
-local function repaint()
+local function paintColours(color: Color3, accent: Color3)
 	local built = card
 	if not built then
 		return
 	end
-	local tier = latest and latest.nextSpeedTier
+	local face = built:FindFirstChild("Frame")
+	local gradient = face and face:FindFirstChildOfClass("UIGradient")
+	if gradient then
+		gradient.Color = ColorSequence.new(color, accent)
+	end
+	local stroke = built:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		-- Colour only, never thickness - see TrailShopController.
+		stroke.Color = accent
+	end
+end
 
+local function repaint()
+	if not card then
+		return
+	end
+	local tier = latest and latest.nextSpeedTier
 	if tier then
-		ShopKit.fillCard(built, {
-			title = `{tier.label} SPEED`,
-			description = "Permanent multiplier on all treadmill training.",
-			price = `R$ {NumberFormat.comma(tier.robux)}`,
-			icon = ShopKit.Icons.Speed,
-			color = CARD_COLOR,
-			accent = CARD_ACCENT,
-		})
+		if headline then
+			headline.Text = `{string.upper(tier.label)} SPEED`
+		end
+		if subline then
+			subline.Text = `ONLY R$ {NumberFormat.comma(tier.robux)}`
+		end
+		paintColours(CARD_COLOR, CARD_ACCENT)
 	else
 		local owned = (latest and latest.speedMultiplier) or 1
-		ShopKit.fillCard(built, {
-			title = "MAXED",
-			description = `{NumberFormat.comma(owned)}x Speed - the highest multiplier in the game.`,
-			price = "",
-			icon = ShopKit.Icons.Speed,
-			color = MAXED_COLOR,
-			accent = MAXED_ACCENT,
-			hidePrice = true,
-		})
+		if headline then
+			headline.Text = "MAXED"
+		end
+		if subline then
+			subline.Text = `{NumberFormat.comma(owned)}x SPEED`
+		end
+		paintColours(MAXED_COLOR, MAXED_ACCENT)
 	end
 end
 
 local function show()
-	if shown or not build() then
+	if not build() then
+		return
+	end
+	-- "Shown" means our flag AND the frame drawing: something outside (the pack
+	-- hides all of MainUI while one of its panels is open) can flip Visible off
+	-- under us, and the card must come back the next time it is asked for.
+	if shown and holder and (holder :: Frame).Visible then
 		return
 	end
 	shown = true

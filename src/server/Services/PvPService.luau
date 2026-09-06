@@ -15,6 +15,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerStorage = game:GetService("ServerStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
@@ -180,15 +181,83 @@ function PvPService.trySwing(player: Player): (boolean, string?)
 	end
 
 	lastSwing[player] = now
-	resolveSwing(player)
+	-- Resolved when the bat ARRIVES, not when the button is pressed. The client's
+	-- wind-up runs for the same delay, so the connect, the sound and the launch
+	-- all happen on the frame the swing visually lands. The cooldown was stamped
+	-- above, so a second press inside the delay is still refused.
+	task.delay(PvPConfig.BAT_STRIKE_DELAY, function()
+		if player.Parent and isAlive(player) then
+			resolveSwing(player)
+		end
+	end)
 	return true
+end
+
+-- ==========================================================
+-- ART
+-- ==========================================================
+--
+-- The bat and the trap were supplied as two MeshParts named "Bat" and "Trap",
+-- left floating in the workspace to be found. At start they are ADOPTED into
+-- ServerStorage.GameAssets.PvP - out of the world, where a player cannot walk
+-- into them and they cannot be stolen or swung - and cloned from there. If
+-- either is missing the old primitive build is used, so the tools still exist.
+
+local ART_FOLDER = "PvP"
+
+local function artFolder(): Folder
+	local assets = ServerStorage:FindFirstChild("GameAssets")
+	if not assets then
+		assets = Instance.new("Folder")
+		assets.Name = "GameAssets"
+		assets.Parent = ServerStorage
+	end
+	local folder = assets:FindFirstChild(ART_FOLDER)
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = ART_FOLDER
+		folder.Parent = assets
+	end
+	return folder :: Folder
+end
+
+--- Moves a supplied mesh out of the workspace and into the art folder, once.
+local function adoptArt(name: string): MeshPart?
+	local folder = artFolder()
+	local held = folder:FindFirstChild(name)
+	if held and held:IsA("MeshPart") then
+		return held
+	end
+	local loose = workspace:FindFirstChild(name)
+	if loose and loose:IsA("MeshPart") then
+		loose.Anchored = true
+		loose.Parent = folder
+		return loose
+	end
+	return nil
+end
+
+local function batArt(): MeshPart?
+	return adoptArt("Bat")
+end
+
+local function trapArt(): MeshPart?
+	return adoptArt("Trap")
 end
 
 -- ==========================================================
 -- TRAPS
 -- ==========================================================
 
+--- Footprint of the visible trap. The trigger radius stays what it is - that is
+--- gameplay - and the art is scaled to sit inside it, so what you see is what
+--- you must not step on.
+local TRAP_VISUAL_WIDTH = 4.2
+
 local function buildTrapPart(position: Vector3, owner: Player): BasePart
+	-- THE HITBOX. Invisible, unqueryable, exactly the trigger radius. `stepTraps`
+	-- measures against this part's position, so the art can be any shape at
+	-- all without changing where a trap fires.
 	local part = Instance.new("Part")
 	part.Name = "Trap"
 	part.Shape = Enum.PartType.Cylinder
@@ -197,11 +266,60 @@ local function buildTrapPart(position: Vector3, owner: Player): BasePart
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
+	part.CanTouch = false
 	part.CastShadow = false
-	part.Color = Color3.fromRGB(255, 96, 96)
-	part.Material = Enum.Material.Neon
-	part.Transparency = 0.35
+	part.Transparency = 1
 	part:SetAttribute("OwnerUserId", owner.UserId)
+
+	-- THE ART. The supplied trap mesh, scaled to the footprint and stood flat on
+	-- the floor. Non-colliding and unqueryable, so its jaws can never snag a
+	-- player or a raycast; it is a picture of the trap, the cylinder is the
+	-- trap. Falls back to a flat neon disc if the mesh is not available.
+	local art = trapArt()
+	if art then
+		local visual = art:Clone()
+		visual.Name = "Visual"
+		visual.Anchored = true
+		visual.CanCollide = false
+		visual.CanQuery = false
+		visual.CanTouch = false
+		visual.CastShadow = true
+		local factor = TRAP_VISUAL_WIDTH / math.max(art.Size.X, art.Size.Z)
+		visual.Size = art.Size * factor
+		visual.CFrame = CFrame.new(position + Vector3.new(0, visual.Size.Y / 2, 0))
+		visual.Parent = part
+	else
+		local disc = Instance.new("Part")
+		disc.Name = "Visual"
+		disc.Shape = Enum.PartType.Cylinder
+		disc.Size = Vector3.new(0.3, TRAP_VISUAL_WIDTH, TRAP_VISUAL_WIDTH)
+		disc.CFrame = CFrame.new(position + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		disc.Anchored = true
+		disc.CanCollide = false
+		disc.CanQuery = false
+		disc.CanTouch = false
+		disc.Color = Color3.fromRGB(255, 96, 96)
+		disc.Material = Enum.Material.Neon
+		disc.Parent = part
+	end
+
+	-- A faint ring on the floor marking the real trigger radius, so the danger
+	-- zone is honest: the art is smaller than the radius that fires.
+	local ring = Instance.new("Part")
+	ring.Name = "Ring"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.1, PvPConfig.TRAP_TRIGGER_RADIUS * 2, PvPConfig.TRAP_TRIGGER_RADIUS * 2)
+	ring.CFrame = CFrame.new(position + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Color = Color3.fromRGB(255, 96, 96)
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.72
+	ring.Parent = part
+
 	part.Parent = trapFolder
 	return part
 end
@@ -378,6 +496,30 @@ local function buildBat(): Tool
 	tool.CanBeDropped = false
 	tool.ToolTip = "Knock loot out of other players"
 
+	local art = batArt()
+	if art then
+		-- The supplied mesh IS the handle. Its long axis is Z; a Tool grips its
+		-- Handle along the character's forearm with +Y as "up the tool", so the
+		-- Grip is rotated to stand the bat up in the hand and pitch it forward
+		-- a little, the way a bat is actually held rather than pointed at the
+		-- ground.
+		local handle = art:Clone()
+		handle.Name = "Handle"
+		handle.Anchored = false
+		handle.CanCollide = false
+		handle.CanQuery = false
+		handle.CanTouch = false
+		handle.Massless = true
+		handle.CastShadow = true
+		handle.Parent = tool
+
+		local length = handle.Size.Z
+		tool.Grip = CFrame.new(0, -0.15, length * 0.34) * CFrame.Angles(math.rad(-90), 0, 0)
+		return tool
+	end
+
+	-- Fallback: the original primitive bat, so a missing asset never removes
+	-- the weapon from the game.
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
 	handle.Size = Vector3.new(0.8, 5, 0.8)
@@ -411,6 +553,24 @@ local function buildTrapTool(): Tool
 	tool.RequiresHandle = true
 	tool.CanBeDropped = false
 	tool.ToolTip = "Place a trap to root a rival"
+
+	-- The held trap is the same mesh that gets placed, scaled down to a hand,
+	-- so what you are carrying is recognisably what you are about to put down.
+	local art = trapArt()
+	if art then
+		local handle = art:Clone()
+		handle.Name = "Handle"
+		handle.Anchored = false
+		handle.CanCollide = false
+		handle.CanQuery = false
+		handle.CanTouch = false
+		handle.Massless = true
+		local factor = 2.2 / math.max(art.Size.X, art.Size.Z)
+		handle.Size = art.Size * factor
+		handle.Parent = tool
+		tool.Grip = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+		return tool
+	end
 
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
@@ -446,6 +606,15 @@ function PvPService.start()
 	trapFolder = Instance.new("Folder")
 	trapFolder.Name = "Traps"
 	trapFolder.Parent = workspace
+
+	-- Take the supplied art out of the world NOW, before a player can find a bat
+	-- floating in the sky, rather than the first time a tool is built.
+	if not batArt() then
+		warn("[PvPService] no MeshPart named \"Bat\" found - using the primitive bat.")
+	end
+	if not trapArt() then
+		warn("[PvPService] no MeshPart named \"Trap\" found - using the neon disc trap.")
+	end
 
 	Remotes.get("BatSwingRequest").OnServerEvent:Connect(function(player)
 		PvPService.trySwing(player)

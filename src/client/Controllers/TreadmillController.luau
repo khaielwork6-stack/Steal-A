@@ -40,6 +40,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 
@@ -54,6 +55,26 @@ local training = false
 local runTrack: AnimationTrack? = nil
 local lastSpeedPower: number? = nil
 local pendingGain = 0
+
+--- The player's real WalkSpeed from the last push. The run cycle's playback
+--- rate is derived from THIS - a log-compressed, clamped number - and never
+--- from the raw Speed stat, which climbs into the millions.
+local lastWalkSpeed: number? = nil
+--- The rate currently applied to the track. Eased toward the target each frame
+--- so a treadmill tick or an upgrade changes the stride smoothly, not in a jump.
+local animationRate = TreadmillConfig.RUN_ANIMATION_SPEED
+
+--- Where the run cycle rate should sit for the player's current WalkSpeed:
+--- RUN_ANIMATION_SPEED at the slowest a player can be, RUN_ANIMATION_SPEED_MAX
+--- at the movement cap, straight between. A new player jogs; a top player
+--- sprints; nobody blurs.
+local function targetRate(): number
+	local walk = lastWalkSpeed or GameConfig.WALKSPEED_MIN
+	local span = math.max(GameConfig.WALKSPEED_MAX - GameConfig.WALKSPEED_MIN, 1)
+	local alpha = math.clamp((walk - GameConfig.WALKSPEED_MIN) / span, 0, 1)
+	return TreadmillConfig.RUN_ANIMATION_SPEED
+		+ (TreadmillConfig.RUN_ANIMATION_SPEED_MAX - TreadmillConfig.RUN_ANIMATION_SPEED) * alpha
+end
 local lastPopupAt = 0
 local livePopups = 0
 --- Flipped each popup so they alternate sides instead of overlapping.
@@ -153,7 +174,10 @@ local function startRunning(character: Model, humanoid: Humanoid)
 	track.Priority = Enum.AnimationPriority.Action
 	track.Looped = true
 	track:Play(0.15)
-	track:AdjustSpeed(TreadmillConfig.RUN_ANIMATION_SPEED)
+	-- Start AT the target rather than easing up from the slowest rate, so a fast
+	-- player never takes a first stride at jogging pace.
+	animationRate = targetRate()
+	track:AdjustSpeed(animationRate)
 	runTrack = track
 end
 
@@ -361,6 +385,19 @@ local function step(dt: number)
 
 	holdCentre(root, humanoid, dt)
 
+	-- Stride pace follows real movement speed. Eased, so the constant trickle
+	-- of treadmill ticks reads as a runner gradually finding another gear, and
+	-- an upgrade lands within a stride rather than snapping mid-cycle.
+	local track = runTrack
+	if track then
+		local goal = targetRate()
+		local eased = animationRate + (goal - animationRate) * math.min(1, TreadmillConfig.RUN_ANIMATION_EASE * dt)
+		if math.abs(eased - animationRate) > 0.002 then
+			animationRate = eased
+			track:AdjustSpeed(animationRate)
+		end
+	end
+
 	-- Release banked gains on a fixed cadence. Ticks arriving faster than this
 	-- are summed into one popup instead of stacking three numbers on top of each
 	-- other, which is what turns this into spam.
@@ -383,6 +420,9 @@ function TreadmillController.start()
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		if not state or type(state.speedPower) ~= "number" then
 			return
+		end
+		if type(state.walkSpeed) == "number" then
+			lastWalkSpeed = state.walkSpeed
 		end
 		local previous = lastSpeedPower
 		lastSpeedPower = state.speedPower

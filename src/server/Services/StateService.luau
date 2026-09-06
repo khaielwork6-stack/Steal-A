@@ -60,6 +60,14 @@ function StateService.setMonetizationProvider(fn: (Player) -> any)
 	monetizationProvider = fn
 end
 
+--- And the group gift: claimed or not, and what it pays. Riding the push so a
+--- reconnect renders CLAIMED without a second request.
+local groupGiftProvider: ((Player) -> any)? = nil
+
+function StateService.setGroupGiftProvider(fn: (Player) -> any)
+	groupGiftProvider = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -120,6 +128,7 @@ local function build(player: Player): ClientState?
 		tutorial = if tutorialProvider then tutorialProvider(player) else nil,
 		carrying = if carryProvider then carryProvider(player) else nil,
 		monetization = if monetizationProvider then monetizationProvider(player) else nil,
+		groupGift = if groupGiftProvider then groupGiftProvider(player) else nil,
 		inventory = profile.Inventory,
 		storageUsed = #profile.Inventory,
 		storageCapacity = StorageConfig.capacityForTier(profile.StorageTier),
@@ -135,10 +144,22 @@ function StateService.markDirty(player: Player)
 	dirty[player] = true
 end
 
+--- Listeners that mirror every snapshot somewhere else - the player list, the
+--- world leaderboards. They get the SAME table the client gets, after it has
+--- been sent, so nothing they do can delay or alter the push.
+local pushListeners: { (Player, any) -> () } = {}
+
+function StateService.onPushed(fn: (Player, any) -> ())
+	table.insert(pushListeners, fn)
+end
+
 function StateService.pushNow(player: Player)
 	local state = build(player)
 	if state then
 		Remotes.get("StatePush"):FireClient(player, state)
+		for _, listener in pushListeners do
+			task.spawn(listener, player, state)
+		end
 	end
 	dirty[player] = nil
 end

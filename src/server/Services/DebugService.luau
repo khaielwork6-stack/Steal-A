@@ -1160,6 +1160,52 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- The group-join gift, through the REAL claim path (membership check and
+	--- all). `gift` reports; `gift claim` attempts a claim; `gift reset` clears the
+	--- claimed flag so the flow can be run again in Studio.
+	gift = function(player, action: string?)
+		local GroupGiftService = require(script.Parent.GroupGiftService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		if action == "claim" then
+			local ok, reason = GroupGiftService.tryClaim(player)
+			return { granted = ok, reason = reason, speedPower = profile.SpeedPower, claimed = profile.GroupGiftClaimed }
+		elseif action == "reset" then
+			profile.GroupGiftClaimed = false
+			return { reset = true }
+		end
+		local summary = GroupGiftService.summarise(player)
+		return { claimed = summary.claimed, reward = summary.reward, groupId = summary.groupId, speedPower = profile.SpeedPower }
+	end,
+
+	--- Repaints the world boards now instead of on the next timer tick.
+	leaderboard = function(_player)
+		local LeaderboardService = require(script.Parent.LeaderboardService)
+		LeaderboardService.refreshNow()
+		return { refreshed = true }
+	end,
+
+	--- Fires the boss-loss offer through the real MonetizationService path for a
+	--- zone, without needing a guardian to catch anyone.
+	offer = function(player, zoneIndex: number?)
+		local MonetizationService = require(script.Parent.MonetizationService)
+		MonetizationService.offerAfterCatch(player, tonumber(zoneIndex) or 1)
+		return { fired = true, zone = tonumber(zoneIndex) or 1 }
+	end,
+
+	--- The chase flag and every guardian's state, for the RUN!! warning.
+	chase = function(player)
+		local states = {}
+		for _, model in workspace:GetDescendants() do
+			if model:IsA("Model") and model:GetAttribute("State") ~= nil and model:FindFirstChildWhichIsA("Humanoid") then
+				states[model.Name] = model:GetAttribute("State")
+			end
+		end
+		return { chased = player:GetAttribute("Chased") == true, guardians = states }
+	end,
+
 	--- Buys / equips a trail through the REAL server paths, so validation,
 	--- deduction and persistence are all exercised.
 	trail = function(player, action: string?, key: string?)

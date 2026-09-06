@@ -12,9 +12,9 @@
 	shipped, which is what makes it feel native instead of bolted on.
 
 	IT OPENS FROM THE WORLD, NOT FROM A BUTTON.
-	The server fires `TrailRequest("open")` when the keeper's Hold-E prompt is
-	triggered. There is deliberately no Trail entry in the main Shop: this is a
-	place you walk to.
+	The server fires `TrailRequest("open")` when the player walks into the glowing
+	circle in front of the booth, and "close" when they walk out. There is
+	deliberately no Trail entry in the main Shop: this is a place you walk to.
 
 	THE CLIENT DECIDES NOTHING.
 	Ownership, equipped state and price all arrive on `StatePush.monetization`.
@@ -343,9 +343,14 @@ local function show()
 end
 
 function TrailShopController.start()
+	-- The server watches the booth's circle: "open" once on the way in, "close"
+	-- once on the way out. Nothing here polls position or decides it is at the
+	-- shop; the close X still works for anyone who wants it gone sooner.
 	Remotes.get("TrailRequest").OnClientEvent:Connect(function(action)
 		if action == "open" then
 			show()
+		elseif action == "close" then
+			close()
 		end
 	end)
 

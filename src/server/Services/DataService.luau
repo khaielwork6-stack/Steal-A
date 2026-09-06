@@ -26,7 +26,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
-local SCHEMA_VERSION = 4
+local SCHEMA_VERSION = 5
 local STORE_NAME = "PlayerProfiles_v1"
 
 local DataService = {}
@@ -74,6 +74,10 @@ export type Profile = {
 	TrailsOwned: { [string]: boolean },
 	-- The equipped trail's key, or "" for none. Exactly one at a time.
 	EquippedTrail: string,
+	-- The one-time +10,000 Speed for joining the group. Durable for the same
+	-- reason as the receipt list: an in-memory flag would pay out again on every
+	-- rejoin. See GroupGiftService.
+	GroupGiftClaimed: boolean,
 }
 
 local store: DataStore? = nil
@@ -110,6 +114,7 @@ local function defaultProfile(): Profile
 		TutorialBridgeGranted = false,
 		TrailsOwned = {},
 		EquippedTrail = "",
+		GroupGiftClaimed = false,
 	}
 end
 
@@ -165,7 +170,17 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 4
 	end
 
-	-- Future migrations chain here: if version < 5 then ... end
+	if version < 5 then
+		-- v5 adds the group-join gift. Nobody has claimed it yet, so false is the
+		-- only correct value; a nil here would be read as unclaimed anyway, but
+		-- the field is written so the schema is explicit.
+		if type(profile.GroupGiftClaimed) ~= "boolean" then
+			profile.GroupGiftClaimed = false
+		end
+		profile.SchemaVersion = 5
+	end
+
+	-- Future migrations chain here: if version < 6 then ... end
 
 	return profile
 end

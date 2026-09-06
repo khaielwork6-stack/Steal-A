@@ -633,6 +633,14 @@ function PlacementService.start()
 	local bases = workspace:WaitForChild("Map", 20):WaitForChild("Bases", 10)
 	for _, plot in bases:GetChildren() do
 		local pad = plot:FindFirstChild("BaseUpgradePad")
+		-- The pad used to be a slab of yellow neon under the sign. It is still the
+		-- prompt's anchor and the sign's foot, but it no longer draws: the sign
+		-- carries the whole message and the glow only read as noise.
+		if pad and pad:IsA("BasePart") then
+			pad.Transparency = 1
+			pad.Material = Enum.Material.SmoothPlastic
+			pad.CastShadow = false
+		end
 		if pad and pad:IsA("BasePart") and not pad:FindFirstChild("UpgradePrompt") then
 			local prompt = Instance.new("ProximityPrompt")
 			prompt.Name = "UpgradePrompt"

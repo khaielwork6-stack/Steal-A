@@ -32,6 +32,9 @@ Remotes.NAMES = {
 	-- Trail shop: buy with cash, buy with Robux, equip. Carries a trail KEY, never
 	-- a price or a gamepass id - the server looks both of those up itself.
 	"TrailRequest",
+	-- Claims the group-join gift. Carries nothing: the server checks the group
+	-- itself and pays out once. See GroupGiftService.
+	"GroupGiftRequest",
 	-- server -> client. The contextual "you were too slow" offer after a guardian
 	-- catch. Carries the product key and the zone; the client renders it and can
 	-- only ask to buy, never grant.

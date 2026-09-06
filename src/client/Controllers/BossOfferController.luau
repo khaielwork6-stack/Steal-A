@@ -54,9 +54,13 @@ local SHOWN_POSITION = UDim2.new(0.5, 0, 0.16, 0)
 --- Slides DOWN into place from just off the top edge.
 local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.06, 0)
 --- 290/1918 wide, 75/1008 tall, clamped so it stays a banner on any screen.
-local BANNER_SIZE = UDim2.fromScale(0.151, 0.0744)
-local BANNER_MIN = Vector2.new(210, 54)
-local BANNER_MAX = Vector2.new(330, 86)
+-- LARGER than the first pass. At 213x54 the headline measured 23px and read as a
+-- notification, not an offer; the reference is a big clean banner you cannot
+-- miss and can still see past. Wider than the zone bar, a quarter of the
+-- screen, clamped so it is never a strip on a phone or a billboard on a 4K.
+local BANNER_SIZE = UDim2.fromScale(0.27, 0.115)
+local BANNER_MIN = Vector2.new(320, 72)
+local BANNER_MAX = Vector2.new(480, 108)
 local AUTO_DISMISS = 12
 
 local OFFER_COLOR = Color3.fromRGB(96, 240, 200)
@@ -157,7 +161,7 @@ local function build(): boolean
 			icon.Name = "Icon"
 			icon.AnchorPoint = Vector2.new(0, 0.5)
 			icon.Position = UDim2.fromScale(0.015, 0.5)
-			icon.Size = UDim2.fromScale(0.26, 0.92)
+			icon.Size = UDim2.fromScale(0.24, 0.92)
 			icon.ZIndex = 6
 			icon.Parent = face
 		end
@@ -169,8 +173,8 @@ local function build(): boolean
 		if headline and headline:IsA("TextLabel") then
 			headline.Name = "Headline"
 			headline.AnchorPoint = Vector2.new(0, 0)
-			headline.Position = UDim2.fromScale(0.29, 0.1)
-			headline.Size = UDim2.fromScale(0.68, 0.46)
+			headline.Position = UDim2.fromScale(0.27, 0.06)
+			headline.Size = UDim2.fromScale(0.7, 0.54)
 			headline.TextXAlignment = Enum.TextXAlignment.Left
 			headline.ZIndex = 6
 
@@ -178,8 +182,8 @@ local function build(): boolean
 			-- what it costs is on the banner rather than only in Roblox's prompt.
 			local cost = headline:Clone()
 			cost.Name = "Cost"
-			cost.Position = UDim2.fromScale(0.29, 0.56)
-			cost.Size = UDim2.fromScale(0.68, 0.32)
+			cost.Position = UDim2.fromScale(0.27, 0.62)
+			cost.Size = UDim2.fromScale(0.7, 0.3)
 			cost.Parent = face
 		end
 	end
@@ -266,7 +270,13 @@ local function show(offer: any)
 	end
 
 	-- Already up: re-text and punch rather than stacking a second card.
-	if visible then
+	--
+	-- "Up" means OUR flag AND the frame actually drawing. The pack's own script
+	-- hides every visible thing in MainUI while one of its panels is open and
+	-- only restores what it hid; anything else that flips Visible from outside
+	-- would otherwise leave this flag true over a hidden frame, and every later
+	-- offer would re-text a banner nobody can see.
+	if visible and frame.Visible then
 		UIAnim.punch(built, 0.18)
 		ShopKit.shine(built)
 		return
@@ -285,6 +295,12 @@ local function show(offer: any)
 	task.delay(0.3, function()
 		if visible then
 			ShopKit.shine(built)
+			-- The amount itself punches once as the banner lands, so the eye goes
+			-- to the number before anything else.
+			local headline = built:FindFirstChild("Headline", true)
+			if headline and headline:IsA("GuiObject") then
+				UIAnim.punch(headline, 0.28)
+			end
 		end
 	end)
 end
