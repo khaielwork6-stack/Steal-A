@@ -34,6 +34,10 @@ Remotes.NAMES = {
 	-- Claims the group-join gift. Carries nothing: the server checks the group
 	-- itself and pays out once. See GroupGiftService.
 	"GroupGiftRequest",
+	-- server -> client. The hub chest asking this client to open the gift panel
+	-- it already has. Carries nothing and grants nothing; the claim still goes
+	-- through GroupGiftRequest and GroupGiftService. See GiftChestService.
+	"GiftMenuOpen",
 	-- The Settings panel: volumes and toggles, saved on the profile so they
 	-- survive a rejoin. Validated and clamped server-side; see SettingsService.
 	"SettingsRequest",

@@ -229,19 +229,43 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 	-- and torn apart when the rest arrived; atomic models arrive whole.
 	built.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 
+	-- SANITISE. Toolbox art arrives with its own physics authority attached and
+	-- every bit of it fights the carry:
+	--
+	--   * Legacy `Weld`/`Motor6D` joints hold C0/C1 offsets that ScaleTo does
+	--     NOT scale. The Banker's Briefcase ships two of them; once the model
+	--     was scaled 2.17x and unanchored onto a player, those welds pulled its
+	--     parts back toward unscaled offsets while our own WeldConstraints held
+	--     them at the scaled ones - two rigid constraints demanding different
+	--     answers, in an assembly the player's character is welded into.
+	--   * Body movers and constraints (AlignPosition, VectorForce, ropes) drive
+	--     the assembly directly, and the character comes with it.
+	--   * A prompt or ClickDetector inside the art is a second, competing
+	--     interaction on top of the one LootService adds.
+	--
+	-- All of it goes. build() re-welds the pieces itself, further down.
 	for _, descendant in built:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = true
 			descendant.CanCollide = false
 			descendant.CastShadow = false
 			-- An import's throne is a working Seat; brushing past the pedestal
-			-- would sit the player on the loot.
+			-- would sit the player on the loot. Disabled stops the sit; CanTouch
+			-- stops the Touched-based seat weld from firing at all.
 			if descendant:IsA("Seat") or descendant:IsA("VehicleSeat") then
 				descendant.Disabled = true
+				descendant.CanTouch = false
 			end
-		elseif descendant:IsA("Humanoid") or descendant:IsA("BaseScript") then
-			-- A character-shaped import brings a Humanoid (a floating name tag
-			-- and a physics driver) and the odd script. Loot is scenery.
+		elseif
+			descendant:IsA("Humanoid")
+			or descendant:IsA("BaseScript")
+			or descendant:IsA("JointInstance")
+			or descendant:IsA("WeldConstraint")
+			or descendant:IsA("Constraint")
+			or descendant:IsA("BodyMover")
+			or descendant:IsA("ProximityPrompt")
+			or descendant:IsA("ClickDetector")
+		then
 			descendant:Destroy()
 		end
 	end

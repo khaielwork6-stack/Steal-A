@@ -30,6 +30,7 @@
 
 local GroupService = game:GetService("GroupService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -59,6 +60,23 @@ local latest: any = nil
 
 local GIFT_COLOR = Color3.fromRGB(96, 200, 255)
 local GIFT_ACCENT = Color3.fromRGB(24, 110, 200)
+--- THE RAINBOW. Six stops around the wheel, ending where it started so the
+--- sweep is seamless, and every one of them kept light enough that the white
+--- GIFT text on top stays readable. This is a moving gradient, not a glow: the
+--- button is the same size and shape it always was.
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 106, 122)),
+	ColorSequenceKeypoint.new(0.18, Color3.fromRGB(255, 176, 92)),
+	ColorSequenceKeypoint.new(0.36, Color3.fromRGB(255, 238, 120)),
+	ColorSequenceKeypoint.new(0.54, Color3.fromRGB(122, 236, 148)),
+	ColorSequenceKeypoint.new(0.72, Color3.fromRGB(112, 196, 255)),
+	ColorSequenceKeypoint.new(0.86, Color3.fromRGB(186, 142, 255)),
+	ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 106, 122)),
+})
+--- Seconds for one full sweep. Slow enough to read as a shimmer rather than a
+--- strobe, which matters on a button a child is looking at all session.
+local RAINBOW_PERIOD = 3.6
+local rainbowConnection: RBXScriptConnection? = nil
 local CLAIMED_COLOR = Color3.fromRGB(150, 156, 170)
 local CLAIMED_ACCENT = Color3.fromRGB(70, 74, 88)
 
@@ -354,14 +372,27 @@ local function repaint()
 		end
 	end
 	if opener then
-		-- The opener dims once there is nothing left to claim; it stays so the
-		-- player can re-read the steps, but it stops asking for attention.
-		local face = opener:FindFirstChild("Frame")
-		local gradient = face and face:FindFirstChildOfClass("UIGradient")
-		if gradient then
-			gradient.Color = if claimed
-				then ColorSequence.new(CLAIMED_COLOR, CLAIMED_ACCENT)
-				else ColorSequence.new(GIFT_COLOR, GIFT_ACCENT)
+		-- GONE once the gift is claimed. There is nothing behind it any more,
+		-- and the claim is on the profile, so it does not come back on a
+		-- rejoin either. The chest keeps its own entrance for anyone who has
+		-- not claimed yet; a player who has sees the panel's CLAIMED state.
+		opener.Visible = not claimed
+		if claimed and rainbowConnection then
+			rainbowConnection:Disconnect()
+			rainbowConnection = nil
+		end
+	end
+	-- The world chest, locally: this client has claimed, so its sign says so.
+	-- A client-side edit of a replicated instance stays on this client, which
+	-- is exactly the scope wanted - the sign is per player, not per server.
+	if claimed then
+		local map = workspace:FindFirstChild("Map")
+		local chest = map and map:FindFirstChild("GiftChest")
+		local sign = chest and chest:FindFirstChild("Chest") and chest.Chest:FindFirstChild("FreeSign")
+		local text = sign and sign:FindFirstChild("Text")
+		if text and text:IsA("TextLabel") and text.Text ~= "CLAIMED" then
+			text.Text = "CLAIMED"
+			text.TextColor3 = Color3.fromRGB(214, 226, 244)
 		end
 	end
 end
@@ -441,7 +472,32 @@ local function buildOpener(ui: ScreenGui)
 	end
 	button.Parent = top
 	UIAnim.claimButton(button)
+
+	-- THE RAINBOW SWEEP. One gradient offset moved per frame - no tween
+	-- objects, no instances created, nothing to clean up but this connection -
+	-- plus a slow breathing scale so the button reads as alive rather than
+	-- flashing. Both stop the moment the gift is claimed.
+	if gradient then
+		gradient.Color = RAINBOW
+		gradient.Rotation = 0
+		local scale = Instance.new("UIScale")
+		scale.Parent = button
+		if rainbowConnection then
+			rainbowConnection:Disconnect()
+		end
+		rainbowConnection = RunService.RenderStepped:Connect(function()
+			if not button.Parent or not button.Visible then
+				return
+			end
+			local t = os.clock() / RAINBOW_PERIOD
+			gradient.Offset = Vector2.new((t % 1) * 2 - 1, 0)
+			gradient.Rotation = math.sin(t * math.pi * 2) * 12
+			scale.Scale = 1 + math.sin(os.clock() * 2.4) * 0.018
+		end)
+	end
 	button.Activated:Connect(function()
+		-- A press the finger can feel: the button dips, then the panel opens.
+		UIAnim.punch(button, 0.12)
 		if open then
 			close()
 		else
@@ -461,6 +517,21 @@ end
 -- ==========================================================
 
 function GroupGiftController.start()
+	-- The hub chest is a second door onto THIS panel. It carries no payload and
+	-- grants nothing; every claim still goes out as GroupGiftRequest and is
+	-- decided by the server.
+	Remotes.get("GiftMenuOpen").OnClientEvent:Connect(function()
+		if claimedState() then
+			-- Already claimed: still open, so the player can read the panel and
+			-- see it is done, but nothing here asks for a second payout.
+			show()
+			return
+		end
+		if not open then
+			show()
+		end
+	end)
+
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		if type(state) ~= "table" then
 			return

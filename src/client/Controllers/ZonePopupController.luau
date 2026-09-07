@@ -52,7 +52,19 @@ local POP_OUT = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.
 
 local candidate: number? = nil
 local candidateSince = 0
-local announced: number? = nil
+--- The furthest zone this life has already been announced. The pop-up is a
+--- PROGRESS beat - "you have reached the Castle" - so it fires on the way out
+--- and never on the way back:
+---
+---   * entering a higher zone than anything announced  -> pop-up
+---   * walking back into an earlier zone               -> silent
+---   * returning to the Safe Zone                      -> silent
+---   * standing on a boundary                          -> silent after the first
+---
+--- This is presentation history ONLY. `candidate` below still tracks the real
+--- current zone every sample, and everything that reads the player's zone keeps
+--- reading it; suppressing the banner never suppresses the zone itself.
+local highWater = 0
 local accumulator = 0
 
 local label: TextLabel? = nil
@@ -180,16 +192,15 @@ local function sample()
 		candidateSince = now
 		return
 	end
-	-- Out of every zone for the settle time: the next zone entered is new
-	-- again, even if it is the one just left.
+	-- The Safe Zone and the transition strips are "no zone". Being there is not
+	-- progress and says nothing; it also must not re-arm the zone the player
+	-- just came from, which is what used to make walking home and back in
+	-- announce the same zone twice.
 	if here == nil then
-		if now - candidateSince >= SETTLE_SECONDS then
-			announced = nil
-		end
 		return
 	end
-	if here ~= announced and now - candidateSince >= SETTLE_SECONDS then
-		announced = here
+	if here > highWater and now - candidateSince >= SETTLE_SECONDS then
+		highWater = here
 		announce(here)
 	end
 end
@@ -203,8 +214,12 @@ function ZonePopupController.start()
 	build(ui)
 
 	player.CharacterAdded:Connect(function()
+		-- A fresh character starts at the base, so the ladder starts again -
+		-- but the reset happens HERE, on a real respawn, not every time the
+		-- player steps out of a zone. Spawning in does not announce anything on
+		-- its own: the first sample only sets the candidate.
 		candidate = nil
-		announced = nil
+		highWater = 0
 	end)
 	RunService.Heartbeat:Connect(function(dt)
 		accumulator += dt

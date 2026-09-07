@@ -165,6 +165,31 @@ end
 --- filling the camera, and the player can see where they are running.
 local CARRY_FRONT_OFFSET = CFrame.new(0, 0.5, -3.5)
 local CARRY_OVERHEAD_CLEARANCE = 2.6
+--- HumanoidRootPart to the soles, for an R15 at default scale.
+local CARRY_FEET_DROP = 2.7
+--- How far above the soles the lowest point of a front-carried item sits.
+local CARRY_GROUND_CLEARANCE = 0.4
+--- Taller than this, or wider than CARRY_OVERHEAD_FOOTPRINT, and the item is
+--- carried over the head however small its size roll was. These are avatar
+--- proportions: a Roblox character is about 5 studs tall and 2 wide.
+local CARRY_OVERHEAD_HEIGHT = 7
+local CARRY_OVERHEAD_FOOTPRINT = 9
+--- Prints where every carry ended up. Off in the shipped game; flip it on when
+--- an item looks wrong in the hand.
+local DEBUG_CARRY = false
+
+--- Where carried loot lives while it is being carried: in the world, never in
+--- the character. See the note in attach().
+local function carryHolder(): Instance
+	local map = workspace:FindFirstChild("Map") or workspace
+	local holder = map:FindFirstChild("CarriedLoot")
+	if not holder then
+		holder = Instance.new("Folder")
+		holder.Name = "CarriedLoot"
+		holder.Parent = map
+	end
+	return holder
+end
 
 local function attach(player: Player, loot: LootService.LootInstance): boolean
 	local character = player.Character
@@ -193,6 +218,10 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 			-- big item behind the player would otherwise zoom the camera into
 			-- their back on every turn.
 			descendant.CanQuery = false
+			-- And nothing carried may fire a Touched: a briefcase swinging at
+			-- knee height through a treadmill trigger, a trap or a safe-zone
+			-- volume is an event those systems believe.
+			descendant.CanTouch = false
 		end
 	end
 
@@ -209,15 +238,80 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 		loot.carryScale = nil
 	end
 
-	model.Parent = character
-	if loot.visualScale > RarityConfig.CARRY_SCALE_KNEE then
-		-- Overhead: centre it over the player, lowest point just above the head.
-		model:PivotTo(root.CFrame)
-		local minCorner = select(1, LootModel.worldExtents(model))
-		local lift = if minCorner then (root.Position.Y + CARRY_OVERHEAD_CLEARANCE) - minCorner.Y else CARRY_OVERHEAD_CLEARANCE
-		model:PivotTo(root.CFrame * CFrame.new(0, lift, -1))
+	-- NOT INSIDE THE CHARACTER. This is the whole "loot drags you into the
+	-- ground" bug, and it is worth spelling out because the fix looks like a
+	-- detail:
+	--
+	--   A Humanoid reads the BaseParts of the model it lives in as its own
+	--   body. Park a briefcase in there - non-colliding, massless, welded,
+	--   everything correct - and the humanoid decides the rig it is balancing
+	--   has fallen over: state goes to FallingDown, the root drops to ankle
+	--   height, FloorMaterial reads Air and the player cannot walk. Measured:
+	--   root Y 2.70 -> 0.53 the moment the model is parented in, and back to
+	--   2.70 the moment it is parented out, with the same weld holding.
+	--
+	-- So the item lives in the world and is WELDED to the root instead. It
+	-- follows the player exactly the way it did, and the humanoid never sees
+	-- it. CarryHolder keeps the workspace tidy and gives drop/place one place
+	-- to look.
+	model.Parent = carryHolder()
+	-- WHERE THE ITEM RIDES.
+	--
+	-- Entirely in the ROOT'S OWN SPACE, from the model's measured box. Placing
+	-- it by world height was wrong in a way that only showed up in play: a
+	-- player who steals mid-jump - or in the same frame they were moved to the
+	-- socket - is a stud or two above where they will be standing a moment
+	-- later, and the item, welded rigidly, keeps that error forever and ends up
+	-- dragged through the floor. Relative placement cannot drift.
+	--
+	--   up      the box centre, so the BOTTOM sits just above the soles
+	--   forward far enough that the box never reaches the player's own body
+	--
+	-- And anything genuinely bigger than a person goes OVERHEAD instead of in
+	-- front, whatever its size roll says: a 22-stud Shawarma held at arm's
+	-- length is a wall the player is standing inside. Overhead, it reads as
+	-- what it is - something enormous being carried home.
+	local boxCFrame, boxSize = model:GetBoundingBox()
+	local footprint = math.max(boxSize.X, boxSize.Z)
+	local overhead = loot.visualScale > RarityConfig.CARRY_SCALE_KNEE
+		or boxSize.Y > CARRY_OVERHEAD_HEIGHT
+		or footprint > CARRY_OVERHEAD_FOOTPRINT
+
+	local up: number, forward: number
+	if overhead then
+		up = CARRY_FEET_DROP + CARRY_OVERHEAD_CLEARANCE + boxSize.Y / 2
+		forward = 1
 	else
-		model:PivotTo(root.CFrame * CARRY_FRONT_OFFSET)
+		up = boxSize.Y / 2 - CARRY_FEET_DROP + CARRY_GROUND_CLEARANCE
+		forward = math.max(3.5, boxSize.Z / 2 + 2.4)
+	end
+
+	-- Orient with the player first, then translate so the model's CENTRE lands
+	-- on the target - not its pivot, which on an import is wherever the artist
+	-- left it (the Banker's Briefcase's is the top of the case).
+	local target = root.CFrame * CFrame.new(0, up, -forward)
+	model:PivotTo(root.CFrame * CFrame.new(0, 0, -forward))
+	boxCFrame = model:GetBoundingBox()
+	model:PivotTo(model:GetPivot() + (target.Position - boxCFrame.Position))
+
+	-- FINAL CORRECTION, in world axes. GetBoundingBox measures in the model's
+	-- own pivot frame, and an import whose pivot is rotated (several are: the
+	-- pedestal comment in BaseService is about the same trap) reports its
+	-- height on the wrong axis. One world-space measurement afterwards costs
+	-- nothing and is the only number that is always true.
+	local worldMin, worldMax = LootModel.worldExtents(model)
+	if worldMin and worldMax then
+		local floor = root.Position.Y - CARRY_FEET_DROP + CARRY_GROUND_CLEARANCE
+		local wanted = if overhead then root.Position.Y + CARRY_OVERHEAD_CLEARANCE else floor
+		local shift = wanted - worldMin.Y
+		if math.abs(shift) > 0.05 then
+			model:PivotTo(model:GetPivot() + Vector3.new(0, shift, 0))
+		end
+		if DEBUG_CARRY then
+			local m2 = select(1, LootModel.worldExtents(model))
+			print(string.format("[CarryService] %s overhead=%s up=%.2f fwd=%.2f box=%.1fx%.1fx%.1f rootY=%.2f bottom %.2f -> %.2f (want %.2f)",
+				model.Name, tostring(overhead), up, forward, boxSize.X, boxSize.Y, boxSize.Z, root.Position.Y, worldMin.Y, m2 and m2.Y or -99, wanted))
+		end
 	end
 
 	local weld = Instance.new("WeldConstraint")
@@ -225,6 +319,15 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 	weld.Part0 = root
 	weld.Part1 = model.PrimaryPart
 	weld.Parent = model.PrimaryPart
+
+	-- A model that has just been unanchored keeps whatever velocity the engine
+	-- last gave it. Welded to a character, that is a shove.
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.AssemblyLinearVelocity = Vector3.zero
+			descendant.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
 
 	return true
 end
@@ -246,6 +349,7 @@ local function detach(loot: LootService.LootInstance)
 			descendant.Anchored = true
 			descendant.Massless = false
 			descendant.CanQuery = true
+			descendant.CanTouch = true
 		end
 	end
 

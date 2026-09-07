@@ -62,6 +62,10 @@ NightConfig.REFRESH_SIZE_BOOST_MIN = "Huge"
 --- At most this many genuine spawns are called out after a refresh, best
 --- first, with a gap between them so each one lands.
 NightConfig.SPOTLIGHT_MAX = 2
+--- How long BEFORE Night ends the "X spawned in Y" calls go out. The player
+--- reads them while the barrier is still up and is moving the moment it drops,
+--- instead of reading them with the world already open.
+NightConfig.SPOTLIGHT_LEAD_SECONDS = 3
 NightConfig.SPOTLIGHT_GAP_SECONDS = 2.5
 --- What earns a spotlight: a rarity at or above this, a size at or above this,
 --- or a jackpot. Nothing else is announced - no fabricated excitement.

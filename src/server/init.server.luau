@@ -36,6 +36,7 @@ local PvPService = require(Services.PvPService)
 local MonetizationService = require(Services.MonetizationService)
 local TrailService = require(Services.TrailService)
 local StatsService = require(Services.StatsService)
+local GiftChestService = require(Services.GiftChestService)
 local GroupGiftService = require(Services.GroupGiftService)
 local LeaderboardService = require(Services.LeaderboardService)
 local NightService = require(Services.NightService)
@@ -78,7 +79,15 @@ CarryService.returnsHomeOnDrop = TutorialService.isTutorialLoot
 
 -- A brand-new player starts on the hub facing the Zone 01 gate; everyone else
 -- starts at their plot.
-BaseService.spawnsAtHub = TutorialService.isAtStart
+-- SPAWN AT YOUR OWN BASE, always. This used to be wired to
+-- TutorialService.isAtStart so a brand-new player appeared on the hub circle
+-- facing Zone 01; onboarding now claims a random plot and puts every player on
+-- its porch, facing the avenue, with their displays already restored. The hook
+-- stays because the hub spawn is still the right answer for a player with no
+-- plot at all.
+BaseService.spawnsAtHub = function(player: Player): boolean
+	return BaseService.getPlot(player) == nil
+end
 
 -- The DROP button lives on StatePush, so a steal has to push immediately rather
 -- than waiting for the next thing that happens to dirty the state.
@@ -272,6 +281,7 @@ BaseService.start()
 -- After BaseService: the group gift pushes state, and the world boards read
 -- profiles, both of which want every earlier service in place.
 GroupGiftService.start()
+GiftChestService.start()
 LeaderboardService.start()
 
 -- The Night cycle owns the world refresh, the guardian reset and the return to

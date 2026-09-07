@@ -76,10 +76,17 @@ local BARRIER_OUT = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirecti
 --- red line so it sits in front of the first zone from the lobby's side.
 local BARRIER_WIDTH = MapConfig.LANE_WIDTH + 2 * MapConfig.WALL_THICKNESS + 80
 local BARRIER_HEIGHT = 170
---- Thin, and just past the line: between the red stripe and the first zone's
---- sign boards, so nothing of the world stands in front of it.
-local BARRIER_THICKNESS = 1.2
+--- Just past the line: between the red stripe and the first zone's sign
+--- boards, so nothing of the world stands in front of it. Four studs thick,
+--- not one: a camera orbiting hard against a thin plane can end up on the far
+--- side of it between two frames, and four studs is more than the popper will
+--- ever step through in one move.
+local BARRIER_THICKNESS = 4
 local BARRIER_STANDOFF = 0.8
+--- How far the slab is buried below the floor. Without it a player looking up
+--- from a crouch at the foot of the barrier sees the world under its bottom
+--- edge, and a mobile camera dragged to ground level does the same.
+local BARRIER_SKIRT = 24
 --- Text on a SurfaceGui scales to at most 100 px, so the canvas is kept
 --- coarse: at 2.5 px per stud a 100 px glyph is forty studs tall, readable
 --- from the far end of the lobby.
@@ -327,17 +334,24 @@ end
 local function buildBarrier()
 	local part = Instance.new("Part")
 	part.Name = "NightBarrier"
-	part.Size = Vector3.new(BARRIER_WIDTH, BARRIER_HEIGHT, BARRIER_THICKNESS)
+	-- The slab runs from below the floor to well over the wall caps, and wider
+	-- than the lane plus both walls, so there is no gap over, under or around
+	-- it to look through.
+	part.Size = Vector3.new(BARRIER_WIDTH, BARRIER_HEIGHT + BARRIER_SKIRT, BARRIER_THICKNESS)
 	-- Default part orientation: Front faces -Z, which is toward the lobby.
-	part.CFrame = CFrame.new(0, BARRIER_HEIGHT / 2, safeLineZ() + BARRIER_STANDOFF)
+	part.CFrame = CFrame.new(0, BARRIER_HEIGHT / 2 - BARRIER_SKIRT / 2, safeLineZ() + BARRIER_STANDOFF)
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
 	part.CanTouch = false
 	part.CastShadow = false
+	-- SOLID, not a pane of glass with writing on it. The slab used to be fully
+	-- transparent with the white face painted by a SurfaceGui, so anything the
+	-- GUI did not cover - and everything at an angle - was see-through. The
+	-- part itself is now the wall and the SurfaceGuis are just the text on it.
 	part.Transparency = 1
 	part.Material = Enum.Material.SmoothPlastic
-	part.Color = BARRIER_BOTTOM
+	part.Color = BARRIER_TOP
 	buildFace(part, Enum.NormalId.Front)
 	buildFace(part, Enum.NormalId.Back)
 	part.Parent = workspace
@@ -359,6 +373,19 @@ local function showBarrier(show: boolean)
 	-- glitches into the zones while they are being reset. Off again the
 	-- moment the fade-out starts, so it can never hold anyone after Night.
 	barrier.CanCollide = show
+	-- CanQuery is what the camera's occlusion popper raycasts against. With it
+	-- off, the camera could be orbited straight through the barrier and look
+	-- at the zones behind it; with it on, the popper stops at the wall like it
+	-- does at any other solid. Only while the barrier is up, so it can never
+	-- interfere with a prompt or a mouse ray during the day.
+	barrier.CanQuery = show
+	-- The slab fades with its own faces. Tweened alongside them, never set, so
+	-- the wall does not blink out a frame before the writing on it.
+	if reducedEffects then
+		barrier.Transparency = target
+	else
+		TweenService:Create(barrier, info, { Transparency = target }):Play()
+	end
 	if show then
 		for _, gui in barrierGuis do
 			gui.Enabled = true

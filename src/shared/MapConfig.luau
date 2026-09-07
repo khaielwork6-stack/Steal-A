@@ -224,6 +224,9 @@ MapConfig.HUB = {
 	-- The paved avenue from the spawn plaza back through the corridor. 20 is
 	-- five avatars abreast: a street, not the runway 26 read as.
 	avenueWidth = 20,
+	-- The free-gift chest: front-left of the spawn circle, inside the first
+	-- thing a player sees, clear of the avenue and of both leaderboards.
+	giftChest = Vector3.new(-19, 0, -13),
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 

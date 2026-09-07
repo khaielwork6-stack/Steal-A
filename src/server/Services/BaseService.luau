@@ -18,6 +18,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
+local SizeAura = require(ReplicatedStorage.Shared.Util.SizeAura)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
@@ -73,8 +74,7 @@ function BaseService.getPlot(player: Player): (Model | Folder)?
 end
 
 --- Whether a joining player should start on the hub rather than their plot.
---- Overridden by init with TutorialService's answer (a player who has not yet
---- stolen anything); the default keeps everyone at home.
+--- Overridden by init: true only when the player holds no plot at all.
 function BaseService.spawnsAtHub(_player: Player): boolean
 	return false
 end
@@ -233,6 +233,9 @@ local function buildTrophy(item: DataService.DisplayItem): Model
 	-- base is that it looks like a museum of what you took, so a Corrupted
 	-- Meteorite must still read as Corrupted once it is on the pedestal.
 	MutationVfx.apply(model, item.Mutation)
+	-- And the size aura. A Titan on a pedestal is the thing a visiting player
+	-- should see from the avenue.
+	SizeAura.apply(model, item.Size)
 
 	model:SetAttribute("InstanceId", item.InstanceId)
 	model:SetAttribute("ItemId", item.ItemId)
@@ -649,44 +652,40 @@ end
 -- ==========================================================
 -- THE OWNER SIGN
 -- ==========================================================
+-- THE OWNER DISPLAY
+-- ==========================================================
 --
--- A board at the front corner of every plot: the owner's real avatar headshot
--- in a round frame, their display name, their @username in smaller type, a
--- crown once their base has reached a high capacity tier, and a YOUR BASE
--- badge the owner's own client switches on. Fetched from the real UserId - no
--- account is hard-coded anywhere - and repainted whenever the plot is assigned
--- or released.
+-- Who owns this plot, said the way a Roblox game says it: the owner's own
+-- avatar headshot in a round frame with their display name under it, floating
+-- over the front of the base. No board, no post, no wall of text.
+--
+-- WHAT IT REPLACED. This used to be a 14x6 stud physical sign standing at the
+-- front corner - the "base belongs to someone" sign. It read as clutter from
+-- the avenue and hid the porch behind it. The billboard version scales itself
+-- on every screen (a BillboardGui is sized in studs and drawn in pixels, so a
+-- phone gets the same readable size a desktop does) and disappears entirely
+-- while the plot is unclaimed.
+--
+-- THE IMAGE IS NEVER HARD-CODED. `rbxthumb://` resolves the headshot from the
+-- real UserId on the client that renders it, retries on its own, and shows
+-- Roblox's placeholder if the account has no thumbnail yet - so a failed
+-- avatar is a grey silhouette under the right name, never somebody else's
+-- face and never a broken box.
 
-local OWNER_SIGN_NAME = "OwnerSign"
-local OWNER_SIGN_WIDTH = 14
-local OWNER_SIGN_HEIGHT = 6
-local OWNER_SIGN_LIFT = 7.5
+local OWNER_SIGN_NAME = "OwnerSign" -- the retired board; destroyed on sight
+local OWNER_DISPLAY_NAME = "OwnerDisplay"
+--- Studs above the porch. High enough to clear a Colossal on the front pads,
+--- low enough to read as belonging to this plot and not the sky.
+local OWNER_DISPLAY_LIFT = 15
 --- Capacity tier from which the crown shows (roughly the halfway mark).
 local CROWN_TIER = 4
 
-local function ownerSignLabel(parent: Instance, name: string, size: UDim2, pos: UDim2, color: Color3, align: Enum.TextXAlignment): TextLabel
-	local text = Instance.new("TextLabel")
-	text.Name = name
-	text.Size = size
-	text.Position = pos
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.FredokaOne
-	text.TextScaled = true
-	text.TextXAlignment = align
-	text.TextColor3 = color
-	text.TextStrokeTransparency = 0.1
-	text.TextStrokeColor3 = Color3.fromRGB(12, 16, 32)
-	text.ZIndex = 3
-	text.Parent = parent
-	return text
-end
-
-local function ensureOwnerSign(plot: Instance): SurfaceGui?
-	local existing = plot:FindFirstChild(OWNER_SIGN_NAME)
-	if existing then
-		local board = existing:FindFirstChild("Board")
-		local gui = board and board:FindFirstChildOfClass("SurfaceGui")
-		return gui :: SurfaceGui?
+--- The invisible part the billboard hangs from, at the front-centre of the
+--- plot, above the porch. Built once per plot and reused.
+local function ownerDisplayAnchor(plot: Instance): BasePart?
+	local existing = plot:FindFirstChild(OWNER_DISPLAY_NAME)
+	if existing and existing:IsA("BasePart") then
+		return existing
 	end
 
 	-- The plot's own frame comes from its floor slab, which MapBuilder laid
@@ -697,173 +696,147 @@ local function ensureOwnerSign(plot: Instance): SurfaceGui?
 	if not slab or not slab:IsA("BasePart") then
 		return nil
 	end
-	local halfW, halfD = slab.Size.X / 2, slab.Size.Z / 2
-	-- Front-left corner, a little in from both edges, facing out.
-	local foot = slab.CFrame * CFrame.new(-halfW + 12, slab.Size.Y / 2, -halfD + 7)
-	local facing = CFrame.lookAt(foot.Position, foot.Position - slab.CFrame.LookVector)
 
-	local model = Instance.new("Model")
-	model.Name = OWNER_SIGN_NAME
+	local anchor = Instance.new("Part")
+	anchor.Name = OWNER_DISPLAY_NAME
+	anchor.Size = Vector3.new(1, 1, 1)
+	anchor.Transparency = 1
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.CastShadow = false
+	anchor.CFrame = slab.CFrame * CFrame.new(0, OWNER_DISPLAY_LIFT, -slab.Size.Z / 2 + 8)
+	anchor.Parent = plot
+	return anchor
+end
 
-	local function slabPart(name: string, size: Vector3, cf: CFrame, color: Color3): Part
-		local part = Instance.new("Part")
-		part.Name = name
-		part.Size = size
-		part.CFrame = cf
-		part.Color = color
-		part.Material = Enum.Material.SmoothPlastic
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.TopSurface = Enum.SurfaceType.Smooth
-		part.BottomSurface = Enum.SurfaceType.Smooth
-		part.Parent = model
-		return part
+local function ensureOwnerDisplay(plot: Instance): BillboardGui?
+	-- The old physical sign, wherever it survives (a place saved before this
+	-- change, a plot dressed by an older build).
+	local retired = plot:FindFirstChild(OWNER_SIGN_NAME)
+	if retired then
+		retired:Destroy()
 	end
 
-	local postTop = OWNER_SIGN_LIFT - OWNER_SIGN_HEIGHT / 2
-	slabPart("Post", Vector3.new(1.4, postTop, 1.4), facing * CFrame.new(0, postTop / 2, 0), MapPalette.SignPost)
-	local base = facing * CFrame.new(0, OWNER_SIGN_LIFT, 0)
-	slabPart("Edge", Vector3.new(OWNER_SIGN_WIDTH + 0.8, OWNER_SIGN_HEIGHT + 0.8, 0.8), base, MapPalette.SignEdge)
-	local board = slabPart("Board", Vector3.new(OWNER_SIGN_WIDTH, OWNER_SIGN_HEIGHT, 0.9), base, MapPalette.SignBody)
+	local anchor = ownerDisplayAnchor(plot)
+	if not anchor then
+		return nil
+	end
+	local existing = anchor:FindFirstChildOfClass("BillboardGui")
+	if existing then
+		return existing
+	end
 
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Face"
-	gui.Face = Enum.NormalId.Front
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 48
-	gui.LightInfluence = 0
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Owner"
+	-- Studs, so it is the same physical size for everyone. ExtentsOffset keeps
+	-- the name under the portrait rather than the whole thing over the anchor.
+	gui.Size = UDim2.fromScale(7, 8.6)
+	gui.SizeOffset = Vector2.new(0, 0)
 	gui.AlwaysOnTop = false
-	gui.Adornee = board
-	gui.Parent = board
+	gui.LightInfluence = 0
+	gui.MaxDistance = 260
+	gui.Adornee = anchor
+	gui.Parent = anchor
 
-	-- Round avatar frame on the left.
+	-- The portrait: a dark disc, the headshot inside it, a bright ring around
+	-- it. Cropped by the disc, so a wide thumbnail cannot spill out.
 	local ring = Instance.new("Frame")
-	ring.Name = "AvatarRing"
-	ring.AnchorPoint = Vector2.new(0.5, 0.5)
-	ring.Position = UDim2.fromScale(0.17, 0.5)
-	ring.Size = UDim2.fromScale(0.26, 0.74)
-	ring.BackgroundColor3 = MapPalette.SignEdge
+	ring.Name = "Ring"
+	ring.AnchorPoint = Vector2.new(0.5, 0)
+	ring.Position = UDim2.fromScale(0.5, 0)
+	ring.Size = UDim2.fromScale(0.78, 0.68)
+	ring.SizeConstraint = Enum.SizeConstraint.RelativeXX
+	ring.BackgroundColor3 = Color3.fromRGB(24, 30, 52)
 	ring.BorderSizePixel = 0
-	ring.ZIndex = 2
+	ring.ClipsDescendants = true
 	ring.Parent = gui
-	local ringRatio = Instance.new("UIAspectRatioConstraint")
-	ringRatio.AspectRatio = 1
-	ringRatio.Parent = ring
-	local ringCorner = Instance.new("UICorner")
-	ringCorner.CornerRadius = UDim.new(1, 0)
-	ringCorner.Parent = ring
-	local ringStroke = Instance.new("UIStroke")
-	ringStroke.Thickness = 4
-	ringStroke.Color = MapPalette.SignProgress
-	ringStroke.Parent = ring
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0.5, 0)
+	round.Parent = ring
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "RingStroke"
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Thickness = 3
+	stroke.Transparency = 0.05
+	stroke.Parent = ring
 
 	local avatar = Instance.new("ImageLabel")
 	avatar.Name = "Avatar"
-	avatar.AnchorPoint = Vector2.new(0.5, 0.5)
-	avatar.Position = UDim2.fromScale(0.5, 0.5)
-	avatar.Size = UDim2.fromScale(0.9, 0.9)
-	avatar.BackgroundColor3 = MapPalette.SignBody
-	avatar.BorderSizePixel = 0
+	avatar.Size = UDim2.fromScale(1, 1)
+	avatar.BackgroundTransparency = 1
+	avatar.ScaleType = Enum.ScaleType.Crop
 	avatar.Image = ""
-	avatar.ZIndex = 3
 	avatar.Parent = ring
-	local avatarCorner = Instance.new("UICorner")
-	avatarCorner.CornerRadius = UDim.new(1, 0)
-	avatarCorner.Parent = avatar
 
-	-- Name block on the right.
-	ownerSignLabel(gui, "DisplayName", UDim2.fromScale(0.62, 0.34), UDim2.fromScale(0.34, 0.14), MapPalette.SignTitle, Enum.TextXAlignment.Left)
-	ownerSignLabel(gui, "Username", UDim2.fromScale(0.62, 0.18), UDim2.fromScale(0.34, 0.5), Color3.fromRGB(176, 190, 220), Enum.TextXAlignment.Left)
-
-	-- YOUR BASE badge: built here, switched on by the owner's own client.
-	local badge = Instance.new("Frame")
-	badge.Name = "YourBase"
-	badge.Size = UDim2.fromScale(0.36, 0.2)
-	badge.Position = UDim2.fromScale(0.34, 0.72)
-	badge.BackgroundColor3 = MapPalette.SignProgress
-	badge.BorderSizePixel = 0
-	badge.Visible = false
-	badge.ZIndex = 3
-	badge.Parent = gui
-	local badgeCorner = Instance.new("UICorner")
-	badgeCorner.CornerRadius = UDim.new(0, 8)
-	badgeCorner.Parent = badge
-	local badgeText = ownerSignLabel(badge, "Text", UDim2.fromScale(0.9, 0.8), UDim2.fromScale(0.05, 0.1), Color3.fromRGB(12, 30, 18), Enum.TextXAlignment.Center)
-	badgeText.Text = "YOUR BASE"
-	badgeText.TextStrokeTransparency = 1
-	badgeText.ZIndex = 4
-
-	-- The crown, for a well-upgraded base.
-	local crown = ownerSignLabel(gui, "Crown", UDim2.fromScale(0.12, 0.3), UDim2.fromScale(0.86, 0.04), MapPalette.SignMaxed, Enum.TextXAlignment.Center)
-	crown.Text = "♛"
+	local crown = Instance.new("TextLabel")
+	crown.Name = "Crown"
+	crown.AnchorPoint = Vector2.new(0.5, 1)
+	crown.Position = UDim2.fromScale(0.5, 0.02)
+	crown.Size = UDim2.fromScale(0.3, 0.22)
+	crown.BackgroundTransparency = 1
+	crown.Font = Enum.Font.FredokaOne
+	crown.TextScaled = true
+	crown.Text = "👑"
 	crown.Visible = false
+	crown.Parent = gui
 
-	model.Parent = plot
+	local name = Instance.new("TextLabel")
+	name.Name = "DisplayName"
+	name.AnchorPoint = Vector2.new(0.5, 1)
+	name.Position = UDim2.fromScale(0.5, 1)
+	name.Size = UDim2.fromScale(1, 0.26)
+	name.BackgroundTransparency = 1
+	name.Font = Enum.Font.FredokaOne
+	name.TextScaled = true
+	name.TextColor3 = Color3.fromRGB(255, 255, 255)
+	name.TextStrokeTransparency = 0.1
+	name.TextStrokeColor3 = Color3.fromRGB(12, 16, 32)
+	name.Text = ""
+	name.Parent = gui
+
 	return gui
 end
 
---- Repaints a plot's owner sign for whoever holds it (or nobody).
+--- Repaints one plot's display. `player` nil hides it: an unclaimed plot says
+--- nothing at all rather than advertising itself.
 local function paintOwnerSign(plot: Instance, player: Player?, tier: number?)
-	local gui = ensureOwnerSign(plot)
+	local gui = ensureOwnerDisplay(plot)
 	if not gui then
 		return
 	end
-	local displayName = gui:FindFirstChild("DisplayName") :: TextLabel?
-	local username = gui:FindFirstChild("Username") :: TextLabel?
-	local crown = gui:FindFirstChild("Crown") :: TextLabel?
-	local ring = gui:FindFirstChild("AvatarRing")
-	local avatar = ring and ring:FindFirstChild("Avatar") :: ImageLabel?
-	local badge = gui:FindFirstChild("YourBase") :: Frame?
 
 	if not player then
-		if displayName then
-			displayName.Text = "AVAILABLE"
-			displayName.TextColor3 = Color3.fromRGB(176, 190, 220)
-		end
-		if username then
-			username.Text = "claim this plot"
-		end
-		if crown then
-			crown.Visible = false
-		end
-		if avatar then
+		gui.Enabled = false
+		gui:SetAttribute("OwnerUserId", 0)
+		local ring = gui:FindFirstChild("Ring")
+		local avatar = ring and ring:FindFirstChild("Avatar")
+		if avatar and avatar:IsA("ImageLabel") then
 			avatar.Image = ""
 		end
-		if badge then
-			badge.Visible = false
-		end
-		gui:SetAttribute("OwnerUserId", 0)
 		return
 	end
 
-	if displayName then
-		displayName.Text = player.DisplayName
-		displayName.TextColor3 = MapPalette.SignTitle
-	end
-	if username then
-		username.Text = if player.DisplayName ~= player.Name then `@{player.Name}` else ""
+	local name = gui:FindFirstChild("DisplayName") :: TextLabel?
+	local crown = gui:FindFirstChild("Crown") :: TextLabel?
+	local ring = gui:FindFirstChild("Ring")
+	local avatar = ring and ring:FindFirstChild("Avatar") :: ImageLabel?
+
+	if name then
+		name.Text = player.DisplayName
 	end
 	if crown then
 		crown.Visible = (tier or 0) >= CROWN_TIER
 	end
-	gui:SetAttribute("OwnerUserId", player.UserId)
-
-	-- The headshot, from the real UserId. Async and best-effort: a failed
-	-- fetch leaves the ring empty rather than showing somebody else.
 	if avatar then
-		local userId = player.UserId
-		task.spawn(function()
-			local ok, url = pcall(function()
-				return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-			end)
-			if ok and type(url) == "string" and avatar.Parent and gui:GetAttribute("OwnerUserId") == userId then
-				avatar.Image = url
-			end
-		end)
+		-- Resolved per client from the real UserId, with Roblox's own retry and
+		-- placeholder behind it. No web call on this server, and nothing to
+		-- fail here.
+		avatar.Image = `rbxthumb://type=AvatarHeadShot&id={player.UserId}&w=150&h=150`
 	end
+	gui:SetAttribute("OwnerUserId", player.UserId)
+	gui.Enabled = true
 end
 
 paintOwnerSignRef = paintOwnerSign
@@ -895,9 +868,21 @@ function BaseService.assign(player: Player): (Model | Folder)?
 		return nil
 	end
 
+	-- A RANDOM free plot, not the first one. Claiming in child order gave the
+	-- first player of every session the same base, and the plaza filled from
+	-- one end. The pick and the claim happen in the same resumption - there is
+	-- no yield between them - so two players joining on the same frame cannot
+	-- come out of this holding the same plot.
 	local bases = getBases()
+	local free: { Instance } = {}
 	for _, plot in bases:GetChildren() do
 		if not owners[plot] then
+			table.insert(free, plot)
+		end
+	end
+	if #free > 0 then
+		local plot = free[math.random(#free)]
+		do
 			owners[plot] = player
 			assignments[player] = plot :: any
 			setOwner(plot, player)
@@ -914,18 +899,18 @@ function BaseService.assign(player: Player): (Model | Folder)?
 				return nil
 			end
 
-			-- Where the player starts. A returning player goes straight to
-			-- their plot - their income is the first thing they want to see. A
-			-- BRAND-NEW player starts on the hub's spawn circle facing the Zone
-			-- 01 gate, a few seconds from the tutorial vase, instead of at the
-			-- back of a plot with the world behind them.
+			-- Where the player starts: the porch of the plot just claimed,
+			-- facing out down the avenue, AFTER the profile has loaded and
+			-- rebuildDisplays has put their collection back on the pads. The
+			-- character is never moved before both of those are done, so a
+			-- player never watches their own base populate around them.
 			local character = player.Character
 			local spawn = BaseService.homeSpawn(player)
 			if spawn and character then
 				character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 			end
 
-			print(`[BaseService] {player.Name} -> {plot.Name}`)
+			print(`[BaseService] {player.Name} -> {plot.Name} ({#free} were free)`)
 			return plot :: any
 		end
 	end

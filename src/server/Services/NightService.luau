@@ -241,6 +241,45 @@ local function runRefresh()
 	print(`[NightService] refreshed: {report.rerolled} rerolled, {report.filled} filled, {report.preservedInSocket} preserved, {#pendingSpotlights} spotlight(s)`)
 end
 
+--- THE SPAWN CALLS, THREE SECONDS BEFORE DAWN.
+---
+--- These used to go out after the world reopened, which put "a Mythic Golden
+--- Drill spawned in Construction Site!" on screen while the player was already
+--- running. They now land in the last SPOTLIGHT_LEAD_SECONDS of the Night, so
+--- the player reads them against the barrier and moves the instant it lifts.
+---
+--- Once per cycle, whoever calls it: the timer fires it at the intended moment,
+--- and endNight calls it again as a backstop for a Night that was cut short (a
+--- forced day, a server hitch). The cycle guard is what stops the same spawn
+--- being announced twice.
+local spotlightsFlushedFor: number = -1
+
+local function flushSpotlights()
+	if spotlightsFlushedFor == cycleNumber then
+		return
+	end
+	spotlightsFlushedFor = cycleNumber
+
+	local spotlights = pendingSpotlights
+	pendingSpotlights = {}
+	if #spotlights == 0 then
+		return
+	end
+
+	-- Everything has to be READ inside the lead, so the gap shrinks to fit
+	-- rather than spilling into the day. Two calls at 2.5s apart is the
+	-- authored cadence; three or more tighten up.
+	local gap = math.min(NightConfig.SPOTLIGHT_GAP_SECONDS, NightConfig.SPOTLIGHT_LEAD_SECONDS / math.max(1, #spotlights))
+	task.spawn(function()
+		for index, spotlight in spotlights do
+			if index > 1 then
+				task.wait(gap)
+			end
+			StateService.announce("success", spotlight.text, spotlight.style, "NewDiscovery")
+		end
+	end)
+end
+
 -- ==========================================================
 -- TRANSITIONS
 -- ==========================================================
@@ -270,6 +309,19 @@ local function beginNight()
 			runRefresh()
 		end
 	end)
+
+	-- ...and the spawn calls, timed off the SAME clock the Night runs on, at
+	-- the intended three seconds before it lifts. Never earlier: the refresh
+	-- that decides what to announce has not happened yet.
+	local announceAt = math.max(
+		NightConfig.REFRESH_DELAY_SECONDS + 0.1,
+		NightConfig.NIGHT_SECONDS - NightConfig.SPOTLIGHT_LEAD_SECONDS
+	)
+	task.delay(announceAt, function()
+		if cycleNumber == thisCycle and phase == "Night" then
+			flushSpotlights()
+		end
+	end)
 end
 
 local function endNight()
@@ -279,6 +331,14 @@ local function endNight()
 	-- If a hitch carried the clock straight through the Night, the refresh
 	-- has not happened yet: do it NOW, before reopening, atomically with it.
 	runRefresh()
+
+	-- BACKSTOP, AND IT HAS TO BE HERE - before the cycle number moves on.
+	-- flushSpotlights is keyed to the cycle it flushed, so calling it after
+	-- the increment stamped it with the NEXT cycle and silently suppressed
+	-- that night's timed flush. Measured: every night after the first kept
+	-- its two spawn calls queued until dawn. In the ordinary case the timer
+	-- has already run three seconds ago and this does nothing.
+	flushSpotlights()
 
 	phase = "Day"
 	cycleNumber += 1
@@ -290,17 +350,6 @@ local function endNight()
 
 	StateService.announce("success", "All loot refreshed! Go steal something!", "refresh", "Notification")
 
-	-- Then the best of what actually spawned, one at a time, so each lands.
-	local spotlights = pendingSpotlights
-	pendingSpotlights = {}
-	if #spotlights > 0 then
-		task.spawn(function()
-			for _, spotlight in spotlights do
-				task.wait(NightConfig.SPOTLIGHT_GAP_SECONDS)
-				StateService.announce("success", spotlight.text, spotlight.style, "NewDiscovery")
-			end
-		end)
-	end
 end
 
 -- ==========================================================

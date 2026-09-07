@@ -2,8 +2,12 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §29** (map polish 2: the lobby measured and shrunk, the colour
-> restored, the checker floor, socket dressing), then §28 (the map overhaul:
+> **START AT §30** (pre-release polish: leaderboards, prompts, the owner
+> avatar display, random bases, night announcement timing, the chase fix, the
+> carry-physics root cause, boss Zzz, the barrier, the gift chest and button,
+> size auras, forward-only zone pop-ups), then §29 (map polish 2: the lobby
+> measured and shrunk, the colour restored, the checker floor, socket
+> dressing), then §28 (the map overhaul:
 > hub, plots, zones, gates, lighting, the upgrade sign - and the Studio Save
 > it still needs), then §27 (pop-up
 > placement, solid barrier, trail toggle, 2x Cash owned look, zone signs,
@@ -2522,3 +2526,226 @@ player or a guardian (verified: 0 colliding decoration parts).
   device test was possible here.
 - The SurfaceGui button path on the upgrade sign (Studio's simulated pointer
   cannot reach 3D GUI buttons); the ClickDetector path was the one exercised.
+
+## 30. Pre-release polish — leaderboards, prompts, bases, NPCs, carry physics, gifts, auras
+
+Thirteen numbered tasks from the owner's brief. Everything below was traced in
+the running game before it was changed, and tested in Play afterwards unless
+30.14 says otherwise.
+
+### 30.1 Global leaderboards (task 1) — already correct, verified
+
+`LeaderboardService` was ALREADY global: one OrderedDataStore per stat
+(`GlobalMoney_v1`, `GlobalSpeed_v1`), scores submitted on change and once more
+on leave, the top eight fetched every 60s, every call pcall'd, last-good rows
+repainted on a failure, names and headshots cached per user id. Nothing was
+rewritten.
+
+  * **Money is `profile.Cash`** - the game's own headline number, the one on
+    the HUD. Lifetime earnings (`profile.Lifetime.CashEarned`) exists and was
+    deliberately NOT swapped in: the board would then disagree with every
+    other place the player sees their money, which is the "misleading stat"
+    the brief warns about.
+  * **Speed is `profile.SpeedPower`**, the persistent progression stat, not
+    `Humanoid.WalkSpeed` and not a trail multiplier.
+
+In Studio the stores are unreachable and the boards fall back to this server's
+players, with the header saying so ("TOP MONEY (this server)"). **Global
+ranking therefore could not be verified here** - see 30.14.
+
+### 30.2 The E prompt in awkward cameras (task 2)
+
+The prompt used to hang on the art itself, so walking close enough to use it
+put the camera inside the geometry the prompt was buried in. Every item now
+gets an invisible `PromptAnchor` welded to it, in clear air:
+
+  * short item -> straight above its top
+  * tall item (over 9 studs) -> head height, pushed out of the silhouette
+    toward the lane centre, which is the side players approach from
+
+`interactRange` grows by 60% of the height the anchor gained, so the reach from
+the floor is exactly what it was, and the server's own distance check
+(`validateSteal`, same part, same range) moves with it. `RequiresLineOfSight`
+stays false and `Exclusivity` is now explicit, so two items side by side can
+never both offer a hold.
+
+### 30.3 The owner display (task 3)
+
+The 14x6 stud "this base belongs to" sign is gone. In its place a billboard
+over the front of the plot: the owner's real headshot in a round white ring,
+their display name under it, a crown at capacity tier 4+. The image is
+`rbxthumb://type=AvatarHeadShot&id=<UserId>` - resolved per client, retried by
+Roblox, and a grey silhouette if the account has no thumbnail. Unclaimed plots
+show nothing at all. Any surviving `OwnerSign` model is destroyed on sight.
+
+### 30.4 Random base on join (task 4)
+
+`BaseService.assign` now picks a RANDOM free plot instead of the first in child
+order (which handed every session's first player the same base). The pick and
+the claim happen in one resumption with no yield between them, so simultaneous
+joiners cannot take the same plot. The order is unchanged otherwise: claim ->
+wait for the profile -> `rebuildDisplays` -> only then move the character, to
+its own porch spawn.
+
+**This retires the hub spawn for new players** (§28). `spawnsAtHub` is now
+"true only when the player holds no plot at all".
+
+### 30.5 Spawn calls three seconds before dawn (task 5)
+
+`flushSpotlights()` releases the "X spawned in Y" calls at
+`NIGHT_SECONDS - SPOTLIGHT_LEAD_SECONDS` (10 - 3), keyed to the cycle so the
+same spawn cannot be announced twice, with the gap between calls shrinking to
+fit the lead. `endNight` keeps a backstop call for a Night cut short.
+
+**A bug this exposed:** the backstop originally ran AFTER `cycleNumber += 1`,
+which stamped the guard with the next cycle and silently suppressed that
+night's timed flush - every night after the first held its calls until dawn.
+The backstop now runs before the increment. Measured over two consecutive
+nights: released with 2.85s and 2.88s of Night left.
+
+### 30.6 The chase, and the alert flash (task 6)
+
+Three fixes at the state level, no WalkSpeed papering:
+
+  * `Humanoid:Move` is a STANDING order. A guardian anchored at its post kept
+    whatever direction it was last given - after a walk home, that is away from
+    the zone - and resumed it the instant it stood up. `sleepPose` now cancels
+    the move order and zeroes the assembly velocity before anchoring.
+  * `standUp` zeroes velocity again on the way out, so the first frame of a
+    chase starts from a dead stop.
+  * The Waking beat used to `return` early, leaving that stale order in force
+    for its whole 0.55s. It now actively holds still and turns to face the
+    thief.
+
+Measured from sleep: 0.00-0.48s stationary and facing the thief (dot +1.00),
+then Chasing at +1.00 toward them from the first moving frame, 52 -> 71 speed.
+No backwards movement.
+
+**The red alert flash** is a `Highlight` over the whole model (accessories
+included), two pulses then out, token-guarded so overlapping alerts cannot
+stack or leave a guardian red, and it touches no original colour or material.
+
+### 30.7 Loot dragging players into the ground (task 7) — the real cause
+
+Three separate defects, all measured:
+
+1. **A Humanoid reads the parts of the model it lives in as its own body.**
+   Carried loot was parented INTO the character. Measured: root Y 2.70 ->
+   0.53, state FallingDown, FloorMaterial Air, the moment a briefcase was
+   parented in - and back to 2.70 the moment it was parented out with the same
+   weld holding. Carried loot now lives in `Map.CarriedLoot` and is welded to
+   the root. Guardian escorts had the identical bug and the identical fix.
+2. **Legacy joints with pre-scale offsets.** `adopt` only stripped joints on
+   the Tool path, so a Model import kept its own `Weld`/`Motor6D`, whose C0/C1
+   `ScaleTo` does not scale. The Banker's Briefcase shipped two, and after a
+   2.17x build they fought the LootWelds. `LootModel.build` now strips every
+   JointInstance, WeldConstraint, Constraint, BodyMover, prompt and
+   ClickDetector from EVERY import before welding its own.
+3. **Placement tied to world height.** A player stealing mid-jump baked their
+   airborne height into the weld forever. Placement is now purely relative to
+   the root and seats the model's measured CENTRE, not its pivot (an import's
+   pivot is wherever the artist left it - the briefcase's is the top of the
+   case, which is why it hung 2.5 studs under the floor).
+
+Also: carried parts get `CanTouch = false` (a briefcase swinging through a
+treadmill trigger is an event that system believes) and their velocity is
+zeroed at the weld. Everything is restored exactly on detach.
+
+**And the Shawarma the owner flagged:** anything taller than 7 studs or wider
+than 9 now rides OVERHEAD whatever its size roll, so a 22-stud item is carried,
+not worn.
+
+A note for whoever tries to improve the placement: a Part wearing a
+`SpecialMesh` renders at the MESH's scale, not the part's size, and the API
+does not expose the authored mesh bounds. Inflating the box by
+`SpecialMesh.Scale` was tried and is wrong - for a FileMesh that number is not
+a multiple of the box, and it threw the briefcase eight studs into the air.
+
+### 30.8 Zzz on every boss (task 8)
+
+Two causes, both fixed:
+
+  * The billboard hung a FIXED 3.4 studs over the root - right for a stock rig,
+    inside the chest of a 37-stud boss. The offset is now measured from the
+    model's own bounding box, re-read when a puff is made (a model still
+    STREAMING IN measures short: the Foreman came out 4 studs low when this was
+    cached at stream-in).
+  * With streaming on, a guardian at the far end of the world has NO PARTS on a
+    client in the lobby. The old watcher did `WaitForChild(root, 15)` once and
+    gave up, so those bosses never slept again that session. It now waits
+    indefinitely and re-arms if the model streams out and back.
+
+Verified after the fix: Foreman +34.0 over a 26.2 rig, Grandma +31.6 over 24.8,
+Airport Security +42.9 over 37.3.
+
+### 30.9 The Night barrier (task 9)
+
+The slab was fully transparent with the white face painted by a SurfaceGui, so
+anything the GUI did not cover was see-through. It is now the wall itself:
+opaque, 4 studs thick (a camera cannot cross it between frames), 194 tall with
+a 24-stud skirt below the floor, and `CanQuery` true while it is up - which is
+what the camera's occlusion popper raycasts against, so the camera stops at it
+instead of orbiting through. All of it reverts when the barrier fades.
+
+### 30.10 The gift chest (task 10)
+
+`GiftChestService` clones the owner's `GiftrewardChest` onto a glowing pad at
+the hub (-19, 0, -13), with sparkles, a light, a bobbing tween and a "FREE!"
+billboard. Its ProximityPrompt fires `GiftMenuOpen` to that client, which opens
+the EXISTING panel. It grants nothing: verified that opening the chest leaves
+`GroupGiftClaimed` false. A 1.2s per-player cooldown stops a held key opening
+two.
+
+### 30.11 The GIFT button (task 11)
+
+Seven-stop rainbow gradient swept by one RenderStepped connection (offset and
+rotation, plus a 1.8% breathing scale), a press punch, and `Visible = false`
+once the server says claimed - which is on the profile, so it stays hidden
+across rejoins. The chest's sign switches to CLAIMED for that player at the
+same moment, client-locally.
+
+### 30.12 Size auras (task 12)
+
+New `SizeAura`, shaped like `MutationVfx`: templates in
+`ReplicatedStorage.GameAssets.Sizes`, applied by tier to world loot
+(`LootService`) and to base trophies (`BaseService`), tagged so `clear()`
+removes exactly what it added. Scaling is per-property, not a blanket
+multiplier: Size keypoints and Speed scale with the item (and Acceleration with
+them), Lifetime, Rate, colour, texture and rotation are the artist's. The swirl
+attachment is re-seated on the item's bounding-box CENTRE, because an import's
+PrimaryPart is often a handle at one end.
+
+Measured: aura width 72% of the item at Big (8.5 studs) and 86% at Titan (49.5
+studs), 10 emitters either way, no duplicates.
+
+### 30.13 Forward-only zone pop-ups (task 13)
+
+The controller keeps a `highWater` of the furthest zone announced this life and
+fires only above it. Walking back, standing on a boundary and returning to the
+Safe Zone are all silent; a respawn starts the ladder again. This is
+presentation history ONLY - `candidate` still tracks the real current zone every
+sample. Verified: 1, 2 announce, back to 1 silent, safe zone silent, 3
+announces, back to 2 silent.
+
+### 30.14 Not verified here
+
+  * **Global leaderboard ranking.** Studio API access is off, so the stores are
+    unreachable and the boards run their server-only fallback. Needs Game
+    Settings -> Security -> Enable Studio Access to API Services, then a
+    published server with two accounts.
+  * **Multiplayer**: simultaneous joins racing for the same plot, two thieves
+    switching a guardian's target, seven bases at once.
+  * **Mobile and gamepad**: no device. The chest prompt is a ProximityPrompt, so
+    both are handled by Roblox, but neither was pressed.
+  * **`Players.MaxPlayers` is 60 and there are 7 plots.** It is read-only to
+    scripts; the owner must set Server Size to 7 in Game Settings. Until then
+    the eighth joiner is kicked by `BaseService`'s full-server path.
+
+### 30.15 A Studio-MCP gotcha worth knowing
+
+`execute_luau` runs with its OWN module cache: `require(Services.BaseService)`
+from a console script returns a DIFFERENT table than the running server's, with
+empty state. Two hours of this pass went into tests that failed for that reason
+alone (a `getPlot` that returned nil for a player who had a plot, a
+`StateService.announce` hook that never fired). Go through
+`ServerStorage.DebugInvoke` for anything that has to touch live service state.

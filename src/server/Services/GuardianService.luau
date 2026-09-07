@@ -208,9 +208,23 @@ local function sleepPose(guardian: Guardian)
 	if not root then
 		return
 	end
+	-- CANCEL THE WALK ORDER BEFORE ANCHORING. Humanoid:Move is a standing
+	-- instruction, not a per-frame one: whatever direction the guardian was
+	-- last told to run in survives being anchored, and the instant it stands
+	-- up again it resumes running that way - which after a walk home is
+	-- AWAY from the zone. That is the "moves off backwards for half a second"
+	-- at the start of a chase.
+	local humanoid = guardian.humanoid
+	if humanoid then
+		humanoid:Move(Vector3.zero, false)
+		humanoid.WalkToPoint = root.Position
+		humanoid.Jump = false
+	end
 	-- Anchored while asleep: it cannot drift, cannot be shoved by a passing
 	-- player, and costs no physics.
 	root.Anchored = true
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
 	root.CFrame = guardian.home * CFrame.Angles(math.rad(-20), 0, 0)
 end
 
@@ -861,6 +875,15 @@ local function standUp(guardian: Guardian)
 		return
 	end
 	root.Anchored = false
+	-- From a standstill, every time. An unanchored assembly keeps whatever the
+	-- engine last gave it, and a leftover velocity is a visible lurch in the
+	-- wrong direction on the first frame of the chase.
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	local humanoid = guardian.humanoid
+	if humanoid then
+		humanoid:Move(Vector3.zero, false)
+	end
 	-- PIN SIMULATION TO THE SERVER. Roblox hands network ownership of a loose
 	-- unanchored assembly to the nearest player - which during a chase is always
 	-- the thief. Their client then simulates the thing hunting them, and every
@@ -970,7 +993,19 @@ local function attachEscort(guardian: Guardian, loot: LootService.LootInstance):
 		loot.carryScale = factor
 	end
 
-	model.Parent = rig
+	-- IN THE WORLD, WELDED - not inside the rig. A Humanoid reads the parts of
+	-- the model it lives in as its own body, and a stolen throne parked inside
+	-- a guardian collapses it into FallingDown exactly the way it collapsed
+	-- players (see the note in CarryService.attach). The escort weld below is
+	-- what carries it.
+	local map = workspace:FindFirstChild("Map") or workspace
+	local holder = map:FindFirstChild("CarriedLoot")
+	if not holder then
+		holder = Instance.new("Folder")
+		holder.Name = "CarriedLoot"
+		holder.Parent = map
+	end
+	model.Parent = holder
 	model:PivotTo(root.CFrame)
 	local height = tonumber(rig:GetAttribute("Height")) or root.Size.Y
 	local minCorner = select(1, LootModel.worldExtents(model))
@@ -1307,7 +1342,17 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 
 	if guardian.state == "Waking" then
 		if now < (guardian.wakeAt or 0) then
-			return -- hold the shocked beat
+			-- HOLD THE BEAT, ACTIVELY. Returning here used to leave the last
+			-- Move order in force for the whole 0.55s, so the guardian spent
+			-- its shocked moment sliding wherever it had last been sent. It
+			-- now stands still and turns to face the thief, so the first
+			-- stride of the chase is already pointed the right way.
+			humanoid:Move(Vector3.zero, false)
+			local facing = Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z)
+			if (facing - root.Position).Magnitude > 0.1 then
+				root.CFrame = root.CFrame:Lerp(CFrame.lookAt(root.Position, facing), math.min(1, dt * 12))
+			end
+			return
 		end
 		guardian.state = "Chasing"
 		guardian.wakeAt = nil

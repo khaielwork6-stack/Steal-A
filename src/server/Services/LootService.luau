@@ -54,9 +54,14 @@ local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
+local SizeAura = require(ReplicatedStorage.Shared.Util.SizeAura)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local LootService = {}
+
+--- Above this height an item is too tall to hang its prompt over: the anchor
+--- stops climbing and steps out of the silhouette instead.
+local TALL_ITEM_PROMPT_HEIGHT = 9
 
 export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Escorted" | "Returning" | "Placed"
 
@@ -382,6 +387,11 @@ end
 --- turned a stone meteorite into glass.
 local function applyMutation(loot: LootInstance, model: Model)
 	MutationVfx.apply(model, loot.mutation)
+	-- ...and the size aura, which is the same idea one axis over: the artist
+	-- authors one effect per tier and every item wears the right one. It lives
+	-- ON the model, so it follows the item into a carry, a drop and a base
+	-- display without any of those paths knowing about it.
+	SizeAura.apply(model, loot.size)
 end
 
 -- ==========================================================
@@ -446,29 +456,47 @@ local function materialise(socket: Socket, loot: LootInstance)
 	local minCorner, maxCorner = LootModel.worldExtents(model)
 	local footprint = if minCorner and maxCorner then math.max(maxCorner.X - minCorner.X, maxCorner.Z - minCorner.Z) else 0
 	local height = if minCorner and maxCorner then maxCorner.Y - minCorner.Y else 0
-	local promptHost: BasePart = anchor
-	if height > 12 or (anchor.Position.Y - surface) > 7 then
-		local ground = Instance.new("Part")
-		ground.Name = "PromptAnchor"
-		ground.Size = Vector3.new(2, 2, 2)
-		ground.Transparency = 1
-		ground.Anchored = true
-		ground.CanCollide = false
-		ground.CanQuery = false
-		ground.CanTouch = false
-		ground.CastShadow = false
-		ground.CFrame = CFrame.new(socket.part.Position.X, surface + 2.5, socket.part.Position.Z)
-		ground.Parent = model
-		-- Ride along with the model if it is ever moved (a drop puts the whole
-		-- model on the floor where the carrier stood).
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = anchor
-		weld.Part1 = ground
-		weld.Parent = ground
-		promptHost = ground
+	-- WHERE THE PROMPT HANGS. Never on the art itself. A prompt parented to a
+	-- part is drawn AT that part, so on anything the player can walk up to -
+	-- the briefcase, the shawarma, a Titan - the camera ends up inside the
+	-- geometry the prompt is buried in and the E vanishes exactly when the
+	-- player is close enough to use it.
+	--
+	-- Instead every item gets its own invisible anchor in clear air:
+	--   short item  -> straight above its top, where nothing can occlude it
+	--   tall item   -> at head height, pushed OUT of the silhouette toward the
+	--                  lane centre, which is the side players approach from
+	-- The anchor is welded to the art so a drop carries it along, and the
+	-- interaction range is widened by the height it gained so the reach from
+	-- the floor is exactly what it was.
+	local anchorY = surface + math.min(height + 1.5, TALL_ITEM_PROMPT_HEIGHT)
+	local anchorX, anchorZ = socket.part.Position.X, socket.part.Position.Z
+	if height > TALL_ITEM_PROMPT_HEIGHT then
+		local towardLane = if anchorX >= 0 then -1 else 1
+		anchorX += towardLane * (footprint / 2 + 2)
 	end
+
+	local promptHost = Instance.new("Part")
+	promptHost.Name = "PromptAnchor"
+	promptHost.Size = Vector3.new(1, 1, 1)
+	promptHost.Transparency = 1
+	promptHost.Anchored = true
+	promptHost.CanCollide = false
+	promptHost.CanQuery = false
+	promptHost.CanTouch = false
+	promptHost.CastShadow = false
+	promptHost.CFrame = CFrame.new(anchorX, anchorY, anchorZ)
+	promptHost.Parent = model
+	-- Ride along with the model if it is ever moved (a drop puts the whole
+	-- model on the floor where the carrier stood).
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = anchor
+	weld.Part1 = promptHost
+	weld.Parent = promptHost
+
 	loot.promptPart = promptHost
 	loot.interactRange = math.max(GameConfig.STEAL_INTERACTION_RANGE, footprint / 2 + 10)
+		+ (anchorY - surface) * 0.6
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
@@ -476,7 +504,11 @@ local function materialise(socket: Socket, loot: LootInstance)
 	prompt.ObjectText = loot.name
 	prompt.HoldDuration = GameConfig.STEAL_HOLD_DURATION
 	prompt.MaxActivationDistance = loot.interactRange
+	-- Line of sight is what hides a prompt behind the item it belongs to.
 	prompt.RequiresLineOfSight = false
+	-- One prompt on screen at a time, so two items side by side can never both
+	-- offer a hold and double-complete.
+	prompt.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
 	-- A closed world shows no steal prompts at all (see setClosed).
 	prompt.Enabled = not closed
 	prompt.Parent = promptHost
