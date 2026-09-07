@@ -36,6 +36,8 @@ local TrailService = require(Services.TrailService)
 local StatsService = require(Services.StatsService)
 local GroupGiftService = require(Services.GroupGiftService)
 local LeaderboardService = require(Services.LeaderboardService)
+local NightService = require(Services.NightService)
+local SettingsService = require(Services.SettingsService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -157,7 +159,9 @@ GuardianService.setEscapeHandler(function(loot, player)
 	if not loot.escapeNotice then
 		loot.escapeNotice = true
 		StateService.notify(player, "success", "ESCAPED!")
-		StateService.sound(player, "Escape")
+		-- The sting. The client stops the chase music, plays it, and follows
+		-- with the safe-zone cue half a second later (ChaseAudioController).
+		StateService.sound(player, "EscapeSting")
 	end
 end)
 
@@ -181,10 +185,6 @@ CarryService.setDeliveredHandler(function(player, loot)
 		StateService.sound(player, "Escape")
 	end
 end)
-
-LootService.refreshWarning = function()
-	StateService.announce("info", `LOOT REFRESH in {GameConfig.GLOBAL_REFRESH_WARNING}s`)
-end
 
 -- Which zones the global refresh may drop a jackpot into.
 --
@@ -262,6 +262,11 @@ BaseService.start()
 -- profiles, both of which want every earlier service in place.
 GroupGiftService.start()
 LeaderboardService.start()
+
+-- The Night cycle owns the world refresh, the guardian reset and the return to
+-- the lobby, so it starts once every one of those systems is up.
+NightService.start()
+SettingsService.start()
 
 DebugService.start()
 

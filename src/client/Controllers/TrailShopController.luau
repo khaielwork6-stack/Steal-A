@@ -29,6 +29,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
@@ -180,6 +181,27 @@ local function build(): boolean
 	local clone = shop:Clone()
 	clone.Name = "TrailShop"
 	clone.Visible = false
+
+	-- THE ROOT OF "THE TRAIL SHOP RANDOMLY NEVER OPENS". The pack closes a
+	-- panel by sliding it BELOW the screen and fading its background to 1, and
+	-- it leaves the frame parked there while hidden (openFrame resets it). This
+	-- panel is a CLONE of the Shop, so it inherited whatever state the Shop was
+	-- in at the moment of cloning - and when the player had opened and closed
+	-- the Shop before their first visit to the booth, that state was
+	-- "off-screen and transparent". show() then set Visible = true on a panel
+	-- sitting sixty pixels under the bottom edge: the HUD hid, nothing appeared.
+	-- Geometry is taken from the PRISTINE copy in StarterGui instead, which the
+	-- pack never touches, and build() now runs at start rather than lazily.
+	local pristine = StarterGui:FindFirstChild("MainUI")
+	local pristineFrames = pristine and pristine:FindFirstChild("Frames")
+	local pristineShop = pristineFrames and pristineFrames:FindFirstChild("Shop")
+	if pristineShop and pristineShop:IsA("Frame") then
+		clone.Position = pristineShop.Position
+		clone.AnchorPoint = pristineShop.AnchorPoint
+		clone.Size = pristineShop.Size
+		clone.BackgroundTransparency = pristineShop.BackgroundTransparency
+	end
+
 	-- Parented OUTSIDE `Frames`. The pack opens whichever frame in `Frames`
 	-- matches a clicked button's name; leaving it there would let the pack try to
 	-- manage a panel it knows nothing about.
@@ -420,13 +442,26 @@ local function show()
 		return
 	end
 	local frame = panel :: Frame
-	if open then
+	if open and frame.Visible then
 		return
 	end
 	open = true
 	refresh()
 	if refitCells then
 		refitCells()
+	end
+
+	-- Mutually exclusive with the pack's panels: whatever the player had open
+	-- closes cleanly (the pack restores the HUD it hid), THEN this claims the
+	-- HUD for itself. Without this the pack's hideOwnHud could be holding our
+	-- whole layer invisible while we "open" inside it.
+	local closeAll = _G.CloseAllUIFrames
+	if type(closeAll) == "function" then
+		pcall(closeAll)
+	end
+	local layer = frame.Parent
+	if layer and layer:IsA("GuiObject") then
+		layer.Visible = true
 	end
 
 	UIStateController.claim("trailshop")
@@ -459,6 +494,10 @@ local function show()
 end
 
 function TrailShopController.start()
+	-- Built NOW, before the player can have opened and closed anything, so the
+	-- clone is taken from a panel in its resting state (see build()).
+	build()
+
 	-- The server watches the booth's circle: "open" once on the way in, "close"
 	-- once on the way out. Nothing here polls position or decides it is at the
 	-- shop; the close X still works for anyone who wants it gone sooner.
@@ -469,6 +508,28 @@ function TrailShopController.start()
 			close()
 		end
 	end)
+
+	-- A pack panel opening on top (Shop, Index, Storage, Upgrades, Settings)
+	-- closes this one, so two shop windows never fight and the pack's own
+	-- hide-the-HUD pass can never strand a half-open trail shop.
+	local ui = ShopKit.mainUi()
+	local frames = ui and ui:FindFirstChild("Frames")
+	if frames then
+		local function watch(frame: Instance)
+			if not frame:IsA("GuiObject") then
+				return
+			end
+			frame:GetPropertyChangedSignal("Visible"):Connect(function()
+				if frame.Visible and open then
+					close()
+				end
+			end)
+		end
+		for _, frame in frames:GetChildren() do
+			watch(frame)
+		end
+		frames.ChildAdded:Connect(watch)
+	end
 
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		if not state then

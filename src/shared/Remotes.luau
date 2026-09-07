@@ -34,6 +34,9 @@ Remotes.NAMES = {
 	-- Claims the group-join gift. Carries nothing: the server checks the group
 	-- itself and pays out once. See GroupGiftService.
 	"GroupGiftRequest",
+	-- The Settings panel: volumes and toggles, saved on the profile so they
+	-- survive a rejoin. Validated and clamped server-side; see SettingsService.
+	"SettingsRequest",
 	-- server -> client. The contextual "you were too slow" offer after a guardian
 	-- catch. Carries the product key and the zone; the client renders it and can
 	-- only ask to buy, never grant.

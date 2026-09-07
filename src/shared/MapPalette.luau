@@ -59,6 +59,16 @@ MapPalette.DisplaySlotRim = rgb(96, 214, 255)
 MapPalette.DisplaySlotLocked = rgb(38, 42, 54)
 MapPalette.DisplaySlotLockedRim = rgb(70, 78, 96)
 
+-- The pedestal system (BaseService.styleSlot). A slot is a dark square with a
+-- thin neon frame set into it: cyan and breathing while it waits for an item,
+-- dim grey while locked, the item's rarity colour once a pedestal stands on it.
+-- Restrained on purpose - the collectible is the exhibit, not the floor.
+MapPalette.SlotPadEmpty = rgb(30, 34, 46)
+MapPalette.SlotPadLocked = rgb(26, 28, 36)
+MapPalette.SlotPadOccupied = rgb(22, 26, 38)
+MapPalette.SlotNeonEmpty = rgb(96, 214, 255)
+MapPalette.SlotNeonLocked = rgb(70, 78, 96)
+
 -- ==========================================================
 -- UPGRADE SIGN
 -- ==========================================================

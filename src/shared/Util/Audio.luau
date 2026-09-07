@@ -21,6 +21,7 @@
 
 local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 
 local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
@@ -28,6 +29,38 @@ local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 local Audio = {}
 
 local FOLDER_NAME = "ActiveAudio"
+
+-- ==========================================================
+-- SOUND GROUPS (client only)
+-- ==========================================================
+--
+-- Two mixer buses the Settings sliders drive: Music and SFX. Every Sound the
+-- client creates joins one by category; Sounds the SERVER creates (guardian
+-- snoring, hits, the bat) replicate without a group, so AudioController files
+-- them into SFX as they arrive. Setting a group's Volume is then the whole
+-- implementation of a volume slider - no per-sound bookkeeping anywhere.
+
+Audio.GROUP_MUSIC = "Music"
+Audio.GROUP_SFX = "SFX"
+
+function Audio.group(name: string): SoundGroup?
+	if not RunService:IsClient() then
+		return nil
+	end
+	local existing = SoundService:FindFirstChild(name)
+	if existing and existing:IsA("SoundGroup") then
+		return existing
+	end
+	local group = Instance.new("SoundGroup")
+	group.Name = name
+	group.Volume = 1
+	group.Parent = SoundService
+	return group
+end
+
+function Audio.groupFor(category: string): SoundGroup?
+	return Audio.group(if category == "music" then Audio.GROUP_MUSIC else Audio.GROUP_SFX)
+end
 
 --- Builds a Sound from a cue. Not parented; callers decide where it lives.
 function Audio.create(name: string): Sound?
@@ -47,6 +80,11 @@ function Audio.create(name: string): Sound?
 		sound.RollOffMode = Enum.RollOffMode.InverseTapered
 		sound.RollOffMaxDistance = cue.rollOff or 150
 		sound.RollOffMinDistance = 8
+	end
+
+	local group = Audio.groupFor(cue.category)
+	if group then
+		sound.SoundGroup = group
 	end
 
 	return sound

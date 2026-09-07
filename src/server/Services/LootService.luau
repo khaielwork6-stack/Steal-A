@@ -70,13 +70,62 @@ export type LootInstance = {
 	baseIncome: number,
 	finalIncome: number,
 	jackpot: boolean,
+	--- The exact visual scale rolled for this instance inside its size tier
+	--- (RarityConfig.rollVisualScale). Rolled once, saved onto the trophy,
+	--- never rerolled on render.
+	visualScale: number,
 	state: LootState,
 	carrier: Player?,
 	model: Model?,
+	--- Where the steal prompt lives. The PrimaryPart for ordinary loot; a
+	--- ground-level anchor for anything tall enough that its centre would be
+	--- out of reach.
+	promptPart: BasePart?,
+	--- How far away a steal may be started. Grows with the footprint so a
+	--- player at the edge of a Colossal can still reach it.
+	interactRange: number,
+	--- Presentation-only scale applied by the carry (see CarryService.attach),
+	--- so detach can undo exactly what was done.
+	carryScale: number?,
 	droppedAt: number?,
 	deliveredNotice: boolean?, -- so the "you're safe" toast fires only once
 	escapeNotice: boolean?, -- so the "you escaped" toast fires only once
 }
+
+--- The part a player interacts with. Ordinary loot: its PrimaryPart. A tall
+--- item: the ground-level anchor materialise() gave it.
+function LootService.interactionPart(loot: LootInstance): BasePart?
+	if loot.promptPart and loot.promptPart.Parent then
+		return loot.promptPart
+	end
+	local model = loot.model
+	return if model then model.PrimaryPart else nil
+end
+
+--- Its steal prompt, wherever materialise() put it.
+function LootService.promptOf(loot: LootInstance): ProximityPrompt?
+	local part = LootService.interactionPart(loot)
+	return if part then part:FindFirstChildWhichIsA("ProximityPrompt") else nil
+end
+
+-- ==========================================================
+-- CLOSURE (the Night)
+-- ==========================================================
+--
+-- While closed no steal may start. NightService flips this around the world
+-- refresh; CarryService asks it before every steal or grab. Prompts are turned
+-- off too, so the player is not shown an action the server will refuse.
+
+local closed = false
+local closedReason = "The zones are closed for the Night!"
+
+function LootService.isClosed(): boolean
+	return closed
+end
+
+function LootService.closedReason(): string
+	return closedReason
+end
 
 type Socket = {
 	zoneIndex: number,
@@ -153,6 +202,21 @@ end
 --- shows the same type twice at once). Tests pass an empty table to measure the
 --- raw weight curve rather than the without-replacement one four live sockets
 --- actually produce.
+--- Temporary weight multipliers, installed by NightService for the duration
+--- of ONE refresh and removed straight after. Multiplied in before the roller
+--- renormalises, so a boosted 2% tier becomes 3% with everything else shrinking
+--- to make room - never 150%. Nil means the plain tables.
+export type RollBoosts = {
+	rarity: ((rarity: string) -> number)?,
+	size: ((sizeId: string) -> number)?,
+}
+
+local rollBoosts: RollBoosts? = nil
+
+function LootService.setRollBoosts(boosts: RollBoosts?)
+	rollBoosts = boosts
+end
+
 local function rollItem(zoneIndex: number, exclude: { [string]: boolean }?): LootConfig.ItemDef?
 	local taken = exclude or activeTypes(zoneIndex)
 
@@ -160,10 +224,14 @@ local function rollItem(zoneIndex: number, exclude: { [string]: boolean }?): Loo
 	local weights: { number } = {}
 	local total = 0
 
+	local rarityBoost = if rollBoosts then rollBoosts.rarity else nil
 	for _, item in LootConfig.normalPool(zoneIndex) do
 		if not taken[item.id] then
 			table.insert(candidates, item)
 			local weight = RarityConfig.NormalWeights[item.rarity] or 0
+			if rarityBoost and weight > 0 then
+				weight *= rarityBoost(item.rarity)
+			end
 			table.insert(weights, weight)
 			total += weight
 		end
@@ -191,8 +259,23 @@ end
 
 LootService.rollItem = rollItem
 
-local function rollVariant(list: { RarityConfig.Variant }): RarityConfig.Variant
-	return list[weightedPick(list)]
+local function rollVariant(list: { RarityConfig.Variant }, boost: ((string) -> number)?): RarityConfig.Variant
+	if not boost then
+		return list[weightedPick(list)]
+	end
+	-- Boosted: the same weighted pick over a temporary table, so the config
+	-- itself is never mutated and the lean vanishes with the boost.
+	local leaned = table.create(#list)
+	for index, variant in list do
+		leaned[index] = { chance = variant.chance * boost(variant.id) }
+	end
+	return list[weightedPick(leaned)]
+end
+
+--- Every size / rarity roll, exposed so the debug bridge can simulate the
+--- distribution with and without the Night lean.
+function LootService.rollSizeId(boost: ((string) -> number)?): string
+	return rollVariant(RarityConfig.Sizes, boost).id
 end
 
 -- ==========================================================
@@ -205,13 +288,14 @@ end
 --- and BaseService.buildTrophy cannot drift apart.
 local function buildModel(loot: LootInstance): Model
 	-- Size is a visual scale plus a movement multiplier, never physics mass.
-	local size = RarityConfig.SizeById[loot.size]
-
+	-- The scale is the instance's OWN rolled value, so a Colossal that rolled
+	-- 17.4x is 17.4x every time it is built and nowhere else.
 	local model = LootModel.build({
 		itemId = loot.itemId,
 		rarity = loot.rarity,
 		targetHeight = GameConfig.LOOT_WORLD_HEIGHT,
-		sizeScale = if size then size.scale else nil,
+		sizeScale = loot.visualScale,
+		maxFootprint = LootModel.WORLD_MAX_FOOTPRINT,
 		placeholderSize = Vector3.new(6, 7, 6),
 	})
 
@@ -332,8 +416,8 @@ local function materialise(socket: Socket, loot: LootInstance)
 		end
 	end
 
+	local surface = socket.part.Position.Y + socket.part.Size.Y / 2
 	if lowest < math.huge then
-		local surface = socket.part.Position.Y + socket.part.Size.Y / 2
 		model:PivotTo(model:GetPivot() + Vector3.new(0, surface + 0.2 - lowest, 0))
 	end
 
@@ -345,17 +429,69 @@ local function materialise(socket: Socket, loot: LootInstance)
 		return
 	end
 
+	-- WHERE THE PROMPT LIVES. A prompt is reachable within its activation
+	-- distance of the part it sits on. For ordinary loot that part is the
+	-- PrimaryPart and the range is the normal one. A Titan or Colossal is a
+	-- different problem: its PrimaryPart can be forty studs in the air and its
+	-- edge fifty studs from its centre, so the prompt moves to a ground-level
+	-- anchor at the socket and the range grows with the footprint. The player
+	-- steals a giant from its feet, which is where they are standing anyway.
+	local minCorner, maxCorner = LootModel.worldExtents(model)
+	local footprint = if minCorner and maxCorner then math.max(maxCorner.X - minCorner.X, maxCorner.Z - minCorner.Z) else 0
+	local height = if minCorner and maxCorner then maxCorner.Y - minCorner.Y else 0
+	local promptHost: BasePart = anchor
+	if height > 12 or (anchor.Position.Y - surface) > 7 then
+		local ground = Instance.new("Part")
+		ground.Name = "PromptAnchor"
+		ground.Size = Vector3.new(2, 2, 2)
+		ground.Transparency = 1
+		ground.Anchored = true
+		ground.CanCollide = false
+		ground.CanQuery = false
+		ground.CanTouch = false
+		ground.CastShadow = false
+		ground.CFrame = CFrame.new(socket.part.Position.X, surface + 2.5, socket.part.Position.Z)
+		ground.Parent = model
+		-- Ride along with the model if it is ever moved (a drop puts the whole
+		-- model on the floor where the carrier stood).
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = anchor
+		weld.Part1 = ground
+		weld.Parent = ground
+		promptHost = ground
+	end
+	loot.promptPart = promptHost
+	loot.interactRange = math.max(GameConfig.STEAL_INTERACTION_RANGE, footprint / 2 + 10)
+
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = "Steal"
 	prompt.ObjectText = loot.name
 	prompt.HoldDuration = GameConfig.STEAL_HOLD_DURATION
-	prompt.MaxActivationDistance = GameConfig.STEAL_INTERACTION_RANGE
+	prompt.MaxActivationDistance = loot.interactRange
 	prompt.RequiresLineOfSight = false
-	prompt.Parent = anchor
+	-- A closed world shows no steal prompts at all (see setClosed).
+	prompt.Enabled = not closed
+	prompt.Parent = promptHost
 
 	loot.model = model
 	socket.loot = loot
+end
+
+--- Shuts (or reopens) every steal in the world. Idempotent.
+function LootService.setClosed(value: boolean, reason: string?)
+	closed = value
+	if reason then
+		closedReason = reason
+	end
+	for _, loot in byId do
+		if loot.state == "Spawned" or loot.state == "Dropped" then
+			local prompt = LootService.promptOf(loot)
+			if prompt then
+				prompt.Enabled = not value
+			end
+		end
+	end
 end
 
 --- Builds a concrete instance from a definition. `sizeId` / `mutationId` are
@@ -368,7 +504,8 @@ local function makeInstance(
 	sizeId: string?,
 	mutationId: string?
 ): LootInstance
-	local size = sizeId or rollVariant(RarityConfig.Sizes).id
+	local sizeBoost = if rollBoosts then rollBoosts.size else nil
+	local size = sizeId or rollVariant(RarityConfig.Sizes, sizeBoost).id
 	local mutation = mutationId or rollVariant(RarityConfig.Mutations).id
 
 	return {
@@ -383,7 +520,11 @@ local function makeInstance(
 		baseIncome = def.income,
 		finalIncome = RarityConfig.finalIncome(def.income, size, mutation),
 		jackpot = def.jackpot,
+		-- ONE roll inside the tier's visual range, kept for the instance's life
+		-- and written onto the trophy when it is placed.
+		visualScale = RarityConfig.rollVisualScale(size),
 		state = "Spawned",
+		interactRange = GameConfig.STEAL_INTERACTION_RANGE,
 	}
 end
 
@@ -542,6 +683,11 @@ function LootService.returnToOrigin(loot: LootInstance, delay: number?)
 		local socket = LootService.getSocket(loot.zoneIndex, loot.socketIndex)
 		if socket and not socket.loot then
 			loot.state = "Spawned"
+			-- Back in its socket it is a fresh steal for whoever takes it next:
+			-- the one-shot escape / safe notices (and the escape sting they
+			-- gate) belong to the run that just ended, not to the instance.
+			loot.escapeNotice = nil
+			loot.deliveredNotice = nil
 			materialise(socket, loot)
 		else
 			-- Origin was refilled while we were away; retire this instance.
@@ -646,13 +792,42 @@ function LootService.rollJackpot(): LootInstance?
 	return LootService.injectJackpot()
 end
 
+--- Every instance currently sitting in a socket, for the post-refresh
+--- spotlight: the announcer inspects what was ACTUALLY generated and never
+--- invents a spawn.
+function LootService.spawnedLoot(): { LootInstance }
+	local list = {}
+	for zoneIndex = 1, ZoneConfig.COUNT do
+		for _, socket in sockets[zoneIndex] or {} do
+			local loot = socket.loot
+			if loot and loot.state == "Spawned" then
+				table.insert(list, loot)
+			end
+		end
+	end
+	return list
+end
+
 --- The global world reroll.
 ---
 --- Carried, reserved, dropped and returning loot is untouched: a player
 --- mid-escape must never have their prize vanish, and a placed trophy is no
 --- longer world state at all. Only items sitting quietly in a socket are
 --- rerolled, and every empty socket is filled.
-function LootService.refreshAll(): RefreshReport
+---
+--- `boosts`, when given, lean the rolls for THIS refresh only (the Night
+--- refresh) and are removed before returning - even if a roll errors.
+function LootService.refreshAll(boosts: RollBoosts?): RefreshReport
+	LootService.setRollBoosts(boosts)
+	local ok, result = pcall(LootService.refreshAllUnboosted)
+	LootService.setRollBoosts(nil)
+	if not ok then
+		error(result)
+	end
+	return result
+end
+
+function LootService.refreshAllUnboosted(): RefreshReport
 	local report: RefreshReport = { rerolled = 0, filled = 0, preservedInSocket = 0 }
 
 	for zoneIndex = 1, ZoneConfig.COUNT do
@@ -697,7 +872,7 @@ function LootService.snapshot(): { [string]: any }
 		for _, socket in sockets[zoneIndex] or {} do
 			local loot = socket.loot
 			table.insert(rows, if loot
-				then `{loot.name} [{loot.rarity}] {loot.size}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state}){if loot.jackpot then " JACKPOT" else ""}`
+				then `{loot.name} [{loot.rarity}] {loot.size}x{loot.visualScale}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state}){if loot.jackpot then " JACKPOT" else ""}`
 				else "<empty>")
 		end
 		out[ZoneConfig.Zones[zoneIndex].id] = rows
@@ -760,20 +935,10 @@ function LootService.start()
 		end
 	end
 
-	-- The ONLY thing that refills a socket. No per-socket timer exists.
-	task.spawn(function()
-		while true do
-			task.wait(GameConfig.GLOBAL_REFRESH_INTERVAL - GameConfig.GLOBAL_REFRESH_WARNING)
-			LootService.refreshWarning()
-			task.wait(GameConfig.GLOBAL_REFRESH_WARNING)
-			LootService.refreshAll()
-		end
-	end)
-
+	-- THE ONLY THING THAT REFILLS A SOCKET is the Night refresh, and NightService
+	-- owns that cadence (NightConfig.CYCLE_SECONDS). There is no per-socket
+	-- timer and no second clock in here.
 	print(`[LootService] {ZoneConfig.COUNT} zones x {ZoneConfig.SOCKETS_PER_ZONE} sockets filled`)
 end
-
---- Overridden by StateService wiring in init so LootService stays dependency-free.
-function LootService.refreshWarning() end
 
 return LootService

@@ -15,6 +15,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -155,6 +156,14 @@ end
 -- ATTACH / DETACH
 -- ==========================================================
 
+--- Where a carried item rides. Up to a Giant it is held in front, as it always
+--- was. Anything bigger is hoisted OVERHEAD: the model's lowest point sits just
+--- above the head, so a Titan or Colossal - shown at RarityConfig.carryVisualScale,
+--- a compressed but still enormous size - towers above the player instead of
+--- filling the camera, and the player can see where they are running.
+local CARRY_FRONT_OFFSET = CFrame.new(0, 0.5, -3.5)
+local CARRY_OVERHEAD_CLEARANCE = 2.6
+
 local function attach(player: Player, loot: LootService.LootInstance): boolean
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -163,7 +172,7 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 		return false
 	end
 
-	local prompt = model.PrimaryPart:FindFirstChildWhichIsA("ProximityPrompt")
+	local prompt = LootService.promptOf(loot)
 	if prompt then
 		prompt.Enabled = false
 	end
@@ -178,11 +187,36 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 			descendant.Anchored = false
 			descendant.CanCollide = false
 			descendant.Massless = true
+			-- The camera's occlusion popper raycasts against CanQuery parts. A
+			-- big item behind the player would otherwise zoom the camera into
+			-- their back on every turn.
+			descendant.CanQuery = false
 		end
 	end
 
+	-- PRESENTATION SCALE. The world model is built at the item's true visual
+	-- scale; the carry shows the compressed one. Applied RELATIVE, remembered
+	-- on the instance, and undone exactly by detach() - so it can never leak
+	-- into the saved size, the income, or the next build.
+	local shown = RarityConfig.carryVisualScale(loot.visualScale)
+	local factor = if loot.visualScale > 0 then shown / loot.visualScale else 1
+	if math.abs(factor - 1) > 0.001 then
+		model:ScaleTo(model:GetScale() * factor)
+		loot.carryScale = factor
+	else
+		loot.carryScale = nil
+	end
+
 	model.Parent = character
-	model:PivotTo(root.CFrame * CFrame.new(0, 0.5, -3.5))
+	if loot.visualScale > RarityConfig.CARRY_SCALE_KNEE then
+		-- Overhead: centre it over the player, lowest point just above the head.
+		model:PivotTo(root.CFrame)
+		local minCorner = select(1, LootModel.worldExtents(model))
+		local lift = if minCorner then (root.Position.Y + CARRY_OVERHEAD_CLEARANCE) - minCorner.Y else CARRY_OVERHEAD_CLEARANCE
+		model:PivotTo(root.CFrame * CFrame.new(0, lift, -1))
+	else
+		model:PivotTo(root.CFrame * CARRY_FRONT_OFFSET)
+	end
 
 	local weld = Instance.new("WeldConstraint")
 	weld.Name = "CarryWeld"
@@ -209,7 +243,15 @@ local function detach(loot: LootService.LootInstance)
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = true
 			descendant.Massless = false
+			descendant.CanQuery = true
 		end
+	end
+
+	-- Back to the world scale, by exactly the factor attach() applied.
+	local factor = loot.carryScale
+	if factor and factor > 0 then
+		model:ScaleTo(model:GetScale() / factor)
+		loot.carryScale = nil
 	end
 end
 
@@ -247,18 +289,25 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 		return "You are already carrying something!"
 	end
 
+	if LootService.isClosed() then
+		return LootService.closedReason()
+	end
+
 	if loot.state ~= "Spawned" then
 		return "Someone beat you to it!"
 	end
 
 	local model = loot.model
-	if not model or not model.PrimaryPart then
+	local reach = LootService.interactionPart(loot)
+	if not model or not model.PrimaryPart or not reach then
 		return "That item is gone."
 	end
 
-	-- Never trust the prompt's own distance check alone.
-	local distance = (root.Position - model.PrimaryPart.Position).Magnitude
-	if distance > GameConfig.STEAL_INTERACTION_RANGE * 1.6 then
+	-- Never trust the prompt's own distance check alone. Measured to the same
+	-- part the prompt sits on, with the same range the prompt was given, so a
+	-- giant's ground anchor and its wide footprint count the same way here.
+	local distance = (root.Position - reach.Position).Magnitude
+	if distance > loot.interactRange * 1.6 then
 		return "Too far away."
 	end
 
@@ -362,6 +411,15 @@ function CarryService.forceDrop(loot: LootService.LootInstance)
 
 	local model = loot.model
 	local position = if model and model.PrimaryPart then model.PrimaryPart.Position else nil
+	local floorY: number? = nil
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		-- Where the CARRIER stands, not where the model's pivot happens to be: an
+		-- overhead Colossal's pivot is twenty studs up.
+		position = root.Position
+		floorY = root.Position.Y - 3
+	end
 
 	detach(loot)
 	clearCarry(player)
@@ -370,9 +428,15 @@ function CarryService.forceDrop(loot: LootService.LootInstance)
 	if model and position then
 		model.Parent = workspace
 		model:PivotTo(CFrame.new(position + Vector3.new(0, 2, 0)))
-		local prompt = model.PrimaryPart and model.PrimaryPart:FindFirstChildWhichIsA("ProximityPrompt")
+		-- Feet on the floor, whatever its pivot: a dropped Colossal must not be
+		-- left half underground or hanging in the air.
+		local minCorner = select(1, LootModel.worldExtents(model))
+		if minCorner and floorY then
+			model:PivotTo(model:GetPivot() + Vector3.new(0, floorY - minCorner.Y, 0))
+		end
+		local prompt = LootService.promptOf(loot)
 		if prompt then
-			prompt.Enabled = true
+			prompt.Enabled = not LootService.isClosed()
 			prompt.ActionText = "Grab"
 		end
 	end
@@ -396,6 +460,10 @@ function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInsta
 	end
 	if carrying[player] then
 		notify(player, "error", "You are already carrying something!")
+		return false
+	end
+	if LootService.isClosed() then
+		notify(player, "error", LootService.closedReason())
 		return false
 	end
 	if BaseService.isFull(player) then
@@ -488,10 +556,9 @@ function CarryService.start()
 
 	LootService.onStateChanged(function(loot, _previous, next)
 		if next == "Spawned" then
-			local model = loot.model
-			local prompt = model and model.PrimaryPart and model.PrimaryPart:FindFirstChildWhichIsA("ProximityPrompt")
+			local prompt = LootService.promptOf(loot)
 			if prompt then
-				prompt.Enabled = true
+				prompt.Enabled = not LootService.isClosed()
 				prompt.ActionText = "Steal"
 			end
 		end

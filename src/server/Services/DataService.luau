@@ -26,8 +26,13 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
-local SCHEMA_VERSION = 5
+local SCHEMA_VERSION = 6
 local STORE_NAME = "PlayerProfiles_v1"
+
+--- The longest a growth value may claim. NightService caps growth at
+--- NightConfig.GROWTH_FULL_SECONDS; this is only the sanity bound a corrupt
+--- save is clamped to on load.
+local GROWTH_SECONDS_SANITY = 86400
 
 local DataService = {}
 
@@ -41,6 +46,12 @@ export type DisplayItem = {
 	BaseIncome: number,
 	FinalIncome: number,
 	SlotIndex: number,
+	--- The exact visual scale rolled inside the Size tier when the instance
+	--- spawned (v6). Absent on older saves; reconcile fills the tier's default.
+	VisualScale: number?,
+	--- Seconds of effective growth accrued while on display (v6). Capped by
+	--- NightService; drives the maturity income/size bonus.
+	GrowthSeconds: number?,
 }
 
 export type Profile = {
@@ -59,7 +70,16 @@ export type Profile = {
 	Inventory: { DisplayItem }, -- stored, not earning; SlotIndex is unused here
 	StorageTier: number,
 	Lifetime: { Steals: number, PvPSteals: number, Secrets: number, CashEarned: number },
-	Settings: { ReducedVFX: boolean, ScreenShake: boolean },
+	--- The Settings panel. Volumes are 0-1 mixer levels; Shadows drives
+	--- Lighting.GlobalShadows on the client; ReducedVFX is the Reduced Effects
+	--- switch (no pop-ins, bobbing, breathing, sparkles or lighting tweens).
+	Settings: {
+		ReducedVFX: boolean,
+		ScreenShake: boolean,
+		MusicVolume: number?,
+		SfxVolume: number?,
+		Shadows: boolean?,
+	},
 	-- Robux purchase ids already granted. This MUST be durable: ProcessReceipt is
 	-- retried across sessions and servers, so an in-memory set would re-grant a
 	-- replayed receipt after a rejoin. Bounded - see MonetizationService.
@@ -109,7 +129,7 @@ local function defaultProfile(): Profile
 		Inventory = {},
 		StorageTier = 0,
 		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0 },
-		Settings = { ReducedVFX = false, ScreenShake = true },
+		Settings = { ReducedVFX = false, ScreenShake = true, MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true },
 		ProcessedReceipts = {},
 		TutorialBridgeGranted = false,
 		TrailsOwned = {},
@@ -180,7 +200,29 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 5
 	end
 
-	-- Future migrations chain here: if version < 6 then ... end
+	if version < 6 then
+		-- v6 adds the exact visual scale and the growth clock to every saved item.
+		-- An old item never rolled a scale, so it gets its tier's low end (what it
+		-- was shown at until now - no saved collection changes size), and starts
+		-- its growth from zero. Additive: nothing else on the item is touched.
+		for _, list in { profile.DisplayItems, profile.Inventory } do
+			if type(list) == "table" then
+				for _, item in list do
+					if type(item) == "table" then
+						if type(item.VisualScale) ~= "number" then
+							item.VisualScale = RarityConfig.defaultVisualScale(item.Size)
+						end
+						if type(item.GrowthSeconds) ~= "number" then
+							item.GrowthSeconds = 0
+						end
+					end
+				end
+			end
+		end
+		profile.SchemaVersion = 6
+	end
+
+	-- Future migrations chain here: if version < 7 then ... end
 
 	return profile
 end
@@ -212,6 +254,25 @@ local function reconcileItem(item: DisplayItem): boolean
 	end
 	if type(item.Size) ~= "string" or not RarityConfig.SizeById[item.Size] then
 		item.Size = "Normal"
+		changed = true
+	end
+
+	-- The visual scale must be a finite number INSIDE its tier's range; a save
+	-- cannot carry a 200x Normal. A missing value is the tier's low end.
+	local visual = RarityConfig.clampVisualScale(item.Size, item.VisualScale)
+	if item.VisualScale ~= visual then
+		item.VisualScale = visual
+		changed = true
+	end
+
+	-- Growth is seconds, finite, non-negative, and never absurd.
+	local growth = tonumber(item.GrowthSeconds) or 0
+	if growth ~= growth or growth == math.huge or growth == -math.huge then
+		growth = 0
+	end
+	growth = math.clamp(growth, 0, GROWTH_SECONDS_SANITY)
+	if item.GrowthSeconds ~= growth then
+		item.GrowthSeconds = growth
 		changed = true
 	end
 
@@ -282,6 +343,29 @@ local function reconcile(profile: Profile): Profile
 	-- is no longer awarded. The field is kept so old saves still load cleanly.
 	if type(profile.TutorialBridgeGranted) ~= "boolean" then
 		profile.TutorialBridgeGranted = true
+	end
+
+	-- Settings: every field present, typed and in range, whatever the save says.
+	if type(profile.Settings) ~= "table" then
+		profile.Settings = defaults.Settings
+	end
+	local settings = profile.Settings
+	local function level(value: any, fallback: number): number
+		if type(value) ~= "number" or value ~= value then
+			return fallback
+		end
+		return math.clamp(value, 0, 1)
+	end
+	settings.MusicVolume = level(settings.MusicVolume, 0.7)
+	settings.SfxVolume = level(settings.SfxVolume, 0.8)
+	if type(settings.Shadows) ~= "boolean" then
+		settings.Shadows = true
+	end
+	if type(settings.ReducedVFX) ~= "boolean" then
+		settings.ReducedVFX = false
+	end
+	if type(settings.ScreenShake) ~= "boolean" then
+		settings.ScreenShake = true
 	end
 
 	-- Trails. Only CASH unlocks live here; Robux trails are answered by Roblox

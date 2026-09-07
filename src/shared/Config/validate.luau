@@ -22,6 +22,7 @@ local ZoneConfig = require(script.Parent.ZoneConfig)
 local BaseConfig = require(script.Parent.BaseConfig)
 local TreadmillConfig = require(script.Parent.TreadmillConfig)
 local GameConfig = require(script.Parent.GameConfig)
+local NightConfig = require(script.Parent.NightConfig)
 
 type Report = { passed: number, failed: { string } }
 
@@ -198,6 +199,49 @@ return function(): Report
 		check(math.abs(sum - 100) < 0.001, `{label} chances total {sum}, expected 100`)
 	end
 
+	-- The size ladder: six tiers, weakest first, each visibly bigger than the
+	-- last, with the top two carrying a range and the top one genuinely absurd.
+	check(#RarityConfig.Sizes == 6, `expected 6 size tiers, got {#RarityConfig.Sizes}`)
+	check(RarityConfig.Sizes[6].id == "Colossal", "the last size tier must be Colossal")
+	do
+		local previousTop = 0
+		for _, size in RarityConfig.Sizes do
+			local low = size.scale or 1
+			local high = size.scaleMax or low
+			check(low >= previousTop, `size {size.id} (x{low}) must not be smaller than the tier below (x{previousTop})`)
+			check(high >= low, `size {size.id}: scaleMax {high} is below scale {low}`)
+			previousTop = high
+		end
+		local colossal = RarityConfig.SizeById.Colossal
+		check(colossal ~= nil and (colossal.scale or 0) >= 15, "a Colossal must be at least 15x the authored model")
+		check(colossal ~= nil and (colossal.scaleMax or 0) <= 20, "a Colossal must not exceed 20x the authored model")
+		local giantShare = 0
+		for _, size in RarityConfig.Sizes do
+			if RarityConfig.sizeRank(size.id) >= RarityConfig.sizeRank("Giant") then
+				giantShare += size.chance
+			end
+		end
+		check(math.abs(giantShare - 2) < 0.001, `Giant+Titan+Colossal must total the original 2%, got {giantShare}`)
+		-- Visual scale never drives income: a 20x model earns 6x, not 20x.
+		check(colossal ~= nil and colossal.multiplier <= 6, "Colossal income multiplier must stay at x6")
+		-- No penalty may make a player unusably slow.
+		for _, size in RarityConfig.Sizes do
+			check((size.movePenalty or 0) <= 0.25, `size {size.id} move penalty must not exceed 25%`)
+		end
+	end
+
+	-- The Night cycle owns the world's refresh cadence.
+	check(NightConfig.CYCLE_SECONDS == 240, `the Night cycle must be 240s, got {NightConfig.CYCLE_SECONDS}`)
+	check(NightConfig.NIGHT_SECONDS == 10, `the Night closure must be 10s, got {NightConfig.NIGHT_SECONDS}`)
+	check(NightConfig.NIGHT_SECONDS < NightConfig.CYCLE_SECONDS, "Night must be shorter than the cycle")
+	check(
+		GameConfig.GLOBAL_REFRESH_INTERVAL == NightConfig.CYCLE_SECONDS,
+		"GameConfig.GLOBAL_REFRESH_INTERVAL must mirror NightConfig.CYCLE_SECONDS"
+	)
+	check(RarityConfig.Rank[NightConfig.REFRESH_RARITY_BOOST_MIN] ~= nil, "REFRESH_RARITY_BOOST_MIN must be a real rarity")
+	check(RarityConfig.SizeRank[NightConfig.REFRESH_SIZE_BOOST_MIN] ~= nil, "REFRESH_SIZE_BOOST_MIN must be a real size")
+	check(RarityConfig.SizeRank[NightConfig.SPOTLIGHT_MIN_SIZE] ~= nil, "SPOTLIGHT_MIN_SIZE must be a real size")
+
 	-- ==========================================================
 	-- CAPACITY AND TREADMILL LADDERS
 	-- ==========================================================
@@ -323,7 +367,6 @@ return function(): Report
 		ZoneConfig.GUARDIAN_DEFICIT_CATCHUP > 0,
 		"the deficit catch-up must be positive or an under-Speed thief is never caught"
 	)
-	check(GameConfig.GLOBAL_REFRESH_INTERVAL == 300, "the global refresh must run every 300s")
 	check(
 		math.abs(GameConfig.JACKPOT_REFRESH_CHANCE - 0.10) < 1e-9,
 		`the jackpot refresh chance must be 0.10, got {GameConfig.JACKPOT_REFRESH_CHANCE}`

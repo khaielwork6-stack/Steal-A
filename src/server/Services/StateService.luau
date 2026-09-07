@@ -129,6 +129,9 @@ local function build(player: Player): ClientState?
 		carrying = if carryProvider then carryProvider(player) else nil,
 		monetization = if monetizationProvider then monetizationProvider(player) else nil,
 		groupGift = if groupGiftProvider then groupGiftProvider(player) else nil,
+		-- The saved Settings, so the panel and the mixer restore on join without
+		-- a request. Written only through SettingsService.
+		settings = profile.Settings,
 		inventory = profile.Inventory,
 		storageUsed = #profile.Inventory,
 		storageCapacity = StorageConfig.capacityForTier(profile.StorageTier),

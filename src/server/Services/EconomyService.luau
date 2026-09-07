@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local IndexConfig = require(ReplicatedStorage.Shared.Config.IndexConfig)
+local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
 local DataService = require(script.Parent.DataService)
 
 local EconomyService = {}
@@ -45,8 +46,14 @@ function EconomyService.recalculate(player: Player): number
 
 	local total = 0
 	for _, item in profile.DisplayItems do
-		total += item.FinalIncome
+		-- Maturity. A trophy that has been on display for a while earns a
+		-- little more (NightConfig.GROWTH_INCOME_BONUS at full growth). Applied
+		-- to the AGGREGATE from the saved growth seconds, so the item's own
+		-- FinalIncome stays the config value and nothing is baked into the save.
+		local growth = math.clamp((tonumber(item.GrowthSeconds) or 0) / NightConfig.GROWTH_FULL_SECONDS, 0, 1)
+		total += item.FinalIncome * (1 + NightConfig.GROWTH_INCOME_BONUS * growth)
 	end
+	total = math.floor(total)
 
 	-- Completed Index sets. Reading it from the config keeps the reward defined in
 	-- one place, and applying it here means it lands on the aggregate rather than

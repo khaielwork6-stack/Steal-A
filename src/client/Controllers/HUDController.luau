@@ -182,7 +182,9 @@ function HUDController.start()
 	end)
 
 	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string, detail: string?)
-		ToastController.show(kind, message)
+		-- `detail` doubles as the toast's style tag (night / refresh / spotlight:*);
+		-- ToastController ignores tags it does not know.
+		ToastController.show(kind, message, if type(detail) == "string" then detail else nil)
 
 		-- `detail` lets the server ask for a world effect without needing to know
 		-- what the effect is. Gold for anything bought, blue for an unlock.

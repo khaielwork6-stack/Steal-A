@@ -93,6 +93,9 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		BaseIncome = loot.baseIncome,
 		FinalIncome = loot.finalIncome,
 		SlotIndex = slotIndex,
+		-- The instance's own rolled scale travels with it; growth starts now.
+		VisualScale = loot.visualScale,
+		GrowthSeconds = 0,
 	})
 
 	-- Discovery fires only on a successful placement (GDD section 13).
@@ -530,7 +533,8 @@ function PlacementService.refreshUpgradeSign(player: Player)
 	-- Read straight from the same source the purchase validates against.
 	local next = BaseConfig.nextUpgrade(profile.BaseCapacityTier)
 	if next then
-		progress.Text = `Level {profile.BaseCapacityTier + 1} > Level {next.tier + 1}`
+		-- Next level, and what it unlocks: the slot count the tier brings.
+		progress.Text = `Level {profile.BaseCapacityTier + 1} > Level {next.tier + 1}  ·  {next.slots} slots`
 		progress.TextColor3 = MapPalette.SignProgress
 		price.Text = NumberFormat.cash(next.cost)
 		icon.Text = "▲"
@@ -588,32 +592,9 @@ function PlacementService.refreshPrompts(player: Player)
 		local occupied = slot:FindFirstChild("Trophy") ~= nil
 		local isUnlocked = index <= unlocked
 
-		-- SLOT LOOK. These used to be near-white 20x20 pads at 0.55 transparency,
-		-- fourteen per plot - a grid of blown-out white rectangles that washed the
-		-- whole base out. Now a dark slate pad with a bright rim: still obviously
-		-- a place to put something, without glowing. A locked slot is dimmer and
-		-- greyed, so capacity reads at a glance.
-		--
-		-- Applied here rather than at map-build time because the map is baked into
-		-- the place file; doing it at runtime restyles the plots already saved
-		-- there without anybody having to rebuild the world.
-		slot.Color = if isUnlocked then MapPalette.DisplaySlot else MapPalette.DisplaySlotLocked
-		slot.Material = Enum.Material.SmoothPlastic
-		slot.Transparency = if isUnlocked then 0.15 else 0.45
-		slot.CastShadow = false
-
-		local rim = slot:FindFirstChildOfClass("SelectionBox")
-		if not rim then
-			local created = Instance.new("SelectionBox")
-			created.Name = "SlotRim"
-			created.Adornee = slot
-			created.LineThickness = 0.06
-			created.SurfaceTransparency = 1
-			created.Parent = slot
-			rim = created
-		end
-		rim.Color3 = if isUnlocked then MapPalette.DisplaySlotRim else MapPalette.DisplaySlotLockedRim
-		rim.Transparency = if isUnlocked then 0.15 else 0.6
+		-- The slot's LOOK (pad, neon frame, pedestal) is BaseService's: it is
+		-- drawn from the profile in rebuildDisplays, which fires this refresh.
+		-- Only the prompt is owned here.
 
 		local p = prompt :: ProximityPrompt
 		p:SetAttribute("ServerEnabled", isUnlocked)

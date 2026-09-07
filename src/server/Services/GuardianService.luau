@@ -35,6 +35,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 
 local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
@@ -60,6 +61,8 @@ type Guardian = {
 	--- Roblox's own walk cycle on a rigged costume; nil for props and custom
 	--- rigs, which keep the procedural run in animateShell.
 	walkTrack: AnimationTrack?,
+	--- The stock idle, played while a rigged costume sleeps at its post.
+	idleTrack: AnimationTrack?,
 	--- Studs per second this costume covers at walk-cycle playback rate 1:
 	--- the Animate script's reference speed scaled by the costume's height,
 	--- so a forty-stud boss takes long strides instead of blurring its feet.
@@ -758,6 +761,26 @@ function GuardianService.stopChaseFor(loot: LootService.LootInstance)
 	end
 end
 
+--- Night: every chase ends this instant and every guardian is back asleep on
+--- its post - not walking home, HOME - with every thief's warning cleared.
+--- Nothing else about the chase state machine is touched.
+function GuardianService.resetAll()
+	for _, guardian in guardians do
+		if guardian.state == "Sleeping" then
+			continue
+		end
+		setChased(guardian.target, false)
+		guardian.target = nil
+		guardian.lootId = nil
+		guardian.wakeAt = nil
+		resetSteering(guardian)
+		if guardian.humanoid then
+			guardian.humanoid:Move(Vector3.zero, false)
+		end
+		enterSleep(guardian)
+	end
+end
+
 -- ==========================================================
 -- CATCH
 -- ==========================================================
@@ -787,23 +810,7 @@ end
 ---
 --- Called after the model is in workspace: LoadAnimation refuses a rig that is
 --- not yet a descendant of the DataModel.
-local function prepareWalk(model: Model): (AnimationTrack?, number)
-	local shell = model:FindFirstChild("Shell")
-	if not shell or shell:GetAttribute("Rigged") ~= true then
-		return nil, 1
-	end
-	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)
-	local animator = if humanoid then humanoid:FindFirstChildOfClass("Animator") else nil
-	if not humanoid or not animator then
-		return nil, 1
-	end
-
-	local rigType = humanoid.RigType.Name
-	local id = GameConfig.GUARDIAN_WALK_ANIMATIONS[rigType]
-	if not id then
-		return nil, 1
-	end
-
+local function loadTrack(animator: Animator, id: string, priority: Enum.AnimationPriority, label: string): AnimationTrack?
 	local animation = Instance.new("Animation")
 	animation.AnimationId = id
 	local ok, track = pcall(function()
@@ -811,16 +818,41 @@ local function prepareWalk(model: Model): (AnimationTrack?, number)
 	end)
 	animation:Destroy()
 	if not ok or not track then
-		warn(`[GuardianService] could not load the {rigType} walk cycle for {model.Name}: {track}`)
-		return nil, 1
+		warn(`[GuardianService] could not load the {label}: {track}`)
+		return nil
+	end
+	track.Priority = priority
+	track.Looped = true
+	return track
+end
+
+local function prepareWalk(model: Model): (AnimationTrack?, AnimationTrack?, number)
+	local shell = model:FindFirstChild("Shell")
+	if not shell or shell:GetAttribute("Rigged") ~= true then
+		return nil, nil, 1
+	end
+	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)
+	local animator = if humanoid then humanoid:FindFirstChildOfClass("Animator") else nil
+	if not humanoid or not animator then
+		return nil, nil, 1
 	end
 
-	track.Priority = Enum.AnimationPriority.Movement
-	track.Looped = true
+	local rigType = humanoid.RigType.Name
+	local walkId = GameConfig.GUARDIAN_WALK_ANIMATIONS[rigType]
+	if not walkId then
+		return nil, nil, 1
+	end
+
+	local walk = loadTrack(animator, walkId, Enum.AnimationPriority.Movement, `{rigType} walk cycle for {model.Name}`)
+	if not walk then
+		return nil, nil, 1
+	end
+	local idleId = GameConfig.GUARDIAN_IDLE_ANIMATIONS[rigType]
+	local idle = if idleId then loadTrack(animator, idleId, Enum.AnimationPriority.Idle, `{rigType} idle for {model.Name}`) else nil
 
 	local height = tonumber(model:GetAttribute("Height")) or STANDARD_RIG_HEIGHT
 	local reference = WALK_REFERENCE_SPEED[rigType] or 16
-	return track, reference * math.max(height / STANDARD_RIG_HEIGHT, 0.5)
+	return walk, idle, reference * math.max(height / STANDARD_RIG_HEIGHT, 0.5)
 end
 
 --- Poses the imported costume.
@@ -843,15 +875,25 @@ local function animateShell(guardian: Guardian, now: number)
 
 	local state = guardian.state
 	local track = guardian.walkTrack
+	local idle = guardian.idleTrack
 
 	if state == "Sleeping" then
 		if track and track.IsPlaying then
 			track:Stop(0.25)
 		end
+		-- A rigged costume dozes with the stock idle under the slump, so it
+		-- shifts its weight instead of standing frozen at its post.
+		if idle and not idle.IsPlaying then
+			idle:Play(0.4)
+		end
 		-- Slumped forward, breathing slowly.
 		local breathe = math.sin(now * 1.5) * 0.07
 		motor.C0 = CFrame.new(0, breathe, 0) * CFrame.Angles(math.rad(14), 0, 0)
 		return
+	end
+
+	if idle and idle.IsPlaying then
+		idle:Stop(0.15)
 	end
 
 	if state == "Waking" then
@@ -968,10 +1010,10 @@ local function step(dt: number)
 		-- not required to bury its own model in the player before it registers.
 		local distance = (root.Position - targetRoot.Position).Magnitude
 		if distance <= guardian.catchRadius and not GuardianService.isStunned(target) then
-			-- ONE hit cue, never both. A boss landing a hit plays the heavy
-			-- reaction INSTEAD of the regular one, so they cannot stack.
-			local zone = ZoneConfig.Zones[guardian.zoneIndex]
-			Audio.playAt(if zone and zone.isBoss then "BossHit" else "NpcCatch", root)
+			-- ONE hit cue, never two: this guardian's own catch sound (each of
+			-- the twelve has one, see AudioConfig.GuardianHits), falling back
+			-- to the boss / regular reaction if a zone has none.
+			Audio.playAt(AudioConfig.guardianHitCue(guardian.zoneIndex), root)
 
 			ragdollAndLaunch(target, root.Position)
 			onCatch(loot)
@@ -1048,9 +1090,10 @@ function GuardianService.start()
 		guardian.root = root
 		local motor = root:FindFirstChild("ShellMotor")
 		guardian.shellMotor = if motor and motor:IsA("Weld") then motor else nil
-		-- Roblox's walk cycle, on the costumes that have a skeleton for it.
-		local walkTrack, walkSpeedPerRate = prepareWalk(model)
+		-- Roblox's walk and idle cycles, on the costumes that have a skeleton.
+		local walkTrack, idleTrack, walkSpeedPerRate = prepareWalk(model)
 		guardian.walkTrack = walkTrack
+		guardian.idleTrack = idleTrack
 		guardian.walkSpeedPerRate = walkSpeedPerRate
 		guardians[zoneIndex] = guardian
 

@@ -180,11 +180,26 @@ end
 -- BUILD
 -- ==========================================================
 
+--- The widest a piece of world loot may get, in studs. The lane is 256 wide
+--- and the sockets sit 72 studs off centre, so this is the largest thing that
+--- still fits between a socket and the wall. HEIGHT IS NOT CAPPED: a Colossal
+--- is meant to tower over the walls, and this only ever binds on something
+--- both huge and flat.
+LootModel.WORLD_MAX_FOOTPRINT = 110
+--- The widest a trophy may get on its 20-stud display pad: it may be as tall
+--- as it likes, but it must not swallow the neighbouring exhibits.
+LootModel.TROPHY_MAX_FOOTPRINT = 18
+
 export type BuildOptions = {
 	itemId: string,
 	rarity: string,
 	targetHeight: number,
-	sizeScale: number?, -- the Big/Huge/Giant roll, applied on top
+	--- The item's saved VisualScale (Big 1.35 ... Colossal 15-20), applied on
+	--- top of the height normalisation. Exactly once, on this fresh clone.
+	sizeScale: number?,
+	--- Largest footprint (the wider of X and Z) this context can show. Only
+	--- ever shrinks; never a universal cap.
+	maxFootprint: number?,
 	placeholderSize: Vector3?,
 }
 
@@ -230,28 +245,36 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 	-- Only authored art needs normalising; a placeholder is already the size we
 	-- asked for.
 	local scale = options.sizeScale or 1
-	if isReal then
-		local min, max = LootModel.worldExtents(built)
-		if min and max then
-			local size = max - min
-			local fit = math.huge
+	local min, max = LootModel.worldExtents(built)
+	if isReal and min and max then
+		local size = max - min
+		local fit = math.huge
 
-			-- Height is the primary target...
-			if size.Y > 0.01 then
-				fit = options.targetHeight / size.Y
-			end
+		-- Height is the primary target...
+		if size.Y > 0.01 then
+			fit = options.targetHeight / size.Y
+		end
 
-			-- ...but a flat, wide object must not be blown up sideways to reach it.
-			-- The crown is 1.25 wide by 0.51 tall as authored: matching its HEIGHT
-			-- to 5 studs made it 12 studs across, wider than the pedestal.
-			local widest = math.max(size.X, size.Z)
-			if widest > 0.01 then
-				fit = math.min(fit, (options.targetHeight * LootModel.MAX_WIDTH_RATIO) / widest)
-			end
+		-- ...but a flat, wide object must not be blown up sideways to reach it.
+		-- The crown is 1.25 wide by 0.51 tall as authored: matching its HEIGHT
+		-- to 5 studs made it 12 studs across, wider than the pedestal.
+		local widest = math.max(size.X, size.Z)
+		if widest > 0.01 then
+			fit = math.min(fit, (options.targetHeight * LootModel.MAX_WIDTH_RATIO) / widest)
+		end
 
-			if fit < math.huge then
-				scale *= fit
-			end
+		if fit < math.huge then
+			scale *= fit
+		end
+	end
+
+	-- The context's footprint limit. Applied to the FINAL scale, size roll
+	-- included, and only ever downward: a Colossal barrel is still a tower, a
+	-- Colossal carpet is as wide as the lane allows.
+	if options.maxFootprint and min and max then
+		local widest = math.max(max.X - min.X, max.Z - min.Z) * scale
+		if widest > options.maxFootprint and widest > 0.01 then
+			scale *= options.maxFootprint / widest
 		end
 	end
 
@@ -259,6 +282,26 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 		-- RELATIVE. ScaleTo is absolute, and cloned assets often carry a scale
 		-- of their own already.
 		built:ScaleTo(built:GetScale() * scale)
+	end
+	-- What this build applied, so a later in-place adjustment (growth) can be
+	-- expressed relative to it instead of compounding on an unknown base.
+	built:SetAttribute("BuiltScale", built:GetScale())
+
+	-- Hold the pieces together. A multi-part import (a throne, a barbell, the
+	-- four-part plasma) is only ever anchored on a pedestal, but a CARRY
+	-- unanchors it and welds the PrimaryPart alone to the player - so anything
+	-- not welded to that part was left behind or fell through the floor.
+	local primary = built.PrimaryPart
+	if primary then
+		for _, descendant in built:GetDescendants() do
+			if descendant:IsA("BasePart") and descendant ~= primary then
+				local weld = Instance.new("WeldConstraint")
+				weld.Name = "LootWeld"
+				weld.Part0 = primary
+				weld.Part1 = descendant
+				weld.Parent = primary
+			end
+		end
 	end
 
 	return built, isReal

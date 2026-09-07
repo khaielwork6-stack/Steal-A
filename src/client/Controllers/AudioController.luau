@@ -95,7 +95,11 @@ local function hookPanel(frame: GuiObject)
 	end
 	frame:SetAttribute("_AudioHooked", true)
 	frame:GetPropertyChangedSignal("Visible"):Connect(function()
-		Audio.play("UiToggle")
+		-- OPENING only. A close is silent, and a refused action never comes
+		-- through here at all (it is a Notify "error", which is UiDenied).
+		if frame.Visible then
+			Audio.play("UiOpen")
+		end
 	end)
 end
 
@@ -209,8 +213,27 @@ function AudioController.start()
 			return
 		end
 		pendingGenericToken += 1
+		-- The escape sting is sequenced by ChaseAudioController (stop the
+		-- chase music, sting, then the safe-zone cue); playing it here too
+		-- would double it.
+		if name == "EscapeSting" then
+			return
+		end
 		Audio.play(name)
 	end)
+
+	-- Server-made world sounds (snoring, hits, the bat) arrive with no mixer
+	-- group. File them under SFX as they appear so the volume slider owns them.
+	local sfx = Audio.group(Audio.GROUP_SFX)
+	local function adopt(instance: Instance)
+		if instance:IsA("Sound") and sfx and instance.SoundGroup == nil then
+			instance.SoundGroup = sfx
+		end
+	end
+	for _, descendant in workspace:GetDescendants() do
+		adopt(descendant)
+	end
+	workspace.DescendantAdded:Connect(adopt)
 
 	-- Toasts already carry a `detail` tag that drives the world VFX burst, so the
 	-- purchase and unlock cues ride that same tag rather than needing a sound

@@ -21,6 +21,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
@@ -69,7 +70,10 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
-	grant = function(player, itemId: string, size: string?, mutation: string?)
+	--- grant(itemId, size?, mutation?, visualScale?) - an exact scale inside the
+	--- tier's range may be pinned (a 20x Colossal for a screenshot); otherwise
+	--- one is rolled exactly as a real spawn would.
+	grant = function(player, itemId: string, size: string?, mutation: string?, visualScale: number?)
 		local profile = DataService.get(player)
 		if not profile then
 			return { error = "no profile" }
@@ -86,6 +90,9 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		local sizeId = size or "Normal"
 		local mutationId = mutation or "Normal"
 		local final = RarityConfig.finalIncome(def.income, sizeId, mutationId)
+		local scale = if visualScale
+			then RarityConfig.clampVisualScale(sizeId, visualScale)
+			else RarityConfig.rollVisualScale(sizeId)
 
 		table.insert(profile.DisplayItems, {
 			InstanceId = HttpService:GenerateGUID(false),
@@ -97,6 +104,8 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			BaseIncome = def.income,
 			FinalIncome = final,
 			SlotIndex = free[1],
+			VisualScale = scale,
+			GrowthSeconds = 0,
 		})
 		local firstTime = not profile.Index[def.id]
 		profile.Index[def.id] = true
@@ -111,7 +120,98 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			require(script.Parent.IndexService).onDiscovered(player, def.id)
 		end
 
-		return { placed = def.name, slot = free[1], finalIncome = final, totalIncome = income }
+		return { placed = def.name, slot = free[1], finalIncome = final, totalIncome = income, visualScale = scale }
+	end,
+
+	--- Pins an instance of an exact SIZE into a world socket, through the real
+	--- forceSocket path, so Titan and Colossal can be met without waiting for a
+	--- 0.1% roll:   spawnSize(zone, socket, sizeId, itemId?)
+	spawnSize = function(_player, zoneIndex: number, socketIndex: number, sizeId: string?, itemId: string?)
+		local socket = LootService.getSocket(zoneIndex, socketIndex)
+		if not socket then
+			return { error = "no such socket" }
+		end
+		local id = itemId or (socket.loot and socket.loot.itemId) or LootConfig.normalPool(zoneIndex)[1].id
+		local loot = LootService.forceSocket(zoneIndex, socketIndex, id, sizeId or "Colossal", nil)
+		if not loot then
+			return { error = "socket refused (mid-steal?)" }
+		end
+		local model = loot.model
+		local minCorner: Vector3?, maxCorner: Vector3? = nil, nil
+		if model then
+			minCorner, maxCorner = LootModel.worldExtents(model)
+		end
+		local extent = if minCorner and maxCorner then maxCorner - minCorner else Vector3.zero
+		local reach = LootService.interactionPart(loot)
+		return {
+			item = loot.name,
+			size = loot.size,
+			visualScale = loot.visualScale,
+			income = loot.finalIncome,
+			height = extent.Y,
+			footprint = math.max(extent.X, extent.Z),
+			lowestY = if minCorner then minCorner.Y else nil,
+			socketTopY = socket.part.Position.Y + socket.part.Size.Y / 2,
+			promptOn = if reach then reach.Name else "?",
+			promptY = if reach then reach.Position.Y else nil,
+			interactRange = loot.interactRange,
+		}
+	end,
+
+	--- Rolls `trials` sizes with and without the Night lean and reports the
+	--- shares, so the table can be checked against its own percentages.
+	sizeSim = function(_player, trials: number?)
+		local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
+		local n = math.clamp(tonumber(trials) or 100000, 1000, 1000000)
+		local function run(boost)
+			local counts: { [string]: number } = {}
+			for _ = 1, n do
+				local id = LootService.rollSizeId(boost)
+				counts[id] = (counts[id] or 0) + 1
+			end
+			local shares = {}
+			for _, size in RarityConfig.Sizes do
+				shares[size.id] = string.format("%.3f%% (config %.3f%%)", (counts[size.id] or 0) / n * 100, size.chance)
+			end
+			return shares
+		end
+		return { trials = n, normal = run(nil), night = run(NightConfig.sizeBoost) }
+	end,
+
+	--- The Night cycle.
+	---   night()                 status
+	---   night("in", seconds)    make the current Day end in N seconds
+	---   night("begin")          force Night now
+	---   night("end")            force the Night to end now
+	night = function(_player, action: string?, seconds: number?)
+		local NightService = require(script.Parent.NightService)
+		if action == "in" then
+			NightService.setDayRemaining(tonumber(seconds) or 20)
+		elseif action == "begin" then
+			NightService.forceNight()
+		elseif action == "end" then
+			NightService.forceDay()
+		end
+		return NightService.status()
+	end,
+
+	--- Sets the growth clock on a displayed slot's item, to see the maturity
+	--- bonus without waiting twenty minutes:   growth(slotIndex, seconds)
+	growth = function(player, slotIndex: number, seconds: number)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		for _, item in profile.DisplayItems do
+			if item.SlotIndex == slotIndex then
+				item.GrowthSeconds = math.max(0, tonumber(seconds) or 0)
+				BaseService.rebuildDisplays(player)
+				local income = EconomyService.recalculate(player)
+				StateService.pushNow(player)
+				return { item = item.ItemId, growthSeconds = item.GrowthSeconds, growthScale = BaseService.growthScale(item), totalIncome = income }
+			end
+		end
+		return { error = `slot {slotIndex} is empty` }
 	end,
 
 	cash = function(player, amount: number)

@@ -2,9 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §22**, then §21, §20, §19 and §18. Between them they say exactly
-> where the last sessions stopped, what is verified, what is not, and what to
-> pick up. §0 below is still the first thing you must *act* on (§20 moved 61 models
+> **START AT §25** (the STEAL & ESCAPE pass: pedestals, giant sizes, the Night
+> cycle, chase audio, settings, the trail-shop fix), then §22, §21, §20, §19
+> and §18. Between them they say exactly where the last sessions stopped, what
+> is verified, what is not, and what to pick up. §0 below is still the first thing you must *act* on (§20 moved 61 models
 > that live only in the place file); §9's "next steps" list is older than
 > §16–§21 and is superseded by them.
 
@@ -1775,3 +1776,257 @@ with no code change. Only the Cop would then still use the cartoon run.
   stays in `_UnusedImports._ImportedAssets`. A re-imported wheel with a Handle
   dropped in as `Pirate_CursedCoin` (or a new id in that slot) will be picked
   up automatically.
+
+---
+
+## 25. The STEAL & ESCAPE pass — pedestals, giant sizes, Night, chase audio, settings, trail shop
+
+The owner supplied a 17-page brief ("STEAL & ESCAPE — BASE, PEDESTAL, NIGHT &
+GAMEPLAY POLISH") plus six reference images. Everything in it is implemented
+and was exercised live in Studio Play (single player) unless listed under
+25.5. All of it is in the commit after `6a6dab2`. Read this section top to
+bottom before touching any of these systems.
+
+### 25.1 What changed, by system
+
+**Pedestal displays (BaseService, DisplayFxController, MapPalette)**
+- Every occupied display slot now builds `ServerStorage.GameAssets.Pedestal`
+  (the imported union, fitted uniformly to `PEDESTAL_MAX_FOOTPRINT = 8` and
+  `PEDESTAL_HEIGHT = 5`; its rotated pivot is preserved with
+  `PivotTo(CFrame.new(...) * pedestal:GetPivot().Rotation)` — dropping the
+  rotation lays it on its side) with a neon `Accent` ring in the rarity colour.
+  The trophy sits on the accent (`seatTrophy`), footprint-capped at
+  `TROPHY_MAX_FOOTPRINT = 18`.
+- Slots have three states (`styleSlot`: Locked / Empty / Occupied) drawn with a
+  four-part neon `NeonFrame` (colours in `MapPalette.SlotNeon*`, pad colours
+  `MapPalette.SlotPad*`). The old white `SlotRim` glow is gone. Attributes
+  `SlotState`, `NeonColor`, `NeonRest` drive the client.
+- Nameplates are three lines (`buildLabel`): name, "Rarity · Size · Mutation",
+  income. Titan+ trophies get a `SizeSparkle` emitter.
+- The owner sign (`ensureOwnerSign` / `paintOwnerSign`) stands at the slab's
+  front-left corner: real headshot via
+  `Players:GetUserThumbnailAsync(userId, HeadShot, Size150x150)` (pcall,
+  guarded by the `OwnerUserId` attribute so a late thumbnail cannot paint a
+  previous owner), display name, @username, a `YourBase` badge the client
+  shows only on the local player's plot, and a crown from base tier
+  `CROWN_TIER = 4`. Unowned plots read AVAILABLE.
+- `DisplayFxController` (new) is the ONE client animation manager for every
+  trophy: registry by `DescendantAdded` under `Map.Bases` (StreamingEnabled
+  safe), culled beyond `ANIMATE_DISTANCE = 260`, spin `0.55/sqrt(scale)`, bob
+  only for scale <= 2.6, breathing neon on Empty slots, pop-in on first sight,
+  `setReducedEffects` kills the sparkle emitters and the bob.
+- The Upgrade Base sign's progress line now reads
+  "Level 1 > Level 2  ·  8 slots" (PlacementService.refreshUpgradeSign).
+  The button already performed the real upgrade; unchanged.
+
+**Giant items (RarityConfig, LootModel, LootService, CarryService, DataService, EconomyService)**
+- `RarityConfig.Sizes` is now the six-tier ladder the brief asked for:
+  Normal 70 / Big 20 / Huge 8 / Giant 1.5 (x3.5 income, 2.6x scale, 18 %
+  slow) / Titan 0.4 (x4.5, 6–8x, 22 %) / Colossal 0.1 (x6.0, 15–20x, 25 %).
+  Helpers: `sizeRank`, `rollVisualScale` (rolled ONCE at spawn, uniform in
+  [scale, scaleMax], 2 dp), `clampVisualScale`, `carryVisualScale`
+  (knee at 2.6: `2.6 + sqrt(v - 2.6)` above it).
+- The existing relative `Model:ScaleTo` pipeline is kept; the universal 10x
+  cap is gone. Instead: `LootModel.WORLD_MAX_FOOTPRINT = 110` in the world,
+  `TROPHY_MAX_FOOTPRINT = 18` on a pedestal, and the carry knee. Every built
+  model gets `LootWeld` WeldConstraints from the PrimaryPart so a Colossal
+  carry cannot shed parts.
+- `LootInstance.visualScale` is persisted as `DisplayItem.VisualScale`
+  (schema v6 migration fills it from the size default; `reconcileItem`
+  clamps it into the tier's range). `GrowthSeconds` likewise.
+- Tall loot gets a `PromptAnchor` (invisible 2x2x2 part welded above the
+  socket) and `interactRange = max(14, footprint/2 + 10)`; the steal
+  validation measures against that part at `interactRange * 1.6`.
+- Carry: scale > 2.6 rides overhead with its lowest point 2.6 studs above the
+  root (`CARRY_OVERHEAD_CLEARANCE`), `CanQuery = false` while carried; drop
+  seats the lowest point on the floor.
+- Income formula unchanged. Growth during ownership
+  (`NightConfig.GROWTH_*`): +10 % income and +8 % size reached after 20 min of
+  ownership, x5 speed during Night, applied in 10 steps by `applyGrowth`
+  (in-place ScaleTo by the ratio of `GrowthApplied`, re-seated on the accent).
+- `DebugInvoke` gained `spawnSize(zone, socket, sizeId, itemId?)`,
+  `sizeSim(trials)`, `growth(slot, seconds)`, `grant(..., visualScale)`.
+
+**Night (NightConfig, NightService, NightController, LootService, GuardianService)**
+- One authoritative 240 s cycle with a 10 s Night, published as
+  ReplicatedStorage attributes `NightPhase`, `NightCycleStart`,
+  `NightPhaseEndsAt`, `NightCycleSeconds`, `NightSeconds` on
+  `workspace:GetServerTimeNow()`. Clients derive everything from those; no
+  countdown is trusted from a client.
+- `beginNight`: `LootService.setClosed(true)` (every StealPrompt disabled,
+  steals refused with the closed reason), `GuardianService.resetAll()`,
+  `returnEveryone()` (ring of `LOBBY_RING_RADIUS = 12` around
+  `Map.SpawnLocations.LobbySpawn`, facing +Z), "NIGHT — LOOT REFRESHING"
+  toast, then the refresh after `REFRESH_DELAY_SECONDS = 1.5`, guarded by the
+  cycle number so it runs exactly once. Carried items are NOT touched; the
+  carrier keeps them through Night and can place them afterwards (tested).
+- `endNight`: refresh if it somehow has not run, reopen, "All loot refreshed!
+  Go steal something!" fallback, then up to `SPOTLIGHT_MAX = 2` spotlight
+  toasts spaced `SPOTLIGHT_GAP_SECONDS` apart, using the item's real display
+  name and the zone's display name ("...spawned in Grandma's House!"), never
+  "Zone 10".
+- The refresh lean: `LootService.setRollBoosts` multiplies the weights of
+  Legendary+ rarities and Huge+ sizes by 1.5 and renormalises. Pity is
+  disabled (`PITY_ENABLED = false`) as the brief asked; there is no pity code.
+- The old 300 s refresh loop inside LootService is gone; NightService owns
+  the cadence. `GameConfig.GLOBAL_REFRESH_INTERVAL` mirrors
+  `NightConfig.CYCLE_SECONDS` and `validate.luau` asserts they match.
+- `NightController` (new): the compact pill at top-left (calm / warning at
+  15 s / night colours) becomes a centred banner during Night; night lighting
+  and atmosphere are tweened in and the exact day values captured at start
+  are restored after. Warnings at 15 / 10 / 5 s.
+- `GuardianService.resetAll()` clears every chase, target and steering state
+  and puts each guardian back to sleep in place. `DebugInvoke night(in N |
+  begin | end)` and `NightService.status()` drive it for tests.
+
+**Guardians**
+- Zone 5, 7 and 10 now use the owner's imports: `Zone05_ElfGuard` <- "Zone 5
+  Santa" (R6), `Zone07_Bodybuilder` <- "Zone 7 Sam Sulek" (R15),
+  `Zone10_Grandma` <- "Zone 10 Grandma" (R6). The replaced props are parked as
+  `ServerStorage._UnusedImports.Zone0X_*_replaced`.
+- Every rigged guardian plays Roblox's stock idle while Sleeping
+  (`GameConfig.GUARDIAN_IDLE_ANIMATIONS`, R6 180435571 / R15 507766666) and
+  the stock walk while moving (§23). Idle stops the moment it wakes.
+- Each catch plays that zone's own hit sound (`AudioConfig.GuardianHits`,
+  `guardianHitCue(zoneIndex)`) at the guardian, once.
+
+**Chase audio (AudioConfig, Audio, AudioController, ChaseAudioController, init.server)**
+- `ChaseAudioController` (new) is an explicit Idle / Alerted / Chasing state
+  machine with token cancellation. Chased -> true: Alerted, 0.4 s, then the
+  loop (one reused Sound under SoundService). `SoundCue "EscapeSting"`: loop
+  stopped at once, sting, 0.5 s, "Escape". Chased -> false (catch, drop,
+  death, Night): fade out and cancel any pending start. No zone-entry music
+  exists anywhere.
+- Two bugs found by the live test and fixed: (a) `toIdle` no longer bumps
+  the token when already Idle — the server clears Chased in the same frame as
+  the sting cue, and that redundant call was cancelling the follow-up
+  "Escape" cue; (b) `LootService.returnToOrigin` now clears
+  `escapeNotice`/`deliveredNotice`, so an item that already produced one
+  escape stings again for its next thief (it used to go silent forever).
+- IDs from the brief: Escape SFX 138891370077088 (`EscapeSting`), UI open
+  97861038165143 (`UiOpen`, played when a panel becomes Visible; `UiToggle`
+  removed, `UiDenied` kept for refusals), Bat hit 106511269477863, twelve
+  guardian hits (see `AudioConfig.GuardianHits`), chase music 34234642
+  (`ChaseMusic`) — that last one does NOT load, see 25.5.
+- SoundGroups `Music` and `SFX` (client-side, `Audio.group`) are the mixer
+  buses the settings sliders drive.
+
+**Settings (SettingsService, SettingsController, DataService, StateService, Remotes)**
+- Persisted per player in `profile.Settings`: `MusicVolume` (0.7),
+  `SfxVolume` (0.8), `Shadows` (true), `ReducedVFX` (false), `ScreenShake`.
+  `SettingsRequest` (rate limit 4/s) validates on the server (finite, clamped
+  0–1, booleans) and marks dirty; the state push carries `settings` back.
+- The pack's Settings frame rows are wired: `Music` / `Sound_Effects` sliders
+  (an invisible `Hit` TextButton overlay takes the input because the fill and
+  knob sit above the track; drag via `UserInputService.InputChanged`, commit on
+  release, a `Value` readout added), `Shadows` toggle (row relabelled from
+  "Textures"; drives `Lighting.GlobalShadows`), `VFX` toggle (inverse of
+  `ReducedVFX`; feeds `NightController.setReducedEffects` and
+  `DisplayFxController.setReducedEffects`). Nothing touches Roblox's own
+  master volume.
+
+**Trail shop (TrailShopController)**
+- Root cause of "randomly does not open": the pack's UIAnimationHandler
+  closes frames by tweening them OFF-SCREEN and leaves them there, and the
+  trail shop cloned `Frames.Shop` lazily on first open — so whenever the Shop
+  had been opened and closed before the first booth visit, the clone
+  inherited an off-screen Position (and the pack's `hideOwnHud` state). Fix:
+  build eagerly at start from the pristine `StarterGui.MainUI.Frames.Shop`
+  (Position / AnchorPoint / Size / BackgroundTransparency copied from it),
+  call `_G.CloseAllUIFrames` before showing, and watch `Frames` children's
+  Visible so an opening pack frame closes the trail shop. No workaround layer.
+
+**Validation / schema**
+- `DataService.SCHEMA_VERSION = 6` (VisualScale, GrowthSeconds, Settings
+  defaults). `validate.luau` covers the size ladder, the Night constants and
+  the mirror; 907 checks pass.
+
+### 25.2 Lives only in the place file — the owner must SAVE
+
+- `ServerStorage.GameAssets.Pedestal` (Model, `Body` union as PrimaryPart).
+- The three guardian swaps above and the parked `_replaced` props.
+- §24's loot renames (`Egypt_AncientScroll`, `SecretLab_CyanPlasma`).
+If the place is not saved, the game runs but pedestals fall back to nothing
+(BaseService logs a warning) and zones 5/7/10 revert to the old props.
+
+### 25.3 Assets used and their status (all preload-probed in Play)
+
+| Asset | Id | Status |
+|---|---|---|
+| Escape SFX | 138891370077088 | loads, plays |
+| UI open | 97861038165143 | loads, plays |
+| Bat hit | 106511269477863 | loads, plays |
+| Guardian hits 1–12 | see `AudioConfig.GuardianHits` | all 12 load |
+| Chase music | 34234642 | **fails: "Asset type does not match requested type"** — not an audio asset |
+| Lobby music | 92804804272270 | still "not approved for the requester" (pre-existing) |
+| Idle animations | 180435571 (R6), 507766666 (R15) | Roblox's own, play |
+| Walk animations | §23 | Roblox's own, play |
+| Sparkle texture | 241594419 | loads |
+
+### 25.4 What was actually tested (Play, single client)
+
+- Size ladder: `sizeSim(200000)` within tolerance day and night (night lean
+  Huge 11.4 %, Giant 2.16 %, Titan 0.56 %, Colossal 0.138 %). Colossal
+  spawned via `spawnSize` painted 84 studs tall, prompt reachable through the
+  `PromptAnchor` at range 52, carried overhead with the lowest point 2.6 above
+  the root at 25 % slow, placed on a pedestal capped at 18 studs footprint,
+  persisted scale survives store/equip.
+- Pedestal system: Locked / Empty / Occupied restyle on place, store, equip,
+  upgrade and sell; pedestal + trophy + 3-line label + sparkle; owner sign
+  with the real headshot (`rbxthumb://type=AvatarHeadShot&id=...`), YOUR BASE
+  badge only on the local plot, AVAILABLE on empty plots.
+- Night: full cycle run twice with `night("in", 5)`: prompts disabled, steals
+  refused, all guardians reset, lobby ring teleport, lighting + banner,
+  48/48 sockets refreshed once, spotlight toasts with real names, day
+  restored; a carried item survived Night and was placed after.
+- Chase audio, read from the CLIENT DataModel (client-set attributes are
+  invisible to the server — that cost one wrong measurement): Alerted ->
+  Chasing at +0.41 s with the loop started; crossing the line -> sting cue,
+  loop stopped, `EscapeSting` then `Escape` at +0.51 s; a second escape with
+  the same returned item stings again; catch -> Idle with the loop fading and
+  the zone's hit sound at the guardian.
+- Guardians: idle tracks on all rigged sleepers including the three new
+  models; walk cycle while chasing.
+- Settings: toggles persist round-trip (`{"Shadows":false,"ReducedVFX":true}`
+  echoed back from the server), Shadows drives GlobalShadows, slider click
+  -> 0.50 fill / readout / Music bus volume.
+- Trail shop: with the pack Shop open, entering the booth closed it and
+  showed the trail shop on-screen at the pristine position.
+- Regression: steal / place / store / equip / upgradeBase / sell / treadmill /
+  gift / index paths through `DebugInvoke`, consoles clean apart from the two
+  asset failures above.
+
+NOT tested (cannot be, from Studio MCP): multiple simultaneous players
+(everyone-to-lobby with several characters, spotlight fan-out, per-player
+settings isolation), DataStore persistence across sessions (API access is
+off in Studio; the migration is code-reviewed only), and the sound of the
+chase loop itself (the id is not audio).
+
+### 25.5 Remaining issues / the owner's steps
+
+1. **Save (and publish) the place** — see 25.2.
+2. **Chase music id 34234642 is not an audio asset.** Supply a real, approved
+   audio id and put it in `AudioConfig` under `ChaseMusic`; nothing else
+   needs to change. Until then the chase plays alert + sting + safe cue with
+   silence where the loop should be.
+3. Lobby music 92804804272270 is still not approved for this experience
+   (pre-existing; needs an owned/approved audio or the group's asset
+   permissions).
+4. Game Settings -> Max Players = 7 (from §22; the server guard is in place).
+5. The Pirate Wheel import has no Handle (§24); a re-import would slot in
+   as zone 2's fourth item automatically.
+
+### 25.6 Tooling notes learned this pass
+
+- `start_stop_play` takes `is_start: true|false`, not `action`.
+- Client-set attributes (`ChaseAudioState`, the settings mirrors) can only be
+  read from the Client DataModel. A server read returns nil and proves
+  nothing.
+- After a code edit, stop Play, poll the synced `Source` for a unique string
+  from the edit (an Edit-mode `execute_luau` loop), THEN start Play; Rojo
+  needs ~3 s and Edit-mode commands are refused during Play.
+- The owner's PDF brief could not be read by the Read tool or the browser;
+  rendering pages to PNG with WinRT `Windows.Data.Pdf.PdfDocument` from
+  PowerShell into the scratchpad worked.
+- `DebugInvoke` new commands: `spawnSize`, `sizeSim`, `growth`, `night`,
+  `lootSnapshot(zone?)`, `chase` (guardian states + your Chased flag).

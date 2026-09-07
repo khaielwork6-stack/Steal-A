@@ -188,15 +188,30 @@ export type Variant = {
 	id: string,
 	chance: number, -- percent
 	multiplier: number,
-	scale: number?, -- Model:ScaleTo factor, Size rolls only
+	scale: number?, -- Model:ScaleTo factor, Size rolls only: the LOW end of the visual range
+	scaleMax: number?, -- Size rolls only: the HIGH end of the visual range; nil = fixed
 	movePenalty: number?, -- fraction of WalkSpeed lost while carrying
 }
 
+-- Sizes. Weakest first; the ORDER is the hierarchy (see sizeRank). Chances
+-- total 100. The old 2% Giant is split three ways, so an "exceptional giant"
+-- is still 2% overall - but the top of that 2% is now absurd on purpose: a
+-- Colossal is fifteen to twenty times the authored model, and a Common can
+-- roll it just as a Divine can roll Normal.
+--
+-- `scale` / `scaleMax` are the VISUAL range for the tier. A tier with a range
+-- rolls ONE value inside it when the instance is created and that value is
+-- saved on the item (VisualScale) - a model is never rerolled on render, so
+-- the same Colossal is the same size in the world, in the hand and on the
+-- pedestal, and after a rejoin. `multiplier` is income, and deliberately does
+-- NOT track the visual: a 20x model earns 6x, not 20x.
 RarityConfig.Sizes = {
 	{ id = "Normal", chance = 70, multiplier = 1.00, scale = 1.00, movePenalty = 0.00 },
 	{ id = "Big", chance = 20, multiplier = 1.35, scale = 1.35, movePenalty = 0.04 },
 	{ id = "Huge", chance = 8, multiplier = 2.00, scale = 1.80, movePenalty = 0.10 },
-	{ id = "Giant", chance = 2, multiplier = 3.50, scale = 2.60, movePenalty = 0.18 },
+	{ id = "Giant", chance = 1.5, multiplier = 3.50, scale = 2.60, movePenalty = 0.18 },
+	{ id = "Titan", chance = 0.4, multiplier = 4.50, scale = 6.00, scaleMax = 8.00, movePenalty = 0.22 },
+	{ id = "Colossal", chance = 0.1, multiplier = 6.00, scale = 15.00, scaleMax = 20.00, movePenalty = 0.25 },
 } :: { Variant }
 
 -- Locked ladder, rarest and best last:
@@ -254,6 +269,77 @@ end
 
 RarityConfig.SizeById = byId(RarityConfig.Sizes)
 RarityConfig.MutationById = byId(RarityConfig.Mutations)
+
+-- ==========================================================
+-- SIZE HELPERS
+-- ==========================================================
+
+--- 1 for Normal, rising to 6 for Colossal. The list order IS the hierarchy.
+RarityConfig.SizeRank = {} :: { [string]: number }
+for index, size in RarityConfig.Sizes do
+	RarityConfig.SizeRank[size.id] = index
+end
+
+--- 0 for an unknown id, so a stale save can never crash a comparison.
+function RarityConfig.sizeRank(id: string?): number
+	return if id then (RarityConfig.SizeRank[id] or 0) else 0
+end
+
+--- The low end of a tier's visual range: what an item of that size shows when
+--- no exact scale was ever rolled for it (every save from before ranges
+--- existed). 1 for an unknown id.
+function RarityConfig.defaultVisualScale(sizeId: string?): number
+	local size = if sizeId then RarityConfig.SizeById[sizeId] else nil
+	return if size then (size.scale or 1) else 1
+end
+
+--- ONE visual scale for a freshly created instance: uniform inside the tier's
+--- range, or the tier's fixed value. Rounded so the saved number is stable.
+function RarityConfig.rollVisualScale(sizeId: string): number
+	local size = RarityConfig.SizeById[sizeId]
+	if not size then
+		return 1
+	end
+	local low = size.scale or 1
+	local high = size.scaleMax or low
+	if high <= low then
+		return low
+	end
+	return math.floor((low + math.random() * (high - low)) * 100 + 0.5) / 100
+end
+
+--- A stored visual scale, made safe: it must be a finite number inside the
+--- tier's own range, otherwise the tier's default. A save cannot carry a 200x
+--- item, and a legacy item without the field simply gets the tier's low end.
+function RarityConfig.clampVisualScale(sizeId: string?, value: any): number
+	local fallback = RarityConfig.defaultVisualScale(sizeId)
+	if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then
+		return fallback
+	end
+	local size = if sizeId then RarityConfig.SizeById[sizeId] else nil
+	if not size then
+		return fallback
+	end
+	local low = size.scale or 1
+	local high = size.scaleMax or low
+	return math.clamp(value, low, high)
+end
+
+--- Up to Giant a carried item is shown at its true size. Above that the
+--- visual is compressed - a twenty-times statue welded to a player's chest
+--- covers the camera and makes the run home unplayable - while keeping the
+--- ordering: a Colossal in the hand is still visibly bigger than a Titan,
+--- which is bigger than a Giant. Income, penalty and the saved size are
+--- untouched by this; it is presentation only.
+RarityConfig.CARRY_SCALE_KNEE = 2.6
+
+function RarityConfig.carryVisualScale(visualScale: number): number
+	local knee = RarityConfig.CARRY_SCALE_KNEE
+	if visualScale <= knee then
+		return visualScale
+	end
+	return knee + math.sqrt(visualScale - knee)
+end
 
 --- FinalIncome = base * size * mutation.
 ---

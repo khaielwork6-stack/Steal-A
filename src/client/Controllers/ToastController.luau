@@ -82,9 +82,31 @@ local function retire(container: CanvasGroup)
 	end)
 end
 
+--- Colour treatments layered over the pack template, by the `detail` tag the
+--- server sends. The template supplies the shape, stroke and motion; only the
+--- title gradient (and the dwell) changes, so every toast is still the pack's.
+---
+---   night       deep purple/blue with a warm amber accent
+---   refresh     bright blue/cyan
+---   spotlight:gold / magenta / cyan / violet   rare-spawn callouts
+type Style = { colors: ColorSequence, dwell: number, scale: number }
+
+local function sequence(a: Color3, b: Color3): ColorSequence
+	return ColorSequence.new(a, b)
+end
+
+local STYLES: { [string]: Style } = {
+	night = { colors = sequence(Color3.fromRGB(150, 110, 255), Color3.fromRGB(255, 190, 90)), dwell = 3.2, scale = 1.08 },
+	refresh = { colors = sequence(Color3.fromRGB(120, 230, 255), Color3.fromRGB(60, 150, 255)), dwell = 3.2, scale = 1.08 },
+	["spotlight:gold"] = { colors = sequence(Color3.fromRGB(255, 226, 120), Color3.fromRGB(255, 150, 40)), dwell = 4.2, scale = 1.14 },
+	["spotlight:magenta"] = { colors = sequence(Color3.fromRGB(255, 120, 230), Color3.fromRGB(180, 70, 255)), dwell = 4.2, scale = 1.14 },
+	["spotlight:cyan"] = { colors = sequence(Color3.fromRGB(150, 255, 255), Color3.fromRGB(40, 190, 255)), dwell = 3.8, scale = 1.1 },
+	["spotlight:violet"] = { colors = sequence(Color3.fromRGB(215, 160, 255), Color3.fromRGB(140, 80, 255)), dwell = 4.0, scale = 1.12 },
+}
+
 --- Shows one toast. `kind` picks the pack frame; `message` is written to the
---- clone only.
-function ToastController.show(kind: string, message: string)
+--- clone only; `style` (optional) recolours the title and lets it dwell longer.
+function ToastController.show(kind: string, message: string, style: string?)
 	if not holder then
 		return
 	end
@@ -129,6 +151,21 @@ function ToastController.show(kind: string, message: string)
 		title.Text = message
 	end
 
+	-- A styled toast: the pack's title gradient takes the style's colours, and
+	-- the whole thing dwells longer and lands a touch larger. Rare callouts
+	-- are meant to be bigger and last longer than an ordinary toast.
+	local styled = if style then STYLES[style] else nil
+	local dwell = DISPLAY_TIME
+	local restScale = 1
+	if styled and title then
+		local gradient = title:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = styled.colors
+		end
+		dwell = styled.dwell
+		restScale = styled.scale
+	end
+
 	-- Content springs independently of the container's height growth, which is
 	-- what gives the pack's notifications their bounce.
 	local scale = Instance.new("UIScale")
@@ -138,9 +175,9 @@ function ToastController.show(kind: string, message: string)
 	table.insert(live, container)
 
 	TweenService:Create(container, UIAnim.GROW, { Size = target, GroupTransparency = 0 }):Play()
-	TweenService:Create(scale, UIAnim.SPRING, { Scale = 1 }):Play()
+	TweenService:Create(scale, UIAnim.SPRING, { Scale = restScale }):Play()
 
-	task.delay(DISPLAY_TIME, function()
+	task.delay(dwell, function()
 		retire(container)
 	end)
 end

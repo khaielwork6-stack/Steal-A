@@ -168,6 +168,14 @@ GameConfig.GUARDIAN_WALK_ANIMATIONS = {
 	R15 = "rbxassetid://913402848",
 } :: { [string]: string }
 
+--- The stock idle (`idle.Animation1` in the same Animate script), played on a
+--- rigged costume while its guardian sleeps at its post, so it breathes and
+--- shifts instead of standing frozen. Same provenance as the walk cycles.
+GameConfig.GUARDIAN_IDLE_ANIMATIONS = {
+	R6 = "rbxassetid://180435571",
+	R15 = "rbxassetid://507766666",
+} :: { [string]: string }
+
 -- ==========================================================
 -- LOOT LIFECYCLE
 -- ==========================================================
@@ -183,8 +191,11 @@ GameConfig.GUARDIAN_WALK_ANIMATIONS = {
 
 GameConfig.GUARDIAN_RETURN_DELAY = 2 -- after a guardian reclaims
 GameConfig.DROPPED_RECLAIM_WINDOW = 8 -- before a PvP drop returns to origin
-GameConfig.GLOBAL_REFRESH_INTERVAL = 300 -- the world reroll cadence
-GameConfig.GLOBAL_REFRESH_WARNING = 10 -- countdown shown before it lands
+--- The world reroll cadence IS the Night cycle now (NightConfig.CYCLE_SECONDS
+--- owns it; NightService drives it). Mirrored here for anything that still
+--- reads the old name; validate asserts the two agree.
+GameConfig.GLOBAL_REFRESH_INTERVAL = 240
+GameConfig.GLOBAL_REFRESH_WARNING = 10 -- retired: the Night countdown replaced it
 
 --- Chance that ONE jackpot item is injected somewhere in the world at a global
 --- refresh. This is a single SERVER-LEVEL roll per refresh, never one roll per
@@ -234,6 +245,7 @@ GameConfig.RATE_LIMITS = {
 	DropLootRequest = 3,
 	TrailRequest = 4,
 	GroupGiftRequest = 1,
+	SettingsRequest = 4,
 }
 
 return GameConfig
