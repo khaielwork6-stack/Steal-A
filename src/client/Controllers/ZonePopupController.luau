@@ -1,31 +1,33 @@
 --!strict
 --[[
 	ZonePopupController
-	"Gym 💪" at the top of the screen when the player walks into a zone.
+	"Gym 💪" high at the top of the screen when the player walks into a zone,
+	in that zone's own colour.
 
 	GEOMETRY, NOT NETWORK. The lane is a straight run of twelve bands along +Z
 	(MapConfig.zoneStartZ / zoneEndZ), so which zone the character is in is a
-	comparison the client can make for free; no remote, no server work. The
-	pop-up is one of the pack's own toasts (ToastController) with a zone colour
-	treatment, so it is the same shape and motion as everything else up there.
+	comparison the client can make for free; no remote, no server work.
+
+	ITS OWN LABEL, NOT A TOAST. The pack's notification stack sits in the
+	middle of the screen, which put the zone name in the player's face. This
+	is a single label near the top edge, below the RUN!! warning's slot, with
+	the pack's heavy face and outline and a white-to-zone-colour gradient. It
+	pops in, holds briefly, and slides away; a new zone replaces it in place.
 
 	DEBOUNCED ON PURPOSE. A zone counts as entered only after the character has
 	been inside it for SETTLE_SECONDS without leaving, and the same zone is not
 	announced again until the player has genuinely been somewhere else - the
 	lobby, or another zone. Dancing on a boundary shows nothing; a transition
 	strip between two zones belongs to neither.
-
-	A steal or a chase can drop other toasts into the same stack; the list
-	layout handles that, and this one's short dwell keeps it out of the way.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
-local ToastController = require(script.Parent.ToastController)
 
 local ZonePopupController = {}
 
@@ -38,14 +40,73 @@ local SETTLE_SECONDS = 0.45
 local EDGE_INSET = 3
 --- How often the position is sampled.
 local SAMPLE_INTERVAL = 0.12
+--- On screen for this long at full size, then away.
+local HOLD_SECONDS = 1.7
+
+--- Just under the RUN!! slot (0.085), well clear of the notification stack.
+local POSITION = UDim2.fromScale(0.5, 0.16)
+local SIZE = UDim2.fromScale(0.5, 0.075)
+
+local POP_IN = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local POP_OUT = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
 local candidate: number? = nil
 local candidateSince = 0
 local announced: number? = nil
 local accumulator = 0
 
+local label: TextLabel? = nil
+local gradient: UIGradient? = nil
+local scale: UIScale? = nil
+local showToken = 0
+
+-- ==========================================================
+-- THE LABEL
+-- ==========================================================
+
+local function build(ui: ScreenGui)
+	local text = Instance.new("TextLabel")
+	text.Name = "ZonePopup"
+	text.AnchorPoint = Vector2.new(0.5, 0.5)
+	text.Position = POSITION
+	text.Size = SIZE
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.Text = ""
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextStrokeColor3 = Color3.fromRGB(12, 14, 24)
+	text.TextStrokeTransparency = 0
+	text.Visible = false
+	text.ZIndex = 30
+	text.Parent = ui
+
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MinTextSize = 22
+	limit.MaxTextSize = 58
+	limit.Parent = text
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2.5
+	stroke.Color = Color3.fromRGB(12, 14, 24)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	stroke.Parent = text
+
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Parent = text
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1
+	uiScale.Parent = text
+
+	label = text
+	gradient = grad
+	scale = uiScale
+end
+
 --- Which zone a world position is inside, or nil (lobby, walls, a transition
---- strip, or the Night lobby).
+--- strip).
 local function zoneAt(position: Vector3): number?
 	if math.abs(position.X) > MapConfig.LANE_HALF then
 		return nil
@@ -64,11 +125,45 @@ end
 
 local function announce(index: number)
 	local zone = ZoneConfig.Zones[index]
-	if not zone then
+	local text, grad, uiScale = label, gradient, scale
+	if not zone or not text or not grad or not uiScale then
 		return
 	end
-	ToastController.show("info", `{zone.name} {zone.emoji}`, "zone")
+	showToken += 1
+	local token = showToken
+
+	text.Text = `{zone.name} {zone.emoji}`
+	-- White into the zone's colour, so the emoji reads and the word carries
+	-- the theme.
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(0.45, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(1, zone.color),
+	})
+	text.TextTransparency = 0
+	text.TextStrokeTransparency = 0
+	text.Visible = true
+	uiScale.Scale = 0.6
+	TweenService:Create(uiScale, POP_IN, { Scale = 1 }):Play()
+
+	task.delay(HOLD_SECONDS, function()
+		if showToken ~= token then
+			return -- replaced by a newer zone
+		end
+		local out = TweenService:Create(text, POP_OUT, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		TweenService:Create(uiScale, POP_OUT, { Scale = 0.85 }):Play()
+		out.Completed:Once(function()
+			if showToken == token then
+				text.Visible = false
+			end
+		end)
+		out:Play()
+	end)
 end
+
+-- ==========================================================
+-- SAMPLING
+-- ==========================================================
 
 local function sample()
 	local character = player.Character
@@ -100,6 +195,13 @@ local function sample()
 end
 
 function ZonePopupController.start()
+	local playerGui = player:WaitForChild("PlayerGui")
+	local ui = playerGui:WaitForChild("MainUI", 20)
+	if not ui or not ui:IsA("ScreenGui") then
+		return
+	end
+	build(ui)
+
 	player.CharacterAdded:Connect(function()
 		candidate = nil
 		announced = nil

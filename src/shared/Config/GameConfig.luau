@@ -256,4 +256,13 @@ GameConfig.RATE_LIMITS = {
 	SettingsRequest = 4,
 }
 
+-- ==========================================================
+-- EVENTS
+-- ==========================================================
+
+--- The Creator Hub event the lobby stand asks players to follow (the "Next
+--- Update" notification). A string: event ids are 64-bit and may become
+--- UUIDs, and SocialService takes them as strings either way.
+GameConfig.NEXT_UPDATE_EVENT_ID = "4257917435077853831"
+
 return GameConfig

@@ -121,16 +121,18 @@ local function buildPngCard(holder: Frame, index: number, trail: MonetizationCon
 	local card = TrailCardPng.build({
 		layout = layout,
 		familyAspect = PngUiConfig.Families.Trail,
+		accent = RarityConfig.Colors[trail.rarity] or trail.color,
 		onCash = function(state)
-			if state.owned then
-				-- Owned: the printed price sits under an EQUIP pill, and pressing
-				-- it equips instead of asking to buy again.
-				remote:FireServer("equip", trail.key)
-			else
+			if not state.owned then
 				remote:FireServer("buyCash", trail.key)
 			end
 		end,
 		onRobux = onRobux,
+		-- The one owned-state control: equips, or unequips if it is worn. An
+		-- empty key is how the server spells "take it off".
+		onToggle = function(state)
+			remote:FireServer("equip", if state.equipped then "" else trail.key)
+		end,
 		-- No sound hooks: AudioController already sounds every button under
 		-- MainUI, these included.
 	})
@@ -299,7 +301,9 @@ local function build(): boolean
 			ShopKit.bindBuy(card, function()
 				local row = latest and latest.trails and latest.trails[index]
 				UIAnim.punch(card, 0.14)
-				if row and row.owned then
+				if row and row.equipped then
+					Remotes.get("TrailRequest"):FireServer("equip", "")
+				elseif row and row.owned then
 					-- Owned: the button equips instead of selling again.
 					Remotes.get("TrailRequest"):FireServer("equip", trail.key)
 				else
@@ -389,9 +393,9 @@ local function refresh()
 
 			local description
 			if row.equipped then
-				description = `EQUIPPED  ·  x{trail.multiplier} Speed`
+				description = `EQUIPPED  ·  x{trail.multiplier} Speed  ·  tap to unequip`
 			elseif row.owned then
-				description = `OWNED  ·  tap to equip  ·  x{trail.multiplier}`
+				description = `x{trail.multiplier} Speed  ·  tap to equip`
 			else
 				description = `x{trail.multiplier} Speed  ·  {trail.rarity}`
 			end
@@ -399,8 +403,9 @@ local function refresh()
 			ShopKit.fillCard(card, {
 				title = trail.name,
 				description = description,
-				-- Owned cards show EQUIP instead of a price they cannot pay again.
-				price = if row.owned then "EQUIP" else NumberFormat.cash(trail.cash),
+				-- Owned cards carry the toggle instead of a price they cannot
+				-- pay again.
+				price = if row.equipped then "UNEQUIP" elseif row.owned then "EQUIP" else NumberFormat.cash(trail.cash),
 				icon = ShopKit.Icons.Speed,
 				color = trail.color,
 				accent = trail.accent,

@@ -57,7 +57,47 @@ local cashPassCard: GuiObject? = nil
 --- The painted 2x Cash card, when the pass has art: its OWNED pill and its
 --- buttons are what ownership flips.
 local cashPassPng: PngCard.Card? = nil
-local cashPassOwnedPill: TextLabel? = nil
+local cashPassOwnedBadge: Frame? = nil
+
+--- The art's tint while the pass is owned: greyed, clearly spent, still
+--- readable. White is the untouched print.
+local ART_OWNED_TINT = Color3.fromRGB(118, 122, 134)
+local ART_LIVE_TINT = Color3.fromRGB(255, 255, 255)
+
+--- A small round green check in the art's top-right corner: the one mark
+--- that says "you have this" once the card is greyed. Hidden until then.
+local function buildOwnedBadge(artwork: ImageLabel): Frame
+	local badge = Instance.new("Frame")
+	badge.Name = "OwnedBadge"
+	badge.AnchorPoint = Vector2.new(1, 0)
+	badge.Position = UDim2.fromScale(0.985, 0.04)
+	badge.Size = UDim2.fromScale(0.16, 0.16)
+	badge.BackgroundColor3 = Color3.fromRGB(72, 200, 108)
+	badge.BorderSizePixel = 0
+	badge.Visible = false
+	badge.ZIndex = 8
+	badge.Parent = artwork
+	local ratio = Instance.new("UIAspectRatioConstraint")
+	ratio.AspectRatio = 1
+	ratio.Parent = badge
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(1, 0)
+	corner.Parent = badge
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(12, 40, 24)
+	stroke.Parent = badge
+	local check = Instance.new("TextLabel")
+	check.BackgroundTransparency = 1
+	check.Size = UDim2.fromScale(1, 1)
+	check.Font = Enum.Font.FredokaOne
+	check.TextScaled = true
+	check.Text = "✓"
+	check.TextColor3 = Color3.fromRGB(255, 255, 255)
+	check.ZIndex = 9
+	check.Parent = badge
+	return badge
+end
 --- Product key -> its card, so a landed purchase can flash the right one.
 local cardByKey: { [string]: GuiObject } = {}
 local lastOwnsCashPass: boolean? = nil
@@ -200,7 +240,7 @@ local function buildShop()
 				Remotes.get("PurchaseRequest"):FireServer("cashPass")
 			end)
 			cashPassPng = png
-			cashPassOwnedPill = png.pill("buy", "OWNED", Color3.fromRGB(255, 226, 120))
+			cashPassOwnedBadge = buildOwnedBadge(png.artwork)
 			cashPassCard = png.frame
 			table.insert(cards, png.frame)
 			trackGrid(passGrid, 1, PngUiConfig.aspectFor(passLayout))
@@ -320,13 +360,15 @@ local function refreshOwnership(monetization: any)
 	if not card or not monetization then
 		return
 	end
-	-- Painted card: the art stays as printed; an OWNED pill covers the price
-	-- and the card stops taking clicks. Nothing is redrawn.
+	-- Painted card: once owned the whole print is greyed, a green check sits
+	-- in its corner, and the card stops taking clicks. No text is laid over
+	-- the art - the tint says "spent" on its own.
 	local png = cashPassPng
 	if png then
 		local owns = monetization.ownsCashPass == true
-		if cashPassOwnedPill then
-			cashPassOwnedPill.Visible = owns
+		png.artwork.ImageColor3 = if owns then ART_OWNED_TINT else ART_LIVE_TINT
+		if cashPassOwnedBadge then
+			cashPassOwnedBadge.Visible = owns
 		end
 		png.setInteractive(not owns)
 		return

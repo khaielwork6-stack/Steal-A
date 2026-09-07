@@ -23,10 +23,13 @@
 	At the moment Night begins, a wall the width of the lane rises just past
 	the red line and blocks the view of the zones while the loot is rerolled
 	behind it: pale, with the moon and the countdown on it, unmistakably a
-	closure and not a glitch. It is a CLIENT-SIDE, non-colliding part - it hides
-	the reset, it does not enforce it; the server's closure (LootService
-	setClosed) is what refuses steals - so it can never trap a player or touch
-	navigation, and it fades out cleanly the frame the zones reopen.
+	closure and not a glitch. It is a CLIENT-SIDE part, and SOLID while it stands:
+	the local character is simulated on this client, so a collidable local part
+	is a real wall to the player and nobody can walk, jump or glitch into the
+	zones during the reset. The server's closure (LootService setClosed) is what
+	refuses steals; the wall is the physical half of that. It goes back to
+	walk-through the moment its fade-out starts, so it can never hold anyone
+	after Night.
 
 	THE LIGHT
 	The day palette is whatever Lighting has when the client starts (the place's
@@ -351,6 +354,11 @@ local function showBarrier(show: boolean)
 	local info = if show then BARRIER_IN else BARRIER_OUT
 	local target = if show then 0 else 1
 
+	-- SOLID while it stands. The local character is simulated on this client,
+	-- so a collidable local part is a real wall to it: nobody walks, jumps or
+	-- glitches into the zones while they are being reset. Off again the
+	-- moment the fade-out starts, so it can never hold anyone after Night.
+	barrier.CanCollide = show
 	if show then
 		for _, gui in barrierGuis do
 			gui.Enabled = true

@@ -2,7 +2,9 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §26** (smart guardians that carry loot back, living loot, the
+> **START AT §27** (pop-up placement, solid barrier, trail toggle, 2x Cash
+> owned look, zone signs, hotbar, Next Update stand), then §26 (smart
+> guardians that carry loot back, living loot, the
 > Night barrier, Index previews, zone pop-ups, trail plates), then §25 (the
 > STEAL & ESCAPE pass: pedestals, giant sizes, the Night cycle, chase audio,
 > settings, the trail-shop fix), then §22, §21, §20, §19 and §18. Between them they say exactly where the last sessions stopped, what
@@ -2180,3 +2182,102 @@ loot back. States, as published on the model's `State` attribute:
 - The two ids without art (`Museum_Ruby`, `Pirate_CursedCoin`) still show a
   rarity plate in the Index and a placeholder in the world.
 - Nothing Studio-side changed this pass; §25.2's Save is still owed.
+
+---
+
+## 27. Seven fixes — pop-up placement, solid barrier, trail toggle, 2x Cash owned look, zone signs, hotbar, Next Update stand
+
+The owner's third brief (3 pages, items 1–7). All seven done and tested in
+Play; §27.4 lists the one thing Studio cannot show.
+
+### 27.1 What changed
+
+1. **Zone pop-up** (ZonePopupController): no longer a toast in the pack's
+   centre-screen stack. It is its own label at the top (`POSITION` 0.16 of
+   the screen, under the RUN!! slot), pack face and outline, a white-to-zone
+   gradient. `ZoneConfig.Zones[i].color` is new (Gym green, Egypt gold,
+   Grandma's warm peach, ...). Pops in, holds 1.7 s, fades; a new zone
+   replaces it in place. Debounce and "no repeat inside the same zone"
+   unchanged from §26.
+2. **Night barrier** (NightController): `CanCollide = true` while it stands,
+   off again the moment the fade-out starts. The local character is
+   simulated on its own client, so a local collidable part is a real wall.
+   Measured: a MoveTo through it at walkSpeed 108 stopped at Z = -0.3
+   against the wall's face at Z = 0.2. Server closure still refuses steals.
+3. **Trail cards** (TrailCardPng / TrailShopController): the OWNED tag and
+   the EQUIP pill are gone. Owned cards get ONE polished `EquipToggle`
+   (TextButton over the art, spanning both printed prices, opaque plate,
+   rarity-coloured stroke, hover lift, press dip): "EQUIP" → equips;
+   "✓ EQUIPPED" (green, reads UNEQUIP under the pointer) → unequips via
+   `TrailRequest("equip", "")`. While the toggle shows, both printed
+   regions' hidden buttons are disabled. Not owned: printed $ / R$ live, no
+   toggle. Pack-built (non-PNG) cards toggle the same way.
+4. **2x Cash** (ShopController): no OWNED pill. Owned = the print tinted
+   grey (`ART_OWNED_TINT`), a small green ✓ badge top-right
+   (`buildOwnedBadge`), card inert. In Studio the creator owns every pass,
+   so this is what the Shop shows there.
+5. **Zone signs** (ZoneSignService rewritten): dark rounded panel (SurfaceGui
+   frame with UICorner on an invisible board), zone emoji + number + name,
+   RECOMMENDED SPEED caption, the figure in the zone's jackpot-rarity
+   colour, neon cap. Planted `SIGN_LEAD` 16 studs BEFORE the zone's near
+   edge, turned `SIGN_YAW` 20° in toward the lane, face on Front (-Z) - the
+   old ones sat inside the zone with the face on Back, readable only after
+   walking past. Model name `Sign_<id>` and the `Board` part are kept for
+   TutorialService.
+6. **Hotbar** (HotbarController, new): the owner's MenuButtons frame (moved
+   Studio-side from Workspace to `ReplicatedStorage.UITemplates.MenuButtons`;
+   the Workspace spot is still accepted) cloned into `HotbarUI`, cut to four
+   slots keyed 1-4, bottom-centre. Slot = key number, tool name, and a
+   ViewportFrame of the tool's own Handle. Bat is always 1, Trap always 2.
+   Keys (UserInputService) and taps toggle through
+   `Humanoid:EquipTool/UnequipTools`; the equipped slot lifts with a green
+   stroke. Roblox's CoreGui Backpack is switched off. TWO PACK TRAPS hit and
+   fixed: its buttons ship `Active = false` (Activated never fires), and
+   setting a UIStroke Thickness in pixels draws a screen-sized black slab
+   (colour only, as ShopKit warns).
+7. **Next Update stand** (EventStandService + EventStandController, new):
+   the owner's `NextUpdate` model (one board part, dropped 65 studs in the
+   air) is MOVED to `Map.NextUpdateStand`, stood on two posts at (-42, 0,
+   -96) facing the lobby spawn, given the pack's `NextUpdate` SurfaceGui
+   face and its "Next Update! / Notify Here!" billboard, and a
+   `NotifyPrompt` (E, hold 0.35 s, 14 studs). The board's studded surfaces
+   hid the SurfaceGui - set Smooth. The client answers the prompt with
+   `SocialService:PromptRsvpToEventAsync(GameConfig.NEXT_UPDATE_EVENT_ID)`
+   ("4257917435077853831"), labels the prompt "Following ✓" from
+   `GetEventRsvpStatusAsync`, and toasts the result. A 20 s watchdog frees
+   the prompt if the dialog never returns.
+
+### 27.2 Tested (Play, one client)
+
+- Pop-ups: Gym 💪 in green, Grandma's House 👵 in peach, at the top; no
+  repeat while moving inside the same zone.
+- Barrier: solid during Night, walk-through and invisible after.
+- Trail toggle: click → UNEQUIP + trail on the character; click → EQUIP,
+  trail off; Grey (unowned) shows the printed $100 and no toggle.
+- 2x Cash: greyed print, badge, button inert (screenshot).
+- Signs: "3. Castle / RECOMMENDED SPEED / 10K" readable on the approach
+  from the lane centre; "1. Museum / STARTER ZONE" from the lobby.
+- Hotbar: click slot 1 → Bat held, slot lit; click again → unequipped;
+  slot 2 → Trap. Number keys cannot be sent by Studio's VirtualInput
+  ("permanently bound to a CoreGUI core action"); the InputBegan path is
+  the same code as the click path.
+- Stand: face, title and prompt present; a held E fired PromptTriggered.
+
+### 27.3 Studio-side (needs a Save)
+
+- `workspace.MenuButtons` → `ReplicatedStorage.UITemplates.MenuButtons`.
+- The `NextUpdate` model is re-parented and repositioned at runtime by the
+  server, so nothing about it needs saving; the invisible `Action` pad the
+  owner dropped in `workspace.Folder` is untouched.
+
+### 27.4 Not verifiable here
+
+- `PromptRsvpToEventAsync` never returns inside Studio (no dialog exists
+  there), so the "You'll be notified" toast could not be seen; on a live
+  client Roblox's own follow-event dialog opens. `GetEventRsvpStatusAsync`
+  does answer in Studio (Going).
+- The stand's face is the pack's own "ULTIMATE BRAINROT UI PACK - DM
+  mangoui TO BUY" art (asset 126081168374124) - that is what the supplied
+  SurfaceGui contains and what the reference image shows. Swap the
+  ImageLabel's Image in `StarterGui.MainUI.Surface/Billboards.NextUpdate`
+  for the game's own art when there is one.
