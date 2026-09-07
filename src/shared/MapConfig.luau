@@ -25,6 +25,7 @@ MapConfig.ZONE_COUNT = 12
 MapConfig.BASE_COUNT = 7
 MapConfig.SOCKETS_PER_ZONE = 4
 MapConfig.DISPLAY_SLOTS_PER_BASE = 14
+--- Head plot only: its pads run in rows ACROSS the back of the plaza.
 MapConfig.DISPLAY_SLOT_ROWS = 2
 
 -- ==========================================================
@@ -76,7 +77,10 @@ MapConfig.WALL_CAP_OVERHANG = 2
 -- The apron between the plaza mouth and the red line IS the hub: spawn, the
 -- trail booth, the event stand and the leaderboards all stand on it, so a new
 -- player is never more than a few seconds from any of them or from Zone 01.
-MapConfig.SAFE_ZONE_DEPTH = 64
+-- Compression pass 2: the apron was 64 deep with the hub furniture pushed out
+-- to +-66, so a new player crossed an empty field to reach a shop. It is now
+-- 52 deep with everything inside 40 studs of the spawn circle.
+MapConfig.SAFE_ZONE_DEPTH = 52
 MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 
 -- ==========================================================
@@ -92,31 +96,44 @@ MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 -- The avenue between the two rows of plots. Wide enough for both sides'
 -- treadmills (16 out from each plot, 12 deep) plus a clear 60-stud run down
 -- the middle; the old 200 was an empty field.
-MapConfig.PLAZA_CORRIDOR_WIDTH = 124
+-- Compression pass 2: 124 read as an airport runway from the player camera.
+-- 80 is sized off what actually stands in it: a treadmill deck reaches 20
+-- studs in from each plot edge, leaving a clear 40-stud street down the middle
+-- (the paved avenue is 20 of that) - room for several players at full Speed.
+MapConfig.PLAZA_CORRIDOR_WIDTH = 80
 -- Sized from what a plot has to hold: two ranks of seven display pads
 -- (DISPLAY_SLOT_SIZE) with room for a Giant trophy on each, a back inset, and
 -- the porch at the front for the spawn, the upgrade pad and the signs.
-MapConfig.PLOT_DEPTH = 176 -- plot extent along its inward-facing axis
-MapConfig.PLOT_WIDTH = 84 -- plot extent across its inward-facing axis
+-- Compression pass 2: three ranks of pads instead of two ranks of seven, so
+-- the same 14 displays fit in 28 fewer studs of depth and the plaza loses 56
+-- studs of width. Frontage came down 8 with the porch furniture re-spaced.
+MapConfig.PLOT_DEPTH = 148 -- plot extent along its inward-facing axis
+MapConfig.PLOT_WIDTH = 76 -- plot extent across its inward-facing axis
 MapConfig.PLOT_GAP = 4 -- clear space between neighbouring side plots
 MapConfig.PLOTS_PER_SIDE = 3 -- 3 left + 3 right + 1 head = 7
-MapConfig.HEAD_PLOT_WIDTH = 256
-MapConfig.HEAD_PLOT_DEPTH = 96
+-- The head plot spans the WHOLE back of the plaza (set in the derived section
+-- below, once PLAZA_WIDTH is known). At lane width it left a 60-stud pocket of
+-- bare floor in each back corner - open space nobody used and nothing filled.
+-- Its pads stay grouped in the middle: see HEAD_PLOT_RANK_SPAN.
+MapConfig.HEAD_PLOT_WIDTH = 256 -- overwritten below; kept for readability
+MapConfig.HEAD_PLOT_DEPTH = 84
+--- How wide the head plot spreads its two rows of pads, whatever its floor is.
+MapConfig.HEAD_PLOT_RANK_SPAN = 232
 
 -- Per-base furniture
 -- Deliberately under the ~2-stud humanoid step height: players must be able to
 -- walk straight onto the treadmill, and Base07's sits in the middle of the
 -- corridor where everyone else walks past it.
 MapConfig.TREADMILL_SIZE = Vector3.new(14, 1.6, 28)
-MapConfig.TREADMILL_STANDOFF = 16 -- distance from plot edge out into the corridor
+MapConfig.TREADMILL_STANDOFF = 13 -- distance from plot edge out into the corridor
 MapConfig.PAD_SIZE = Vector3.new(12, 1, 12)
 
 -- Display slots run as two long ranks down the plot's deep axis, which both fits
 -- the new footprint and shows a collection off better to anyone walking past.
 MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(17, 1, 17)
-MapConfig.DISPLAY_SLOT_COLS = 2 -- ranks across the plot width
-MapConfig.DISPLAY_BACK_INSET = 16 -- first slot, measured from the plot back edge
-MapConfig.DISPLAY_FRONT_RESERVE = 44 -- room kept clear at the front for the porch
+MapConfig.DISPLAY_SLOT_COLS = 3 -- ranks across the plot width
+MapConfig.DISPLAY_BACK_INSET = 14 -- first slot, measured from the plot back edge
+MapConfig.DISPLAY_FRONT_RESERVE = 40 -- room kept clear at the front for the porch
 -- The porch: a paved strip across the plot front carrying the spawn, the
 -- upgrade pad and the signs, so the entrance reads as an entrance.
 MapConfig.PORCH_DEPTH = 22
@@ -175,6 +192,7 @@ MapConfig.ZONES = {
 MapConfig.LANDMARK_SCALE = MapConfig.LANE_WIDTH / 320
 
 MapConfig.PLAZA_WIDTH = MapConfig.PLAZA_CORRIDOR_WIDTH + 2 * MapConfig.PLOT_DEPTH
+MapConfig.HEAD_PLOT_WIDTH = MapConfig.PLAZA_WIDTH
 
 MapConfig.PLAZA_SIDE_RUN = MapConfig.PLOTS_PER_SIDE * MapConfig.PLOT_WIDTH
 	+ (MapConfig.PLOTS_PER_SIDE - 1) * MapConfig.PLOT_GAP
@@ -195,16 +213,17 @@ MapConfig.PLAZA_FRONT_Z = -MapConfig.SAFE_ZONE_DEPTH
 --   eventStand   right of spawn, board turned to face it
 --   leaderboards flanking the gate, on the safe side, facing back at spawn
 MapConfig.HUB = {
-	spawn = Vector3.new(0, 0, -34),
-	spawnPlazaDiameter = 30,
-	trailBooth = CFrame.new(-66, 0, -40) * CFrame.Angles(0, math.rad(90), 0),
-	eventStand = Vector3.new(66, 0, -40),
+	spawn = Vector3.new(0, 0, -26),
+	spawnPlazaDiameter = 26,
+	trailBooth = CFrame.new(-38, 0, -32) * CFrame.Angles(0, math.rad(90), 0),
+	eventStand = Vector3.new(38, 0, -32),
 	leaderboards = {
-		Money = Vector3.new(-70, 6.4, -12),
-		Speed = Vector3.new(70, 6.4, -12),
+		Money = Vector3.new(-44, 6.4, -10),
+		Speed = Vector3.new(44, 6.4, -10),
 	},
-	-- The paved avenue from the spawn plaza back through the corridor.
-	avenueWidth = 26,
+	-- The paved avenue from the spawn plaza back through the corridor. 20 is
+	-- five avatars abreast: a street, not the runway 26 read as.
+	avenueWidth = 20,
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 

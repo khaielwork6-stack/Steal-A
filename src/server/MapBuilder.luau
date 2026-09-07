@@ -864,6 +864,10 @@ local function placeSockets(map: Instance)
 			end
 			makeSocket(string.format("Socket%02d", n), CFrame.new(x, 0.3, z), sockets)
 			table.insert(placed, { x = x, z = z, hx = 10, hz = 10 })
+			-- Themed props BESIDE the plinth, so the loot reads as part of the
+			-- zone rather than dropped on a lawn. After settling on purpose:
+			-- anything placed before this would have pushed the socket away.
+			MapLandmarks.dressSocket(i, zone:FindFirstChild("Decorations"), Vector3.new(x, 0, z))
 		end
 
 		-- ONE guardian per zone, resting where its layout puts it. Validated
@@ -906,13 +910,16 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		return plotCF * CFrame.new(x, y, z)
 	end
 
-	-- Plot floor sits 0.6 studs proud so ownership boundaries read from a distance.
+	-- Plot floor sits 0.15 studs PROUD OF THE PLAZA. That gap is not styling:
+	-- the plaza slab runs underneath every plot, and while both tops sat at
+	-- Y = 0 the two surfaces z-fought across the whole footprint. 0.15 is well
+	-- under a humanoid step, so the plot is still one continuous walk.
 	local surface = MapPalette.PlotFloor
 	local floorGroup = folder("PlotFloor", base)
 	makePart({
 		name = "Slab",
 		size = Vector3.new(layout.width, 1.2, layout.depth),
-		cframe = at(0, -0.6, 0),
+		cframe = at(0, -0.45, 0),
 		color = surface.a,
 		parent = floorGroup,
 		castShadow = false,
@@ -930,7 +937,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 				makePart({
 					name = "Tile",
 					size = Vector3.new(cw, 1, cd),
-					cframe = at(-halfW + cw * (col - 0.5), -0.48, -halfD + cd * (row - 0.5)),
+					cframe = at(-halfW + cw * (col - 0.5), -0.33, -halfD + cd * (row - 0.5)),
 					color = surface.b,
 					parent = tiles,
 					canCollide = false,
@@ -947,8 +954,15 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	local porch = MapConfig.PORCH_DEPTH
 	local paving = folder("Paving", base)
 	makePaving("Porch", Vector3.new(layout.width - 6, 0.3, porch), at(0, 0.15, -halfD + porch / 2 + 2), paving)
+	-- Aisles run back from the porch BETWEEN the ranks of pads, not under them:
+	-- with three ranks a single central path would have been buried by the
+	-- middle rank. One aisle per boundary, so the walk to any pad is paved.
 	local pathLength = layout.depth - porch - 8
-	makePaving("Path", Vector3.new(8, 0.3, pathLength), at(0, 0.15, -halfD + porch + 2 + pathLength / 2), paving)
+	local aisles = if layout.depth >= layout.width then MapConfig.DISPLAY_SLOT_COLS - 1 else 1
+	for i = 1, aisles do
+		local offset = if aisles == 1 then 0 else -layout.width / 2 + layout.width * i / MapConfig.DISPLAY_SLOT_COLS
+		makePaving("Path", Vector3.new(6, 0.3, pathLength), at(offset, 0.15, -halfD + porch + 2 + pathLength / 2), paving)
+	end
 
 	-- Post-and-two-rail fence on the three enclosed sides, in the reference's
 	-- dark-post / white-rail language; the front stays open so players run
@@ -1028,30 +1042,43 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	-- is its width, so the ranks run across the back of the plaza instead of
 	-- piling seven pads into the few studs behind the porch.
 	local slots = folder("DisplaySlots", base)
-	local perRank = MapConfig.DISPLAY_SLOTS_PER_BASE // MapConfig.DISPLAY_SLOT_COLS
+	local total = MapConfig.DISPLAY_SLOTS_PER_BASE
 	local pad = MapConfig.DISPLAY_SLOT_SIZE.X
 	local n = 0
 	if layout.depth >= layout.width then
+		-- THREE ranks down the plot, front to back. 14 does not divide by 3, so
+		-- the ranks are 5/5/4 rather than a short rank of pads pushed off the
+		-- floor: `perRank` is recomputed for each column from what is left.
+		local cols = MapConfig.DISPLAY_SLOT_COLS
 		local rankBack = halfD - MapConfig.DISPLAY_BACK_INSET
 		local rankFront = -halfD + MapConfig.DISPLAY_FRONT_RESERVE
 		local rankSpan = rankBack - rankFront
-		for col = 1, MapConfig.DISPLAY_SLOT_COLS do
-			local localX = -halfW + layout.width * (col - 0.5) / MapConfig.DISPLAY_SLOT_COLS
+		-- ONE rank grid shared by every column, so the pads line up across the
+		-- plot. 14 into 3 columns leaves the last column one short; that column
+		-- simply stops early rather than re-spacing itself, which would have
+		-- put its pads between the other columns rows.
+		local ranks = math.ceil(total / cols)
+		for col = 1, cols do
+			local perRank = math.min(ranks, total - n)
+			local localX = -halfW + layout.width * (col - 0.5) / cols
 			for i = 1, perRank do
 				n += 1
 				local slot = makeSlotPad(
 					string.format("DisplaySlot%02d", n),
-					at(localX, 0.5, rankBack - rankSpan * (i - 1) / (perRank - 1)),
+					at(localX, 0.5, rankBack - rankSpan * (i - 1) / math.max(1, ranks - 1)),
 					slots
 				)
 				slot:SetAttribute("SlotIndex", n)
 			end
 		end
 	else
+		-- The head plot is far wider than it is deep: its pads run in rows
+		-- across the back of the plaza instead.
+		local perRank = total // MapConfig.DISPLAY_SLOT_ROWS
 		local backZ = halfD - MapConfig.DISPLAY_BACK_INSET - pad / 2
 		local rowGap = pad + 6
-		local usable = layout.width - 2 * MapConfig.DISPLAY_BACK_INSET - pad
-		for row = 1, MapConfig.DISPLAY_SLOT_COLS do
+		local usable = math.min(layout.width - 2 * MapConfig.DISPLAY_BACK_INSET - pad, MapConfig.HEAD_PLOT_RANK_SPAN)
+		for row = 1, MapConfig.DISPLAY_SLOT_ROWS do
 			local localZ = backZ - (row - 1) * rowGap
 			for i = 1, perRank do
 				n += 1
@@ -1065,6 +1092,10 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	-- The upgrade pad: the plinth the upgrade sign stands on, at the porch's
 	-- left; the spawn beside it, facing out of the plot toward the avenue.
 	local porchZ = -halfD + 12
+	-- Porch furniture, left to right across a 76-stud frontage: the owner's
+	-- nameplate at the corner (BaseService stands it 12 in), the upgrade pad
+	-- 30 in, the spawn beside it. Any tighter and the two sign boards share
+	-- the same studs.
 	makePart({
 		name = "BaseUpgradePad",
 		size = MapConfig.PAD_SIZE,
@@ -1074,7 +1105,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		-- toward the spawn, so the owner reads it from where they appear, and
 		-- an arriving player reads it walking down the avenue. Any closer to
 		-- the corner and the two signs share the same studs.
-		cframe = at(-halfW + 34, 0.5, porchZ),
+		cframe = at(-halfW + 30, 0.5, porchZ),
 		color = MapPalette.PadUpgrade,
 		material = Enum.Material.SmoothPlastic,
 		parent = base,

@@ -13,11 +13,19 @@
 	server whether or not the place was saved after a tweak.
 
 	THE GRADE
-	Bright, playful, low-poly - and no longer harsh. Brightness and exposure
-	come down from the values that blew out the lime floors and white surfaces;
-	bloom is reserved for genuine highlights (a higher threshold, a smaller
-	size) instead of washing every pale part; saturation is pulled back from
-	+22% to a touch, so the zones' own hues do the work. Nothing here goes dark,
+	Bright, playful, low-poly - and no longer harsh. The harshness and the
+	washed-out look are two different problems and this grade fixes them
+	separately:
+
+	  * OVEREXPOSURE is handled by exposure and bloom. Exposure sits slightly
+	    negative and bloom only lifts genuine highlights (threshold 2.6), so
+	    white paving and snow stop blooming into the sky.
+	  * COLOUR comes from saturation, contrast and a lower outdoor ambient - a
+	    high sky-fill was bleaching the greens flat. Saturation is +22% and
+	    contrast +14%, which is what makes the grass read as grass.
+
+	The previous pass fixed the first by attacking the second (saturation +6%,
+	outdoor ambient 150) and the world went pastel. Nothing here goes dark,
 	grey or realistic. NightController captures whatever these are on the
 	client at start as "day", so the Night grade keys off them automatically.
 ]]
@@ -29,13 +37,13 @@ local EnvironmentService = {}
 --- Lighting itself (mirrors default.project.json so a live server and the
 --- Studio view agree).
 local LIGHTING = {
-	Brightness = 2.2,
-	ExposureCompensation = -0.05,
-	Ambient = Color3.fromRGB(88, 88, 96),
-	OutdoorAmbient = Color3.fromRGB(150, 156, 170),
-	EnvironmentDiffuseScale = 0.5,
-	EnvironmentSpecularScale = 0.3,
-	ShadowSoftness = 0.55,
+	Brightness = 2.6,
+	ExposureCompensation = -0.15,
+	Ambient = Color3.fromRGB(78, 80, 92),
+	OutdoorAmbient = Color3.fromRGB(128, 136, 152),
+	EnvironmentDiffuseScale = 0.4,
+	EnvironmentSpecularScale = 0.2,
+	ShadowSoftness = 0.35,
 	GlobalShadows = true,
 	ClockTime = 14,
 	GeographicLatitude = 0,
@@ -46,21 +54,23 @@ local LIGHTING = {
 local EFFECTS: { [string]: { class: string, props: { [string]: any } } } = {
 	Bloom = {
 		class = "BloomEffect",
-		props = { Intensity = 0.22, Threshold = 2.2, Size = 18, Enabled = true },
+		props = { Intensity = 0.16, Threshold = 2.6, Size = 20, Enabled = true },
 	},
 	WorldGrade = {
 		class = "ColorCorrectionEffect",
-		props = { Saturation = 0.06, Contrast = 0.06, Brightness = 0, TintColor = Color3.fromRGB(255, 255, 255), Enabled = true },
+		props = { Saturation = 0.22, Contrast = 0.14, Brightness = 0, TintColor = Color3.fromRGB(255, 255, 255), Enabled = true },
 	},
 	Atmosphere = {
 		class = "Atmosphere",
 		props = {
-			Density = 0.24,
+			-- Haze is what makes a far zone look grey. Kept light: enough for
+			-- depth down a 2400-stud world, not enough to fog the colour out.
+			Density = 0.15,
 			Offset = 0.3,
-			Color = Color3.fromRGB(210, 228, 255),
-			Decay = Color3.fromRGB(120, 160, 210),
+			Color = Color3.fromRGB(200, 222, 255),
+			Decay = Color3.fromRGB(110, 150, 205),
 			Glare = 0,
-			Haze = 0.6,
+			Haze = 0.3,
 		},
 	},
 	SunRays = {

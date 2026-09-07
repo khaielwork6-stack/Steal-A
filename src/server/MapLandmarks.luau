@@ -678,6 +678,107 @@ MapLandmarks.layouts = {
 } :: { Layout }
 
 -- ==========================================================
+-- SOCKET DRESSING
+-- ==========================================================
+--
+-- Loot should look like it BELONGS where it stands: a crate and a barrel
+-- beside the pirate plinth, hedges around the museum's, cones around Area
+-- 51's. Two or three small props per plinth, themed to the zone.
+--
+-- WHY IT IS NOT IN `dressing`: MapBuilder settles every socket against the
+-- scenery first (a plinth never lands inside a landmark), so anything placed
+-- near a socket beforehand would just push that socket somewhere else. These
+-- run AFTER placement, against the socket's final world position, and land in
+-- the zone's own Decorations folder - which `applyDecorCollision` makes
+-- hollow, so nothing here can ever catch a running player or a guardian.
+--
+-- Offsets are authored-space like the rest of this file (x across, z along)
+-- and are kept past 15 so they clear the plinth's 18-stud rim.
+
+local function urn(ctx: Ctx, offset: Vector3, height: number)
+	pillar(ctx, "Urn", height * 0.8, height, offset + Vector3.new(0, height / 2, 0), rgb(200, 132, 80), Enum.Material.Plastic)
+	ball(ctx, "UrnLip", Vector3.new(height * 0.9, height * 0.3, height * 0.9), offset + Vector3.new(0, height, 0), rgb(170, 108, 64))
+end
+
+local socketDressing: { (Ctx) -> () } = {
+	-- 01 MUSEUM
+	function(ctx)
+		bush(ctx, Vector3.new(-17, 0, -5), 9)
+		bush(ctx, Vector3.new(17, 0, 6), 8, rgb(118, 200, 104))
+	end,
+	-- 02 PIRATE
+	function(ctx)
+		barrel(ctx, Vector3.new(-17, 0, -4))
+		crate(ctx, Vector3.new(17, 0, 7), 8, 20)
+	end,
+	-- 03 CASTLE
+	function(ctx)
+		barrel(ctx, Vector3.new(17, 0, -5))
+		bush(ctx, Vector3.new(-17, 0, 6), 9)
+	end,
+	-- 04 AREA 51
+	function(ctx)
+		cone(ctx, Vector3.new(-16, 0, -7))
+		cone(ctx, Vector3.new(16, 0, 7))
+		crate(ctx, Vector3.new(17, 0, -7), 7, 15)
+	end,
+	-- 05 NORTH POLE
+	function(ctx)
+		rock(ctx, Vector3.new(-17, 0, -5), 11, rgb(226, 236, 250))
+		rock(ctx, Vector3.new(17, 0, 6), 9, rgb(240, 246, 252))
+	end,
+	-- 06 EGYPT
+	function(ctx)
+		urn(ctx, Vector3.new(-17, 0, -5), 9)
+		urn(ctx, Vector3.new(17, 0, 6), 7)
+	end,
+	-- 07 GYM
+	function(ctx)
+		box(ctx, "Mat", Vector3.new(15, 0.8, 11), Vector3.new(18, 0.4, 6), rgb(70, 158, 210), Enum.Material.SmoothPlastic)
+		pillar(ctx, "Weight", 9, 3, Vector3.new(-17, 1.5, -4), rgb(38, 42, 58), Enum.Material.Metal)
+		pillar(ctx, "WeightBar", 2, 12, Vector3.new(-17, 3.4, -4), rgb(150, 154, 166), Enum.Material.Metal, CFrame.Angles(0, 0, math.rad(90)))
+	end,
+	-- 08 BANK
+	function(ctx)
+		box(ctx, "Cashbox", Vector3.new(9, 7, 9), Vector3.new(-17, 3.5, -5), rgb(58, 132, 90), Enum.Material.Metal)
+		box(ctx, "CashboxLid", Vector3.new(9.6, 1.2, 9.6), Vector3.new(-17, 7.4, -5), rgb(44, 108, 72), Enum.Material.Metal)
+		pillar(ctx, "Bollard", 4, 11, Vector3.new(17, 5.5, 6), rgb(200, 206, 218), Enum.Material.Metal)
+	end,
+	-- 09 SECRET LAB
+	function(ctx)
+		pillar(ctx, "Canister", 7, 13, Vector3.new(-17, 6.5, -5), rgb(96, 214, 255), Enum.Material.SmoothPlastic)
+		pillar(ctx, "CanisterCap", 8, 2, Vector3.new(-17, 13.5, -5), rgb(48, 54, 78), Enum.Material.Metal)
+		box(ctx, "LabCrate", Vector3.new(9, 8, 9), Vector3.new(17, 4, 6), rgb(206, 210, 224), Enum.Material.SmoothPlastic)
+	end,
+	-- 10 GRANDMA
+	function(ctx)
+		bush(ctx, Vector3.new(-17, 0, -5), 9, rgb(120, 190, 110))
+		pillar(ctx, "FlowerPot", 8, 7, Vector3.new(17, 3.5, 6), rgb(196, 110, 86), Enum.Material.Plastic)
+		ball(ctx, "Flowers", Vector3.new(9, 6, 9), Vector3.new(17, 8.5, 6), rgb(240, 150, 190))
+	end,
+	-- 11 CONSTRUCTION
+	function(ctx)
+		cone(ctx, Vector3.new(-16, 0, -6))
+		crate(ctx, Vector3.new(17, 0, 6), 9, 25)
+	end,
+	-- 12 AIRPORT
+	function(ctx)
+		box(ctx, "Suitcase", Vector3.new(11, 8, 6), Vector3.new(-17, 4, -5), rgb(60, 80, 140), Enum.Material.SmoothPlastic, CFrame.Angles(0, math.rad(12), 0))
+		box(ctx, "SuitcaseSmall", Vector3.new(8, 6, 5), Vector3.new(-17, 11, -5), rgb(196, 84, 84), Enum.Material.SmoothPlastic, CFrame.Angles(0, math.rad(-8), 0))
+		cone(ctx, Vector3.new(17, 0, 6))
+	end,
+}
+
+--- Called by MapBuilder once a socket has settled, with its FINAL world spot.
+function MapLandmarks.dressSocket(zoneIndex: number, parent: Instance, position: Vector3)
+	local fn = socketDressing[zoneIndex]
+	if not fn or not parent then
+		return
+	end
+	fn({ parent = parent, origin = position, frame = CFrame.new(position) })
+end
+
+-- ==========================================================
 -- ENTRY POINT
 -- ==========================================================
 

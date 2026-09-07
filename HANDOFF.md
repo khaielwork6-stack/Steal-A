@@ -2,8 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §28** (the map overhaul: hub, plots, zones, gates, lighting,
-> the upgrade sign - and the Studio Save it still needs), then §27 (pop-up
+> **START AT §29** (map polish 2: the lobby measured and shrunk, the colour
+> restored, the checker floor, socket dressing), then §28 (the map overhaul:
+> hub, plots, zones, gates, lighting, the upgrade sign - and the Studio Save
+> it still needs), then §27 (pop-up
 > placement, solid barrier, trail toggle, 2x Cash owned look, zone signs,
 > hotbar, Next Update stand), then §26 (smart
 > guardians that carry loot back, living loot, the
@@ -2401,3 +2403,122 @@ overhaul lives in the generator and was rebuilt in Studio; nothing inside
   and `ServerStorage._RootBackup_2026-09-07`. Delete them once the new map
   is accepted; they are not referenced by anything.
 - Still pending from §27: `ReplicatedStorage.UITemplates.MenuButtons`.
+
+## 29. Map polish pass 2 — the lobby actually shrank, the colour came back, the floor got its checker
+
+§28 was judged on the right things and got two of them wrong: the lobby was
+recomposed but not REDUCED, and "less neon" was implemented as less
+saturation, which read as pastel. This section is the correction. Everything
+§28 built - porches, fences, aisles, gates, one sign per zone, the hub
+composition - is kept.
+
+### 29.1 The lobby, measured
+
+Measured off the built map, not off the config:
+
+|                                   | before  | after   |        |
+| --------------------------------- | ------- | ------- | ------ |
+| plaza floor                       | 476x356 | 376x320 | -29%   |
+| safe apron                        | 256x64  | 256x52  | -19%   |
+| lobby floor total                 | 185,840 | 133,632 | -28%   |
+| OPEN floor (no plot on it)        | 72,560  | 34,560  | -52%   |
+| corridor between the plot rows    | 124     | 80      | -35%   |
+| paved avenue                      | 26x318  | 20x282  |        |
+| spawn -> trail booth circle       | 57      | 30      | -47%   |
+| spawn -> event stand              | 66      | 38      | -42%   |
+| spawn -> leaderboard              | 73      | 47      | -36%   |
+| spawn -> Zone 01 gate             | 28      | 20      |        |
+| spawn -> own plot (Base01)        | 98      | 76      |        |
+| spawn -> head plot (Base07)       | 302     | 274     |        |
+| map parts                         | 1,788   | 2,765   | +55%   |
+
+Where the space came from, in order of size:
+
+1. **Plots hold the same 14 pads in less floor.** Three ranks instead of two
+   ranks of seven (`DISPLAY_SLOT_COLS = 3`, 5/5/4 on one shared rank grid) cut
+   `PLOT_DEPTH` 176 -> 148, and the plaza is two plot depths wide, so that
+   alone is 56 studs off the width. Frontage 84 -> 76.
+2. **The corridor was sized off what stands in it, not off a feeling.** A
+   treadmill deck reaches 20 studs in from each plot edge, so 80 leaves a
+   clear 40-stud street (measured by raycast: 40). It was 124.
+3. **The head plot now spans the whole back** (`HEAD_PLOT_WIDTH` follows
+   `PLAZA_WIDTH`, 376). At lane width it left a 110-stud pocket of bare floor
+   in each back corner - 21k studs of nothing. Its pads stay grouped in the
+   middle (`HEAD_PLOT_RANK_SPAN = 232`).
+4. **The apron lost 12 studs and the hub furniture moved in** to +-38 from
+   +-66, with the spawn circle at Z -26 (was -34) and 26 across (was 30).
+
+Deliberately NOT changed: `LANE_WIDTH`, zone lengths, the red line. Chase
+balance is calibrated against run lengths (§25's speed audit) and shortening a
+zone would silently re-tune every guardian.
+
+### 29.2 Colour: rich, not neon, and not pastel
+
+The two failure modes are separate problems and are now fixed separately.
+Exposure and bloom stop the world hurting the eye; saturation and contrast
+carry the colour. §28 fixed the first by attacking the second.
+
+- `EnvironmentService` / `default.project.json`: Brightness 2.2 -> 2.6,
+  ExposureCompensation -0.05 -> -0.15, OutdoorAmbient 150,156,170 ->
+  128,136,152 (a high sky-fill was bleaching the greens), Bloom 0.22@2.2 ->
+  0.16@2.6, ColorCorrection Saturation 0.06 -> 0.22 and Contrast 0.06 -> 0.14,
+  Atmosphere Density 0.24 -> 0.15 and Haze 0.6 -> 0.3, ShadowSoftness 0.55 ->
+  0.35.
+- `MapPalette`: grass back to a saturated green (126,208,82), plots a step
+  lighter, walls to a richer clay (198,138,96) with a green cap, every zone
+  surface re-saturated a step. Paving deliberately off-white
+  (192,183,162): at brightness 2.6 a near-white avenue was the brightest
+  thing on screen and read as a runway.
+
+### 29.3 The checker floor
+
+The checker system already existed; it was invisible because the pairs sat 10
+RGB apart at a 44-48 stud tile - one square per screen. Now ~20 RGB apart at
+**18 studs in the lobby and 22 in the zones**, which reads as a pattern from
+standing height with the studs still visible on top. That is the +977 parts:
+the tiles are one part per light square (anchored, CanCollide off, CastShadow
+off).
+
+**Z-fighting, found and fixed:** the plot floor slab and the plaza slab both
+had their top at exactly Y = 0, and the plot's checker tiles sat at the same
+0.02 as the plaza's - the two surfaces fought across every plot. The plot
+floor now sits 0.15 proud (slab -0.45, tiles -0.33), well under a step
+height.
+
+### 29.4 Zone composition
+
+`MapLandmarks.dressSocket(zoneIndex, decorFolder, worldPos)` puts two or three
+themed props beside every loot plinth - barrel and crate at the pirate
+plinths, hedges at the museum's, cones at Area 51's, urns in Egypt, a mat and
+a weight in the Gym. 48 plinths, ~500 zone decoration parts in total.
+
+It is a separate hook and not part of `dressing` for a reason: MapBuilder
+settles each socket AGAINST the scenery, so anything placed near a socket
+beforehand just pushes that socket elsewhere. This runs after placement, from
+the socket's final world position, into the zone's `Decorations` folder -
+which `applyDecorCollision` makes hollow, so none of it can catch a running
+player or a guardian (verified: 0 colliding decoration parts).
+
+### 29.5 Tested in Play (one client, DataStores off)
+
+- Console clean; 7 plots x 14 pads; 12 zones x 4 sockets filled; 12 guardians;
+  12 signs; booth, stand and boards at their new hub spots.
+- Spawn at (0, -26) facing the gate; steal -> escape -> place (pedestal and
+  trophy on the pad); treadmill at the new 13-stud standoff.
+- Upgrade sign: one pointer click on the board bought exactly one tier
+  ($1M, 7 -> 8 slots) and repainted itself. The two sign boards on the
+  narrower porch do not overlap (measured).
+- Trail booth circle at (-29, -32), 30 studs from spawn, opens the shop.
+- Zone entry pop-up "Museum" at the top centre; Night barrier blocks the line
+  (walked into it: stopped at Z -4.9); loot refreshed 48/48 after Night.
+- Avenue raycast at torso height from the head plot to the red line: CLEAR at
+  x = -16, -8, 0, 8, 16. Clear corridor width 40 studs at every treadmill row.
+- Walls enclose the new plaza on both sides and behind the head plot.
+
+### 29.6 Not verified
+
+- Multiplayer (7 plots occupied at once) and mobile frame rate. Part count is
+  up 55% and all of it is anchored, non-colliding, shadowless tiles, but no
+  device test was possible here.
+- The SurfaceGui button path on the upgrade sign (Studio's simulated pointer
+  cannot reach 3D GUI buttons); the ClickDetector path was the one exercised.

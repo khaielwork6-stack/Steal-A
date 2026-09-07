@@ -29,22 +29,22 @@
     "Lighting": {
       "$properties": {
         "Ambient": [
-          0.345,
-          0.345,
-          0.376
+          0.306,
+          0.314,
+          0.361
         ],
         "OutdoorAmbient": [
-          0.588,
-          0.612,
-          0.667
+          0.502,
+          0.533,
+          0.596
         ],
-        "Brightness": 2.2,
+        "Brightness": 2.6,
         "ClockTime": 14,
         "GeographicLatitude": 0,
-        "ExposureCompensation": -0.05,
-        "EnvironmentDiffuseScale": 0.5,
-        "EnvironmentSpecularScale": 0.3,
-        "ShadowSoftness": 0.55,
+        "ExposureCompensation": -0.15,
+        "EnvironmentDiffuseScale": 0.4,
+        "EnvironmentSpecularScale": 0.2,
+        "ShadowSoftness": 0.35,
         "GlobalShadows": true,
         "Outlines": false,
         "Technology": "ShadowMap"
