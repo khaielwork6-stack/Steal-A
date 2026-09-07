@@ -116,29 +116,17 @@ end
 --- Wraps whatever the artist provided into a Model we own.
 --- Returns nil when the source contains no parts at all.
 local function adopt(source: Instance): Model?
-	if source:IsA("Model") then
-		local model = source:Clone()
-		if not model.PrimaryPart then
-			model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-		end
-		return if model.PrimaryPart then model else nil
-	end
-
-	-- A bare Part / MeshPart / union, or a legacy Hat or Accessory (whose art is
-	-- the Handle inside it). Either way we end up with one Model we control.
-	local model = Instance.new("Model")
-
-	if source:IsA("BasePart") then
-		local part = source:Clone()
-		part.Parent = model
-		model.PrimaryPart = part
-		return model
-	end
-
-	-- Accoutrement covers Accessory and the old Hat; a Tool is the third thing an
-	-- artist hands over that is neither a Model nor a bare part, and it is shaped
-	-- the same way - the art is the Handle. Both are unwrapped identically.
+	-- ORDER MATTERS, AND IT IS NOT OBVIOUS. `Tool` INHERITS FROM `Model` in
+	-- Roblox's class hierarchy (Tool -> BackpackItem -> Model), so a Tool
+	-- answers true to IsA("Model"). With the Model branch first, all eight
+	-- Tool-shaped imports - the VIP Passport, the Shawarma, the Golden Key,
+	-- the Cash Bag and the rest - were cloned WITH THEIR TOOL WRAPPER and
+	-- spawned into the world still a Tool. A Tool with a Handle lying in the
+	-- workspace is equipment: walking over one put the loot in the player's
+	-- backpack and on their back. The unwrapping branch below has to be
+	-- reached first.
 	if source:IsA("Accoutrement") or source:IsA("Tool") then
+		local model = Instance.new("Model")
 		-- EVERY part comes across, not just the Handle. The zone 6-12 imports
 		-- include Tools built from several parts welded to a Handle (the Gym's
 		-- barbell, the Bank's briefcases, the Lab's containment tank); keeping
@@ -170,10 +158,51 @@ local function adopt(source: Instance): Model?
 			model.PrimaryPart = handle
 			return model
 		end
+		model:Destroy()
+		return nil
 	end
 
-	model:Destroy()
+	if source:IsA("Model") then
+		local model = source:Clone()
+		if not model.PrimaryPart then
+			model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+		end
+		return if model.PrimaryPart then model else nil
+	end
+
+	-- A bare Part / MeshPart / union.
+	if source:IsA("BasePart") then
+		local model = Instance.new("Model")
+		local part = source:Clone()
+		part.Parent = model
+		model.PrimaryPart = part
+		return model
+	end
+
 	return nil
+end
+
+--- Strips any Tool or Accessory WRAPPER nested inside a model, keeping its
+--- parts. `adopt` handles the outer one; this is for art that has equipment
+--- inside it (the Jewelled Shield ships a "DragonSword&Shield" Tool), which
+--- lying in a zone is just as pick-up-able as an outer Tool would be.
+local function unwrapEquipment(model: Instance)
+	local wrappers: { Instance } = {}
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("Tool") or descendant:IsA("Accoutrement") then
+			table.insert(wrappers, descendant)
+		end
+	end
+	for _, wrapper in wrappers do
+		if wrapper.Parent then
+			for _, child in wrapper:GetChildren() do
+				if child:IsA("BasePart") then
+					child.Parent = model
+				end
+			end
+			wrapper:Destroy()
+		end
+	end
 end
 
 -- ==========================================================
@@ -224,6 +253,8 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 
 	local built = model :: Model
 	built.Name = options.itemId
+
+	unwrapEquipment(built)
 	-- The client animates loot by moving the whole model. With streaming on,
 	-- a model that streams in part by part would be pivoted while half here
 	-- and torn apart when the rest arrived; atomic models arrive whole.
@@ -369,6 +400,7 @@ function LootModel.publishPreviews(): number
 			continue
 		end
 		model.Name = item.Name
+		unwrapEquipment(model)
 		for _, descendant in model:GetDescendants() do
 			if descendant:IsA("BasePart") then
 				descendant.Anchored = true

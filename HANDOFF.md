@@ -2749,3 +2749,30 @@ empty state. Two hours of this pass went into tests that failed for that reason
 alone (a `getPlot` that returned nil for a player who had a plot, a
 `StateService.announce` hook that never fired). Go through
 `ServerStorage.DebugInvoke` for anything that has to touch live service state.
+
+### 30.16 Loot was equippable (follow-up)
+
+The owner photographed two loot items sitting in the hotbar - the VIP Passport
+and the Shawarma - equipped like weapons. The cause is one line of ordering in
+`LootModel.adopt`:
+
+    if source:IsA("Model") then ... end        -- ran first
+    if source:IsA("Accoutrement") or source:IsA("Tool") then ... end
+
+**`Tool` inherits from `Model`** in Roblox (Tool -> BackpackItem -> Model), so a
+Tool answers true to `IsA("Model")` and took the first branch, which clones the
+source whole. All eight Tool-shaped imports - VIP Passport, Shawarma, Golden
+Key, Cash Bag, both briefcases, the Barbell, the Containment Tank - therefore
+spawned into their sockets STILL A TOOL. A Tool with a Handle lying in the
+workspace is equipment: walking over one put the loot in the backpack and on
+the character, which is also why they appeared in hotbar slots 3 and 4.
+
+The unwrap branch now runs first, and a shared `unwrapEquipment` strips any Tool
+or Accessory nested INSIDE a model as well (the Jewelled Shield ships a
+"DragonSword&Shield" Tool), for both world models and the published previews.
+
+Verified: no Tool or Accessory anywhere in the zones or in LootPreviews; all
+eleven equipment-shaped imports build to plain Models; standing on the Passport
+and the Shawarma four times each leaves the backpack at Bat + Trap; the hotbar
+keeps slots 3 and 4 empty while carrying; the carried passport rides 6.1 studs
+in front with its bottom 0.4 above the soles.
