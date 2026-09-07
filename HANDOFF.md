@@ -1744,3 +1744,34 @@ rig shape, not by zone.
 - Filmed mid-stride from a follow camera: Pirate Captain (R6) and Foreman
   (R15), costumes and accessories intact, feet on the floor.
 - Catch, offer, drop, return and sleep unchanged.
+
+### Staged but not yet adopted (owner supplied these after the pass)
+
+`workspace` holds three rigged replacements: `Zone 5 Santa` (R6),
+`Zone 7 Sam Sulek` (R15), `Zone 10 Grandma` (R6, standard joints). Each has a
+proper skeleton and no scripts. Move them into
+`ServerStorage.GameAssets.Guardians` as `Zone05_ElfGuard`, `Zone07_Bodybuilder`
+and `Zone10_Grandma` (park the old models in `_UnusedImports`) and they walk
+with no code change. Only the Cop would then still use the cartoon run.
+
+---
+
+## 24. Two placeholder loot slots filled from the imports
+
+- `Egypt_GoldenAnkh` (zone 6, slot 4, $11K/s, no art) → **`Egypt_AncientScroll`
+  "Ancient Scroll"**, art = the owner's `Zone 6 Ancient Scroll` MeshPart.
+- `SecretLab_PortalBattery` (zone 9, slot 6, $60M/s, no art) →
+  **`SecretLab_CyanPlasma` "Cyan Plasma"**, art = the 4-part `Cyan Plasma` model.
+- New ids because they are different objects (ids are save keys); incomes and
+  ladder positions unchanged, so `validate` still passes 12×8.
+- Studio side (place file — **save**): both models renamed to their ItemIds,
+  anchored, and moved into `ServerStorage.GameAssets.Loot` (now 94 children).
+- Verified in Play: config resolves both ids, `LootModel.hasArt` true for both,
+  `grant` places each on a display slot and it renders (scroll 4.9 studs,
+  plasma 2.6 studs), zone 6/9 economy listings show the new names.
+- **Still without art: `Museum_Ruby`, `Pirate_CursedCoin`.** The `Pirate Wheel`
+  the owner wanted for zone 2 is an EMPTY Accessory (no Handle, zero
+  descendants — the import lost its mesh), so there is nothing to show; it
+  stays in `_UnusedImports._ImportedAssets`. A re-imported wheel with a Handle
+  dropped in as `Pirate_CursedCoin` (or a new id in that slot) will be picked
+  up automatically.

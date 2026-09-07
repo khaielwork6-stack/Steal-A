@@ -124,15 +124,17 @@ local Seeds: { { ItemSeed } } = {
 	-- Where the new model is the same kind of object as the GDD item in that
 	-- slot, the ItemId is KEPT and only the display name changes (a Shiny Coin
 	-- is still `Bank_RareCoin`), because ids are save keys. A genuinely
-	-- different object gets a new id. Two slots have no model yet and keep
-	-- their GDD row as a placeholder: `Egypt_GoldenAnkh`, `SecretLab_PortalBattery`.
+	-- different object gets a new id. The two slots that had no model (the GDD's
+	-- Golden Ankh and Portal Battery) were later filled by imports of a
+	-- different kind of object, so they carry new ids: `Egypt_AncientScroll`
+	-- and `SecretLab_CyanPlasma`. Every slot now has art.
 	--
 	-- Zone 06 ANCIENT EGYPT
 	{
 		{ id = "Egypt_CanopicJar", name = "Canopic Jar", income = 180 },
 		{ id = "Egypt_Shawarma", name = "Shawarma", income = 850 },
 		{ id = "Egypt_AncientMau", name = "Ancient Mau", income = 9500 },
-		{ id = "Egypt_GoldenAnkh", name = "Golden Ankh", income = 11e3 }, -- no art yet
+		{ id = "Egypt_AncientScroll", name = "Ancient Scroll", income = 11e3 },
 		{ id = "Egypt_Mummy", name = "Mummy", income = 55e3 },
 		{ id = "Egypt_ThroneOfRa", name = "Throne of Ra", income = 8e6 },
 		{ id = "Egypt_NemesMask", name = "Nemes Mask", income = 85e6 },
@@ -168,7 +170,7 @@ local Seeds: { { ItemSeed } } = {
 		{ id = "SecretLab_ContainmentTank", name = "Containment Tank", income = 180e3 },
 		{ id = "SecretLab_RobotSpider", name = "Robot Spider", income = 2.2e6 },
 		{ id = "SecretLab_MutationCrystal", name = "Blue Crystal", income = 45e6 },
-		{ id = "SecretLab_PortalBattery", name = "Portal Battery", income = 60e6 }, -- no art yet
+		{ id = "SecretLab_CyanPlasma", name = "Cyan Plasma", income = 60e6 },
 		{ id = "SecretLab_EnergyCore", name = "Energy Canister", income = 250e6 },
 		{ id = "SecretLab_RadiationChamber", name = "Radiation Chamber", income = 1e9 },
 	},
