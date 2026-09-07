@@ -68,18 +68,16 @@ end
 -- HOTBAR
 -- ==========================================================
 
---- Compact "displays filled" readout. The pack's five numbered slots were
---- removed entirely: they duplicated Roblox's own tool hotbar (which already
---- shows exactly the two tools we have, Bat and Trap) and misrepresented
---- capacity, which runs to fourteen.
-local function updateDisplayCount(state)
+--- The pack's five numbered hotbar slots were removed long ago (they duplicated
+--- Roblox's own tool hotbar). The "Displays 0/7" readout that replaced them in
+--- the bottom-right is gone too: that corner is the Nightfall timer's now
+--- (NightController), and slot capacity is read off the base's own Upgrade
+--- sign, where the decision to buy more is made.
+local function removeDisplayCount()
 	local strip = ui:FindFirstChild("Bottom")
 	local label = strip and strip:FindFirstChild("DisplayCount")
-	if label and label:IsA("TextLabel") then
-		label.Text = `Displays  {state.slotsUsed}/{state.slotsUnlocked}`
-		label.TextColor3 = if state.slotsUsed >= state.slotsUnlocked
-			then Color3.fromRGB(255, 176, 46)
-			else Color3.fromRGB(226, 230, 240)
+	if label then
+		label:Destroy()
 	end
 end
 
@@ -152,6 +150,8 @@ function HUDController.start()
 	-- would animate but never open anything. UIAnim is for the UI we build
 	-- outside this pack.
 
+	removeDisplayCount()
+
 	applyScale()
 	local camera = workspace.CurrentCamera
 	if camera then
@@ -177,8 +177,6 @@ function HUDController.start()
 		if speedLabel then
 			speedLabel.Text = `Speed {NumberFormat.short(state.speedPower)}`
 		end
-
-		updateDisplayCount(state)
 	end)
 
 	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, message: string, detail: string?)

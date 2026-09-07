@@ -29,6 +29,8 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local IndexConfig = require(ReplicatedStorage.Shared.Config.IndexConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
@@ -36,6 +38,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local ItemThumb = require(ReplicatedStorage.Shared.Util.ItemThumb)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
@@ -63,6 +66,15 @@ local selectedZone = 1
 local discovered: { [string]: boolean } = {}
 local summary: any = nil
 local lastDiscoveredCount: number? = nil
+--- The zone header above the grid: "Zone 7 · Gym 💪 · 3/8 found".
+local zoneTitle: TextLabel? = nil
+--- The preview models on the cards currently shown, turned slowly while the
+--- panel is open. Only ever the eight of the selected zone.
+local turning: { Model } = {}
+--- Radians per second a discovered item turns in its card.
+local TURN_RATE = 0.7
+local HOVER_LIFT = 1.05
+local HOVER_IN = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 -- ==========================================================
 -- HELPERS
@@ -125,9 +137,13 @@ local function buildCard(def: any, known: boolean, order: number): Frame?
 			name.TextColor3 = Color3.fromRGB(240, 244, 252)
 		end
 
+		-- The real model, turning; the rarity colour on the frame.
 		local icon = body and body:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			ItemThumb.apply(icon, def.rarity)
+			local model = ItemThumb.apply(icon, def.rarity, def.id)
+			if model then
+				table.insert(turning, model)
+			end
 		end
 		local stroke = card:FindFirstChildOfClass("UIStroke")
 		if stroke then
@@ -139,17 +155,28 @@ local function buildCard(def: any, known: boolean, order: number): Frame?
 			count.Text = LOCKED_TEXT
 			flatten(count, DIM)
 		end
-		-- An unfound item shows a blank plate, never a dimmed rarity colour:
-		-- that would leak how rare it is before the player has found it.
+		-- An unfound item is a black silhouette of the real thing on an unlit
+		-- plate: the shape teases, the detail and the rarity stay hidden until
+		-- the player has actually found it.
 		local icon = body and body:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			ItemThumb.applyUnknown(icon)
+			ItemThumb.applyUnknown(icon, def.id)
 		end
 		local stroke = card:FindFirstChildOfClass("UIStroke")
 		if stroke then
 			stroke.Color = Color3.fromRGB(34, 37, 46)
 		end
 	end
+
+	-- A small lift under the pointer, so the grid answers the hand.
+	local lift = card:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	lift.Parent = card
+	card.MouseEnter:Connect(function()
+		TweenService:Create(lift, HOVER_IN, { Scale = HOVER_LIFT }):Play()
+	end)
+	card.MouseLeave:Connect(function()
+		TweenService:Create(lift, HOVER_IN, { Scale = 1 }):Play()
+	end)
 
 	return card
 end
@@ -250,6 +277,18 @@ local function paintClaim()
 	end
 end
 
+--- The header line for the selected zone, from the same summary the tabs use.
+local function paintZoneTitle()
+	local label = zoneTitle
+	local zone = ZoneConfig.Zones[selectedZone]
+	if not label or not zone then
+		return
+	end
+	local row = summary and summary.zones and summary.zones[selectedZone]
+	local found = if row then `{row.discovered}/{row.total} found` else ""
+	label.Text = `Zone {selectedZone}  ·  {zone.name} {zone.emoji}  ·  {found}`
+end
+
 local function renderZone()
 	local pool = LootConfig.Items[selectedZone]
 	if not pool or not scroll then
@@ -257,16 +296,25 @@ local function renderZone()
 	end
 
 	clearGrid()
+	table.clear(turning)
+	local cards: { GuiObject } = {}
 	for order, def in pool do
 		local card = buildCard(def, discovered[def.id] == true, order)
 		if card then
 			card.Parent = scroll
+			table.insert(cards, card)
 		end
+	end
+	-- Cards settle in one after another rather than all at once; a short
+	-- step so eight of them are done in a quarter of a second.
+	if panel and panel.Visible then
+		ShopKit.cascadeIn(cards, 0.025)
 	end
 
 	for index = 1, ZoneConfig.COUNT do
 		paintTab(index)
 	end
+	paintZoneTitle()
 	paintClaim()
 end
 
@@ -482,13 +530,30 @@ local function buildPanel(ui: ScreenGui): boolean
 		counterLabel.Text = `0/{IndexConfig.TOTAL_ITEMS} Discovered`
 	end
 
-	-- Make room for the tab strip above and the claim bar below.
+	-- Make room for the tab strip and the zone header above, the claim bar below.
 	list.AnchorPoint = Vector2.new(0.5, 0.5)
-	list.Position = UDim2.fromScale(0.5, 0.585)
-	list.Size = UDim2.fromScale(0.94, 0.56)
+	list.Position = UDim2.fromScale(0.5, 0.607)
+	list.Size = UDim2.fromScale(0.94, 0.515)
 	list.CanvasSize = UDim2.new()
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.ScrollBarThickness = 4
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
+
+	-- The zone header: which zone, its name and accent, how much of it is found.
+	local header = Instance.new("TextLabel")
+	header.Name = "ZoneTitle"
+	header.BackgroundTransparency = 1
+	header.AnchorPoint = Vector2.new(0.5, 0.5)
+	header.Position = UDim2.fromScale(0.5, 0.32)
+	header.Size = UDim2.fromScale(0.9, 0.052)
+	header.Font = Enum.Font.FredokaOne
+	header.TextScaled = true
+	header.TextColor3 = Color3.fromRGB(236, 240, 250)
+	header.TextStrokeTransparency = 0.6
+	header.Text = ""
+	header.ZIndex = 5
+	header.Parent = frame
+	zoneTitle = header
 
 	local grid = list:FindFirstChildOfClass("UIGridLayout")
 	if grid then
@@ -578,6 +643,7 @@ function IndexController.start()
 		for index = 1, ZoneConfig.COUNT do
 			paintTab(index)
 		end
+		paintZoneTitle()
 		paintClaim()
 
 		if openerBadge then
@@ -605,6 +671,17 @@ function IndexController.start()
 			end
 		end)
 	end
+
+	-- The eight previews on show turn slowly. Only while the panel is open,
+	-- and never more than one zone's worth.
+	RunService.Heartbeat:Connect(function(dt)
+		if not frame or not frame.Visible or #turning == 0 then
+			return
+		end
+		for _, model in turning do
+			ItemThumb.turn(model, TURN_RATE * dt)
+		end
+	end)
 
 	selectZone(1)
 end

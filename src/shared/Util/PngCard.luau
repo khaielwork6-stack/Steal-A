@@ -52,6 +52,15 @@ PngCard.CROP_MARGIN = 2
 --- Hit regions are grown by this much (fractions of the art) past the printed
 --- pill, so a press on the pill's outline still counts.
 PngCard.HIT_PAD = Vector2.new(0.006, 0.014)
+--- State pills are grown a little further, so an OPAQUE pill covers the
+--- printed button underneath completely - outline, shadow and all. The art is
+--- one flat image, so the only way to "hide" a printed purchase button is to
+--- paint over it; a translucent pill let the old "$" ghost through the new
+--- word, which is the stacked-buttons look this exists to prevent.
+PngCard.PILL_PAD = Vector2.new(0.03, 0.036)
+--- The printed Robux buttons carry an icon just LEFT of the measured pill on
+--- some cards (Golden, Red); the OWNED plate reaches further that way.
+PngCard.PILL_EXTRA_LEFT = { robux = 0.03 } :: { [string]: number }
 
 local HOVER_LIFT = 1.025
 local HOVER = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -432,14 +441,37 @@ function PngCard.build(options: Options): Card
 		return regionRect(layout, rect)
 	end
 
+	--- A state pill: an OPAQUE plate over a printed region (grown by PILL_PAD
+	--- so nothing of the printed button shows around it) carrying one word.
+	--- Only one state layer exists per region and only the caller decides
+	--- when it is visible, so a card can never show two states at once.
+	local function pillRect(name: string, position: UDim2, size: UDim2): (UDim2, UDim2)
+		local pad = PngCard.PILL_PAD
+		local left = pad.X + (PngCard.PILL_EXTRA_LEFT[name] or 0)
+		local x = math.max(position.X.Scale - left, 0)
+		local right = math.min(position.X.Scale + size.X.Scale + pad.X, 1)
+		-- Never over the neighbouring plate: on a card whose two printed
+		-- buttons sit close together, the Robux plate stops at a small gutter
+		-- from the cash plate's right edge instead of covering its last letter.
+		if name == "robux" and layout.regions.cash then
+			local cashPosition, cashSize = regionRect(layout, layout.regions.cash)
+			x = math.max(x, cashPosition.X.Scale + cashSize.X.Scale + pad.X + 0.006)
+		end
+		local y = math.max(position.Y.Scale - pad.Y, 0)
+		return UDim2.fromScale(x, y), UDim2.fromScale(math.max(right - x, 0.02), math.min(size.Y.Scale + 2 * pad.Y, 1 - y))
+	end
+
 	local function pill(name: string, text: string, color: Color3): TextLabel
 		local position, size = rectFor(name)
+		if position and size then
+			position, size = pillRect(name, position, size)
+		end
 		local label = Instance.new("TextLabel")
 		label.Name = name:sub(1, 1):upper() .. name:sub(2) .. "State"
 		label.Position = position or UDim2.fromScale(0, 0)
 		label.Size = size or UDim2.fromScale(0.3, 0.3)
-		label.BackgroundColor3 = Color3.fromRGB(14, 20, 30)
-		label.BackgroundTransparency = 0.12
+		label.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
+		label.BackgroundTransparency = 0
 		label.BorderSizePixel = 0
 		label.Font = Enum.Font.FredokaOne
 		label.TextScaled = true
@@ -523,8 +555,7 @@ function PngCard.build(options: Options): Card
 			local rect = target.regions[name]
 			if rect then
 				local position, size = regionRect(target, rect)
-				label.Position = position
-				label.Size = size
+				label.Position, label.Size = pillRect(name, position, size)
 			end
 		end
 	end

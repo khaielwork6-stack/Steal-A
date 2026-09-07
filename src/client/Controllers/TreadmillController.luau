@@ -49,6 +49,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local TreadmillController = {}
 
@@ -263,6 +264,107 @@ local function spawnPopup(amount: number, root: BasePart)
 end
 
 -- ==========================================================
+-- HUD FEEDBACK
+-- ==========================================================
+--
+-- The cash counter pulses and flashes when money lands; Speed earned on the
+-- treadmill gets the same treatment on its own row of the stat card, plus a
+-- small "+N Speed" that lifts off the row and fades. Screen-space, so it reads
+-- on a phone where the world popup beside the character is tiny. Same
+-- cadence as the world popup (POPUP_MIN_INTERVAL) so it can never spam, and
+-- the amount is the same real server delta.
+
+local SPEED_FLASH = Color3.fromRGB(150, 240, 255)
+local SPEED_RISE_PIXELS = 46
+local SPEED_HUD_LIFETIME = 0.95
+local SPEED_HUD_MAX = 4
+--- The HUD popup runs slower than the world one: gains inside this window are
+--- summed into one "+N", so the corner reads as a rhythm, not a stream.
+local SPEED_HUD_INTERVAL = 0.6
+
+local liveHudPopups = 0
+local hudSide = 1
+local hudPending = 0
+local lastHudAt = 0
+
+--- The Speed row of the stat card (HUDLayoutController builds it) and the
+--- amount label inside it.
+local function speedRow(): (GuiObject?, TextLabel?)
+	local playerGui = player:FindFirstChild("PlayerGui")
+	local ui = playerGui and playerGui:FindFirstChild("MainUI")
+	local card = ui and ui:FindFirstChild("StatHUD")
+	local row = card and card:FindFirstChild("Speed", true)
+	if not row or not row:IsA("GuiObject") then
+		return nil, nil
+	end
+	local label = row:FindFirstChild("Amount")
+	return row, if label and label:IsA("TextLabel") then label else nil
+end
+
+local function spawnHudPopup(amount: number)
+	local row, label = speedRow()
+	local ui = row and row:FindFirstAncestorOfClass("ScreenGui")
+	if not row or not ui then
+		return
+	end
+
+	-- The row itself: a punch and a cyan flash, the cash counter's treatment.
+	if label then
+		UIAnim.flashColor(label, SPEED_FLASH)
+		UIAnim.punch(label, 0.1)
+	end
+
+	if liveHudPopups >= SPEED_HUD_MAX then
+		return
+	end
+	liveHudPopups += 1
+
+	-- Lifts off the row's right end, alternating a little left and right so
+	-- two in a row never sit on top of each other. Positioned in pixels from
+	-- the row's absolute frame, so it follows the card wherever the layout
+	-- pass put it.
+	hudSide = -hudSide
+	local anchor = row.AbsolutePosition + Vector2.new(row.AbsoluteSize.X + 10 + hudSide * 8, row.AbsoluteSize.Y * 0.5)
+	local inset = ui.IgnoreGuiInset and Vector2.zero or Vector2.new(0, 0)
+	local popup = Instance.new("TextLabel")
+	popup.Name = "SpeedGain"
+	popup.BackgroundTransparency = 1
+	popup.AnchorPoint = Vector2.new(0, 0.5)
+	popup.Position = UDim2.fromOffset(anchor.X - inset.X, anchor.Y - inset.Y)
+	popup.Size = UDim2.fromOffset(150, 30)
+	popup.Font = Enum.Font.FredokaOne
+	popup.TextSize = 24
+	popup.TextXAlignment = Enum.TextXAlignment.Left
+	popup.TextColor3 = SPEED_FLASH
+	popup.TextStrokeTransparency = 0.25
+	popup.TextStrokeColor3 = Color3.fromRGB(10, 30, 50)
+	popup.Text = `+{NumberFormat.short(amount)} Speed`
+	popup.ZIndex = 20
+	popup.Parent = ui
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 0.6
+	scale.Parent = popup
+
+	TweenService:Create(scale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.12 }):Play()
+	TweenService:Create(
+		popup,
+		TweenInfo.new(SPEED_HUD_LIFETIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Position = popup.Position - UDim2.fromOffset(0, SPEED_RISE_PIXELS) }
+	):Play()
+	TweenService:Create(
+		popup,
+		TweenInfo.new(SPEED_HUD_LIFETIME * 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ TextTransparency = 1, TextStrokeTransparency = 1 }
+	):Play()
+
+	task.delay(SPEED_HUD_LIFETIME, function()
+		liveHudPopups -= 1
+		popup:Destroy()
+	end)
+end
+
+-- ==========================================================
 -- STATE
 -- ==========================================================
 
@@ -329,6 +431,7 @@ local function leaveTreadmill()
 	-- Anything banked but not yet shown is dropped: a popup appearing after the
 	-- player has walked away is noise, and the Speed is already in their total.
 	pendingGain = 0
+	hudPending = 0
 end
 
 --- The direction a runner on this deck should be facing, in world space.
@@ -467,7 +570,13 @@ local function step(dt: number)
 	if pendingGain > 0 and now - lastPopupAt >= TreadmillConfig.POPUP_MIN_INTERVAL then
 		lastPopupAt = now
 		spawnPopup(pendingGain, root)
+		hudPending += pendingGain
 		pendingGain = 0
+	end
+	if hudPending > 0 and now - lastHudAt >= SPEED_HUD_INTERVAL then
+		lastHudAt = now
+		spawnHudPopup(hudPending)
+		hudPending = 0
 	end
 end
 

@@ -32,6 +32,7 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local DisplayFxController = require(script.Parent.DisplayFxController)
 local NightController = require(script.Parent.NightController)
+local WorldLootFxController = require(script.Parent.WorldLootFxController)
 
 local SettingsController = {}
 
@@ -71,6 +72,7 @@ end
 local function applyReduced(reduced: boolean)
 	NightController.setReducedEffects(reduced)
 	DisplayFxController.setReducedEffects(reduced)
+	WorldLootFxController.setReducedEffects(reduced)
 end
 
 local function applyAll()

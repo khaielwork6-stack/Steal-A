@@ -34,6 +34,7 @@ local TweenService = game:GetService("TweenService")
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local AudioController = require(script.Parent.AudioController)
 
 local ChaseAudioController = {}
 
@@ -113,6 +114,8 @@ end
 local function setState(next: State)
 	state = next
 	player:SetAttribute("ChaseAudioState", next)
+	-- The lobby bed steps aside for the whole chase and returns after it.
+	AudioController.setDucked(next ~= "Idle")
 end
 
 local function toIdle(immediate: boolean?)

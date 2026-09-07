@@ -21,21 +21,26 @@ export type ZoneDef = {
 	--- the police whistle and the standard hit. Zone 1 is the tutorial Cop and is
 	--- deliberately NOT a boss.
 	isBoss: boolean,
+	--- The accent shown beside the zone's name in the entry pop-up and the
+	--- Index. Single code points only: Roblox's text renderer draws these but
+	--- not every multi-glyph (ZWJ) sequence, and a broken sequence shows as
+	--- two boxes.
+	emoji: string,
 }
 
 ZoneConfig.Zones = {
-	{ index = 1, id = "Zone01_Museum", name = "Museum", guardian = "Cop", recommendedSpeed = 0, isBoss = false },
-	{ index = 2, id = "Zone02_Pirate", name = "Pirate Island", guardian = "PirateCaptain", recommendedSpeed = 900, isBoss = true },
-	{ index = 3, id = "Zone03_Castle", name = "Castle", guardian = "RoyalGuard", recommendedSpeed = 10e3, isBoss = true },
-	{ index = 4, id = "Zone04_Area51", name = "Area 51", guardian = "Agent", recommendedSpeed = 40e3, isBoss = true },
-	{ index = 5, id = "Zone05_NorthPole", name = "North Pole", guardian = "ElfGuard", recommendedSpeed = 170e3, isBoss = true },
-	{ index = 6, id = "Zone06_Egypt", name = "Ancient Egypt", guardian = "MummyGuardian", recommendedSpeed = 700e3, isBoss = true },
-	{ index = 7, id = "Zone07_Gym", name = "Gym", guardian = "Bodybuilder", recommendedSpeed = 2.5e6, isBoss = true },
-	{ index = 8, id = "Zone08_Bank", name = "Bank", guardian = "BankGuard", recommendedSpeed = 18e6, isBoss = true },
-	{ index = 9, id = "Zone09_SecretLab", name = "Secret Lab", guardian = "MadScientist", recommendedSpeed = 700e6, isBoss = true },
-	{ index = 10, id = "Zone10_Grandma", name = "Grandma's House", guardian = "Grandma", recommendedSpeed = 2.5e9, isBoss = true },
-	{ index = 11, id = "Zone11_Construction", name = "Construction Site", guardian = "Foreman", recommendedSpeed = 7e9, isBoss = true },
-	{ index = 12, id = "Zone12_Airport", name = "Airport", guardian = "AirportSecurity", recommendedSpeed = 20e9, isBoss = true },
+	{ index = 1, id = "Zone01_Museum", name = "Museum", guardian = "Cop", recommendedSpeed = 0, isBoss = false, emoji = "🏛️" },
+	{ index = 2, id = "Zone02_Pirate", name = "Pirate Island", guardian = "PirateCaptain", recommendedSpeed = 900, isBoss = true, emoji = "⚓" },
+	{ index = 3, id = "Zone03_Castle", name = "Castle", guardian = "RoyalGuard", recommendedSpeed = 10e3, isBoss = true, emoji = "🏰" },
+	{ index = 4, id = "Zone04_Area51", name = "Area 51", guardian = "Agent", recommendedSpeed = 40e3, isBoss = true, emoji = "👽" },
+	{ index = 5, id = "Zone05_NorthPole", name = "North Pole", guardian = "ElfGuard", recommendedSpeed = 170e3, isBoss = true, emoji = "🎅" },
+	{ index = 6, id = "Zone06_Egypt", name = "Ancient Egypt", guardian = "MummyGuardian", recommendedSpeed = 700e3, isBoss = true, emoji = "🏺" },
+	{ index = 7, id = "Zone07_Gym", name = "Gym", guardian = "Bodybuilder", recommendedSpeed = 2.5e6, isBoss = true, emoji = "💪" },
+	{ index = 8, id = "Zone08_Bank", name = "Bank", guardian = "BankGuard", recommendedSpeed = 18e6, isBoss = true, emoji = "🏦" },
+	{ index = 9, id = "Zone09_SecretLab", name = "Secret Lab", guardian = "MadScientist", recommendedSpeed = 700e6, isBoss = true, emoji = "🧪" },
+	{ index = 10, id = "Zone10_Grandma", name = "Grandma's House", guardian = "Grandma", recommendedSpeed = 2.5e9, isBoss = true, emoji = "👵" },
+	{ index = 11, id = "Zone11_Construction", name = "Construction Site", guardian = "Foreman", recommendedSpeed = 7e9, isBoss = true, emoji = "🚧" },
+	{ index = 12, id = "Zone12_Airport", name = "Airport", guardian = "AirportSecurity", recommendedSpeed = 20e9, isBoss = true, emoji = "✈️" },
 } :: { ZoneDef }
 
 ZoneConfig.COUNT = #ZoneConfig.Zones

@@ -189,8 +189,16 @@ GameConfig.GUARDIAN_IDLE_ANIMATIONS = {
 -- reclaim and an unclaimed PvP drop, and both return the SAME instance - they
 -- never roll a new one.
 
-GameConfig.GUARDIAN_RETURN_DELAY = 2 -- after a guardian reclaims
-GameConfig.DROPPED_RECLAIM_WINDOW = 8 -- before a PvP drop returns to origin
+--- Fallback only: a reclaimed item the guardian cannot physically carry home
+--- (no model) goes back to its socket after this instead.
+GameConfig.GUARDIAN_RETURN_DELAY = 2
+--- A drop the zone's guardian can walk to is fetched by the guardian and is
+--- grabbable by anyone until it gets there. One it CANNOT walk to (dropped
+--- behind the red line) returns to its socket after this window instead.
+GameConfig.DROPPED_RECLAIM_WINDOW = 8
+--- Hard floor under drop recovery: a drop still on the ground this long after
+--- it fell goes home the instant way, guardian or no guardian.
+GameConfig.DROPPED_ORPHAN_TIMEOUT = 75
 --- The world reroll cadence IS the Night cycle now (NightConfig.CYCLE_SECONDS
 --- owns it; NightService drives it). Mirrored here for anything that still
 --- reads the old name; validate asserts the two agree.

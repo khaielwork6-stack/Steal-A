@@ -4,22 +4,26 @@
 	EXACTLY ONE guardian per zone - twelve in the whole world. All four loot
 	sockets in a zone share that single guardian.
 
-	State loop:
+	State loop (see CHASE CONTROL for the full machine):
 	    SLEEPING (+ Zzz)
 	      -> any item in the zone is successfully stolen
 	    WAKING   (+ "!")
 	      -> turns to the thief
-	    CHASING  (that thief only, never a bystander)
+	    CHASING  (the nearest carrier of this zone's loot; never a bystander)
 	      -> A: thief crosses the red safe line  -> escape, guardian stops AT the
-	            line, walks home, sleeps again
-	      -> B: guardian catches the thief first -> ragdoll + launch, loot resets,
-	            guardian walks home, sleeps again
+	            line, takes the next job or walks home
+	      -> B: guardian catches the thief first -> ragdoll + launch, the guardian
+	            CARRIES the item back to the exact socket it came from
+	    RECOVERING / RETURNING LOOT
+	      -> loot of this zone dropped anywhere on the danger side is fetched
+	         and put back in its socket by the guardian, then it walks home
 
 	Hard rules:
 	  * No aggro of any kind before a successful steal. Walking through the zone,
 	    standing on the loot, brushing the guardian - none of it wakes anything.
-	  * One chase per zone. A second steal in a busy zone is refused until the
-	    guardian has fully reset.
+	  * One TARGET at a time. Several thieves may carry a zone's loot at once;
+	    the guardian chases the nearest and switches only when another is
+	    clearly closer (hysteresis), so it never jitters between two.
 	  * The red safe line is a real AI boundary, not a distance check. The
 	    guardian never crosses it, never paths through it, and cannot touch a
 	    player who is already behind it. Safe zone always wins.
@@ -32,6 +36,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
@@ -45,7 +50,7 @@ local DataService = require(script.Parent.DataService)
 
 local GuardianService = {}
 
-export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Returning"
+export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Recovering" | "ReturningLoot" | "Returning"
 
 type Guardian = {
 	zoneIndex: number,
@@ -69,6 +74,19 @@ type Guardian = {
 	walkSpeedPerRate: number,
 	--- Catch distance, scaled to this guardian's physical size (see buildRig).
 	catchRadius: number,
+	--- The pace this job is judged at: the zone baseline (walking home, fetching
+	--- a drop) or the per-thief chase speed (speedForChase). The catch-up boost
+	--- is applied ON TOP of this by paceFor, never baked into it.
+	baseSpeed: number,
+	--- What WalkSpeed actually is right now. Eased toward the frame's target by
+	--- driveSpeed, so acceleration and deceleration are curves, never snaps.
+	currentSpeed: number,
+	--- The instance welded to this guardian while it carries loot home.
+	escortLootId: string?,
+	--- Next time (os.clock) the chase re-evaluates who the best target is.
+	nextScanAt: number,
+	--- When the current recovery / escort began, for the give-up timeouts.
+	jobStartedAt: number,
 	-- Stuck detection. A guardian steering straight at its target will
 	-- occasionally jam on a prop or a wall corner; these let it notice and
 	-- sidestep rather than grinding in place until the player is gone.
@@ -666,6 +684,52 @@ end
 -- ==========================================================
 -- CHASE CONTROL
 -- ==========================================================
+--
+-- THE STATE MACHINE. One guardian per zone, and every state it can be in:
+--
+--   Sleeping       at its post. Nothing wakes it but a steal, or loot from
+--                  its zone being dropped somewhere it can walk to.
+--   Waking         the shocked beat after a steal (WAKE_DELAY), facing the thief.
+--   Chasing        after ONE thief at a time - the nearest carrier of this
+--                  zone's loot - re-evaluated every SCAN_INTERVAL. The pace
+--                  rises with distance and settles back when close (paceFor).
+--   Recovering     walking to a dropped item of its own zone to pick it up.
+--   ReturningLoot  carrying an item (caught or recovered) back to the EXACT
+--                  socket it was stolen from, then putting it back.
+--   Returning      walking home to sleep again.
+--
+-- Every job ends through nextJob(): another carrier first, then a drop, then
+-- home. Nothing here holds a stale reference: the target is re-validated from
+-- LootService every frame (is that item still Carried, by that player, who
+-- still has a character), so a death, a drop, a placement or a disconnect
+-- ends the chase on the next frame without any event ordering to get right.
+
+--- Studs beyond the catch radius at which the pace is back to base. Above it
+--- the catch-up boost ramps in over FAR_BAND studs.
+local NEAR_BAND = 10
+local FAR_BAND = 70
+--- Full catch-up boost, as a fraction of the base pace. It only ever brings a
+--- guardian CLOSER; inside the near band it is exactly the base pace again, so
+--- whether a thief at the zone's recommendation escapes is still decided by
+--- the sign-space tuning in speedForChase, not by this.
+local CATCHUP_BOOST = 0.35
+--- Exponential approach rate of WalkSpeed toward its target, per second.
+--- 2.4 closes ~90% of a gap in one second: visible, never a snap.
+local SPEED_EASE = 2.4
+--- How often a chasing guardian asks whether someone else should be its target.
+local SCAN_INTERVAL = 0.4
+--- A new carrier has to be this fraction of the current target's distance (and
+--- at least SWITCH_MIN_GAIN studs closer) before the guardian switches. The
+--- hysteresis is what stops two thieves at similar range ping-ponging it.
+local SWITCH_MARGIN = 0.75
+local SWITCH_MIN_GAIN = 12
+--- Distance to a dropped item at which the guardian picks it up, on top of
+--- its catch radius, and distance to the socket at which it puts loot back.
+local PICKUP_REACH = 4
+local ESCORT_REACH = 7
+--- A recovery or escort that has not finished in this long (jammed on
+--- geometry, item somewhere unreachable) falls back to the instant return.
+local JOB_TIMEOUT = 60
 
 function GuardianService.isZoneBusy(zoneIndex: number): boolean
 	local guardian = guardians[zoneIndex]
@@ -683,55 +747,120 @@ local function resetSteering(guardian: Guardian)
 	guardian.sidestepUntil = 0
 end
 
-local function goHome(guardian: Guardian)
-	-- Whatever ended the chase - catch, escape, a dropped item, the thief
-	-- leaving - the warning on their screen ends here with it.
-	setChased(guardian.target, false)
-	guardian.state = "Returning"
-	guardian.target = nil
-	guardian.lootId = nil
-	resetSteering(guardian)
-	publishState(guardian)
-	-- No MoveTo. `step` steers home every frame, same as it chases.
+-- ----------------------------------------------------------
+-- PACE
+-- ----------------------------------------------------------
+
+--- The WalkSpeed this frame wants: base pace inside the near band, rising
+--- smoothly with distance to base x (1 + CATCHUP_BOOST) at the far band.
+local function paceFor(guardian: Guardian, distance: number): number
+	local near = guardian.catchRadius + NEAR_BAND
+	local alpha = math.clamp((distance - near) / FAR_BAND, 0, 1)
+	return guardian.baseSpeed * (1 + CATCHUP_BOOST * alpha)
 end
 
---- Called the moment a zone's loot is successfully stolen.
-function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
-	local guardian = guardians[loot.zoneIndex]
-	if not guardian or not guardian.humanoid or not guardian.root then
+--- Eases the humanoid toward `target`. THE ONLY WRITER OF WalkSpeed during a
+--- job, so speed changes are curves. A rooted guardian (trap) is left at zero;
+--- the root's expiry hands control back here.
+local function driveSpeed(guardian: Guardian, humanoid: Humanoid, target: number, dt: number)
+	if humanoid:GetAttribute("Rooted") then
 		return
 	end
-	if guardian.state ~= "Sleeping" then
-		return -- one chase per zone
+	local alpha = 1 - math.exp(-SPEED_EASE * dt)
+	local eased = guardian.currentSpeed + (target - guardian.currentSpeed) * alpha
+	if math.abs(eased - target) < 0.05 then
+		eased = target
 	end
+	guardian.currentSpeed = eased
+	humanoid.WalkSpeed = eased
+end
 
-	guardian.state = "Waking"
-	guardian.target = thief
-	guardian.lootId = loot.id
-	guardian.wakeAt = os.clock() + WAKE_DELAY
-	resetSteering(guardian)
-	setChased(thief, true)
+-- ----------------------------------------------------------
+-- FINDING WORK
+-- ----------------------------------------------------------
 
-	-- Speed is set PER CHASE, not once at spawn, because it depends on how far
-	-- under the zone's recommendation this particular thief is. Read from the
-	-- server's own profile, never from anything the client can influence.
-	local profile = DataService.get(thief)
-	local power = if profile then profile.SpeedPower else GameConfig.STARTING_SPEED_POWER
-	if guardian.humanoid then
-		guardian.humanoid.WalkSpeed = GuardianService.speedForChase(loot.zoneIndex, power)
+type Carrier = { player: Player, loot: LootService.LootInstance, root: BasePart, distance: number }
+
+local function flatDistance(a: Vector3, b: Vector3): number
+	return (Vector3.new(a.X, 0, a.Z) - Vector3.new(b.X, 0, b.Z)).Magnitude
+end
+
+--- The loot's carrier as a chase candidate, or nil if it is not one: not
+--- carried, carrier gone, no character, or already across the red line.
+local function asCarrier(guardian: Guardian, loot: LootService.LootInstance): Carrier?
+	local player = loot.carrier
+	local root = guardian.root
+	if loot.state ~= "Carried" or not player or not player.Parent or not root then
+		return nil
 	end
+	local character = player.Character
+	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
+	if not targetRoot or not targetRoot:IsA("BasePart") then
+		return nil
+	end
+	if isBehindSafeLine(targetRoot.Position) then
+		return nil
+	end
+	return { player = player, loot = loot, root = targetRoot, distance = flatDistance(root.Position, targetRoot.Position) }
+end
 
-	-- The snore has to stop the instant it wakes, not fade out over the chase.
-	Audio.stopLoop("Snoring", guardian.root)
+--- The nearest player currently carrying this zone's loot on the danger side,
+--- optionally ignoring one player (the current target, when looking for a
+--- better one).
+local function nearestCarrier(guardian: Guardian, except: Player?): Carrier?
+	local best: Carrier? = nil
+	for _, loot in LootService.instancesInZone(guardian.zoneIndex) do
+		if loot.state == "Carried" and loot.carrier ~= except then
+			local candidate = asCarrier(guardian, loot)
+			if candidate and (not best or candidate.distance < best.distance) then
+				best = candidate
+			end
+		end
+	end
+	return best
+end
 
-	-- Exactly one alert per chase: this function already returns early unless the
-	-- guardian was Sleeping, so there is no second entry point to guard against.
-	local zone = ZoneConfig.Zones[loot.zoneIndex]
-	Audio.playAt(if zone and zone.isBoss then "BossAlert" else "PoliceWhistle", guardian.root)
+--- Whether a dropped item is somewhere this zone's guardian may walk to: on
+--- the danger side of the line, with a model to pick up.
+function GuardianService.canRecover(loot: LootService.LootInstance): boolean
+	local guardian = guardians[loot.zoneIndex]
+	local model = loot.model
+	if not guardian or not guardian.root or not model or not model.PrimaryPart then
+		return false
+	end
+	return model.PrimaryPart.Position.Z > safeLineZ + SAFE_LINE_MARGIN + 1
+end
 
-	-- Stand up and turn to face the thief.
-	guardian.root.Anchored = false
+local function nearestDrop(guardian: Guardian): LootService.LootInstance?
+	local root = guardian.root
+	if not root then
+		return nil
+	end
+	local best: LootService.LootInstance? = nil
+	local bestDistance = math.huge
+	for _, loot in LootService.instancesInZone(guardian.zoneIndex) do
+		if loot.state == "Dropped" and GuardianService.canRecover(loot) then
+			local model = loot.model :: Model
+			local distance = flatDistance(root.Position, (model.PrimaryPart :: BasePart).Position)
+			if distance < bestDistance then
+				best, bestDistance = loot, distance
+			end
+		end
+	end
+	return best
+end
 
+-- ----------------------------------------------------------
+-- TRANSITIONS
+-- ----------------------------------------------------------
+
+--- Off the post: unanchored and simulated by the server.
+local function standUp(guardian: Guardian)
+	local root = guardian.root
+	if not root then
+		return
+	end
+	root.Anchored = false
 	-- PIN SIMULATION TO THE SERVER. Roblox hands network ownership of a loose
 	-- unanchored assembly to the nearest player - which during a chase is always
 	-- the thief. Their client then simulates the thing hunting them, and every
@@ -740,39 +869,251 @@ function GuardianService.wake(loot: LootService.LootInstance, thief: Player)
 	-- here, and it is pcall'd because a part that has already been reclaimed by
 	-- the engine throws rather than returning.
 	pcall(function()
-		(guardian.root :: BasePart):SetNetworkOwner(nil)
+		root:SetNetworkOwner(nil)
 	end)
+	Audio.stopLoop("Snoring", root)
+end
 
-	local character = thief.Character
-	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
-	if targetRoot and targetRoot:IsA("BasePart") then
-		local from = guardian.root.Position
-		local look = Vector3.new(targetRoot.Position.X, from.Y, targetRoot.Position.Z)
-		guardian.root.CFrame = CFrame.lookAt(from, look)
+local function releaseTarget(guardian: Guardian)
+	setChased(guardian.target, false)
+	guardian.target = nil
+	guardian.lootId = nil
+	guardian.wakeAt = nil
+end
+
+--- Takes a carrier as THE target. From sleep it is the shocked Waking beat
+--- with the alert; mid-job it is an immediate switch with no second alert.
+local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boolean)
+	local root = guardian.root
+	if not root then
+		return
+	end
+	if guardian.target ~= carrier.player then
+		setChased(guardian.target, false)
+	end
+	guardian.target = carrier.player
+	guardian.lootId = carrier.loot.id
+	resetSteering(guardian)
+	setChased(carrier.player, true)
+
+	-- Speed is set PER CHASE, not once at spawn, because it depends on how far
+	-- under the zone's recommendation this particular thief is. Read from the
+	-- server's own profile, never from anything the client can influence.
+	local profile = DataService.get(carrier.player)
+	local power = if profile then profile.SpeedPower else GameConfig.STARTING_SPEED_POWER
+	guardian.baseSpeed = GuardianService.speedForChase(guardian.zoneIndex, power)
+	guardian.nextScanAt = os.clock() + SCAN_INTERVAL
+
+	if fromSleep then
+		guardian.state = "Waking"
+		guardian.wakeAt = os.clock() + WAKE_DELAY
+		-- From a standstill: the first strides are an acceleration, not a launch.
+		guardian.currentSpeed = guardian.baseSpeed * 0.55
+		if guardian.humanoid then
+			guardian.humanoid.WalkSpeed = guardian.currentSpeed
+		end
+		-- Exactly one alert per wake. A switch mid-chase is silent.
+		local zone = ZoneConfig.Zones[guardian.zoneIndex]
+		Audio.playAt(if zone and zone.isBoss then "BossAlert" else "PoliceWhistle", root)
+		-- Stand up and turn to face the thief.
+		local from = root.Position
+		local look = Vector3.new(carrier.root.Position.X, from.Y, carrier.root.Position.Z)
+		root.CFrame = CFrame.lookAt(from, look)
+	else
+		guardian.state = "Chasing"
+		guardian.wakeAt = nil
+	end
+	publishState(guardian)
+end
+
+--- Walks to a dropped item of this zone.
+local function beginRecovery(guardian: Guardian, loot: LootService.LootInstance)
+	releaseTarget(guardian)
+	guardian.state = "Recovering"
+	guardian.lootId = loot.id
+	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
+	-- A fetch is a walk, never a sprint left over from the last chase.
+	guardian.currentSpeed = math.min(guardian.currentSpeed, guardian.baseSpeed)
+	guardian.jobStartedAt = os.clock()
+	resetSteering(guardian)
+	publishState(guardian)
+end
+
+--- Welds an item to the guardian, hoisted over its head, at the same
+--- compressed presentation scale a player carry uses.
+local function attachEscort(guardian: Guardian, loot: LootService.LootInstance): boolean
+	local model = loot.model
+	local root = guardian.root
+	local rig = guardian.model
+	if not model or not model.PrimaryPart or not root or not rig then
+		return false
 	end
 
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = false
+			descendant.CanCollide = false
+			descendant.CanQuery = false
+			descendant.CanTouch = false
+			descendant.Massless = true
+		end
+	end
+	local prompt = LootService.promptOf(loot)
+	if prompt then
+		prompt.Enabled = false
+	end
+
+	local shown = RarityConfig.carryVisualScale(loot.visualScale)
+	local factor = if loot.visualScale > 0 then shown / loot.visualScale else 1
+	if math.abs(factor - 1) > 0.001 then
+		model:ScaleTo(model:GetScale() * factor)
+		loot.carryScale = factor
+	end
+
+	model.Parent = rig
+	model:PivotTo(root.CFrame)
+	local height = tonumber(rig:GetAttribute("Height")) or root.Size.Y
+	local minCorner = select(1, LootModel.worldExtents(model))
+	local rootBottom = root.Position.Y - root.Size.Y / 2
+	local lift = if minCorner then (rootBottom + height + 0.5) - minCorner.Y else height
+	model:PivotTo(root.CFrame * CFrame.new(0, lift, 0))
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Name = "EscortWeld"
+	weld.Part0 = root
+	weld.Part1 = model.PrimaryPart
+	weld.Parent = model.PrimaryPart
+	return true
+end
+
+--- Carries an Escorted item back to its socket.
+local function beginEscort(guardian: Guardian, loot: LootService.LootInstance): boolean
+	if loot.state ~= "Escorted" or not attachEscort(guardian, loot) then
+		return false
+	end
+	releaseTarget(guardian)
+	guardian.state = "ReturningLoot"
+	guardian.escortLootId = loot.id
+	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
+	guardian.jobStartedAt = os.clock()
+	resetSteering(guardian)
 	publishState(guardian)
+	return true
+end
+
+--- Puts the carried item back. The SAME instance goes into the SAME socket
+--- (LootService.returnToOrigin rebuilds it there from its own rolled values);
+--- if the socket was refilled meanwhile the instance retires.
+local function finishEscort(guardian: Guardian)
+	local lootId = guardian.escortLootId
+	guardian.escortLootId = nil
+	local loot = if lootId then LootService.get(lootId) else nil
+	if not loot then
+		return
+	end
+	local model = loot.model
+	local weld = model and model.PrimaryPart and model.PrimaryPart:FindFirstChild("EscortWeld")
+	if weld then
+		weld:Destroy()
+	end
+	loot.carryScale = nil
+	if loot.state == "Escorted" then
+		LootService.returnToOrigin(loot, 0)
+	end
+end
+
+local function goHome(guardian: Guardian)
+	-- Whatever ended the chase - catch, escape, a dropped item, the thief
+	-- leaving - the warning on their screen ends here with it.
+	releaseTarget(guardian)
+	guardian.state = "Returning"
+	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
+	resetSteering(guardian)
+	publishState(guardian)
+	-- No MoveTo. `step` steers home every frame, same as it chases.
+end
+
+--- What to do once a job ends: another carrier of this zone's loot, then a
+--- dropped item to fetch, then home.
+local function nextJob(guardian: Guardian)
+	local carrier = nearestCarrier(guardian, nil)
+	if carrier then
+		beginChase(guardian, carrier, false)
+		return
+	end
+	local drop = nearestDrop(guardian)
+	if drop then
+		beginRecovery(guardian, drop)
+		return
+	end
+	goHome(guardian)
+end
+
+--- A steal (or a grab of a dropped item) in this zone.
+---   Sleeping                      -> the Waking beat, then the chase
+---   Returning / Recovering        -> straight into the chase (a live thief
+---                                    outranks a drop; the drop is fetched after)
+---   Waking / Chasing / ReturningLoot -> nothing now; the scan or nextJob picks
+---                                    the new carrier up when it is the right one
+function GuardianService.engage(loot: LootService.LootInstance, _thief: Player)
+	local guardian = guardians[loot.zoneIndex]
+	if not guardian or not guardian.humanoid or not guardian.root then
+		return
+	end
+	local carrier = asCarrier(guardian, loot)
+	if not carrier then
+		return
+	end
+	local state = guardian.state
+	if state == "Sleeping" then
+		standUp(guardian)
+		beginChase(guardian, carrier, true)
+	elseif state == "Returning" or state == "Recovering" then
+		beginChase(guardian, carrier, false)
+	end
+end
+
+--- Kept under its old name for callers and tests.
+GuardianService.wake = GuardianService.engage
+
+--- Loot of this zone was dropped. A guardian with nothing better to do goes
+--- and gets it; a busy one finds it through nextJob when its job ends.
+function GuardianService.noticeDrop(loot: LootService.LootInstance)
+	local guardian = guardians[loot.zoneIndex]
+	if not guardian or not guardian.root or not GuardianService.canRecover(loot) then
+		return
+	end
+	if guardian.state == "Sleeping" then
+		standUp(guardian)
+		beginRecovery(guardian, loot)
+	elseif guardian.state == "Returning" then
+		beginRecovery(guardian, loot)
+	end
 end
 
 function GuardianService.stopChaseFor(loot: LootService.LootInstance)
 	local guardian = guardians[loot.zoneIndex]
-	if guardian and guardian.lootId == loot.id and guardian.state ~= "Sleeping" then
-		goHome(guardian)
+	if not guardian or guardian.lootId ~= loot.id then
+		return
+	end
+	if guardian.state == "Waking" or guardian.state == "Chasing" then
+		releaseTarget(guardian)
+		nextJob(guardian)
 	end
 end
 
 --- Night: every chase ends this instant and every guardian is back asleep on
 --- its post - not walking home, HOME - with every thief's warning cleared.
---- Nothing else about the chase state machine is touched.
+--- Loot a guardian was carrying goes straight back to its socket.
 function GuardianService.resetAll()
 	for _, guardian in guardians do
 		if guardian.state == "Sleeping" then
 			continue
 		end
-		setChased(guardian.target, false)
-		guardian.target = nil
-		guardian.lootId = nil
-		guardian.wakeAt = nil
+		releaseTarget(guardian)
+		if guardian.escortLootId then
+			finishEscort(guardian)
+		end
 		resetSteering(guardian)
 		if guardian.humanoid then
 			guardian.humanoid:Move(Vector3.zero, false)
@@ -930,6 +1271,155 @@ local function animateShell(guardian: Guardian, now: number)
 	motor.C0 = CFrame.new(0, bob, 0) * CFrame.Angles(RUN_LEAN, yaw, roll)
 end
 
+--- One frame of the chase proper (Waking / Chasing). Returns after any
+--- transition it makes; the caller moves on to the next guardian.
+local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
+	local target = guardian.target
+	local lootId = guardian.lootId
+	local loot = if lootId then LootService.get(lootId) else nil
+
+	-- The chase is only valid while THIS thief still carries THIS item.
+	if not target or not target.Parent or not loot or loot.state ~= "Carried" or loot.carrier ~= target then
+		releaseTarget(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	local character = target.Character
+	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
+	if not targetRoot or not targetRoot:IsA("BasePart") then
+		releaseTarget(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	-- ESCAPE: crossing the red line. THE LINE IS THE ONLY THING THAT ENDS A
+	-- CHASE IN THE THIEF'S FAVOUR. Distance from home, time elapsed and
+	-- proximity to the base are all deliberately NOT conditions here: once a
+	-- guardian is awake it pursues until the thief is across, is caught, or no
+	-- longer has the item.
+	if isBehindSafeLine(targetRoot.Position) then
+		onEscape(loot, target)
+		releaseTarget(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	if guardian.state == "Waking" then
+		if now < (guardian.wakeAt or 0) then
+			return -- hold the shocked beat
+		end
+		guardian.state = "Chasing"
+		guardian.wakeAt = nil
+		publishState(guardian)
+	end
+
+	local distance = flatDistance(root.Position, targetRoot.Position)
+
+	-- WHO TO CHASE. Every SCAN_INTERVAL: if another carrier of this zone's loot
+	-- is clearly closer, switch to them. Clearly, with hysteresis - a thief
+	-- has to be both a quarter closer and a dozen studs closer - so two thieves
+	-- at similar range cannot ping-pong the guardian between them.
+	if now >= guardian.nextScanAt then
+		guardian.nextScanAt = now + SCAN_INTERVAL
+		local other = nearestCarrier(guardian, target)
+		if other and other.distance < distance * SWITCH_MARGIN and distance - other.distance >= SWITCH_MIN_GAIN then
+			beginChase(guardian, other, false)
+			return
+		end
+	end
+
+	-- CATCH. The radius scales with the guardian, so a fifteen-stud boss is
+	-- not required to bury its own model in the player before it registers.
+	local reach = (root.Position - targetRoot.Position).Magnitude
+	if reach <= guardian.catchRadius and not GuardianService.isStunned(target) then
+		-- ONE hit cue, never two: this guardian's own catch sound (each of
+		-- the twelve has one, see AudioConfig.GuardianHits), falling back
+		-- to the boss / regular reaction if a zone has none.
+		Audio.playAt(AudioConfig.guardianHitCue(guardian.zoneIndex), root)
+
+		ragdollAndLaunch(target, root.Position)
+		-- The catch handler takes the item off the thief and hands it over
+		-- (loot.state becomes Escorted); the guardian then carries it home.
+		onCatch(loot)
+		releaseTarget(guardian)
+		if not beginEscort(guardian, loot) then
+			-- Nothing to carry (no model, or the handler sent it home itself).
+			nextJob(guardian)
+		end
+		return
+	end
+
+	-- The pace: rising with the gap, settling as it closes. Then steered fresh
+	-- at the thief's CURRENT position - no goal point, no arrival stop.
+	driveSpeed(guardian, humanoid, paceFor(guardian, distance), dt)
+	steer(guardian, humanoid, root, targetRoot.Position, now, dt)
+end
+
+--- Walking to a dropped item.
+local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
+	local loot = if guardian.lootId then LootService.get(guardian.lootId) else nil
+	local model = if loot then loot.model else nil
+	if not loot or loot.state ~= "Dropped" or not model or not model.PrimaryPart then
+		-- Grabbed by a player (engage will have switched us), returned by the
+		-- fallback, or retired: whichever it was, find the next job.
+		guardian.lootId = nil
+		nextJob(guardian)
+		return
+	end
+
+	if now - guardian.jobStartedAt > JOB_TIMEOUT then
+		-- Jammed, or the item is somewhere it cannot reach. The old instant
+		-- return is the floor under this feature: nothing is ever orphaned.
+		guardian.lootId = nil
+		LootService.returnToOrigin(loot)
+		nextJob(guardian)
+		return
+	end
+
+	local position = (model.PrimaryPart :: BasePart).Position
+	local distance = flatDistance(root.Position, position)
+	if distance <= guardian.catchRadius + PICKUP_REACH then
+		guardian.lootId = nil
+		LootService.setState(loot, "Escorted")
+		if not beginEscort(guardian, loot) then
+			LootService.returnToOrigin(loot)
+			nextJob(guardian)
+		end
+		return
+	end
+
+	driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
+	steer(guardian, humanoid, root, position, now, dt)
+end
+
+--- Carrying an item back to its socket.
+local function stepEscort(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
+	local loot = if guardian.escortLootId then LootService.get(guardian.escortLootId) else nil
+	if not loot or loot.state ~= "Escorted" then
+		guardian.escortLootId = nil
+		nextJob(guardian)
+		return
+	end
+
+	local socket = LootService.getSocket(loot.zoneIndex, loot.socketIndex)
+	if not socket then
+		finishEscort(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	local distance = flatDistance(root.Position, socket.part.Position)
+	if distance <= ESCORT_REACH or now - guardian.jobStartedAt > JOB_TIMEOUT then
+		finishEscort(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
+	steer(guardian, humanoid, root, socket.part.Position, now, dt)
+end
+
 local function step(dt: number)
 	local now = os.clock()
 
@@ -962,6 +1452,21 @@ local function step(dt: number)
 		end
 
 		if state == "Returning" then
+			-- Something to do on the way home outranks going home.
+			if now >= guardian.nextScanAt then
+				guardian.nextScanAt = now + SCAN_INTERVAL
+				local carrier = nearestCarrier(guardian, nil)
+				if carrier then
+					beginChase(guardian, carrier, false)
+					continue
+				end
+				local drop = nearestDrop(guardian)
+				if drop then
+					beginRecovery(guardian, drop)
+					continue
+				end
+			end
+			driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
 			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
 			if distance < 6 then
 				enterSleep(guardian)
@@ -969,61 +1474,17 @@ local function step(dt: number)
 			continue
 		end
 
-		local target = guardian.target
-		local lootId = guardian.lootId
-		local loot = if lootId then LootService.get(lootId) else nil
-
-		-- The chase is only valid while THIS thief still carries THIS item.
-		if not target or not target.Parent or not loot or loot.state ~= "Carried" or loot.carrier ~= target then
-			goHome(guardian)
+		if state == "Recovering" then
+			stepRecovery(guardian, humanoid, root, now, dt)
 			continue
 		end
 
-		local character = target.Character
-		local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
-		if not targetRoot or not targetRoot:IsA("BasePart") then
-			goHome(guardian)
+		if state == "ReturningLoot" then
+			stepEscort(guardian, humanoid, root, now, dt)
 			continue
 		end
 
-		-- ESCAPE: crossing the red line. THE LINE IS THE ONLY THING THAT ENDS A
-		-- CHASE. This used to also end on `BaseService.isInOwnSafeZone`, which is
-		-- an intermediate checkpoint - getting near your own plot. Distance from
-		-- home, time elapsed and proximity to the base are all deliberately NOT
-		-- conditions here: once a guardian is awake it pursues until the thief is
-		-- across, is caught, or no longer has the item.
-		if isBehindSafeLine(targetRoot.Position) then
-			onEscape(loot, target)
-			goHome(guardian)
-			continue
-		end
-
-		if state == "Waking" then
-			if now < (guardian.wakeAt or 0) then
-				continue -- hold the shocked beat
-			end
-			guardian.state = "Chasing"
-			publishState(guardian)
-		end
-
-		-- CATCH. The radius scales with the guardian, so a fifteen-stud boss is
-		-- not required to bury its own model in the player before it registers.
-		local distance = (root.Position - targetRoot.Position).Magnitude
-		if distance <= guardian.catchRadius and not GuardianService.isStunned(target) then
-			-- ONE hit cue, never two: this guardian's own catch sound (each of
-			-- the twelve has one, see AudioConfig.GuardianHits), falling back
-			-- to the boss / regular reaction if a zone has none.
-			Audio.playAt(AudioConfig.guardianHitCue(guardian.zoneIndex), root)
-
-			ragdollAndLaunch(target, root.Position)
-			onCatch(loot)
-			goHome(guardian)
-			continue
-		end
-
-		-- Steered fresh every frame at the thief's CURRENT position. No goal
-		-- point, no arrival stop, nothing to go stale.
-		steer(guardian, humanoid, root, targetRoot.Position, now, dt)
+		stepChase(guardian, humanoid, root, now, dt)
 	end
 end
 
@@ -1067,6 +1528,10 @@ function GuardianService.start()
 			home = post.CFrame * CFrame.new(0, (root :: BasePart).Size.Y / 2 + 0.2, 0),
 			state = "Sleeping",
 			catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth,
+			baseSpeed = guardianSpeed(zoneIndex),
+			currentSpeed = guardianSpeed(zoneIndex),
+			nextScanAt = 0,
+			jobStartedAt = 0,
 			stuckFor = 0,
 			sidestepUntil = 0,
 			sidestepSign = 1,
@@ -1101,10 +1566,14 @@ function GuardianService.start()
 		enterSleep(guardian)
 	end
 
-	-- Wake ONLY on a real steal. Nothing about proximity or presence aggros.
-	LootService.onStateChanged(function(loot, previous, next)
-		if next == "Carried" and previous ~= "Dropped" and loot.carrier then
-			GuardianService.wake(loot, loot.carrier)
+	-- Wake ONLY on a real steal (or a grab of a dropped item - the guardian
+	-- may have gone back to sleep meanwhile, and a free walk-off with the loot
+	-- was the hole that left). Nothing about proximity or presence aggros.
+	LootService.onStateChanged(function(loot, _previous, next)
+		if next == "Carried" and loot.carrier then
+			GuardianService.engage(loot, loot.carrier)
+		elseif next == "Dropped" then
+			GuardianService.noticeDrop(loot)
 		elseif next == "Returning" or next == "Placed" or next == "Spawned" then
 			GuardianService.stopChaseFor(loot)
 		end
@@ -1113,7 +1582,8 @@ function GuardianService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		for _, guardian in guardians do
 			if guardian.target == player then
-				goHome(guardian)
+				releaseTarget(guardian)
+				nextJob(guardian)
 			end
 		end
 	end)
@@ -1140,7 +1610,6 @@ function GuardianService.rootGuardian(zoneIndex: number, seconds: number): boole
 		return false -- already rooted; never stack
 	end
 
-	local restore = humanoid.WalkSpeed
 	humanoid.WalkSpeed = 0
 	humanoid:SetAttribute("Rooted", true)
 	if guardian.model then
@@ -1151,7 +1620,9 @@ function GuardianService.rootGuardian(zoneIndex: number, seconds: number): boole
 		if not humanoid.Parent then
 			return
 		end
-		humanoid.WalkSpeed = restore
+		-- Back to whatever pace the job had reached; driveSpeed eases from
+		-- here again on the next frame.
+		humanoid.WalkSpeed = guardian.currentSpeed
 		humanoid:SetAttribute("Rooted", nil)
 		if guardian.model then
 			guardian.model:SetAttribute("Rooted", nil)
@@ -1188,6 +1659,35 @@ function GuardianService.snapshot(): { [string]: any }
 		}
 	end
 	return out
+end
+
+--- Everything a test wants to know about one guardian, this frame.
+function GuardianService.inspect(zoneIndex: number): { [string]: any }?
+	local guardian = guardians[zoneIndex]
+	if not guardian then
+		return nil
+	end
+	local root = guardian.root
+	local target = guardian.target
+	local character = target and target.Character
+	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
+	local distance = if root and targetRoot and targetRoot:IsA("BasePart")
+		then flatDistance(root.Position, targetRoot.Position)
+		else nil
+	local velocity = if root then root.AssemblyLinearVelocity else Vector3.zero
+	return {
+		state = guardian.state,
+		target = if target then target.Name else nil,
+		lootId = guardian.lootId,
+		escortLootId = guardian.escortLootId,
+		baseSpeed = guardian.baseSpeed,
+		currentSpeed = guardian.currentSpeed,
+		walkSpeed = if guardian.humanoid then guardian.humanoid.WalkSpeed else nil,
+		groundSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude,
+		distance = distance,
+		position = if root then root.Position else nil,
+		rooted = guardian.humanoid and guardian.humanoid:GetAttribute("Rooted") == true,
+	}
 end
 
 return GuardianService

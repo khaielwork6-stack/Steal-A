@@ -1,8 +1,8 @@
 --!strict
 --[[
 	NightController
-	Renders the Night cycle: the countdown pill, the NIGHT — LOOT REFRESHING
-	state, and the lighting change.
+	Renders the Night cycle: the Nightfall timer, the reset barrier across the
+	mouth of the lane, and the lighting change.
 
 	EVERYTHING HERE IS DERIVED FROM SERVER TIMESTAMPS. NightService publishes the
 	phase and the time it ends as attributes on ReplicatedStorage;
@@ -11,12 +11,22 @@
 	no drift. A player who joins mid-cycle reads the same two attributes and is
 	correct on their first frame.
 
-	THE PILL
-	A compact timer at the top-left: "Night in 3:50". In the final fifteen
-	seconds it turns amber; in the final ten it pulses gently; each of the last
-	five seconds gets a clear punch. During Night it becomes a wide, centred
-	NIGHT — LOOT REFRESHING banner with its own ten-second countdown, then
-	returns to the corner.
+	THE TIMER
+	One persistent pill in the bottom-right corner, where the old Displays
+	counter sat: "🌙 Nightfall in 3:50". In the final fifteen seconds it turns
+	amber; in the final ten it breathes; each of the last five lands a punch.
+	During Night it reads "Night Reset 8s" in the night colours. It never moves
+	and never becomes a banner - the top of the screen belongs to the chase
+	warning, the zone pop-up and the toasts.
+
+	THE BARRIER
+	At the moment Night begins, a wall the width of the lane rises just past
+	the red line and blocks the view of the zones while the loot is rerolled
+	behind it: pale, with the moon and the countdown on it, unmistakably a
+	closure and not a glitch. It is a CLIENT-SIDE, non-colliding part - it hides
+	the reset, it does not enforce it; the server's closure (LootService
+	setClosed) is what refuses steals - so it can never trap a player or touch
+	navigation, and it fades out cleanly the frame the zones reopen.
 
 	THE LIGHT
 	The day palette is whatever Lighting has when the client starts (the place's
@@ -32,6 +42,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -43,10 +54,10 @@ local player = Players.LocalPlayer
 -- TUNING
 -- ==========================================================
 
-local PILL_CORNER = UDim2.new(0, 14, 0, 12)
-local PILL_SIZE = UDim2.fromOffset(168, 36)
-local BANNER_POSITION = UDim2.new(0.5, 0, 0, 22)
-local BANNER_SIZE = UDim2.fromOffset(360, 48)
+--- Bottom-right, the slot the Displays counter used to occupy.
+local PILL_POSITION = UDim2.new(1, -16, 1, -12)
+local PILL_ANCHOR = Vector2.new(1, 1)
+local PILL_SIZE = UDim2.fromOffset(222, 38)
 
 local COLOR_CALM = Color3.fromRGB(226, 232, 244)
 local COLOR_WARN = Color3.fromRGB(255, 196, 92)
@@ -55,6 +66,24 @@ local BG_CALM = Color3.fromRGB(16, 22, 44)
 local BG_NIGHT = Color3.fromRGB(26, 18, 56)
 
 local LIGHT_TWEEN = TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+local BARRIER_IN = TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local BARRIER_OUT = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+--- The barrier: lane-wide plus the walls, taller than the walls, just past the
+--- red line so it sits in front of the first zone from the lobby's side.
+local BARRIER_WIDTH = MapConfig.LANE_WIDTH + 2 * MapConfig.WALL_THICKNESS + 80
+local BARRIER_HEIGHT = 170
+--- Thin, and just past the line: between the red stripe and the first zone's
+--- sign boards, so nothing of the world stands in front of it.
+local BARRIER_THICKNESS = 1.2
+local BARRIER_STANDOFF = 0.8
+--- Text on a SurfaceGui scales to at most 100 px, so the canvas is kept
+--- coarse: at 2.5 px per stud a 100 px glyph is forty studs tall, readable
+--- from the far end of the lobby.
+local BARRIER_PIXELS_PER_STUD = 2.5
+local BARRIER_TOP = Color3.fromRGB(246, 247, 253)
+local BARRIER_BOTTOM = Color3.fromRGB(204, 210, 240)
+local BARRIER_INK = Color3.fromRGB(58, 62, 84)
 
 --- The night grade. Readable on purpose: ambient and exposure go UP as the
 --- sun goes down, so the map darkens in colour rather than in visibility.
@@ -84,6 +113,14 @@ local pillLabel: TextLabel? = nil
 local pillIcon: TextLabel? = nil
 local pillStroke: UIStroke? = nil
 local pillScale: UIScale? = nil
+
+local barrier: BasePart? = nil
+local barrierGuis: { SurfaceGui } = {}
+local barrierPanels: { Frame } = {}
+local barrierLabels: { TextLabel } = {}
+local barrierCountdowns: { TextLabel } = {}
+local barrierShown = false
+local barrierFadeToken = 0
 
 local shownPhase: string? = nil
 local lastWholeSecond = -1
@@ -121,14 +158,14 @@ local function clock(seconds: number): string
 end
 
 -- ==========================================================
--- BUILD
+-- THE PILL
 -- ==========================================================
 
-local function build(ui: ScreenGui)
+local function buildPill(ui: ScreenGui)
 	local frame = Instance.new("Frame")
 	frame.Name = "NightTimer"
-	frame.AnchorPoint = Vector2.new(0, 0)
-	frame.Position = PILL_CORNER
+	frame.AnchorPoint = PILL_ANCHOR
+	frame.Position = PILL_POSITION
 	frame.Size = PILL_SIZE
 	frame.BackgroundColor3 = BG_CALM
 	frame.BackgroundTransparency = 0.1
@@ -165,14 +202,14 @@ local function build(ui: ScreenGui)
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, -48, 1, 0)
-	label.Position = UDim2.new(0, 40, 0, 0)
+	label.Size = UDim2.new(1, -50, 1, 0)
+	label.Position = UDim2.new(0, 42, 0, 0)
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextColor3 = COLOR_CALM
 	label.TextStrokeTransparency = 0.5
-	label.Text = "Night in —"
+	label.Text = "Nightfall in —"
 	label.ZIndex = 6
 	label.Parent = frame
 	local limit = Instance.new("UITextSizeConstraint")
@@ -185,6 +222,173 @@ local function build(ui: ScreenGui)
 	pillIcon = icon
 	pillStroke = stroke
 	pillScale = scale
+end
+
+--- Day and Night looks for the pill. Same place, same size; only the colours.
+local function stylePill(night: boolean)
+	local frame = pill
+	if not frame then
+		return
+	end
+	frame.BackgroundColor3 = if night then BG_NIGHT else BG_CALM
+	if pillStroke then
+		pillStroke.Color = if night then COLOR_NIGHT else Color3.fromRGB(0, 0, 0)
+		pillStroke.Transparency = if night then 0.1 else 0.2
+	end
+	local color = if night then COLOR_NIGHT else COLOR_CALM
+	if pillLabel then
+		pillLabel.TextColor3 = color
+	end
+	if pillIcon then
+		pillIcon.TextColor3 = color
+	end
+	if not reducedEffects then
+		UIAnim.popIn(frame, 0.85)
+	end
+end
+
+-- ==========================================================
+-- THE BARRIER
+-- ==========================================================
+
+local function safeLineZ(): number
+	local map = workspace:FindFirstChild("Map")
+	local line = map and map:FindFirstChild("SafeZone") and map.SafeZone:FindFirstChild("BoundaryLine")
+	return if line and line:IsA("BasePart") then line.Position.Z else 0
+end
+
+local function barrierLabel(parent: Instance, name: string, position: UDim2, size: UDim2, text: string, color: Color3): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Name = name
+	label.BackgroundTransparency = 1
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = position
+	label.Size = size
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Text = text
+	label.TextColor3 = color
+	label.TextTransparency = 1
+	label.TextStrokeTransparency = 1
+	label.TextStrokeColor3 = Color3.fromRGB(20, 22, 36)
+	label.Parent = parent
+	table.insert(barrierLabels, label)
+	return label
+end
+
+--- One face of the wall: gradient ground, moon, countdown, title, subtitle.
+--- Faded element by element (background and text transparencies) rather than
+--- through a CanvasGroup: a group's transparency is not honoured on every
+--- SurfaceGui, and the wall must never be left half-visible in daylight.
+local function buildFace(part: BasePart, face: Enum.NormalId)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = `Face{face.Name}`
+	gui.Face = face
+	gui.LightInfluence = 0
+	gui.AlwaysOnTop = false
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = BARRIER_PIXELS_PER_STUD
+	gui.Enabled = false
+	gui.Parent = part
+
+	local panel = Instance.new("Frame")
+	panel.Name = "Panel"
+	panel.Size = UDim2.fromScale(1, 1)
+	panel.BackgroundColor3 = BARRIER_TOP
+	panel.BackgroundTransparency = 1
+	panel.BorderSizePixel = 0
+	panel.Parent = gui
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 90
+	gradient.Color = ColorSequence.new(BARRIER_TOP, BARRIER_BOTTOM)
+	gradient.Parent = panel
+
+	barrierLabel(panel, "Moon", UDim2.fromScale(0.36, 0.4), UDim2.fromScale(0.22, 0.42), "🌙", BARRIER_INK)
+	local countdown = barrierLabel(panel, "Countdown", UDim2.fromScale(0.62, 0.4), UDim2.fromScale(0.28, 0.38), "10s", BARRIER_INK)
+	countdown.TextXAlignment = Enum.TextXAlignment.Left
+	barrierLabel(panel, "Title", UDim2.fromScale(0.5, 0.72), UDim2.fromScale(0.86, 0.12), "NIGHT — LOOT REFRESHING", BARRIER_INK)
+	barrierLabel(
+		panel,
+		"Subtitle",
+		UDim2.fromScale(0.5, 0.83),
+		UDim2.fromScale(0.86, 0.06),
+		"The zones are closed while every item is reset. Back soon.",
+		Color3.fromRGB(104, 110, 140)
+	)
+
+	table.insert(barrierGuis, gui)
+	table.insert(barrierPanels, panel)
+	table.insert(barrierCountdowns, countdown)
+end
+
+local function buildBarrier()
+	local part = Instance.new("Part")
+	part.Name = "NightBarrier"
+	part.Size = Vector3.new(BARRIER_WIDTH, BARRIER_HEIGHT, BARRIER_THICKNESS)
+	-- Default part orientation: Front faces -Z, which is toward the lobby.
+	part.CFrame = CFrame.new(0, BARRIER_HEIGHT / 2, safeLineZ() + BARRIER_STANDOFF)
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Material = Enum.Material.SmoothPlastic
+	part.Color = BARRIER_BOTTOM
+	buildFace(part, Enum.NormalId.Front)
+	buildFace(part, Enum.NormalId.Back)
+	part.Parent = workspace
+	barrier = part
+end
+
+local function showBarrier(show: boolean)
+	if barrierShown == show or not barrier then
+		return
+	end
+	barrierShown = show
+	barrierFadeToken += 1
+	local token = barrierFadeToken
+	local info = if show then BARRIER_IN else BARRIER_OUT
+	local target = if show then 0 else 1
+
+	if show then
+		for _, gui in barrierGuis do
+			gui.Enabled = true
+		end
+	end
+	for _, panel in barrierPanels do
+		if reducedEffects then
+			panel.BackgroundTransparency = target
+		else
+			TweenService:Create(panel, info, { BackgroundTransparency = target }):Play()
+		end
+	end
+	for _, label in barrierLabels do
+		local stroke = if show then (if label.Name == "Countdown" then 0.7 else 1) else 1
+		if reducedEffects then
+			label.TextTransparency = target
+			label.TextStrokeTransparency = stroke
+		else
+			TweenService:Create(label, info, { TextTransparency = target, TextStrokeTransparency = stroke }):Play()
+		end
+	end
+	if not show then
+		-- Off entirely once the fade is done, so nothing of it can linger.
+		task.delay(if reducedEffects then 0 else info.Time + 0.05, function()
+			if barrierFadeToken == token and not barrierShown then
+				for _, gui in barrierGuis do
+					gui.Enabled = false
+				end
+			end
+		end)
+	end
+end
+
+local function paintBarrier(left: number)
+	local text = if left == math.huge then "" else clock(left)
+	for _, label in barrierCountdowns do
+		label.Text = text
+	end
 end
 
 -- ==========================================================
@@ -255,62 +459,6 @@ end
 -- RENDER
 -- ==========================================================
 
-local function toBanner()
-	local frame = pill
-	if not frame then
-		return
-	end
-	frame.AnchorPoint = Vector2.new(0.5, 0)
-	frame.Position = BANNER_POSITION
-	frame.Size = BANNER_SIZE
-	frame.BackgroundColor3 = BG_NIGHT
-	if pillStroke then
-		pillStroke.Color = COLOR_NIGHT
-		pillStroke.Transparency = 0.1
-	end
-	if pillLabel then
-		pillLabel.TextColor3 = COLOR_NIGHT
-		pillLabel.TextXAlignment = Enum.TextXAlignment.Center
-		pillLabel.Size = UDim2.new(1, -56, 1, 0)
-		pillLabel.Position = UDim2.new(0, 48, 0, 0)
-	end
-	if pillIcon then
-		pillIcon.TextColor3 = COLOR_NIGHT
-		pillIcon.Position = UDim2.new(0, 12, 0, 0)
-	end
-	if not reducedEffects then
-		UIAnim.popIn(frame, 0.8)
-	end
-end
-
-local function toPill()
-	local frame = pill
-	if not frame then
-		return
-	end
-	frame.AnchorPoint = Vector2.new(0, 0)
-	frame.Position = PILL_CORNER
-	frame.Size = PILL_SIZE
-	frame.BackgroundColor3 = BG_CALM
-	if pillStroke then
-		pillStroke.Color = Color3.fromRGB(0, 0, 0)
-		pillStroke.Transparency = 0.2
-	end
-	if pillLabel then
-		pillLabel.TextColor3 = COLOR_CALM
-		pillLabel.TextXAlignment = Enum.TextXAlignment.Left
-		pillLabel.Size = UDim2.new(1, -48, 1, 0)
-		pillLabel.Position = UDim2.new(0, 40, 0, 0)
-	end
-	if pillIcon then
-		pillIcon.TextColor3 = COLOR_CALM
-		pillIcon.Position = UDim2.new(0, 8, 0, 0)
-	end
-	if not reducedEffects then
-		UIAnim.popIn(frame, 0.85)
-	end
-end
-
 local function render()
 	local label = pillLabel
 	if not label or not pill then
@@ -319,27 +467,28 @@ local function render()
 
 	local current = phase()
 	local left = remaining()
+	local night = current == "Night"
 
 	if current ~= shownPhase then
 		shownPhase = current
 		lastWholeSecond = -1
-		if current == "Night" then
-			toBanner()
-			applyLighting(true)
-		else
-			toPill()
-			applyLighting(false)
-		end
+		stylePill(night)
+		applyLighting(night)
+		showBarrier(night)
+	end
+
+	if night then
+		paintBarrier(left)
 	end
 
 	if left == math.huge then
-		label.Text = if current == "Night" then "NIGHT — LOOT REFRESHING" else "Night in —"
+		label.Text = if night then "Night — Refreshing" else "Nightfall in —"
 		return
 	end
 
 	local whole = math.ceil(left)
-	if current == "Night" then
-		label.Text = `NIGHT — LOOT REFRESHING  {clock(left)}`
+	if night then
+		label.Text = `Night Reset {clock(left)}`
 		if whole ~= lastWholeSecond then
 			lastWholeSecond = whole
 			if not reducedEffects and pillScale then
@@ -349,7 +498,7 @@ local function render()
 		return
 	end
 
-	label.Text = `Night in {clock(left)}`
+	label.Text = `Nightfall in {clock(left)}`
 
 	-- The last fifteen seconds turn amber; the last ten breathe; each of the
 	-- last five lands a punch. All from the same clock, no server chatter.
@@ -391,9 +540,10 @@ function NightController.start()
 	end
 
 	captureDay()
-	build(ui)
+	buildPill(ui)
+	buildBarrier()
 
-	-- Four times a second is plenty for a seconds timer; the per-second punch
+	-- Ten times a second is plenty for a seconds timer; the per-second punch
 	-- and the breathing are keyed off the same tick.
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)

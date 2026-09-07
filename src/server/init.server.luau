@@ -63,7 +63,9 @@ CarryService.setNotifier(function(player, kind, message)
 	StateService.notify(player, kind, message)
 end)
 
-CarryService.setZoneBusyCheck(GuardianService.isZoneBusy)
+-- A drop the guardian can walk to waits for the guardian; one it cannot reach
+-- (behind the red line) goes home on the old timer.
+CarryService.setRecoveryCheck(GuardianService.canRecover)
 
 -- The tutorial vase goes straight back to its pedestal when dropped, instead of
 -- lying on the floor while the tutorial pins a replacement into the socket -
@@ -138,7 +140,8 @@ MonetizationService.onOwnershipChanged = function(player)
 	StateService.pushNow(player)
 end
 
--- A catch reclaims the loot; the launch itself is GuardianService's job.
+-- A catch reclaims the loot - hands it to the guardian, which carries it back
+-- to its socket; the launch itself is GuardianService's job.
 --
 -- This is ALSO the one legitimate trigger for the contextual Speed offer: it
 -- means "you were carrying loot and the chase beat you", which is precisely the

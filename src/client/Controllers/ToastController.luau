@@ -102,6 +102,8 @@ local STYLES: { [string]: Style } = {
 	["spotlight:magenta"] = { colors = sequence(Color3.fromRGB(255, 120, 230), Color3.fromRGB(180, 70, 255)), dwell = 4.2, scale = 1.14 },
 	["spotlight:cyan"] = { colors = sequence(Color3.fromRGB(150, 255, 255), Color3.fromRGB(40, 190, 255)), dwell = 3.8, scale = 1.1 },
 	["spotlight:violet"] = { colors = sequence(Color3.fromRGB(215, 160, 255), Color3.fromRGB(140, 80, 255)), dwell = 4.0, scale = 1.12 },
+	--- Entering a zone: short, bright, out of the way of anything that matters.
+	zone = { colors = sequence(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 214, 120)), dwell = 1.9, scale = 1.04 },
 }
 
 --- Shows one toast. `kind` picks the pack frame; `message` is written to the

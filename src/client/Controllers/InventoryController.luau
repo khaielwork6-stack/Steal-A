@@ -240,7 +240,7 @@ local function buildCard(item: any, index: number): Frame?
 		-- shows instead, and is the single swap point for real per-item art.
 		local icon = inner and inner:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			ItemThumb.apply(icon, rarity)
+			ItemThumb.apply(icon, rarity, item.ItemId)
 		end
 
 		local earns = inner and inner:FindFirstChild("Earns")

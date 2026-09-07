@@ -33,14 +33,16 @@ local dropLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.DropLootRequest)
 local notify: (Player, string, string) -> () = function() end
 local onDelivered: (Player, LootService.LootInstance) -> () = function() end
 
+--- Whether the zone's guardian can walk to a dropped item and bring it home.
 --- Injected from init rather than required, so GuardianService can depend on
---- CarryService without the two forming a require cycle.
-local isZoneBusy: (number) -> boolean = function()
+--- CarryService without the two forming a require cycle. False means the old
+--- instant return is the only way home for that drop.
+local canRecover: (LootService.LootInstance) -> boolean = function()
 	return false
 end
 
-function CarryService.setZoneBusyCheck(fn: (number) -> boolean)
-	isZoneBusy = fn
+function CarryService.setRecoveryCheck(fn: (LootService.LootInstance) -> boolean)
+	canRecover = fn
 end
 
 function CarryService.setNotifier(fn: (Player, string, string) -> ())
@@ -315,12 +317,9 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 		return "BASE FULL - sell something or upgrade your base."
 	end
 
-	-- One chase per zone: the single zone guardian cannot hold two targets, so
-	-- a second theft here waits until it has fully reset.
-	if isZoneBusy(loot.zoneIndex) then
-		return "The guard is already chasing someone here!"
-	end
-
+	-- Several thieves may carry a zone's loot at once. The guardian chases the
+	-- nearest and switches when another is clearly closer (GuardianService);
+	-- nothing here needs to know whether it is awake.
 	return nil
 end
 
@@ -367,7 +366,10 @@ end
 -- LOSS PATHS
 -- ==========================================================
 
---- Guardian catch: carrier loses it and the item goes home.
+--- Guardian catch: the carrier loses the item and the GUARDIAN takes it. The
+--- model is handed over in place (state Escorted) for GuardianService to weld
+--- to itself and carry back to the socket it came from. Only if there is
+--- nothing to carry does it go home the instant way.
 function CarryService.reclaim(loot: LootService.LootInstance)
 	local player = loot.carrier
 	if player then
@@ -375,7 +377,16 @@ function CarryService.reclaim(loot: LootService.LootInstance)
 		clearCarry(player)
 		notify(player, "error", `The guardian took back the {loot.name}!`)
 	end
-	LootService.returnToOrigin(loot, GameConfig.GUARDIAN_RETURN_DELAY)
+	loot.carrier = nil
+	loot.droppedAt = nil
+
+	local model = loot.model
+	if model and model.PrimaryPart then
+		model.Parent = workspace
+		LootService.setState(loot, "Escorted")
+	else
+		LootService.returnToOrigin(loot, GameConfig.GUARDIAN_RETURN_DELAY)
+	end
 end
 
 --- Whether a dropped item goes STRAIGHT HOME instead of lying where it fell.
@@ -386,8 +397,52 @@ function CarryService.returnsHomeOnDrop(_player: Player, _loot: LootService.Loot
 	return false
 end
 
---- PvP hit or the DROP button: the item drops where the carrier stood and is
---- reclaimable for 8s.
+--- Lays an item on the ground at `position` (feet at `floorY`) and marks it
+--- Dropped. From here the zone's guardian comes to fetch it and any player may
+--- grab it first. Two timers stand under that: a drop the guardian cannot
+--- reach goes home after the reclaim window, and ANY drop still lying there
+--- at the orphan timeout goes home regardless - nothing is ever left behind.
+local function dropLoose(loot: LootService.LootInstance, position: Vector3?, floorY: number?)
+	local model = loot.model
+	if model and position then
+		model.Parent = workspace
+		model:PivotTo(CFrame.new(position + Vector3.new(0, 2, 0)))
+		-- Feet on the floor, whatever its pivot: a dropped Colossal must not be
+		-- left half underground or hanging in the air.
+		local minCorner = select(1, LootModel.worldExtents(model))
+		if minCorner and floorY then
+			model:PivotTo(model:GetPivot() + Vector3.new(0, floorY - minCorner.Y, 0))
+		end
+		local prompt = LootService.promptOf(loot)
+		if prompt then
+			prompt.Enabled = not LootService.isClosed()
+			prompt.ActionText = "Grab"
+		end
+	end
+
+	loot.droppedAt = os.clock()
+	LootService.setState(loot, "Dropped")
+
+	if not model or not position then
+		-- Nothing on the ground to fetch; straight home.
+		LootService.returnToOrigin(loot)
+		return
+	end
+
+	task.delay(GameConfig.DROPPED_RECLAIM_WINDOW, function()
+		if loot.state == "Dropped" and not canRecover(loot) then
+			LootService.returnToOrigin(loot)
+		end
+	end)
+	task.delay(GameConfig.DROPPED_ORPHAN_TIMEOUT, function()
+		if loot.state == "Dropped" then
+			LootService.returnToOrigin(loot)
+		end
+	end)
+end
+
+--- PvP hit or the DROP button: the item drops where the carrier stood. The
+--- guardian comes for it; the thief may grab it back first.
 function CarryService.forceDrop(loot: LootService.LootInstance)
 	local player = loot.carrier
 	if not player then
@@ -425,31 +480,8 @@ function CarryService.forceDrop(loot: LootService.LootInstance)
 	clearCarry(player)
 	loot.carrier = nil
 
-	if model and position then
-		model.Parent = workspace
-		model:PivotTo(CFrame.new(position + Vector3.new(0, 2, 0)))
-		-- Feet on the floor, whatever its pivot: a dropped Colossal must not be
-		-- left half underground or hanging in the air.
-		local minCorner = select(1, LootModel.worldExtents(model))
-		if minCorner and floorY then
-			model:PivotTo(model:GetPivot() + Vector3.new(0, floorY - minCorner.Y, 0))
-		end
-		local prompt = LootService.promptOf(loot)
-		if prompt then
-			prompt.Enabled = not LootService.isClosed()
-			prompt.ActionText = "Grab"
-		end
-	end
-
-	loot.droppedAt = os.clock()
-	LootService.setState(loot, "Dropped")
+	dropLoose(loot, position, floorY)
 	notify(player, "error", `You dropped the {loot.name}!`)
-
-	task.delay(GameConfig.DROPPED_RECLAIM_WINDOW, function()
-		if loot.state == "Dropped" then
-			LootService.returnToOrigin(loot)
-		end
-	end)
 end
 
 --- Picking a dropped item back up. Same validation as a fresh steal minus the
@@ -500,14 +532,35 @@ function CarryService.consumeCarry(player: Player)
 end
 
 --- Death, reset, disconnect or any invalidation must always release the item.
+--- It falls where the carrier was, as a drop: the guardian then brings it
+--- back to its socket exactly as it does for a deliberate drop. If there is
+--- nothing left to fall (the character is already gone), or it is the pinned
+--- tutorial item, it goes straight home.
 function CarryService.releaseCarry(player: Player)
 	local loot = carrying[player]
 	if not loot then
 		return
 	end
+
+	local model = loot.model
+	local position = if model and model.Parent and model.PrimaryPart then model.PrimaryPart.Position else nil
+	local floorY: number? = nil
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		position = root.Position
+		floorY = root.Position.Y - 3
+	end
+
 	detach(loot)
 	clearCarry(player)
-	LootService.returnToOrigin(loot)
+	loot.carrier = nil
+
+	if CarryService.returnsHomeOnDrop(player, loot) or not position then
+		LootService.returnToOrigin(loot)
+		return
+	end
+	dropLoose(loot, position, floorY)
 end
 
 -- ==========================================================

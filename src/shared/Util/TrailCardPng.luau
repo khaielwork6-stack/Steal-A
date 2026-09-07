@@ -81,18 +81,34 @@ function TrailCardPng.build(options: Options): Card
 	local cashState = card.pill("cash", "EQUIP", EQUIPPED_COLOR)
 	local robuxState = if hasRobux then card.pill("robux", "OWNED", OWNED_COLOR) else nil
 
+	--- THREE EXCLUSIVE STATES, one set of controls each:
+	---   not owned          printed $ and R$ buttons, both live, no pills
+	---   owned, not worn    EQUIP plate over the $ (live: pressing equips),
+	---                      OWNED plate over the R$ (dead)
+	---   equipped           EQUIPPED plate over the $ (dead - nothing to press),
+	---                      OWNED plate over the R$ (dead)
+	--- The plates are opaque, so a printed price is never visible under a
+	--- state word, and a dead region's invisible button is disabled, so no
+	--- hidden control can intercept a tap.
 	local function setState(next: State)
 		state = { owned = next.owned == true, equipped = next.equipped == true }
+		local stroke = cashState:FindFirstChildOfClass("UIStroke")
 		if state.equipped then
 			cashState.Text = "✓ EQUIPPED"
 			cashState.TextColor3 = EQUIPPED_COLOR
 			cashState.Visible = true
+			card.setRegionEnabled("cash", false)
 		elseif state.owned then
 			cashState.Text = "EQUIP"
 			cashState.TextColor3 = EQUIP_COLOR
 			cashState.Visible = true
+			card.setRegionEnabled("cash", true)
 		else
 			cashState.Visible = false
+			card.setRegionEnabled("cash", true)
+		end
+		if stroke then
+			stroke.Color = cashState.TextColor3
 		end
 		if robuxState then
 			robuxState.Visible = state.owned

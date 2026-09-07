@@ -2,9 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §25** (the STEAL & ESCAPE pass: pedestals, giant sizes, the Night
-> cycle, chase audio, settings, the trail-shop fix), then §22, §21, §20, §19
-> and §18. Between them they say exactly where the last sessions stopped, what
+> **START AT §26** (smart guardians that carry loot back, living loot, the
+> Night barrier, Index previews, zone pop-ups, trail plates), then §25 (the
+> STEAL & ESCAPE pass: pedestals, giant sizes, the Night cycle, chase audio,
+> settings, the trail-shop fix), then §22, §21, §20, §19 and §18. Between them they say exactly where the last sessions stopped, what
 > is verified, what is not, and what to pick up. §0 below is still the first thing you must *act* on (§20 moved 61 models
 > that live only in the place file); §9's "next steps" list is older than
 > §16–§21 and is superseded by them.
@@ -2030,3 +2031,152 @@ chase loop itself (the id is not audio).
   PowerShell into the scratchpad worked.
 - `DebugInvoke` new commands: `spawnSize`, `sizeSim`, `growth`, `night`,
   `lootSnapshot(zone?)`, `chase` (guardian states + your Chased flag).
+
+---
+
+## 26. The "additional requirements" pass — smart guardians, living loot, the Night barrier, Index previews, zone pop-ups, trail plates
+
+The owner's second brief (14 pages, sections A–K). Everything in it is
+implemented and was exercised live in Studio Play (single client) except
+where 26.4 says otherwise. Read §25 first for the systems this builds on.
+
+### 26.1 Guardian chase logic (GuardianService, CarryService, LootService)
+
+The chase is now a real state machine, and the guardian PHYSICALLY carries
+loot back. States, as published on the model's `State` attribute:
+
+    Sleeping -> Waking (WAKE_DELAY, alert once) -> Chasing
+    Chasing  -> escape (thief across the line) | catch -> ReturningLoot
+    Recovering (walking to a dropped item) -> ReturningLoot -> Returning -> Sleeping
+
+- **Dynamic pace.** `paceFor()` = base pace inside `catchRadius + NEAR_BAND`,
+  rising smoothly to base × (1 + `CATCHUP_BOOST` 0.35) at `FAR_BAND` 70
+  studs. `driveSpeed()` is the ONLY writer of WalkSpeed during a job and
+  eases exponentially (`SPEED_EASE` 2.4/s) — measured: 9.2 → 17.7 → 16.8 on
+  a standing thief, 36.6 → 57.7 on a fleeing one. Inside the near band the
+  pace is exactly the base, so whether a thief at the zone's recommendation
+  escapes is still decided by `speedForChase` — the boost only ever closes a
+  gap, never wins the last ten studs. A trap's root (`rootGuardian`) holds
+  zero and hands back to `guardian.currentSpeed` on expiry.
+- **Multi-target.** The "one chase per zone" refusal is gone
+  (`CarryService.validateSteal` no longer asks `isZoneBusy`). The guardian's
+  work is DERIVED each time it needs it from `LootService.instancesInZone()`:
+  the nearest valid carrier (Carried, alive, has a root, on the danger side)
+  is the target; every `SCAN_INTERVAL` (0.4 s) it switches only if another
+  carrier is under `SWITCH_MARGIN` (75%) of the current distance AND at least
+  `SWITCH_MIN_GAIN` (12 studs) closer. Only the current target carries
+  `Chased = true`. No stored reference can go stale: the target is
+  re-validated from LootService every frame. **Not exercised live** — needs
+  two players (see 26.4).
+- **Catch.** `CarryService.reclaim` no longer teleports the item home. It
+  detaches it, sets state `Escorted`, and `GuardianService.beginEscort` welds
+  the model over the guardian's head (`attachEscort`: unanchored, massless,
+  compressed to `carryVisualScale`, lowest point at the costume's `Height`).
+  The guardian walks to the item's ORIGINAL socket (`stepEscort`) and within
+  `ESCORT_REACH` 7 studs calls `LootService.returnToOrigin(loot, 0)` — the
+  SAME instance rebuilt in the same socket — then takes the next job or goes
+  home. Measured: catch → socket refilled with the same id in ~0.4 s of
+  walking, asleep 3 s later.
+- **Drop recovery.** `CarryService.dropLoose` (DROP button, bat hit, death,
+  reset, disconnect via `releaseCarry`) lays the item down as `Dropped` and
+  fires `GuardianService.noticeDrop`; a sleeping or returning guardian goes
+  to fetch it (`Recovering`), picks it up within `catchRadius + PICKUP_REACH`,
+  and escorts it home. Players may still grab it first (then they are
+  chased). Two floors under it: a drop the guardian cannot walk to (behind the
+  red line — `canRecover`) goes home after `DROPPED_RECLAIM_WINDOW` 8 s; ANY
+  drop still lying there after `DROPPED_ORPHAN_TIMEOUT` 75 s, or a job past
+  `JOB_TIMEOUT` 60 s, goes home the instant way. Nothing can be orphaned.
+- **Night.** `resetAll()` returns escorted loot to its socket instantly and
+  sleeps every guardian; `refreshAllUnboosted` calls `LootService.retireLoose`
+  first so a leftover drop cannot come home into a refilled socket.
+- **Re-grabs wake the guardian.** The old listener ignored `Dropped →
+  Carried`, which let a thief drop, wait for sleep, grab and walk off free.
+  `engage()` handles every state now.
+- New `LootState` `"Escorted"`. New debug commands: `guardian(zone)` (state,
+  target, base/current pace, distance), `socket(zone, index)`,
+  `lootState(id)`.
+
+### 26.2 Client work
+
+- **WorldLootFxController** (new): every socketed loot turns (0.5 rad/s ÷
+  √scale), hovers 0.22 studs up to the carry knee, and sits on a neon
+  `LootRing` in its rarity colour (Legendary+ also a PointLight). Registry by
+  `DescendantAdded` under `Map.Zones`, `SETTLE_SECONDS` 0.5 before the rest
+  pose is captured, culled past 320 studs, unregisters the frame the model
+  leaves its socket. Loot models are now `ModelStreamingMode.Atomic`
+  (LootModel.build) so streaming can never hand the client half a model to
+  pivot. `LootService.buildModel` stamps `VisualScale` / `Size` / `Mutation`.
+- **Night barrier** (NightController): a client-only, non-colliding part
+  (356 × 170 × 1.2) at Z = 0.8, just past the red line and in front of the
+  zone-1 sign boards, with a SurfaceGui on each face: pale gradient, moon,
+  countdown, "NIGHT — LOOT REFRESHING", subtitle. Fades element by element
+  and the SurfaceGuis are `Enabled = false` after the fade-out.
+  **CanvasGroup.GroupTransparency is NOT honoured on a SurfaceGui** — the
+  first version used one and the wall's text stayed visible in daylight.
+  Text on a SurfaceGui caps at 100 px, so the canvas is 2.5 px/stud.
+  Closure itself stays server-authoritative (LootService.setClosed).
+- **Nightfall timer** moved to the bottom-right (`PILL_POSITION`), where the
+  "Displays 0/7" counter was; that label is destroyed by HUDController.
+  Reads "Nightfall in 3:50" / "Night Reset 8s"; amber under 15 s, breathing
+  under 10, punches on the last five; never becomes a banner any more.
+  `NightService.forceNight` re-anchors the cycle so a forced Night lasts
+  exactly NIGHT_SECONDS.
+- **Speed feedback** (TreadmillController.spawnHudPopup): the stat card's
+  Speed row flashes cyan and punches, and a "+N Speed" lifts off its right
+  end, every `SPEED_HUD_INTERVAL` 0.6 s summing the ticks in between (5 in
+  3 s measured). Same real server delta as the world popup.
+- **Index**: the server publishes sanitised clones of every loot asset under
+  `ReplicatedStorage.LootPreviews` (`LootModel.publishPreviews`, 94 of 96
+  ids — `Museum_Ruby` and `Pirate_CursedCoin` have no art and keep the rarity
+  plate). `ItemThumb.apply(icon, rarity, itemId)` drops the real model into a
+  ViewportFrame on the card, three-quarter framed; `applyUnknown` shows it as
+  a black silhouette (black ambient + light, textures hidden) on an unlit
+  plate — rarity never leaks. Discovered previews turn while the panel is
+  open; cards lift on hover and cascade in; a zone header ("Zone 7 · Gym 💪 ·
+  3/8 found") sits above the grid. Storage cards use the same previews.
+- **Zone pop-up** (ZonePopupController, new): geometry-driven from
+  MapConfig bands, `SETTLE_SECONDS` 0.45 before a zone counts, re-announces
+  only after the player has genuinely been elsewhere. ToastController style
+  `zone`. `ZoneConfig.Zones[i].emoji` added (single code points; Pirate Island
+  is ⚓ because ZWJ flags do not render).
+- **Trail cards** (PngCard / TrailCardPng): state pills are now OPAQUE
+  plates grown by `PILL_PAD` (and `PILL_EXTRA_LEFT.robux` for the icon left
+  of the printed R$ button), clamped so the OWNED plate never crosses the
+  EQUIP plate on the Green card. Three exclusive states: not owned = printed
+  $ / R$ live; owned = EQUIP (live) + OWNED (R$ dead); equipped = ✓ EQUIPPED
+  (dead) + OWNED. A dead region's invisible button is disabled, so nothing
+  hidden takes a tap. Verified visually in all three states.
+- **Audio**: LobbyMusic → 1848354536, ChaseMusic → 113688019858504 (both
+  preload `Success`). `AudioController.setDucked` drops the lobby bed to 20%
+  for the length of a chase (ChaseAudioController drives it from its state).
+
+### 26.3 What was tested (Play, one client, all through `DebugInvoke`)
+
+- Catch: Waking → Chasing → ReturningLoot → Returning → Sleeping; the socket
+  holds the same instance id; pace samples show the ramp and the settle.
+- Drop in the zone: Recovering → Escorted (parented to the guardian) →
+  Spawned in the original socket; same id.
+- Death mid-carry: item Dropped where the thief died; recovered the same way.
+- Fleeing thief (walkSpeed 104): pace 36.6 → 57.7 with the gap, escape at the
+  line, Chased cleared, guardian home; the item dropped behind the line went
+  home on the 8 s timer.
+- Night during an escort: guardian asleep at its post, loot back in socket.
+- Barrier appears with the countdown, is gone (`Enabled = false`) after Night.
+- Zone pop-ups: Pirate Island → (no repeat inside it) → Castle → lobby →
+  Pirate Island again.
+- Index: 8/8 discovered zone renders lit models; undiscovered render
+  silhouettes; header correct.
+- Trail shop: screenshots of the three states, plates clean on all six cards.
+- Speed HUD popups and the row flash while on the treadmill.
+- Consoles clean at start and after every test.
+
+### 26.4 Not tested / remaining
+
+- **Multiple players** (target switching, two thieves in one zone, per-player
+  pop-ups): impossible from a single Studio client. The logic is
+  code-reviewed; test with two clients on a real server before trusting it.
+- Late joiners during Night read the same attributes as everyone (unchanged
+  from §25) — not re-tested this pass.
+- The two ids without art (`Museum_Ruby`, `Pirate_CursedCoin`) still show a
+  rarity plate in the Index and a placeholder in the world.
+- Nothing Studio-side changed this pass; §25.2's Save is still owed.

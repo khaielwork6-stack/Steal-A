@@ -151,22 +151,39 @@ local function ensureMusic(): Sound?
 	return sound
 end
 
-local function setMusic(on: boolean)
-	if on == musicWanted then
-		return
-	end
-	musicWanted = on
+--- While a chase is on, the bed drops to this fraction of its level so the
+--- chase loop owns the moment; it comes back up when the chase ends.
+local DUCKED_LEVEL = 0.2
+local ducked = false
 
+local function applyMusicVolume()
 	local cue = AudioConfig.get("LobbyMusic")
 	local sound = ensureMusic()
 	if not sound or not cue then
 		return
 	end
-
 	-- Always a fade. Cutting the bed the instant a player steps over the line is
 	-- exactly the jarring transition this is meant to avoid.
-	local target = if on then cue.volume else 0
+	local target = if musicWanted then cue.volume * (if ducked then DUCKED_LEVEL else 1) else 0
 	TweenService:Create(sound, TweenInfo.new(cue.fade or 1, Enum.EasingStyle.Sine), { Volume = target }):Play()
+end
+
+local function setMusic(on: boolean)
+	if on == musicWanted then
+		return
+	end
+	musicWanted = on
+	applyMusicVolume()
+end
+
+--- ChaseAudioController ducks the bed for the length of a chase, so the two
+--- loops never fight if a chase ever overlaps the lobby side of the margin.
+function AudioController.setDucked(value: boolean)
+	if ducked == value then
+		return
+	end
+	ducked = value
+	applyMusicVolume()
 end
 
 --- Behind the red line (Z below zero) is the lobby and every player base.

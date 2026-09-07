@@ -73,10 +73,10 @@ AudioConfig.Cues = {
 
 	-- ---------- music ----------
 	--- Plays only while the player is behind the red line. Faded, never cut.
-	LobbyMusic = { id = asset(92804804272270), volume = 0.28, category = "music", looped = true, fade = 1.2 },
+	LobbyMusic = { id = asset(1848354536), volume = 0.28, category = "music", looped = true, fade = 1.2 },
 	--- Loops for the CHASED player only, from 0.4s after the alert until the
 	--- chase ends however it ends. Client-owned; see ChaseAudioController.
-	ChaseMusic = { id = asset(34234642), volume = 0.45, category = "music", looped = true, fade = 0.35 },
+	ChaseMusic = { id = asset(113688019858504), volume = 0.45, category = "music", looped = true, fade = 0.35 },
 } :: { [string]: Cue }
 
 -- ==========================================================

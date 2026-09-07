@@ -224,6 +224,10 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 
 	local built = model :: Model
 	built.Name = options.itemId
+	-- The client animates loot by moving the whole model. With streaming on,
+	-- a model that streams in part by part would be pivoted while half here
+	-- and torn apart when the rest arrived; atomic models arrive whole.
+	built.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 
 	for _, descendant in built:GetDescendants() do
 		if descendant:IsA("BasePart") then
@@ -305,6 +309,71 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 	end
 
 	return built, isReal
+end
+
+-- ==========================================================
+-- PREVIEWS (the Index and Storage thumbnails)
+-- ==========================================================
+--
+-- The art lives in ServerStorage, which no client can read, so the server
+-- publishes a sanitised copy of every item under ReplicatedStorage.LootPreviews
+-- once at start. A client card then clones its item into a ViewportFrame and
+-- draws the REAL model - the same mesh the player steals - instead of a colour
+-- swatch. Scripts, sounds, prompts and humanoids are stripped; nothing in the
+-- folder can run or make noise.
+
+local PREVIEW_FOLDER = "LootPreviews"
+
+--- Server only. Idempotent: a second call replaces the folder.
+function LootModel.publishPreviews(): number
+	local assets = ServerStorage:FindFirstChild("GameAssets")
+	local source = assets and assets:FindFirstChild("Loot")
+	if not source then
+		return 0
+	end
+	local existing = ReplicatedStorage:FindFirstChild(PREVIEW_FOLDER)
+	if existing then
+		existing:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = PREVIEW_FOLDER
+
+	local count = 0
+	for _, item in source:GetChildren() do
+		local model = adopt(item)
+		if not model then
+			continue
+		end
+		model.Name = item.Name
+		for _, descendant in model:GetDescendants() do
+			if descendant:IsA("BasePart") then
+				descendant.Anchored = true
+				descendant.CanCollide = false
+				descendant.CanQuery = false
+				descendant.CanTouch = false
+			elseif
+				descendant:IsA("BaseScript")
+				or descendant:IsA("Sound")
+				or descendant:IsA("ProximityPrompt")
+				or descendant:IsA("Humanoid")
+				or descendant:IsA("BillboardGui")
+				or descendant:IsA("SurfaceGui")
+			then
+				descendant:Destroy()
+			end
+		end
+		model.Parent = folder
+		count += 1
+	end
+	folder.Parent = ReplicatedStorage
+	return count
+end
+
+--- The published preview for an item, or nil (no art, or not published yet).
+function LootModel.previewSource(itemId: string): Model?
+	local folder = ReplicatedStorage:FindFirstChild(PREVIEW_FOLDER)
+	local found = folder and folder:FindFirstChild(itemId)
+	return if found and found:IsA("Model") then found else nil
 end
 
 return LootModel

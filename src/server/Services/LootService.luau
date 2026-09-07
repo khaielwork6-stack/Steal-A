@@ -12,7 +12,9 @@
 	  Spawned   world loot sits in its origin socket
 	  Reserved  a steal was accepted; blocks a second claim
 	  Carried   welded to one player, guardian active
-	  Dropped   loose after PvP, 8s reclaim window
+	  Dropped   loose on the ground (PvP hit, DROP button, death, disconnect);
+	            grabbable by players until the zone's guardian picks it up
+	  Escorted  welded to the zone's guardian, on its way back to its socket
 	  Returning transient cleanup
 	  Placed    handed to BaseService, no longer world state
 
@@ -56,7 +58,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local LootService = {}
 
-export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Returning" | "Placed"
+export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Escorted" | "Returning" | "Placed"
 
 export type LootInstance = {
 	id: string,
@@ -302,6 +304,11 @@ local function buildModel(loot: LootInstance): Model
 	model:SetAttribute("LootId", loot.id)
 	model:SetAttribute("ItemId", loot.itemId)
 	model:SetAttribute("Rarity", loot.rarity)
+	-- For the client's idle motion: how big this one is (a Colossal turns
+	-- slowly and does not bob) and what it is (mutation accents).
+	model:SetAttribute("VisualScale", loot.visualScale)
+	model:SetAttribute("Size", loot.size)
+	model:SetAttribute("Mutation", loot.mutation)
 
 	return model
 end
@@ -547,6 +554,35 @@ end
 
 function LootService.get(lootId: string): LootInstance?
 	return byId[lootId]
+end
+
+--- Every live instance that belongs to a zone, whatever state it is in and
+--- wherever it physically is. The guardian derives its work from this each
+--- time it needs to - carriers to chase, drops to fetch - so it never holds a
+--- reference that can go stale.
+function LootService.instancesInZone(zoneIndex: number): { LootInstance }
+	local list = {}
+	for _, loot in byId do
+		if loot.zoneIndex == zoneIndex then
+			table.insert(list, loot)
+		end
+	end
+	return list
+end
+
+--- Retires every instance lying loose on the ground. Run by the Night refresh
+--- before the sockets are refilled: a drop left over from the old world would
+--- otherwise come home to a socket that already holds its replacement.
+function LootService.retireLoose(): number
+	local count = 0
+	for id, loot in byId do
+		if loot.state == "Dropped" then
+			despawn(loot)
+			byId[id] = nil
+			count += 1
+		end
+	end
+	return count
 end
 
 --- Resolves the loot instance that owns any descendant - typically the part a
@@ -830,6 +866,9 @@ end
 function LootService.refreshAllUnboosted(): RefreshReport
 	local report: RefreshReport = { rerolled = 0, filled = 0, preservedInSocket = 0 }
 
+	-- Drops on the ground belong to the world being replaced.
+	LootService.retireLoose()
+
 	for zoneIndex = 1, ZoneConfig.COUNT do
 		for _, socket in sockets[zoneIndex] or {} do
 			local loot = socket.loot
@@ -927,6 +966,11 @@ function LootService.start()
 			}
 		end
 	end
+
+	-- The Index and Storage draw the real models: publish them where a client
+	-- can clone them (ReplicatedStorage.LootPreviews) before anything opens.
+	local previews = LootModel.publishPreviews()
+	print(`[LootService] {previews} item previews published`)
 
 	-- Fill everything on server start.
 	for zoneIndex = 1, ZoneConfig.COUNT do

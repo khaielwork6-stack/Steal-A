@@ -367,6 +367,9 @@ function NightService.setDayRemaining(seconds: number)
 end
 
 function NightService.forceNight()
+	-- Re-anchor the cycle so the forced Night lasts exactly NIGHT_SECONDS and
+	-- every countdown reads it, instead of whatever was left of the Day.
+	cycleStart = workspace:GetServerTimeNow() - (NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS)
 	beginNight()
 end
 

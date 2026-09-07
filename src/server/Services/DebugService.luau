@@ -1327,6 +1327,50 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { chased = player:GetAttribute("Chased") == true, guardians = states }
 	end,
 
+	--- One guardian, in detail: state, target, pace, distance, what it carries.
+	guardian = function(_player, zoneIndex: number)
+		local GuardianService = require(script.Parent.GuardianService)
+		local info = GuardianService.inspect(zoneIndex)
+		if info and info.position then
+			info.position = tostring(info.position)
+		end
+		return info or { error = "no such guardian" }
+	end,
+
+	--- What sits in a socket right now, by identity, so a test can prove the
+	--- SAME instance came back after a catch or a drop.
+	socket = function(_player, zoneIndex: number, socketIndex: number?)
+		local socket = LootService.getSocket(zoneIndex, socketIndex or 1)
+		if not socket then
+			return { error = "no such socket" }
+		end
+		local loot = socket.loot
+		return {
+			occupied = loot ~= nil,
+			id = loot and loot.id,
+			name = loot and loot.name,
+			state = loot and loot.state,
+			modelInSocket = loot ~= nil and loot.model ~= nil and loot.model.Parent == socket.part,
+		}
+	end,
+
+	--- One instance by id, wherever it is.
+	lootState = function(_player, lootId: string)
+		local loot = LootService.get(lootId)
+		if not loot then
+			return { gone = true }
+		end
+		local model = loot.model
+		return {
+			state = loot.state,
+			name = loot.name,
+			zone = loot.zoneIndex,
+			socket = loot.socketIndex,
+			modelParent = if model and model.Parent then model.Parent:GetFullName() else nil,
+			position = if model and model.PrimaryPart then tostring(model.PrimaryPart.Position) else nil,
+		}
+	end,
+
 	--- Buys / equips a trail through the REAL server paths, so validation,
 	--- deduction and persistence are all exercised.
 	trail = function(player, action: string?, key: string?)
