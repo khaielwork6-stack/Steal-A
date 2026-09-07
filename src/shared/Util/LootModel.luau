@@ -188,7 +188,7 @@ end
 LootModel.WORLD_MAX_FOOTPRINT = 110
 --- The widest a trophy may get on its 20-stud display pad: it may be as tall
 --- as it likes, but it must not swallow the neighbouring exhibits.
-LootModel.TROPHY_MAX_FOOTPRINT = 18
+LootModel.TROPHY_MAX_FOOTPRINT = 15
 
 export type BuildOptions = {
 	itemId: string,

@@ -10,9 +10,28 @@
 	It is idempotent: an existing Workspace.Map is destroyed and rebuilt, so the
 	generator stays the source of truth while individual parts remain hand-editable.
 
+	WHAT THE WORLD IS MADE OF (the pre-release layout pass)
+	  * THE HUB: the apron between the plaza and the red line. Spawn stands on
+	    a paved circle in its middle facing the Zone 01 gate; the trail booth is
+	    to its left, the event stand to its right, the leaderboards flank the
+	    gate. Every destination is a few seconds' walk (MapConfig.HUB).
+	  * THE PLAZA: a paved avenue runs from the hub back between two rows of
+	    plots, each with its treadmill at the kerb. The plots are sized from
+	    what they hold - two ranks of seven display pads and a porch - and no
+	    more (MapConfig.PLOT_DEPTH / PLAZA_CORRIDOR_WIDTH).
+	  * THE LANE: twelve zones, each with a GATE at its entrance (two pylons
+	    and a lintel carrying the zone's name), a landmark, a composed layout
+	    of four loot plinths and one guardian post (MapLandmarks.layouts), and
+	    supporting scenery. Pilasters and a trim band break the long walls
+	    into bays.
+	  * FUNCTIONAL PARTS ARE DRESSED, NEVER REMOVED. Sockets, guardian posts,
+	    slot pads, spawn pads and trigger volumes keep their names, sizes and
+	    attributes; what changed is that a socket is a stone plinth instead of
+	    a glowing yellow square and a guardian post is invisible.
+
 	Checker surfaces are built as coarse overlay tiles (one slab per surface plus
 	alternating plates) rather than per-stud parts, which keeps the whole world
-	around 1,200 parts while still reading as real geometry up close.
+	around 1,500 parts while still reading as real geometry up close.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,6 +39,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MapLandmarks = require(script.Parent.MapLandmarks)
 
 local MapBuilder = {}
@@ -46,11 +66,15 @@ type PartOptions = {
 	canCollide: boolean?,
 	castShadow: boolean?,
 	topSurface: Enum.SurfaceType?,
+	shape: Enum.PartType?,
 }
 
 local function makePart(o: PartOptions): Part
 	local p = Instance.new("Part")
 	p.Name = o.name
+	if o.shape then
+		p.Shape = o.shape
+	end
 	p.Size = o.size
 	p.CFrame = o.cframe
 	p.Anchored = true
@@ -136,6 +160,22 @@ local function makeCheckerFloor(
 	return group
 end
 
+--- A paved surface laid ON a floor: a thin smooth slab sitting proud of the
+--- ground by its own thickness, so it never shares a plane with the checker.
+local function makePaving(name: string, size: Vector3, cframe: CFrame, parent: Instance, shape: Enum.PartType?): Part
+	return makePart({
+		name = name,
+		size = size,
+		cframe = cframe,
+		parent = parent,
+		color = MapPalette.Paving.a,
+		material = Enum.Material.SmoothPlastic,
+		canCollide = false,
+		castShadow = false,
+		shape = shape,
+	})
+end
+
 --- Vertical checker plating applied to one inward-facing wall surface.
 -- `normalX` is +1 when the visible face points toward +X.
 local function plateWallFace(
@@ -170,9 +210,45 @@ local function plateWallFace(
 	end
 end
 
+--- Pilasters and a trim band along one inward-facing wall run. Non-colliding:
+--- they are relief, and a shoulder or a guardian must never catch on them.
+local function detailWallFace(parent: Instance, faceX: number, normalX: number, runCenterZ: number, runLength: number)
+	local size = MapConfig.WALL_PILASTER_SIZE
+	local spacing = MapConfig.WALL_PILASTER_SPACING
+	local z0 = runCenterZ - runLength / 2
+	local count = math.max(1, math.floor(runLength / spacing))
+	local step = runLength / count
+
+	local detail = folder("Detail", parent)
+	for i = 0, count do
+		local z = z0 + step * i
+		makePart({
+			name = "Pilaster",
+			size = size,
+			cframe = CFrame.new(faceX + normalX * size.X / 2, size.Y / 2, z),
+			color = MapPalette.WallPilaster,
+			parent = detail,
+			canCollide = false,
+			castShadow = false,
+		})
+	end
+	for _, seg in segmentRun(runCenterZ, runLength) do
+		makePart({
+			name = "Trim",
+			size = Vector3.new(0.8, 3, seg.length),
+			cframe = CFrame.new(faceX + normalX * 0.4, MapConfig.WALL_TRIM_HEIGHT, seg.center),
+			color = MapPalette.WallTrim,
+			parent = detail,
+			canCollide = false,
+			castShadow = false,
+		})
+	end
+end
+
 --- Containment wall plus its bright cap, bottom-aligned to Y = 0.
 -- Long runs are chunked so no Part exceeds Roblox's 2048-stud axis cap.
--- `checkerNormal` (-1 / 0 / +1) says which side, if any, gets checker plating.
+-- `checkerNormal` (-1 / 0 / +1) says which side, if any, gets checker plating
+-- and wall detail.
 local function makeWall(
 	name: string,
 	width: number,
@@ -225,7 +301,9 @@ local function makeWall(
 	end
 
 	if checkerNormal and checkerNormal ~= 0 and alongZ then
-		plateWallFace(group, centerX + checkerNormal * width / 2, checkerNormal, centerZ, depth, surface)
+		local faceX = centerX + checkerNormal * width / 2
+		plateWallFace(group, faceX, checkerNormal, centerZ, depth, surface)
+		detailWallFace(group, faceX, checkerNormal, centerZ, depth)
 	end
 
 	return group
@@ -244,40 +322,117 @@ local function makeVolume(name: string, size: Vector3, cframe: CFrame, parent: I
 	})
 end
 
---- Small visible marker used for sockets and guard posts.
-local function makeMarker(name: string, size: Vector3, cframe: CFrame, color: Color3, parent: Instance): Part
-	return makePart({
+--- A loot socket: the part LootService measures against, dressed as a low
+--- stone plinth with a lighter rim under it. The name, size and position are
+--- the contract; the client draws the item's rarity ring on top.
+local function makeSocket(name: string, cframe: CFrame, parent: Instance): Part
+	local socket = makePart({
 		name = name,
-		size = size,
+		size = Vector3.new(16, 0.6, 16),
 		cframe = cframe,
 		parent = parent,
-		color = color,
+		color = MapPalette.LootSocket,
 		canCollide = false,
 		castShadow = false,
-		transparency = 0.4,
-		material = Enum.Material.Neon,
+	})
+	makePart({
+		name = "Rim",
+		size = Vector3.new(18, 0.3, 18),
+		cframe = cframe * CFrame.new(0, -0.2, 0),
+		parent = socket,
+		color = MapPalette.LootSocketRim,
+		canCollide = false,
+		castShadow = false,
+	})
+	return socket
+end
+
+--- The guardian's post: a marker the service reads and nothing a player sees.
+--- The guardian itself stands on it.
+local function makeGuardianPost(cframe: CFrame, parent: Instance): Part
+	return makePart({
+		name = "GuardianPost",
+		size = Vector3.new(9, 0.6, 9),
+		cframe = cframe,
+		parent = parent,
+		transparency = 1,
+		canCollide = false,
+		castShadow = false,
 	})
 end
 
---- Display slot pad. Deliberately matte and quiet: fourteen neon pads per plot
---- blew out the whole base area, and the trophy standing on it is the thing
---- that should draw the eye.
+--- Display slot pad. Matte and quiet, in the locked shade: BaseService restyles
+--- every pad (locked / empty / occupied) the moment the server starts, and the
+--- trophy standing on it is the thing that should draw the eye.
 local function makeSlotPad(name: string, cframe: CFrame, parent: Instance): Part
 	return makePart({
 		name = name,
 		size = MapConfig.DISPLAY_SLOT_SIZE,
 		cframe = cframe,
 		parent = parent,
-		color = MapPalette.DisplaySlot,
+		color = MapPalette.SlotPadLocked,
 		canCollide = false,
 		castShadow = false,
-		transparency = 0.55,
 		material = Enum.Material.SmoothPlastic,
 	})
 end
 
 -- ==========================================================
--- LANE FLOORS
+-- SMALL PROPS
+-- ==========================================================
+
+--- A planter box with a bush in it. Two parts, no collision.
+local function makePlanter(name: string, cframe: CFrame, parent: Instance)
+	makePart({
+		name = name,
+		size = Vector3.new(8, 3, 8),
+		cframe = cframe * CFrame.new(0, 1.5, 0),
+		parent = parent,
+		color = MapPalette.Planter,
+		material = Enum.Material.Plastic,
+		canCollide = false,
+		castShadow = false,
+	})
+	makePart({
+		name = name .. "Bush",
+		size = Vector3.new(9, 8, 9),
+		cframe = cframe * CFrame.new(0, 6.5, 0),
+		parent = parent,
+		color = MapPalette.Bush,
+		material = Enum.Material.Grass,
+		canCollide = false,
+		castShadow = false,
+		shape = Enum.PartType.Ball,
+	})
+end
+
+--- A lamp post: a dark post with a warm glowing head. No light source - the
+--- neon head reads as lit without a PointLight per plot.
+local function makeLamp(name: string, cframe: CFrame, parent: Instance)
+	makePart({
+		name = name,
+		size = Vector3.new(0.9, 9, 0.9),
+		cframe = cframe * CFrame.new(0, 4.5, 0),
+		parent = parent,
+		color = MapPalette.LampPost,
+		canCollide = false,
+		castShadow = false,
+	})
+	makePart({
+		name = name .. "Glow",
+		size = Vector3.new(2.4, 2.4, 2.4),
+		cframe = cframe * CFrame.new(0, 9.8, 0),
+		parent = parent,
+		color = MapPalette.LampGlow,
+		material = Enum.Material.Neon,
+		canCollide = false,
+		castShadow = false,
+		shape = Enum.PartType.Ball,
+	})
+end
+
+-- ==========================================================
+-- LANE FLOORS AND THE HUB
 -- ==========================================================
 
 local function buildLaneFloors(map: Instance)
@@ -302,6 +457,42 @@ local function buildLaneFloors(map: Instance)
 		MapPalette.SafeApron,
 		floors
 	)
+
+	-- THE HUB PAVING. A circle under the spawn, and the avenue running from it
+	-- back through the plaza to the head plot's porch. Paving sits 0.3 proud
+	-- of the checker so it can never share a plane with it.
+	local hub = MapConfig.HUB
+	local paving = folder("Paving", map)
+	local diameter = hub.spawnPlazaDiameter
+	makePaving("SpawnPlazaEdge", Vector3.new(0.4, diameter + 4, diameter + 4), CFrame.new(hub.spawn.X, 0.2, hub.spawn.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder).Color =
+		MapPalette.PavingEdge
+	makePaving("SpawnPlaza", Vector3.new(0.6, diameter, diameter), CFrame.new(hub.spawn.X, 0.3, hub.spawn.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder)
+
+	local avenueFrontZ = hub.spawn.Z - diameter / 2
+	local avenueBackZ = MapConfig.PLAZA_BACK_Z + MapConfig.HEAD_PLOT_DEPTH
+	local avenueLength = avenueFrontZ - avenueBackZ
+	for _, seg in segmentRun((avenueFrontZ + avenueBackZ) / 2, avenueLength) do
+		makePaving("Avenue", Vector3.new(hub.avenueWidth, 0.3, seg.length), CFrame.new(0, 0.15, seg.center), paving)
+	end
+	-- A short spur from the spawn circle up to the red line, so the way into
+	-- the world is drawn on the ground.
+	local spurFrontZ = hub.spawn.Z + diameter / 2
+	makePaving("Spur", Vector3.new(hub.avenueWidth, 0.3, -6 - spurFrontZ), CFrame.new(0, 0.15, (spurFrontZ - 6) / 2), paving)
+
+	-- Greenery and lamps ring the spawn circle so the hub reads as a place.
+	-- Nothing stands on the circle's Z axis: that is the line a new player
+	-- walks from the spawn to the gate, and the line they look along.
+	local props = folder("Decorations", map)
+	for _, sign in { -1, 1 } do
+		local radius = diameter / 2 + 7
+		makePlanter("HubPlanter", CFrame.new(hub.spawn.X + sign * radius, 0, hub.spawn.Z), props)
+	end
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		local radius = diameter / 2 + 5
+		local at = Vector3.new(hub.spawn.X + math.cos(angle) * radius, 0, hub.spawn.Z + math.sin(angle) * radius)
+		makeLamp("HubLamp" .. i, CFrame.new(at), props)
+	end
 end
 
 -- ==========================================================
@@ -393,8 +584,97 @@ local function buildSafeZone(map: Instance)
 end
 
 -- ==========================================================
--- ZONES
+-- ZONES AND THEIR GATES
 -- ==========================================================
+
+--- The entrance to a zone: two pylons at the wall feet and a lintel across
+--- the lane carrying the zone's name in its colour. Everything is above or
+--- beside the running line; nothing stands in it.
+local function buildGate(zone: Instance, index: number, startZ: number)
+	local def = ZoneConfig.Zones[index]
+	local pylon = MapConfig.GATE_PYLON_SIZE
+	local inset = MapConfig.GATE_INSET
+	local gate = folder("Gate", zone)
+	local x = MapConfig.LANE_HALF - inset - pylon.X / 2
+	local z = startZ - 6
+
+	for _, sign in { -1, 1 } do
+		makePart({
+			name = "Pylon",
+			size = pylon,
+			cframe = CFrame.new(sign * x, pylon.Y / 2, z),
+			color = MapPalette.GatePylon,
+			parent = gate,
+			canCollide = false,
+			castShadow = false,
+		})
+		makePart({
+			name = "PylonBand",
+			size = Vector3.new(pylon.X + 0.6, 5, pylon.Z + 0.6),
+			cframe = CFrame.new(sign * x, pylon.Y - 8, z),
+			color = def.color,
+			parent = gate,
+			canCollide = false,
+			castShadow = false,
+		})
+		makePart({
+			name = "PylonCap",
+			size = Vector3.new(pylon.X + 2, 2, pylon.Z + 2),
+			cframe = CFrame.new(sign * x, pylon.Y + 1, z),
+			color = MapPalette.GateLintel,
+			parent = gate,
+			canCollide = false,
+			castShadow = false,
+		})
+	end
+
+	local span = 2 * x + pylon.X
+	local thickness = MapConfig.GATE_LINTEL_THICKNESS
+	local lintelHeight = 7
+	local lintel = makePart({
+		name = "Lintel",
+		size = Vector3.new(span, lintelHeight, thickness),
+		cframe = CFrame.new(0, pylon.Y + 2 + lintelHeight / 2, z),
+		color = MapPalette.GateLintel,
+		parent = gate,
+		canCollide = false,
+		castShadow = false,
+	})
+
+	-- The zone's name on the lintel, facing the approach (-Z).
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Face"
+	gui.Face = Enum.NormalId.Front
+	gui.LightInfluence = 0
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 12
+	gui.Parent = lintel
+
+	local band = Instance.new("Frame")
+	band.Name = "Band"
+	band.AnchorPoint = Vector2.new(0.5, 0.5)
+	band.Position = UDim2.fromScale(0.5, 0.5)
+	band.Size = UDim2.fromScale(0.34, 0.86)
+	band.BackgroundColor3 = def.color
+	band.BackgroundTransparency = 0.1
+	band.BorderSizePixel = 0
+	band.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = band
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.AnchorPoint = Vector2.new(0.5, 0.5)
+	title.Position = UDim2.fromScale(0.5, 0.5)
+	title.Size = UDim2.fromScale(0.92, 0.78)
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.Text = `{def.emoji}  {string.upper(def.name)}`
+	title.TextColor3 = Color3.fromRGB(20, 22, 36)
+	title.Parent = band
+end
 
 local function buildZones(map: Instance)
 	local zones = folder("Zones", map)
@@ -425,6 +705,7 @@ local function buildZones(map: Instance)
 
 		folder("SpawnSockets", zone)
 		folder("GuardianSpawns", zone)
+		buildGate(zone, i, startZ)
 
 		if i < MapConfig.ZONE_COUNT then
 			local blend = MapPalette.transition(i)
@@ -455,39 +736,90 @@ local function footprintOf(p: BasePart): (number, number)
 	return hx, hz
 end
 
---- XZ footprints of everything a socket must stay clear of.
-local function decorationFootprints(zone: Instance): { { x: number, z: number, hx: number, hz: number } }
-	local out = {}
-	local decorations = zone:FindFirstChild("Decorations")
-	if not decorations then
-		return out
-	end
-	for _, p in decorations:GetDescendants() do
-		if p:IsA("BasePart") then
-			local hx, hz = footprintOf(p)
-			table.insert(out, { x = p.Position.X, z = p.Position.Z, hx = hx, hz = hz })
+type Footprint = { x: number, z: number, hx: number, hz: number, pad: number? }
+
+--- Small props (a crate, a barrel, a bush) may sit close to a plinth - that
+--- is the point of them; a landmark keeps the full clearance.
+local SMALL_PROP_EXTENT = 14
+local SMALL_PROP_CLEARANCE = 5
+
+--- XZ footprints of everything a socket must stay clear of: the scenery and
+--- the gate pylons.
+local function blockerFootprints(zone: Instance): { Footprint }
+	local out: { Footprint } = {}
+	for _, container in { zone:FindFirstChild("Decorations"), zone:FindFirstChild("Gate") } do
+		if container then
+			for _, p in container:GetDescendants() do
+				if p:IsA("BasePart") and p.Position.Y - p.Size.Y / 2 < 12 then
+					-- Only things a player could bump into matter; a lintel or
+					-- a sail overhead does not block the ground.
+					local hx, hz = footprintOf(p)
+					-- A small prop, or a thin strip (a hedge, a fence, a rail),
+					-- keeps a short clearance; only a real landmark keeps the
+					-- full one.
+					local small = hx + hz < SMALL_PROP_EXTENT or math.min(hx, hz) < 4
+					table.insert(out, {
+						x = p.Position.X,
+						z = p.Position.Z,
+						hx = hx,
+						hz = hz,
+						pad = if small then SMALL_PROP_CLEARANCE else nil,
+					})
+				end
+			end
 		end
 	end
 	return out
 end
 
-local function isClear(footprints, x: number, z: number, pad: number): boolean
+local function isClear(footprints: { Footprint }, x: number, z: number, pad: number): boolean
 	for _, f in footprints do
-		if math.abs(x - f.x) < f.hx + pad and math.abs(z - f.z) < f.hz + pad then
+		local clearance = f.pad or pad
+		if math.abs(x - f.x) < f.hx + clearance and math.abs(z - f.z) < f.hz + clearance then
 			return false
 		end
 	end
 	return true
 end
 
---- Places the four loot sockets and their guardian posts.
+--- Nudges a wanted spot toward the lane centre, then along the zone, until it
+--- is clear of the blockers. Returns the spot it settled on.
+local function settle(footprints: { Footprint }, x: number, z: number, pad: number, minZ: number, maxZ: number): (number, number)
+	if isClear(footprints, x, z, pad) then
+		return x, z
+	end
+	local side = if x < 0 then -1 else 1
+	local trialX = math.abs(x)
+	while trialX > 8 and not isClear(footprints, side * trialX, z, pad) do
+		trialX -= 4
+	end
+	if isClear(footprints, side * trialX, z, pad) then
+		return side * trialX, z
+	end
+	for shift = 8, MapConfig.SOCKET_MAX_Z_SHIFT, 8 do
+		for _, dir in { 1, -1 } do
+			local trialZ = math.clamp(z + dir * shift, minZ, maxZ)
+			local tx = math.abs(x)
+			while tx > 8 and not isClear(footprints, side * tx, trialZ, pad) do
+				tx -= 4
+			end
+			if isClear(footprints, side * tx, trialZ, pad) then
+				return side * tx, trialZ
+			end
+		end
+	end
+	return 0, z
+end
+
+--- Places the four loot sockets and the guardian post of every zone.
 -- Runs AFTER landmarks so a socket can never end up buried inside a pyramid or
--- pressed against a wall: each one retreats toward the centre until it is clear.
+-- pressed against a wall. Each zone's layout comes from MapLandmarks.layouts -
+-- composed against its own landmark - and falls back to the symmetric grid
+-- for a zone that has none.
 local function placeSockets(map: Instance)
 	local zones = map.Zones
 	local pad = MapConfig.SOCKET_CLEARANCE
-	local maxX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_INSET_X
-	local minX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_MIN_INSET_X
+	local S = MapConfig.LANDMARK_SCALE
 
 	for i, def in MapConfig.ZONES do
 		local zone = zones:FindFirstChild(def.id)
@@ -497,84 +829,65 @@ local function placeSockets(map: Instance)
 
 		local startZ = MapConfig.zoneStartZ(i)
 		local length = MapConfig.zoneLength(i)
+		local centerZ = MapConfig.zoneCenterZ(i)
 		local sockets = zone.SpawnSockets
 		local guards = zone.GuardianSpawns
 		sockets:ClearAllChildren()
 		guards:ClearAllChildren()
 
-		local footprints = decorationFootprints(zone)
+		local footprints = blockerFootprints(zone)
+		local minZ, maxZ = startZ + 14, startZ + length - 14
+		local layout = MapLandmarks.layouts[i]
 
-		local n = 0
-		for _, frac in MapConfig.SOCKET_ROW_FRACTIONS do
-			local z = startZ + length * frac
-			for _, sign in { -1, 1 } do
-				n += 1
-
-				-- Retreat inward first; if the whole line is occupied by a big
-				-- landmark, slide along the zone instead of burying the socket.
-				local x, sz = maxX, z
-				while x > minX and not isClear(footprints, sign * x, sz, pad) do
-					x -= 4
+		local wanted: { Vector2 } = {}
+		if layout then
+			for _, offset in layout.sockets do
+				table.insert(wanted, Vector2.new(offset.X * S, centerZ + offset.Y * S))
+			end
+		else
+			local maxX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_INSET_X
+			for _, frac in MapConfig.SOCKET_ROW_FRACTIONS do
+				for _, sign in { -1, 1 } do
+					table.insert(wanted, Vector2.new(sign * maxX, startZ + length * frac))
 				end
-
-				if not isClear(footprints, sign * x, sz, pad) then
-					local limit = MapConfig.SOCKET_MAX_Z_SHIFT
-					for shift = 8, limit, 8 do
-						for _, dir in { 1, -1 } do
-							local trialX = maxX
-							while trialX > minX and not isClear(footprints, sign * trialX, z + dir * shift, pad) do
-								trialX -= 4
-							end
-							if isClear(footprints, sign * trialX, z + dir * shift, pad) then
-								x, sz = trialX, z + dir * shift
-								break
-							end
-						end
-						if sz ~= z then
-							break
-						end
-					end
-				end
-
-				makeMarker(
-					string.format("Socket%02d", n),
-					Vector3.new(16, 0.6, 16),
-					CFrame.new(sign * x, 0.3, sz),
-					MapPalette.LootSocket,
-					sockets
-				)
 			end
 		end
 
-		-- ONE guardian per zone, sleeping between its four sockets. Placed last
-		-- so it can be validated against both the scenery and the sockets.
-		local restZ = startZ + length * 0.5
-		local restX = 0
+		local placed: { Footprint } = {}
+		for n, spot in wanted do
+			local x, z = settle(footprints, spot.X, math.clamp(spot.Y, minZ, maxZ), pad, minZ, maxZ)
+			-- Never on top of a socket already placed in this zone.
+			local tries = 0
+			while not isClear(placed, x, z, 12) and tries < 6 do
+				z = math.clamp(z + 14, minZ, maxZ)
+				tries += 1
+			end
+			makeSocket(string.format("Socket%02d", n), CFrame.new(x, 0.3, z), sockets)
+			table.insert(placed, { x = x, z = z, hx = 10, hz = 10 })
+		end
+
+		-- ONE guardian per zone, resting where its layout puts it. Validated
+		-- against the scenery and the sockets it guards.
+		local restX, restZ = 0, startZ + length * 0.5
+		if layout then
+			restX, restZ = layout.post.X * S, centerZ + layout.post.Y * S
+		end
 		local blockers = table.clone(footprints)
-		for _, socket in sockets:GetChildren() do
-			if socket:IsA("BasePart") then
-				table.insert(blockers, { x = socket.Position.X, z = socket.Position.Z, hx = 10, hz = 10 })
-			end
+		for _, f in placed do
+			table.insert(blockers, f)
 		end
-
 		if not isClear(blockers, restX, restZ, 8) then
+			local found = false
 			for _, dx in { 0, 26, -26, 52, -52 } do
-				for _, dz in { 0, 22, -22 } do
-					if isClear(blockers, dx, restZ + dz, 8) then
-						restX, restZ = dx, restZ + dz
-						break
+				for _, dz in { 0, 22, -22, 44, -44 } do
+					if not found and isClear(blockers, restX + dx, restZ + dz, 8) then
+						restX, restZ = restX + dx, restZ + dz
+						found = true
 					end
 				end
 			end
 		end
-
-		makeMarker(
-			"GuardianPost",
-			Vector3.new(9, 0.6, 9),
-			CFrame.new(restX, 0.3, restZ),
-			MapPalette.SafeLine,
-			guards
-		)
+		makeGuardianPost(CFrame.new(restX, 0.3, math.clamp(restZ, minZ, maxZ)), guards)
 	end
 end
 
@@ -629,10 +942,20 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		end
 	end
 
-	-- Post-and-rail fence on the three enclosed sides; the front stays open so
-	-- players run straight out onto their treadmill and down the lane.
+	-- THE PORCH: a paved strip across the front carrying the spawn, the
+	-- upgrade pad and the signs, and a path from it back between the ranks.
+	local porch = MapConfig.PORCH_DEPTH
+	local paving = folder("Paving", base)
+	makePaving("Porch", Vector3.new(layout.width - 6, 0.3, porch), at(0, 0.15, -halfD + porch / 2 + 2), paving)
+	local pathLength = layout.depth - porch - 8
+	makePaving("Path", Vector3.new(8, 0.3, pathLength), at(0, 0.15, -halfD + porch + 2 + pathLength / 2), paving)
+
+	-- Post-and-two-rail fence on the three enclosed sides, in the reference's
+	-- dark-post / white-rail language; the front stays open so players run
+	-- straight out onto their treadmill and down the avenue. Non-colliding, so
+	-- a player launched by a guardian can never be caught on it.
 	local fence = folder("Fence", base)
-	local postH, railY, spacing = 8, 6, 26
+	local postH, spacing = 7, 22
 
 	local function fenceRun(fromX: number, fromZ: number, toX: number, toZ: number)
 		local dx, dz = toX - fromX, toZ - fromZ
@@ -643,62 +966,117 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 			local t = (i - 1) / (count - 1)
 			makePart({
 				name = "Post",
-				size = Vector3.new(2, postH, 2),
+				size = Vector3.new(1.8, postH, 1.8),
 				cframe = at(fromX + dx * t, postH / 2, fromZ + dz * t),
 				color = MapPalette.PlotBorder,
 				parent = fence,
 				canCollide = false,
+				castShadow = false,
 			})
 		end
 
 		local horizontal = math.abs(dx) > math.abs(dz)
-		makePart({
-			name = "Rail",
-			size = Vector3.new(if horizontal then length else 1.2, 1.2, if horizontal then 1.2 else length),
-			cframe = at((fromX + toX) / 2, railY, (fromZ + toZ) / 2),
-			color = MapPalette.PlotBorder,
-			parent = fence,
-			canCollide = false,
-		})
+		for _, railY in { 5.4, 3.0 } do
+			makePart({
+				name = "Rail",
+				size = Vector3.new(if horizontal then length else 0.8, 0.8, if horizontal then 0.8 else length),
+				cframe = at((fromX + toX) / 2, railY, (fromZ + toZ) / 2),
+				color = MapPalette.FenceRail,
+				parent = fence,
+				canCollide = false,
+				castShadow = false,
+			})
+		end
 	end
 
 	fenceRun(-halfW, halfD, halfW, halfD)
 	fenceRun(-halfW, halfD, -halfW, -halfD)
 	fenceRun(halfW, halfD, halfW, -halfD)
 
-	-- Display slots: two ranks running down the plot's deep axis, sized so a
-	-- Giant (x3.5) trophy still reads as its own exhibit.
-	local slots = folder("DisplaySlots", base)
-	local cols = MapConfig.DISPLAY_SLOT_COLS
-	local perCol = MapConfig.DISPLAY_SLOTS_PER_BASE // cols
-	local rankBack = halfD - MapConfig.DISPLAY_BACK_INSET
-	local rankFront = -halfD + MapConfig.DISPLAY_FRONT_RESERVE
-	local rankSpan = rankBack - rankFront
+	-- Gate posts either side of the open front, a little taller and capped.
+	for _, sign in { -1, 1 } do
+		makePart({
+			name = "GatePost",
+			size = Vector3.new(2.4, 9, 2.4),
+			cframe = at(sign * halfW, 4.5, -halfD),
+			color = MapPalette.PlotBorder,
+			parent = fence,
+			canCollide = false,
+			castShadow = false,
+		})
+		makePart({
+			name = "GateCap",
+			size = Vector3.new(3.2, 1, 3.2),
+			cframe = at(sign * halfW, 9.5, -halfD),
+			color = MapPalette.FenceRail,
+			parent = fence,
+			canCollide = false,
+			castShadow = false,
+		})
+	end
 
+	-- Planters in the two back corners; nothing else stands on the display
+	-- floor, so the trophies stay the exhibit.
+	local props = folder("Decorations", base)
+	for _, sign in { -1, 1 } do
+		makePlanter("Planter", at(sign * (halfW - 7), 0, halfD - 7), props)
+		makeLamp("Lamp", at(sign * (halfW - 4), 0, -halfD + porch + 1), props)
+	end
+
+	-- DISPLAY SLOTS: two ranks of seven along the plot's LONG axis. On a side
+	-- plot the long axis is its depth (in from the avenue); on the head plot it
+	-- is its width, so the ranks run across the back of the plaza instead of
+	-- piling seven pads into the few studs behind the porch.
+	local slots = folder("DisplaySlots", base)
+	local perRank = MapConfig.DISPLAY_SLOTS_PER_BASE // MapConfig.DISPLAY_SLOT_COLS
+	local pad = MapConfig.DISPLAY_SLOT_SIZE.X
 	local n = 0
-	for col = 1, cols do
-		local localX = -halfW + layout.width * (col - 0.5) / cols
-		for i = 1, perCol do
-			n += 1
-			local slot = makeSlotPad(
-				string.format("DisplaySlot%02d", n),
-				at(localX, 0.5, rankBack - rankSpan * (i - 1) / (perCol - 1)),
-				slots
-			)
-			slot:SetAttribute("SlotIndex", n)
+	if layout.depth >= layout.width then
+		local rankBack = halfD - MapConfig.DISPLAY_BACK_INSET
+		local rankFront = -halfD + MapConfig.DISPLAY_FRONT_RESERVE
+		local rankSpan = rankBack - rankFront
+		for col = 1, MapConfig.DISPLAY_SLOT_COLS do
+			local localX = -halfW + layout.width * (col - 0.5) / MapConfig.DISPLAY_SLOT_COLS
+			for i = 1, perRank do
+				n += 1
+				local slot = makeSlotPad(
+					string.format("DisplaySlot%02d", n),
+					at(localX, 0.5, rankBack - rankSpan * (i - 1) / (perRank - 1)),
+					slots
+				)
+				slot:SetAttribute("SlotIndex", n)
+			end
+		end
+	else
+		local backZ = halfD - MapConfig.DISPLAY_BACK_INSET - pad / 2
+		local rowGap = pad + 6
+		local usable = layout.width - 2 * MapConfig.DISPLAY_BACK_INSET - pad
+		for row = 1, MapConfig.DISPLAY_SLOT_COLS do
+			local localZ = backZ - (row - 1) * rowGap
+			for i = 1, perRank do
+				n += 1
+				local localX = -usable / 2 + usable * (i - 1) / (perRank - 1)
+				local slot = makeSlotPad(string.format("DisplaySlot%02d", n), at(localX, 0.5, localZ), slots)
+				slot:SetAttribute("SlotIndex", n)
+			end
 		end
 	end
 
-	-- No activation pad: a base is claimed and active from the moment it is
-	-- assigned, so there is nothing to walk onto and buy. SpeedService hides any
-	-- pad left behind in an already-baked map.
-	local frontZ = -halfD + 26
+	-- The upgrade pad: the plinth the upgrade sign stands on, at the porch's
+	-- left; the spawn beside it, facing out of the plot toward the avenue.
+	local porchZ = -halfD + 12
 	makePart({
 		name = "BaseUpgradePad",
 		size = MapConfig.PAD_SIZE,
-		cframe = at(0, 0.5, frontZ),
+		-- On the porch between the owner's nameplate (which BaseService stands
+		-- at the front corner, 12 in from the side) and the spawn pad: the
+		-- upgrade sign PlacementService raises here faces along the porch
+		-- toward the spawn, so the owner reads it from where they appear, and
+		-- an arriving player reads it walking down the avenue. Any closer to
+		-- the corner and the two signs share the same studs.
+		cframe = at(-halfW + 34, 0.5, porchZ),
 		color = MapPalette.PadUpgrade,
-		material = Enum.Material.Neon,
+		material = Enum.Material.SmoothPlastic,
 		parent = base,
 		castShadow = false,
 	})
@@ -706,7 +1084,7 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
 	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.CFrame = at(0, 0.5, frontZ + 16)
+	spawn.CFrame = at(8, 0.5, porchZ)
 	spawn.Anchored = true
 	spawn.CanCollide = false
 	spawn.Transparency = 1
@@ -714,22 +1092,16 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	spawn.Neutral = true
 	spawn.Parent = base
 
-	-- Treadmill stands in the corridor directly in front of the plot.
+	-- Treadmill stands in the avenue directly in front of the plot.
 	--
 	-- Only the INVISIBLE gameplay rig is built here. The decorative model is
 	-- attached by SpeedService, which knows the player's tier - keeping this
 	-- builder ignorant of progression means upgrading is a model swap against a
 	-- fixed frame, and the player's standing position never moves.
-	--
-	-- The deck is deliberately the same height as the old solid box it replaces,
-	-- so safe volumes, corridor clearance and every other layout number are
-	-- unchanged. It is under humanoid step height, which is what lets a player
-	-- walk straight on without a ramp.
 	local treadmill = folder("Treadmill", base)
 	local tSize = TreadmillConfig.DECK_SIZE
 	local tZ = -halfD - MapConfig.TREADMILL_STANDOFF
 
-	-- The one solid surface. Invisible: the art sits on top of it.
 	local deck = makePart({
 		name = "Frame",
 		size = tSize,
@@ -739,11 +1111,6 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	})
 	deck.Transparency = 1
 
-	-- Kept only so refreshTreadmill has something to tint when the base is
-	-- inactive. INVISIBLE: on a plot nobody has been assigned (so no art model
-	-- has been attached) it read as a stray navy slab floating in the corridor,
-	-- and under an attached model it peeked through the belt. The physics deck
-	-- above is what the player stands on; this part carries no gameplay.
 	local belt = makePart({
 		name = "Belt",
 		size = Vector3.new(tSize.X - 4, 0.4, tSize.Z - 3),
@@ -784,18 +1151,18 @@ end
 
 local function buildSpawns(map: Instance)
 	local spawns = folder("SpawnLocations", map)
+	local hub = MapConfig.HUB
 
 	local s = Instance.new("SpawnLocation")
 	s.Name = "LobbySpawn"
 	s.Size = Vector3.new(24, 1, 24)
-	-- Sits just inside the plaza mouth: a new player sees the bases behind them,
-	-- the treadmills beside them and the Zone 01 entrance straight ahead.
-	s.CFrame = CFrame.new(0, 0.5, MapConfig.PLAZA_FRONT_Z - 40)
+	-- On the hub's paved circle, FACING THE GATE: the first thing a new player
+	-- sees is the red line, the Zone 01 sign and the Museum beyond it, with
+	-- the booth and the stand at the edges of the view.
+	s.CFrame = CFrame.lookAt(Vector3.new(hub.spawn.X, 0.7, hub.spawn.Z), Vector3.new(hub.spawn.X, 0.7, hub.spawn.Z + 40))
 	s.Anchored = true
 	s.CanCollide = false
-	s.Transparency = 0.5
-	s.Color = Color3.fromRGB(255, 255, 255)
-	s.Material = Enum.Material.Neon
+	s.Transparency = 1
 	s.Neutral = true
 	s.Parent = spawns
 end
@@ -833,12 +1200,14 @@ function MapBuilder.applyDecorCollision(map: Instance?): number
 
 	local cleared = 0
 	for _, zone in zones:GetChildren() do
-		local decorations = zone:FindFirstChild("Decorations")
-		if decorations then
-			for _, part in decorations:GetDescendants() do
-				if part:IsA("BasePart") and part.CanCollide then
-					part.CanCollide = false
-					cleared += 1
+		for _, name in { "Decorations", "Gate" } do
+			local container = zone:FindFirstChild(name)
+			if container then
+				for _, part in container:GetDescendants() do
+					if part:IsA("BasePart") and part.CanCollide then
+						part.CanCollide = false
+						cleared += 1
+					end
 				end
 			end
 		end
@@ -864,12 +1233,12 @@ function MapBuilder.build(): Folder
 	buildSafeZone(map)
 	buildBases(map)
 	buildSpawns(map)
-	folder("Decorations", map)
 
 	-- Landmarks first, then sockets, so loot spawns can be validated against the
 	-- scenery that actually exists rather than against assumed clear ground.
 	MapLandmarks.build(map)
 	placeSockets(map)
+	MapBuilder.applyDecorCollision(map)
 
 	local parts = 0
 	for _, d in map:GetDescendants() do

@@ -33,6 +33,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local DataService = require(script.Parent.DataService)
@@ -54,13 +55,11 @@ local STORES = {
 	Speed = { key = "GlobalSpeed_v1", header = "TOP SPEED", format = NumberFormat.short },
 }
 
---- Where the two boards stand: flanking the corridor mouth on the safe side of
---- the red line, facing back into the plaza so a player walking out toward the
---- zones reads them on approach. Raised so the plate's foot meets the floor.
-local BOARD_POSITIONS = {
-	Money = Vector3.new(-48, 6.4, -14),
-	Speed = Vector3.new(48, 6.4, -14),
-}
+--- Where the two boards stand: flanking the Zone 01 gate on the safe side of
+--- the red line, facing back at the spawn so a player walking out toward the
+--- zones reads them on approach. One table (MapConfig.HUB) composes the whole
+--- hub; the height keeps the plate's foot on the floor.
+local BOARD_POSITIONS = MapConfig.HUB.leaderboards
 
 -- ==========================================================
 -- STATE

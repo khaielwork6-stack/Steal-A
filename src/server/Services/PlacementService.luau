@@ -430,6 +430,20 @@ local function ensureSign(plot: Instance, pad: BasePart): SurfaceGui?
 	-- part. `slab` turns CanQuery off for decor; this part is a button.
 	board.CanQuery = true
 
+	-- The second way in: a click or tap on the board itself. Only the plot's
+	-- owner is answered (requestUpgrade checks through upgradeCapacity), and
+	-- the range is the sign's reading distance.
+	local detector = Instance.new("ClickDetector")
+	detector.Name = "UpgradeClick"
+	detector.MaxActivationDistance = 40
+	detector.CursorIcon = ""
+	detector.Parent = board
+	detector.MouseClick:Connect(function(player)
+		if BaseService.getPlot(player) == plot then
+			PlacementService.requestUpgrade(player)
+		end
+	end)
+
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Face"
 	gui.Face = Enum.NormalId.Front
@@ -499,6 +513,31 @@ local function ensureSign(plot: Instance, pad: BasePart): SurfaceGui?
 
 	model.Parent = plot
 	return gui
+end
+
+--- One physical press on the sign can arrive TWICE: the client's SurfaceGui
+--- button sends the remote, and the ClickDetector on the same board fires on
+--- the server for the same click. Both are kept - the button is what a gamepad
+--- cursor and a touch tap reliably hit, the detector is what a plain mouse
+--- click hits even when the GUI layer is not yet built - so the second arrival
+--- of the same press is folded here. A tier costs real money; buying two for
+--- one click is the "duplicate purchase" the sign must never make.
+local PRESS_WINDOW = 0.35
+local lastPress: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
+
+--- A press on the sign, from either input path.
+function PlacementService.requestUpgrade(player: Player)
+	local now = os.clock()
+	local last = lastPress[player]
+	if last and now - last < PRESS_WINDOW then
+		return
+	end
+	lastPress[player] = now
+
+	local ok, reason = PlacementService.upgradeCapacity(player)
+	if not ok and reason then
+		notify(player, "error", reason)
+	end
 end
 
 --- Repaints the sign for whatever the player's next upgrade actually is.
@@ -716,11 +755,14 @@ function PlacementService.start()
 		end
 	end)
 
+	-- ONE upgrade path, two ways in. The client's invisible button over the
+	-- sign (BaseSignController) sends the remote; the ClickDetector on the
+	-- board (ensureSign) answers a plain click or tap on the sign itself, so
+	-- a device where SurfaceGui input misbehaves still buys. Both land in
+	-- upgradeCapacity, which owns the ownership check, the price, the rate
+	-- limit and the atomic spend - a double press is one purchase.
 	Remotes.get("BaseUpgradeRequest").OnServerEvent:Connect(function(player)
-		local ok, reason = PlacementService.upgradeCapacity(player)
-		if not ok and reason then
-			notify(player, "error", reason)
-		end
+		PlacementService.requestUpgrade(player)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)

@@ -141,6 +141,22 @@ local function build(): boolean
 	-- anyway, but being explicit stops a future edit from surprising us.
 	template.Enabled = false
 
+	-- The pack's other demo billboards ("Top Cash", "Gamepasses", "Next
+	-- Update! Notify Here!") ARE enabled and have no Adornee, and a BillboardGui
+	-- with no Adornee draws at the world origin - which is the red line in
+	-- front of the spawn circle, dead centre of a new player's first view. The
+	-- server clones the StarterGui originals for the boards and the stand and
+	-- enables its own copies, so this copy in PlayerGui is only ever a leftover.
+	local surface = mainUi:FindFirstChild("Surface/Billboards")
+	local titles = surface and surface:FindFirstChild("Titles")
+	if titles then
+		for _, gui in titles:GetDescendants() do
+			if gui:IsA("BillboardGui") and gui.Adornee == nil then
+				gui.Enabled = false
+			end
+		end
+	end
+
 	local clone = template:Clone()
 	clone.Name = "InteractPrompt"
 	-- The pack clips the billboard, which cuts the keycap off: the E button is

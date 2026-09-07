@@ -3,13 +3,15 @@
 	MapPalette
 	Every colour in the world lives here.
 
-	The reference presentation is deliberately over-saturated: neon lime grass,
-	warm terracotta walls, a hard cyan sky. Do NOT tone these down because they
-	look loud in the Studio viewport - the exaggeration is the point.
+	Bright, playful, low-poly - and BALANCED. The first pass of this world was
+	pushed to neon (lime grass, hot cyan, glowing pads) and read as harsh on a
+	real screen, so the greens sit a step back toward grass, the walls toward
+	clay, and the checker pairs stay close so the pattern is texture, never a
+	chessboard. Neon is kept for what must draw the eye: the red line, rarity
+	rings, portals - not floors, not signs, not scenery.
 
 	Each surface is a pair (a, b). `a` is the base slab, `b` is the alternating
-	checker tile laid over it. Keep the two shades CLOSE: the checker should read
-	as texture from a distance, never as a chessboard.
+	checker tile laid over it.
 ]]
 
 local MapPalette = {}
@@ -32,37 +34,46 @@ end
 -- ==========================================================
 -- WALLS
 -- ==========================================================
-MapPalette.WallFace = surface(216, 132, 100, 205, 121, 90, false, 27)
-MapPalette.WallCap = rgb(96, 226, 62)
+MapPalette.WallFace = surface(212, 152, 120, 202, 142, 110, false, 27)
+MapPalette.WallCap = rgb(118, 198, 96)
+--- Pilasters and the trim band: the wall's own clay, one shade deeper.
+MapPalette.WallPilaster = rgb(176, 118, 90)
+MapPalette.WallTrim = rgb(190, 130, 100)
 
 -- ==========================================================
 -- BASE AREA
 -- ==========================================================
-MapPalette.Plaza = surface(158, 240, 74, 145, 228, 62, true, 55)
-MapPalette.SafeApron = surface(158, 240, 74, 145, 228, 62, true, 55)
--- Plots stay grass, one step lighter than the plaza, so ownership reads without
--- turning the base area into a colour clash. The fence does the separating.
-MapPalette.PlotFloor = surface(180, 246, 104, 168, 236, 92, true, 55)
-MapPalette.PlotBorder = rgb(150, 100, 58)
+MapPalette.Plaza = surface(132, 208, 92, 122, 196, 84, true, 48)
+MapPalette.SafeApron = surface(132, 208, 92, 122, 196, 84, true, 48)
+-- Plots are one step lighter than the plaza so ownership reads without a
+-- colour clash; the fence does the separating.
+MapPalette.PlotFloor = surface(150, 216, 106, 140, 206, 98, true, 44)
+--- Paved surfaces: the hub plaza, the avenue, base porches and paths.
+MapPalette.Paving = surface(204, 196, 176, 194, 186, 166, false, 12)
+MapPalette.PavingEdge = rgb(150, 140, 118)
+MapPalette.PlotBorder = rgb(58, 64, 86)
+MapPalette.FenceRail = rgb(246, 246, 240)
 MapPalette.SafeLine = rgb(255, 60, 72)
 MapPalette.Treadmill = rgb(58, 132, 244)
 MapPalette.TreadmillBelt = rgb(38, 42, 58)
-MapPalette.PadUpgrade = rgb(255, 176, 46)
+--- The upgrade pad is a dark plinth the sign stands on, not a glowing tile.
+MapPalette.PadUpgrade = rgb(44, 52, 80)
+--- Planters and greenery around the plots and the hub.
+MapPalette.Planter = rgb(112, 92, 72)
+MapPalette.Bush = rgb(88, 176, 92)
+MapPalette.BushLight = rgb(118, 200, 104)
+MapPalette.Rock = rgb(150, 150, 156)
+MapPalette.LampPost = rgb(52, 56, 74)
+MapPalette.LampGlow = rgb(255, 230, 160)
 
--- Display slots used to be near-white (248,246,232) at 0.55 transparency and
--- SIZE 20x20 - fourteen of them per plot. Lit from above that reads as a grid of
--- blown-out white rectangles covering the whole base, which is what was killing
--- the look. They are now a dark slate pad with a bright rim: the slot still
--- reads instantly as a place to put something, without glowing.
+-- Display slots: a dark slate pad with a thin neon frame set into it (see
+-- BaseService.styleSlot): cyan and breathing while it waits for an item, dim
+-- grey while locked, the item's rarity colour once a pedestal stands on it.
+-- Restrained on purpose - the collectible is the exhibit, not the floor.
 MapPalette.DisplaySlot = rgb(46, 54, 78)
 MapPalette.DisplaySlotRim = rgb(96, 214, 255)
 MapPalette.DisplaySlotLocked = rgb(38, 42, 54)
 MapPalette.DisplaySlotLockedRim = rgb(70, 78, 96)
-
--- The pedestal system (BaseService.styleSlot). A slot is a dark square with a
--- thin neon frame set into it: cyan and breathing while it waits for an item,
--- dim grey while locked, the item's rarity colour once a pedestal stands on it.
--- Restrained on purpose - the collectible is the exhibit, not the floor.
 MapPalette.SlotPadEmpty = rgb(30, 34, 46)
 MapPalette.SlotPadLocked = rgb(26, 28, 36)
 MapPalette.SlotPadOccupied = rgb(22, 26, 38)
@@ -76,31 +87,41 @@ MapPalette.SlotNeonLocked = rgb(70, 78, 96)
 -- white title, green progression text and a bright red purchase panel.
 MapPalette.SignBody = rgb(28, 38, 72)
 MapPalette.SignEdge = rgb(16, 22, 44)
-MapPalette.SignPost = rgb(150, 100, 58)
+MapPalette.SignPost = rgb(58, 64, 86)
 MapPalette.SignTitle = rgb(255, 255, 255)
 MapPalette.SignProgress = rgb(96, 240, 118)
 MapPalette.SignButton = rgb(232, 58, 62)
 MapPalette.SignButtonEdge = rgb(150, 26, 32)
 MapPalette.SignButtonText = rgb(255, 255, 255)
 MapPalette.SignMaxed = rgb(255, 206, 84)
-MapPalette.LootSocket = rgb(255, 226, 110)
+--- A loot socket is a dark stone plinth; the client draws the rarity ring
+--- on it. Nothing here glows.
+MapPalette.LootSocket = rgb(64, 68, 88)
+MapPalette.LootSocketRim = rgb(96, 100, 122)
+--- Zone gates: dark navy pylons; the band and lintel face take the zone's
+--- own colour (ZoneConfig).
+MapPalette.GatePylon = rgb(40, 46, 70)
+MapPalette.GateLintel = rgb(30, 36, 60)
 
 -- ==========================================================
 -- ZONES  (index matches MapConfig.ZONES)
 -- ==========================================================
+-- Each zone keeps its own hue; saturation is pulled back a step so items,
+-- guardians and the landmarks stand out against the ground instead of
+-- fighting it.
 MapPalette.Zones = {
-	surface(146, 238, 68, 132, 226, 56, true), -- 01 Museum        manicured lawn
-	surface(250, 228, 154, 240, 216, 138, true), -- 02 Pirate        tropical sand
-	surface(112, 220, 92, 99, 208, 80, true), -- 03 Castle        deeper grass
-	surface(128, 214, 180, 115, 202, 167, true), -- 04 Area 51       desert scrub
-	surface(246, 250, 255, 226, 237, 250, true), -- 05 North Pole    snow
-	surface(252, 220, 132, 242, 206, 112, true), -- 06 Egypt         warm sand
-	surface(88, 194, 240, 74, 178, 226, false), -- 07 Gym           sport floor
-	surface(206, 212, 224, 190, 197, 212, false), -- 08 Bank          polished stone
-	surface(158, 122, 244, 140, 106, 228, false), -- 09 Secret Lab    lab composite
-	surface(240, 158, 192, 226, 143, 179, true), -- 10 Grandma       domestic
-	surface(214, 168, 108, 198, 152, 94, true), -- 11 Construction  dirt / gravel
-	surface(146, 156, 172, 130, 141, 158, false), -- 12 Airport       runway pavement
+	surface(136, 210, 86, 126, 198, 78, true), -- 01 Museum        manicured lawn
+	surface(244, 224, 160, 234, 212, 146, true), -- 02 Pirate        tropical sand
+	surface(110, 200, 98, 100, 188, 88, true), -- 03 Castle        deeper grass
+	surface(126, 200, 174, 116, 188, 162, true), -- 04 Area 51       desert scrub
+	surface(240, 246, 252, 224, 234, 246, true), -- 05 North Pole    snow
+	surface(244, 216, 140, 234, 204, 124, true), -- 06 Egypt         warm sand
+	surface(98, 180, 222, 88, 166, 208, false), -- 07 Gym           sport floor
+	surface(200, 206, 218, 186, 193, 206, false), -- 08 Bank          polished stone
+	surface(150, 126, 226, 136, 112, 210, false), -- 09 Secret Lab    lab composite
+	surface(232, 166, 194, 220, 152, 182, true), -- 10 Grandma       domestic
+	surface(206, 168, 118, 192, 154, 104, true), -- 11 Construction  dirt / gravel
+	surface(146, 154, 170, 132, 141, 156, false), -- 12 Airport       runway pavement
 }
 
 --- Transition strip between zone `i` and `i + 1`: the midpoint of both bases.

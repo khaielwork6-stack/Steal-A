@@ -11,8 +11,9 @@
 	changing a gate value never means re-editing geometry.
 
 	WHERE THEY STAND AND WHICH WAY THEY FACE
-	A pair per zone, one each side of the lane, planted SIGN_LEAD studs BEFORE
-	the zone's near edge and turned SIGN_YAW degrees in toward the lane centre.
+	One per zone, on the LEFT of the entrance from the approaching player's
+	point of view, planted SIGN_LEAD studs BEFORE the zone's near edge and
+	turned SIGN_YAW degrees in toward the lane centre.
 	The face is drawn on the board's Front (its -Z side), which is the side an
 	approaching player sees: they come up the lane from -Z. The old signs sat
 	just inside the zone with the face on the Back, so they read only after
@@ -41,8 +42,8 @@ local BOARD_SIZE = Vector3.new(34, 14, 1)
 local SIGN_LEAD = 16
 --- Degrees each board turns in toward the lane centre.
 local SIGN_YAW = 20
---- Distance in from the wall face.
-local SIGN_INSET = 20
+--- Distance in from the wall face: inside the gate pylon, clear of it.
+local SIGN_INSET = 30
 
 local PANEL = Color3.fromRGB(18, 22, 36)
 local PANEL_EDGE = Color3.fromRGB(34, 40, 62)
@@ -137,8 +138,10 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 	-- would silently disagree with it the first time a band boundary moves.
 	local accent = RarityConfig.Colors[RarityConfig.jackpotRarityFor(zone.index)] or RarityConfig.Colors.Common
 
-	-- One sign each side of the lane so it reads whichever way you run past.
-	for _, side in { -1, 1 } do
+	-- ONE sign per zone, on the LEFT of the entrance as the player approaches
+	-- (they come up the lane along +Z, so their left is -X). The gate's lintel
+	-- carries the zone's name across the lane; this board carries the number.
+	for _, side in { -1 } do
 		local x = side * (MapConfig.LANE_HALF - SIGN_INSET)
 		-- Turned in toward the centre line: the left sign looks a little
 		-- right, the right sign a little left. Front (-Z) faces the approach.

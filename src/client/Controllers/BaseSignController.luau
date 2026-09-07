@@ -51,10 +51,11 @@ local GREEN_EDGE = Color3.fromRGB(24, 120, 52)
 local RED = Color3.fromRGB(232, 58, 62)
 local RED_EDGE = Color3.fromRGB(150, 26, 32)
 
---- Matches PlacementService.ensureSign: ButtonEdge is 0.9 x 0.35 at (0.05, 0.56)
---- of the face. The hit area is the bar, not the sign.
-local BAR_POSITION = UDim2.fromScale(0.05, 0.56)
-local BAR_SIZE = UDim2.fromScale(0.9, 0.35)
+--- The hit area is THE WHOLE SIGN. Matching the visible bar exactly (0.9 x 0.35
+--- of the face) left most of what looks like a button dead; a tap anywhere on
+--- the board buys, and the painted bar still animates as the thing pressed.
+local BAR_POSITION = UDim2.fromScale(0, 0)
+local BAR_SIZE = UDim2.fromScale(1, 1)
 
 local HOVER = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local PRESS = TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)

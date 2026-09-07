@@ -40,6 +40,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -304,7 +305,9 @@ end
 -- and at 35 that side pointed up the corridor - a player coming out of the
 -- plots saw the back of the stall. Turned to face the plaza and the plots, which
 -- is where every customer arrives from. One CFrame moves the whole stall.
-local BOOTH_CFRAME = CFrame.new(-72, 0, -30) * CFrame.Angles(0, math.rad(215), 0)
+--- Now composed with the rest of the hub in MapConfig.HUB: left of the spawn
+--- circle, counter turned to face it.
+local BOOTH_CFRAME = MapConfig.HUB.trailBooth
 --- The interaction circle sits in FRONT of the counter, where a customer stands.
 local ZONE_OFFSET = CFrame.new(0, 0, 9)
 local ZONE_RADIUS = 8.5

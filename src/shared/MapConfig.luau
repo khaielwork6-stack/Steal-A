@@ -73,7 +73,10 @@ MapConfig.WALL_CAP_OVERHANG = 2
 -- ==========================================================
 -- SAFE ZONE
 -- ==========================================================
-MapConfig.SAFE_ZONE_DEPTH = 55 -- open apron between plaza mouth and the line
+-- The apron between the plaza mouth and the red line IS the hub: spawn, the
+-- trail booth, the event stand and the leaderboards all stand on it, so a new
+-- player is never more than a few seconds from any of them or from Zone 01.
+MapConfig.SAFE_ZONE_DEPTH = 64
 MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 
 -- ==========================================================
@@ -86,28 +89,52 @@ MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 -- lost its empty depth rather than its usable plot area. Plots kept their room
 -- by trading Z-frontage for X-depth (100 x 240 = 24k studs of floor each), and
 -- the three rows per side now sit almost shoulder to shoulder.
-MapConfig.PLAZA_CORRIDOR_WIDTH = 200
-MapConfig.PLOT_DEPTH = 210 -- plot extent along its inward-facing axis
+-- The avenue between the two rows of plots. Wide enough for both sides'
+-- treadmills (16 out from each plot, 12 deep) plus a clear 60-stud run down
+-- the middle; the old 200 was an empty field.
+MapConfig.PLAZA_CORRIDOR_WIDTH = 124
+-- Sized from what a plot has to hold: two ranks of seven display pads
+-- (DISPLAY_SLOT_SIZE) with room for a Giant trophy on each, a back inset, and
+-- the porch at the front for the spawn, the upgrade pad and the signs.
+MapConfig.PLOT_DEPTH = 176 -- plot extent along its inward-facing axis
 MapConfig.PLOT_WIDTH = 84 -- plot extent across its inward-facing axis
 MapConfig.PLOT_GAP = 4 -- clear space between neighbouring side plots
 MapConfig.PLOTS_PER_SIDE = 3 -- 3 left + 3 right + 1 head = 7
 MapConfig.HEAD_PLOT_WIDTH = 256
-MapConfig.HEAD_PLOT_DEPTH = 100
+MapConfig.HEAD_PLOT_DEPTH = 96
 
 -- Per-base furniture
 -- Deliberately under the ~2-stud humanoid step height: players must be able to
 -- walk straight onto the treadmill, and Base07's sits in the middle of the
 -- corridor where everyone else walks past it.
 MapConfig.TREADMILL_SIZE = Vector3.new(14, 1.6, 28)
-MapConfig.TREADMILL_STANDOFF = 18 -- distance from plot edge out into the corridor
+MapConfig.TREADMILL_STANDOFF = 16 -- distance from plot edge out into the corridor
 MapConfig.PAD_SIZE = Vector3.new(12, 1, 12)
 
 -- Display slots run as two long ranks down the plot's deep axis, which both fits
 -- the new footprint and shows a collection off better to anyone walking past.
-MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(20, 1, 20)
+MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(17, 1, 17)
 MapConfig.DISPLAY_SLOT_COLS = 2 -- ranks across the plot width
-MapConfig.DISPLAY_BACK_INSET = 18 -- first slot, measured from the plot back edge
-MapConfig.DISPLAY_FRONT_RESERVE = 50 -- room kept clear at the front for pads/spawn
+MapConfig.DISPLAY_BACK_INSET = 16 -- first slot, measured from the plot back edge
+MapConfig.DISPLAY_FRONT_RESERVE = 44 -- room kept clear at the front for the porch
+-- The porch: a paved strip across the plot front carrying the spawn, the
+-- upgrade pad and the signs, so the entrance reads as an entrance.
+MapConfig.PORCH_DEPTH = 22
+
+-- ==========================================================
+-- WALL DETAIL AND ZONE GATES
+-- ==========================================================
+-- Pilasters break the long containment walls into bays; a trim band runs
+-- between them. A gate - two pylons and a lintel carrying the zone's name -
+-- marks every zone entrance, high enough that the tallest guardian passes
+-- under it and nothing ever stands in the lane.
+MapConfig.WALL_PILASTER_SPACING = 82
+MapConfig.WALL_PILASTER_SIZE = Vector3.new(6, 80, 6)
+MapConfig.WALL_TRIM_HEIGHT = 44
+MapConfig.GATE_PYLON_SIZE = Vector3.new(9, 48, 9)
+MapConfig.GATE_LINTEL_HEIGHT = 52
+MapConfig.GATE_LINTEL_THICKNESS = 5
+MapConfig.GATE_INSET = 10 -- pylon centre in from the wall face
 
 MapConfig.SAFE_ZONE_HEIGHT = 60
 MapConfig.SAFE_ZONE_CORRIDOR_BLEED = 50 -- how far the safe volume reaches past the plot
@@ -155,6 +182,30 @@ MapConfig.PLAZA_SIDE_RUN = MapConfig.PLOTS_PER_SIDE * MapConfig.PLOT_WIDTH
 MapConfig.BASE_AREA_DEPTH = MapConfig.PLAZA_SIDE_RUN + MapConfig.HEAD_PLOT_DEPTH
 
 MapConfig.PLAZA_FRONT_Z = -MapConfig.SAFE_ZONE_DEPTH
+
+-- ==========================================================
+-- THE HUB (everything on the apron, in one place)
+-- ==========================================================
+-- Every service that stands something in the lobby reads its spot from here,
+-- so the whole hub can be recomposed by editing one table. Z runs from the
+-- plaza mouth (PLAZA_FRONT_Z) up to the red line at 0; X is across the lane.
+--
+--   spawn        centre of the apron, facing the Zone 01 gate
+--   trailBooth   left of spawn, counter turned to face it
+--   eventStand   right of spawn, board turned to face it
+--   leaderboards flanking the gate, on the safe side, facing back at spawn
+MapConfig.HUB = {
+	spawn = Vector3.new(0, 0, -34),
+	spawnPlazaDiameter = 30,
+	trailBooth = CFrame.new(-66, 0, -40) * CFrame.Angles(0, math.rad(90), 0),
+	eventStand = Vector3.new(66, 0, -40),
+	leaderboards = {
+		Money = Vector3.new(-70, 6.4, -12),
+		Speed = Vector3.new(70, 6.4, -12),
+	},
+	-- The paved avenue from the spawn plaza back through the corridor.
+	avenueWidth = 26,
+}
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 
 --- Depth of zone `index`, escalating with progression.

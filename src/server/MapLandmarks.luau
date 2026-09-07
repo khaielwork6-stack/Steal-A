@@ -4,7 +4,14 @@
 	One big recognisable silhouette per zone, plus a handful of supporting props.
 
 	Rules this file follows, taken from the reference presentation:
-	  * BIG SHAPES over lots of small detail. A zone gets ~5-8 objects, not 50.
+	  * BIG SHAPES over lots of small detail. A zone gets one landmark, a
+	    handful of supporting props (`dressing`), and nothing else.
+	  * THE LAYOUT IS COMPOSED HERE TOO. `MapLandmarks.layouts` gives every
+	    zone the spots for its four loot plinths and its guardian post, chosen
+	    against that zone's own landmark. MapBuilder.placeSockets reads them
+	    and still nudges any spot that lands inside scenery. Offsets are in the
+	    authored 320-wide lane space like every other number here: X across
+	    the lane, Z along it, relative to the zone's centre.
 	  * Landmarks hug the side walls and alternate left/right so the centre
 	    sightline down the world is never blocked.
 	  * Silhouettes are tall enough to peek over the walls from several zones
@@ -428,6 +435,249 @@ local builders: { (Ctx) -> () } = {
 }
 
 -- ==========================================================
+-- SUPPORTING PROPS
+-- ==========================================================
+--
+-- Small, cheap, reused. Each is two or three parts at most; a cluster of them
+-- beside a landmark or a plinth is what makes a zone read as inhabited.
+
+local CRATE = rgb(176, 130, 78)
+local CRATE_DARK = rgb(132, 94, 54)
+local BARREL = rgb(120, 82, 48)
+local ROCK = rgb(150, 150, 156)
+local BUSH = rgb(88, 176, 92)
+local CONE = rgb(250, 118, 40)
+local IRON = rgb(70, 74, 84)
+
+local function crate(ctx: Ctx, offset: Vector3, size: number?, yaw: number?)
+	local s = size or 10
+	local rot = CFrame.Angles(0, math.rad(yaw or 0), 0)
+	box(ctx, "Crate", Vector3.new(s, s, s), offset + Vector3.new(0, s / 2, 0), CRATE, Enum.Material.WoodPlanks, rot)
+	box(ctx, "CrateBand", Vector3.new(s + 0.6, s * 0.16, s + 0.6), offset + Vector3.new(0, s / 2, 0), CRATE_DARK, Enum.Material.Wood, rot)
+end
+
+local function barrel(ctx: Ctx, offset: Vector3)
+	pillar(ctx, "Barrel", 9, 12, offset + Vector3.new(0, 6, 0), BARREL, Enum.Material.Wood)
+	pillar(ctx, "BarrelHoop", 9.6, 1.4, offset + Vector3.new(0, 3, 0), IRON, Enum.Material.Metal)
+	pillar(ctx, "BarrelHoop", 9.6, 1.4, offset + Vector3.new(0, 9, 0), IRON, Enum.Material.Metal)
+end
+
+local function rock(ctx: Ctx, offset: Vector3, size: number, color: Color3?)
+	ball(ctx, "Rock", Vector3.new(size, size * 0.62, size * 0.86), offset + Vector3.new(0, size * 0.28, 0), color or ROCK, Enum.Material.Slate)
+end
+
+local function bush(ctx: Ctx, offset: Vector3, size: number, color: Color3?)
+	ball(ctx, "Bush", Vector3.new(size, size * 0.8, size), offset + Vector3.new(0, size * 0.36, 0), color or BUSH, Enum.Material.Grass)
+end
+
+local function cone(ctx: Ctx, offset: Vector3)
+	shape(ctx, "Cone", Enum.PartType.Ball, Vector3.new(7, 12, 7), offset + Vector3.new(0, 6, 0), CONE)
+	box(ctx, "ConeBase", Vector3.new(10, 1.6, 10), offset + Vector3.new(0, 0.8, 0), CONE)
+end
+
+--- A park bench facing local -Z.
+local function bench(ctx: Ctx, offset: Vector3, color: Color3)
+	box(ctx, "Bench", Vector3.new(16, 2, 5), offset + Vector3.new(0, 4, 0), color, Enum.Material.WoodPlanks)
+	box(ctx, "BenchBack", Vector3.new(16, 5, 1.2), offset + Vector3.new(0, 7, 2.4), color, Enum.Material.WoodPlanks)
+	for _, sx in { -1, 1 } do
+		box(ctx, "BenchLeg", Vector3.new(1.6, 3, 4.6), offset + Vector3.new(sx * 6.6, 1.5, 0), IRON, Enum.Material.Metal)
+	end
+end
+
+--- A market stall: four posts, a counter and a pitched canopy. Faces local -Z;
+--- `yaw` turns it. Offsets inside are authored-space like everything else.
+local function stall(ctx: Ctx, offset: Vector3, canopy: Color3, yaw: number)
+	local m = facing(ctx, offset, yaw)
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			box(m, "StallPost", Vector3.new(1.6, 14, 1.6), Vector3.new(sx * 11, 7, sz * 7), rgb(120, 84, 50), Enum.Material.Wood)
+		end
+	end
+	box(m, "StallCounter", Vector3.new(24, 4, 6), Vector3.new(0, 2, -6), rgb(146, 96, 54), Enum.Material.WoodPlanks)
+	box(m, "StallCanopy", Vector3.new(28, 1.6, 20), Vector3.new(0, 15, 0), canopy, Enum.Material.Plastic, CFrame.Angles(math.rad(-8), 0, 0))
+	box(m, "StallCanopyTrim", Vector3.new(28.4, 2.4, 1.2), Vector3.new(0, 13.4, -10), rgb(250, 250, 246))
+end
+
+--- A low striped barrier, the construction kind.
+local function barrier(ctx: Ctx, offset: Vector3, yaw: number)
+	local rot = CFrame.Angles(0, math.rad(yaw), 0)
+	box(ctx, "BarrierBar", Vector3.new(22, 3, 1.6), offset + Vector3.new(0, 6, 0), rgb(252, 196, 44), Enum.Material.Plastic, rot)
+	box(ctx, "BarrierStripe", Vector3.new(7, 3.2, 1.8), offset + Vector3.new(0, 6, 0), rgb(40, 42, 52), Enum.Material.Plastic, rot)
+	for _, sx in { -1, 1 } do
+		local leg = rot:VectorToWorldSpace(Vector3.new(sx * 9.5, 0, 0))
+		box(ctx, "BarrierLeg", Vector3.new(1.6, 8, 4), offset + leg + Vector3.new(0, 4, 0), rgb(60, 64, 78), Enum.Material.Metal, rot)
+	end
+end
+
+-- ==========================================================
+-- PER-ZONE DRESSING (supporting clusters)
+-- ==========================================================
+
+local dressing: { (Ctx) -> () } = {
+	-- 01 MUSEUM: garden benches and hedges on the lawn before the steps.
+	function(ctx)
+		bench(ctx, Vector3.new(-30, 0, -70), rgb(150, 100, 58))
+		bench(ctx, Vector3.new(-30, 0, 90), rgb(150, 100, 58))
+		bush(ctx, Vector3.new(96, 0, -70), 14)
+		bush(ctx, Vector3.new(110, 0, -56), 10)
+		bush(ctx, Vector3.new(100, 0, 90), 12, rgb(118, 200, 104))
+	end,
+	-- 02 PIRATE: cargo on the beach by the chest and the bow.
+	function(ctx)
+		crate(ctx, Vector3.new(96, 0, 14), 11, 20)
+		crate(ctx, Vector3.new(108, 0, 4), 8, -15)
+		barrel(ctx, Vector3.new(86, 0, 26))
+		barrel(ctx, Vector3.new(-48, 0, -84))
+		crate(ctx, Vector3.new(-36, 0, -96), 9, 35)
+		rock(ctx, Vector3.new(30, 0, 96), 22, rgb(190, 176, 150))
+		rock(ctx, Vector3.new(-14, 0, -100), 14, rgb(190, 176, 150))
+	end,
+	-- 03 CASTLE: a market stall and barrels under the curtain wall.
+	function(ctx)
+		stall(ctx, Vector3.new(72, 0, 84), rgb(224, 62, 92), 180)
+		barrel(ctx, Vector3.new(-80, 0, 8))
+		barrel(ctx, Vector3.new(-72, 0, 20))
+		crate(ctx, Vector3.new(90, 0, -84), 10, 10)
+		bush(ctx, Vector3.new(-70, 0, -90), 12)
+	end,
+	-- 04 AREA 51: crates and cones by the hangar door, rocks in the scrub.
+	function(ctx)
+		crate(ctx, Vector3.new(50, 0, -40), 10, 0)
+		crate(ctx, Vector3.new(62, 0, -30), 8, 30)
+		cone(ctx, Vector3.new(40, 0, -60))
+		cone(ctx, Vector3.new(76, 0, -62))
+		rock(ctx, Vector3.new(-40, 0, 100), 20)
+		rock(ctx, Vector3.new(-20, 0, -96), 14)
+		rock(ctx, Vector3.new(30, 0, 100), 12)
+	end,
+	-- 05 NORTH POLE: a snowman and candy poles by the arch.
+	function(ctx)
+		local s = Vector3.new(-20, 0, -80)
+		ball(ctx, "SnowBase", Vector3.new(16, 16, 16), s + Vector3.new(0, 7, 0), rgb(250, 252, 255))
+		ball(ctx, "SnowMid", Vector3.new(12, 12, 12), s + Vector3.new(0, 18, 0), rgb(250, 252, 255))
+		ball(ctx, "SnowHead", Vector3.new(9, 9, 9), s + Vector3.new(0, 26, 0), rgb(250, 252, 255))
+		box(ctx, "SnowHat", Vector3.new(7, 5, 7), s + Vector3.new(0, 32, 0), rgb(40, 42, 52))
+		for _, z in { -60, 60 } do
+			pillar(ctx, "CandyPole", 3, 22, Vector3.new(84, 11, z), rgb(226, 62, 78))
+			pillar(ctx, "CandyStripe", 3.4, 4, Vector3.new(84, 6, z), rgb(250, 250, 250))
+			pillar(ctx, "CandyStripe", 3.4, 4, Vector3.new(84, 16, z), rgb(250, 250, 250))
+		end
+		rock(ctx, Vector3.new(40, 0, 100), 16, rgb(226, 236, 250))
+	end,
+	-- 06 EGYPT: urns by the obelisk, a palm on the sand, a drift.
+	function(ctx)
+		for i, p in { Vector3.new(-70, 0, -20), Vector3.new(-60, 0, 30) } do
+			pillar(ctx, "Urn" .. i, 8, 10, p + Vector3.new(0, 5, 0), rgb(200, 132, 80), Enum.Material.Plastic)
+			ball(ctx, "UrnLip" .. i, Vector3.new(9, 3, 9), p + Vector3.new(0, 10.5, 0), rgb(170, 108, 64))
+		end
+		pillar(ctx, "PalmTrunk", 4, 40, Vector3.new(-30, 20, 100), rgb(154, 110, 64))
+		for f = 0, 4 do
+			box(ctx, "Frond" .. f, Vector3.new(26, 2, 8), Vector3.new(-30, 40, 100), rgb(70, 190, 84), Enum.Material.Plastic, CFrame.Angles(0, math.rad(f * 72), math.rad(-14)) * CFrame.new(12, 0, 0))
+		end
+		rock(ctx, Vector3.new(20, 0, -100), 18, rgb(230, 200, 140))
+	end,
+	-- 07 GYM: kettlebells and a water cooler.
+	function(ctx)
+		for i, p in { Vector3.new(30, 0, -60), Vector3.new(44, 0, -50), Vector3.new(-30, 0, 100) } do
+			ball(ctx, "Kettlebell" .. i, Vector3.new(10, 10, 10), p + Vector3.new(0, 5, 0), rgb(44, 48, 62), Enum.Material.Metal)
+			box(ctx, "KettleHandle" .. i, Vector3.new(6, 3, 2), p + Vector3.new(0, 11, 0), rgb(44, 48, 62), Enum.Material.Metal)
+		end
+		box(ctx, "Cooler", Vector3.new(8, 14, 8), Vector3.new(-50, 7, -90), rgb(226, 232, 240), Enum.Material.Plastic)
+		pillar(ctx, "CoolerJug", 7, 8, Vector3.new(-50, 18, -90), rgb(120, 200, 240), Enum.Material.Glass)
+	end,
+	-- 08 BANK: bollards along the facade, an armoured cart.
+	function(ctx)
+		for i = 0, 3 do
+			pillar(ctx, "Bollard" .. i, 2.4, 6, Vector3.new(-70, 3, -40 + i * 30), IRON, Enum.Material.Metal)
+		end
+		bush(ctx, Vector3.new(-40, 0, -96), 12)
+		bush(ctx, Vector3.new(60, 0, 100), 12)
+		box(ctx, "Cart", Vector3.new(16, 10, 26), Vector3.new(30, 8, -80), rgb(60, 64, 78), Enum.Material.Metal)
+		for _, sx in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				cyl(ctx, "CartWheel", Vector3.new(3, 6, 6), Vector3.new(30 + sx * 8.5, 3, -80 + sz * 9), rgb(30, 32, 40), Enum.Material.Plastic)
+			end
+		end
+	end,
+	-- 09 SECRET LAB: drums and crates, a warning light.
+	function(ctx)
+		for i, p in { Vector3.new(-40, 0, -100), Vector3.new(-30, 0, -90), Vector3.new(40, 0, 100) } do
+			pillar(ctx, "Drum" .. i, 8, 12, p + Vector3.new(0, 6, 0), rgb(120, 236, 200), Enum.Material.Metal)
+			pillar(ctx, "DrumBand" .. i, 8.6, 2, p + Vector3.new(0, 6, 0), rgb(40, 42, 52), Enum.Material.Metal)
+		end
+		crate(ctx, Vector3.new(60, 0, -90), 10, 15)
+		pillar(ctx, "WarnPost", 2, 20, Vector3.new(-70, 10, 100), rgb(60, 64, 78), Enum.Material.Metal)
+		ball(ctx, "WarnLight", Vector3.new(5, 5, 5), Vector3.new(-70, 22, 100), rgb(255, 80, 60), Enum.Material.Neon)
+	end,
+	-- 10 GRANDMA: a bench, a mailbox and hedges around the yard.
+	function(ctx)
+		bench(ctx, Vector3.new(-40, 0, -50), rgb(226, 226, 220))
+		pillar(ctx, "MailPost", 1.6, 8, Vector3.new(-20, 4, 100), rgb(120, 84, 50), Enum.Material.Wood)
+		box(ctx, "Mailbox", Vector3.new(6, 4, 8), Vector3.new(-20, 10, 100), rgb(72, 128, 236), Enum.Material.Plastic)
+		bush(ctx, Vector3.new(30, 0, -90), 12, rgb(236, 118, 176))
+		bush(ctx, Vector3.new(50, 0, 100), 12, rgb(118, 200, 104))
+		bush(ctx, Vector3.new(-60, 0, 110), 10, rgb(236, 118, 176))
+	end,
+	-- 11 CONSTRUCTION: barriers, cones and a pallet of blocks.
+	function(ctx)
+		barrier(ctx, Vector3.new(-40, 0, -20), 20)
+		barrier(ctx, Vector3.new(20, 0, 100), -30)
+		cone(ctx, Vector3.new(60, 0, -90))
+		cone(ctx, Vector3.new(-20, 0, 110))
+		box(ctx, "Pallet", Vector3.new(16, 2, 16), Vector3.new(50, 1, 100), rgb(146, 96, 54), Enum.Material.WoodPlanks)
+		box(ctx, "Blocks", Vector3.new(14, 10, 14), Vector3.new(50, 7, 100), rgb(178, 178, 182), Enum.Material.Concrete)
+	end,
+	-- 12 AIRPORT: baggage carts and runway cones.
+	function(ctx)
+		for i, p in { Vector3.new(-40, 0, -90), Vector3.new(-20, 0, 110) } do
+			box(ctx, "Cart" .. i, Vector3.new(14, 6, 10), p + Vector3.new(0, 5, 0), rgb(226, 228, 234), Enum.Material.Metal)
+			box(ctx, "CartLoad" .. i, Vector3.new(10, 5, 8), p + Vector3.new(0, 10.5, 0), rgb(64, 132, 236), Enum.Material.Plastic)
+			box(ctx, "CartLoad2" .. i, Vector3.new(8, 4, 6), p + Vector3.new(1, 15, 0), rgb(226, 62, 88), Enum.Material.Plastic)
+		end
+		cone(ctx, Vector3.new(30, 0, -110))
+		cone(ctx, Vector3.new(-60, 0, 20))
+		cone(ctx, Vector3.new(50, 0, 120))
+	end,
+}
+
+-- ==========================================================
+-- COMPOSED LAYOUTS: loot plinths and the guardian post, per zone
+-- ==========================================================
+--
+-- Authored-space offsets from the zone centre (X across, Y along the lane).
+-- Read by MapBuilder.placeSockets, which scales them and nudges anything that
+-- lands inside scenery. Four sockets each; the guardian sleeps at `post`.
+
+export type Layout = { sockets: { Vector2 }, post: Vector2 }
+
+MapLandmarks.layouts = {
+	-- 01 MUSEUM: exhibits on the lawn before the steps; the Cop by the door.
+	{ sockets = { Vector2.new(-48, -40), Vector2.new(-48, 62), Vector2.new(72, -30), Vector2.new(60, 52) }, post = Vector2.new(10, 12) },
+	-- 02 PIRATE: by the bow, by the chest, under the palms, beside the hull.
+	{ sockets = { Vector2.new(-40, -62), Vector2.new(62, 10), Vector2.new(108, 36), Vector2.new(-32, 74) }, post = Vector2.new(20, -28) },
+	-- 03 CASTLE: along the curtain wall, by the stall, on the open field.
+	{ sockets = { Vector2.new(-70, -22), Vector2.new(-70, 50), Vector2.new(60, -62), Vector2.new(72, 44) }, post = Vector2.new(0, 0) },
+	-- 04 AREA 51: under the saucer, by the dish, before the hangar door.
+	{ sockets = { Vector2.new(-50, -22), Vector2.new(-40, 96), Vector2.new(40, -72), Vector2.new(40, 50) }, post = Vector2.new(0, 20) },
+	-- 05 NORTH POLE: among the gifts, inside the ice arch.
+	{ sockets = { Vector2.new(-22, -60), Vector2.new(-20, 40), Vector2.new(60, 0), Vector2.new(70, -82) }, post = Vector2.new(10, -20) },
+	-- 06 EGYPT: between obelisk and sphinx, on the sand before the pyramid.
+	{ sockets = { Vector2.new(-60, -12), Vector2.new(-50, 100), Vector2.new(0, -92), Vector2.new(-12, 62) }, post = Vector2.new(0, 10) },
+	-- 07 GYM: the open floor between the dumbbell, the plates and the bench.
+	{ sockets = { Vector2.new(-40, -72), Vector2.new(-30, 96), Vector2.new(50, 22), Vector2.new(40, -82) }, post = Vector2.new(0, 0) },
+	-- 08 BANK: before the bank, by the ingots.
+	{ sockets = { Vector2.new(-60, -42), Vector2.new(-50, 96), Vector2.new(62, 60), Vector2.new(30, -62) }, post = Vector2.new(0, 10) },
+	-- 09 SECRET LAB: by the tanks and the drums, before the reactor.
+	{ sockets = { Vector2.new(-30, -52), Vector2.new(-70, 50), Vector2.new(50, -72), Vector2.new(50, 102) }, post = Vector2.new(0, 10) },
+	-- 10 GRANDMA: the front yard, the back garden, between the flower pots.
+	{ sockets = { Vector2.new(-40, -62), Vector2.new(-20, 100), Vector2.new(60, -40), Vector2.new(52, 40) }, post = Vector2.new(10, 0) },
+	-- 11 CONSTRUCTION: around the pipes, the crane pad and the pallet.
+	{ sockets = { Vector2.new(-60, -22), Vector2.new(-20, 52), Vector2.new(62, -62), Vector2.new(70, 72) }, post = Vector2.new(0, 0) },
+	-- 12 AIRPORT: under the tower, along the runway, behind the jet.
+	{ sockets = { Vector2.new(-50, -62), Vector2.new(-50, 40), Vector2.new(40, -82), Vector2.new(40, 112) }, post = Vector2.new(0, -10) },
+} :: { Layout }
+
+-- ==========================================================
 -- ENTRY POINT
 -- ==========================================================
 
@@ -460,6 +710,9 @@ function MapLandmarks.build(map: Instance)
 		}
 
 		builders[i](ctx)
+		if dressing[i] then
+			dressing[i](ctx)
+		end
 
 		-- Nudge each side's landmark inward as a group if anything overhangs the
 		-- containment wall. Shifting per side rather than per part keeps a

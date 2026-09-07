@@ -219,6 +219,12 @@ local function buildState(player: Player, stage: number): TutorialState
 end
 
 --- Read by StateService each push.
+--- A player who has not yet stolen anything. BaseService starts them on the
+--- hub, a few seconds from the tutorial vase, rather than at their plot.
+function TutorialService.isAtStart(player: Player): boolean
+	return deriveStage(player) == STAGE.STEAL
+end
+
 function TutorialService.getState(player: Player): TutorialState?
 	return cached[player]
 end

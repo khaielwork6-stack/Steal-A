@@ -72,6 +72,29 @@ function BaseService.getPlot(player: Player): (Model | Folder)?
 	return assignments[player]
 end
 
+--- Whether a joining player should start on the hub rather than their plot.
+--- Overridden by init with TutorialService's answer (a player who has not yet
+--- stolen anything); the default keeps everyone at home.
+function BaseService.spawnsAtHub(_player: Player): boolean
+	return false
+end
+
+--- Where this player's character belongs when it appears: the hub's spawn
+--- circle while they have not yet stolen anything, their own plot's Spawn
+--- after that. ONE answer for the first join and for every respawn - the
+--- server's respawn handler used to pivot every fresh character to the plot,
+--- which silently undid the hub start a moment after `assign` had set it.
+function BaseService.homeSpawn(player: Player): BasePart?
+	local plot = assignments[player]
+	local spawn: Instance? = if plot then plot:FindFirstChild("Spawn") else nil
+	if BaseService.spawnsAtHub(player) then
+		local map = workspace:FindFirstChild("Map")
+		local spawns = map and map:FindFirstChild("SpawnLocations")
+		spawn = (spawns and spawns:FindFirstChild("LobbySpawn")) or spawn
+	end
+	return if spawn and spawn:IsA("BasePart") then spawn else nil
+end
+
 function BaseService.getOwner(plot: Instance): Player?
 	return owners[plot]
 end
@@ -891,10 +914,14 @@ function BaseService.assign(player: Player): (Model | Folder)?
 				return nil
 			end
 
-			-- Put the player on their own plot immediately.
-			local spawn = plot:FindFirstChild("Spawn")
+			-- Where the player starts. A returning player goes straight to
+			-- their plot - their income is the first thing they want to see. A
+			-- BRAND-NEW player starts on the hub's spawn circle facing the Zone
+			-- 01 gate, a few seconds from the tutorial vase, instead of at the
+			-- back of a plot with the world behind them.
 			local character = player.Character
-			if spawn and spawn:IsA("BasePart") and character then
+			local spawn = BaseService.homeSpawn(player)
+			if spawn and character then
 				character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 			end
 
@@ -918,29 +945,35 @@ function BaseService.assign(player: Player): (Model | Folder)?
 	return nil
 end
 
+--- The look of a plot nobody owns: no trophies, the starting capacity's worth
+--- of empty slots, the rest locked - so it reads as available, and so the
+--- builder's plain pads are never what a player sees.
+local function styleUnowned(plot: Instance)
+	local slots = plot:FindFirstChild("DisplaySlots")
+	if not slots then
+		return
+	end
+	for _, slot in slots:GetChildren() do
+		for _, name in { "Trophy", "Pedestal" } do
+			local existing = slot:FindFirstChild(name)
+			if existing then
+				existing:Destroy()
+			end
+		end
+		if slot:IsA("BasePart") then
+			local index = slot:GetAttribute("SlotIndex") :: number?
+			styleSlot(slot, if index and index <= GameConfig.STARTING_DISPLAY_SLOTS then "Empty" else "Locked")
+		end
+	end
+end
+
 function BaseService.unassign(player: Player)
 	local plot = assignments[player]
 	if not plot then
 		return
 	end
 
-	local slots = plot:FindFirstChild("DisplaySlots")
-	if slots then
-		for _, slot in slots:GetChildren() do
-			for _, name in { "Trophy", "Pedestal" } do
-				local existing = slot:FindFirstChild(name)
-				if existing then
-					existing:Destroy()
-				end
-			end
-			if slot:IsA("BasePart") then
-				-- A released plot shows the starting capacity's worth of empty
-				-- slots, the rest locked, so it reads as available.
-				local index = slot:GetAttribute("SlotIndex") :: number?
-				styleSlot(slot, if index and index <= GameConfig.STARTING_DISPLAY_SLOTS then "Empty" else "Locked")
-			end
-		end
-	end
+	styleUnowned(plot)
 
 	setOwner(plot, nil)
 	owners[plot] = nil
@@ -982,6 +1015,10 @@ function BaseService.start()
 	end)
 	for _, plot in bases:GetChildren() do
 		setOwner(plot, nil)
+		-- Every plot is dressed from the first frame, owned or not: the
+		-- builder's pads are plain, and six unowned plots of plain pads were
+		-- the white rectangles across the plaza.
+		styleUnowned(plot)
 	end
 
 	local function onPlayer(player: Player)

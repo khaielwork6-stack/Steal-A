@@ -22,13 +22,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local EventStandService = {}
 
---- Where the stand goes: left of the lobby spawn, facing it. The board's
---- bottom edge sits this high on two posts.
-local STAND_POSITION = Vector3.new(-42, 0, -96)
-local FACE_TOWARD = Vector3.new(0, 0, -95)
+--- Where the stand goes: composed with the rest of the hub in MapConfig.HUB,
+--- right of the spawn circle and turned to face it. The board's bottom edge
+--- sits BOARD_LIFT high on two posts.
+local STAND_POSITION = MapConfig.HUB.eventStand
+local FACE_TOWARD = MapConfig.HUB.spawn
 local BOARD_LIFT = 3.4
 local POST_COLOR = Color3.fromRGB(46, 50, 68)
 

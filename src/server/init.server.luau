@@ -29,6 +29,7 @@ local PlacementService = require(Services.PlacementService)
 local SpeedService = require(Services.SpeedService)
 local ZoneSignService = require(Services.ZoneSignService)
 local EventStandService = require(Services.EventStandService)
+local EnvironmentService = require(Services.EnvironmentService)
 local TutorialService = require(Services.TutorialService)
 local RagdollService = require(Services.RagdollService)
 local PvPService = require(Services.PvPService)
@@ -43,6 +44,7 @@ local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
 
+EnvironmentService.start()
 DataService.start()
 EconomyService.start()
 
@@ -73,6 +75,10 @@ CarryService.setRecoveryCheck(GuardianService.canRecover)
 -- which is how a new player could mint duplicates by stealing and dropping in a
 -- loop. Every other item keeps the normal reclaimable drop.
 CarryService.returnsHomeOnDrop = TutorialService.isTutorialLoot
+
+-- A brand-new player starts on the hub facing the Zone 01 gate; everyone else
+-- starts at their plot.
+BaseService.spawnsAtHub = TutorialService.isAtStart
 
 -- The DROP button lives on StatePush, so a steal has to push immediately rather
 -- than waiting for the next thing that happens to dirty the state.
@@ -290,11 +296,16 @@ end
 local function onPlayer(player: Player)
 	player.CharacterAdded:Connect(function(character)
 		task.spawn(function()
-			-- Respawns should land the player back on their own plot.
+			-- Respawns land the player where BaseService says home is: the hub
+			-- circle until their first steal, their own plot after. Before the
+			-- plot is assigned (the very first character, profile still
+			-- loading) `assign` does the placing itself.
 			task.wait(0.2)
-			local plot = BaseService.getPlot(player)
-			local spawn = plot and plot:FindFirstChild("Spawn")
-			if spawn and spawn:IsA("BasePart") then
+			if not BaseService.getPlot(player) then
+				return
+			end
+			local spawn = BaseService.homeSpawn(player)
+			if spawn then
 				character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 			end
 		end)

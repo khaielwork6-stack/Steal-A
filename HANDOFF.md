@@ -2,8 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §27** (pop-up placement, solid barrier, trail toggle, 2x Cash
-> owned look, zone signs, hotbar, Next Update stand), then §26 (smart
+> **START AT §28** (the map overhaul: hub, plots, zones, gates, lighting,
+> the upgrade sign - and the Studio Save it still needs), then §27 (pop-up
+> placement, solid barrier, trail toggle, 2x Cash owned look, zone signs,
+> hotbar, Next Update stand), then §26 (smart
 > guardians that carry loot back, living loot, the
 > Night barrier, Index previews, zone pop-ups, trail plates), then §25 (the
 > STEAL & ESCAPE pass: pedestals, giant sizes, the Night cycle, chase audio,
@@ -2281,3 +2283,121 @@ Play; §27.4 lists the one thing Studio cannot show.
   SurfaceGui contains and what the reference image shows. Swap the
   ImageLabel's Image in `StarterGui.MainUI.Surface/Billboards.NextUpdate`
   for the game's own art when there is one.
+
+## 28. Final pre-release map overhaul — hub, plots, zones, gates, lighting, upgrade sign
+
+The map is GENERATED (`MapBuilder.build()` + `MapLandmarks.build`), so the
+overhaul lives in the generator and was rebuilt in Studio; nothing inside
+`Workspace.Map` is hand-placed. The old map is kept as a backup (28.5).
+
+### 28.1 What changed
+
+- `MapConfig`: `SAFE_ZONE_DEPTH` 64, `PLAZA_CORRIDOR_WIDTH` 124, `PLOT_DEPTH`
+  176, `HEAD_PLOT_DEPTH` 96, `TREADMILL_STANDOFF` 16, `DISPLAY_SLOT_SIZE`
+  17, `DISPLAY_BACK_INSET` 16, `DISPLAY_FRONT_RESERVE` 44, new `PORCH_DEPTH`
+  22, wall pilaster/trim sizes, gate pylon/lintel sizes and `GATE_INSET`, and
+  `MapConfig.HUB` (spawn (0,0,-34) facing +Z, `trailBooth`, `eventStand`,
+  `leaderboards` at x ±70, `avenueWidth`). Lane width, zone lengths and the
+  red line are UNCHANGED on purpose: chase balance is calibrated to run
+  lengths.
+- `MapPalette`: calmer, desaturated set; every key the code reads is present.
+- `MapBuilder` (rewritten): paving (spawn circle, avenue, spur), wall bays
+  (pilasters + trim on inward faces), a gate per zone (two pylons in the
+  zone colour, a lintel with `{emoji} {NAME}`), dark 16-stud plinth sockets
+  with a rim, invisible guardian posts, opaque locked pads, plots with a
+  porch, fence rails, planters, lamps and two slot columns (the head plot
+  gets rows across its width - it used to cram 7 pads into 32 studs), hub
+  props, sockets/posts from `MapLandmarks.layouts` with prop clearance and
+  `settle`, and a `LobbySpawn` that faces the Zone 01 gate. Decor and gate
+  parts are non-colliding (`applyDecorCollision`).
+- `MapLandmarks`: a props library (`crate`, `barrel`, `rock`, `bush`, `cone`,
+  `bench`, `stall`, `barrier`), a `dressing` cluster per zone, and
+  `MapLandmarks.layouts` - four socket offsets and a guardian post per zone,
+  authored in the 320-wide lane space like the landmarks.
+- `ZoneSignService`: ONE sign per zone, on the LEFT of the entrance, facing
+  incoming players (`SIGN_INSET` 30).
+- `LeaderboardService`, `TrailService`, `EventStandService`: positions come
+  from `MapConfig.HUB`.
+- `BaseService`: `styleUnowned` dresses every plot at start (the flashing
+  white ground was the builder's near-white pads on the six unowned plots);
+  `spawnsAtHub` (wired by init to `TutorialService.isAtStart`) and
+  `homeSpawn` - one answer for the first join AND every respawn. The respawn
+  handler in `init.server.luau` used to pivot every new character to the
+  plot 0.2 s after `assign` had put a new player on the hub.
+- `PlacementService`: `requestUpgrade` for both input paths, a
+  `ClickDetector` on the sign board (range 40, owner only), and a 0.35 s
+  `PRESS_WINDOW` that folds the second arrival of one press (the SurfaceGui
+  button and the detector both fire for a single click). `BaseSignController`
+  makes the whole board the hit target.
+- `EnvironmentService` (new, first service started): Lighting numbers and
+  the Bloom / ColorCorrection / Atmosphere / SunRays instances are set at
+  server start, so the grade is the code's and not the last Studio session's;
+  `default.project.json` carries the same Lighting properties.
+- `LootModel.TROPHY_MAX_FOOTPRINT` 15 (fits the 17-stud pad).
+- `InteractController` disables the UI pack's un-adorned `Titles`
+  billboards ("Top Cash", "Gamepasses", "Next Update! Notify Here!"): a
+  BillboardGui with no Adornee draws at the world origin, which is now the
+  red line dead centre of a new player's first view. The server clones the
+  StarterGui originals for the boards and the stand and enables its own.
+
+### 28.2 Layout decisions
+
+- Hub: the spawn circle is 28 studs from the gate pylons, facing them; the
+  trail booth on the left (-66), the Next Update stand on the right (66),
+  the two boards flank the gate at ±70; planters on ±X of the circle, lamps
+  on its diagonals so nothing stands on the spawn-to-gate line. The avenue
+  runs back from the circle to the head plot; treadmills stand in the avenue
+  16 studs off each porch.
+- Plots: 176 deep for 14 pads in two columns; the porch holds the spawn
+  (facing the avenue), the upgrade pad 16 studs along the porch from it
+  and the owner sign at the front corner (the pad's first position shared
+  studs with that sign; see `buildBase`).
+- Zones: the gate names the zone from a distance (the far lintels read over
+  the near ones - that is the "anticipation" beat); the sign is left of the
+  gate; sockets sit where the landmark suggests them (museum forecourt,
+  pirate beach, castle yard...) and never inside scenery.
+- Lighting: Brightness 2.2, exposure -0.05, bloom 0.22 above 2.2, +6%
+  saturation, a light atmosphere haze; depth of field off.
+
+### 28.3 Tested (Play, one client, DataStores off)
+
+- Console clean at start; 12 guardians posted on the new posts; 12 x 4
+  sockets filled; 12 signs / 12 boards; boards at (-70,6.4,-12) and
+  (70,6.4,-12); stand at (66,0,-40); every unowned plot's slots Empty /
+  Locked from the first frame.
+- First join: the character stands at (0,2.7,-34) looking +Z, on the
+  `LobbySpawn`; tutorial stage STEAL.
+- Steal (1,1) → ESCAPE stage → `goHome` → PLACE stage → placed: pedestal
+  5.1 wide on the 17-stud pad, trophy on top, socket re-pinned.
+- Treadmill training at the new standoff (`standOnTreadmill`).
+- Upgrade sign: a pointer click on the board (ClickDetector path) bought
+  exactly one tier (7→8 slots, -$1M) and repainted the sign; two remote
+  arrivals 50 ms apart bought one tier (9→10), not two.
+- Trail booth: standing on the circle at (-57,0,-40) opened the shop.
+- Zone 2 chase from the new post: Waking → Chasing → ReturningLoot →
+  Returning → Sleeping in 4 s, loot back in its socket.
+- Night `begin`: `NightBarrier` present at the red line.
+
+### 28.4 Not verified here
+
+- The SurfaceGui button path of the sign: Studio's simulated pointer
+  reaches `UserInputService` but not 3D GUI buttons, so only the detector
+  path was exercised. A real mouse fires both; the press window is what
+  keeps that to one purchase. Touch and gamepad: no device.
+- Multiplayer (seven plots at once), mobile performance: not testable here.
+  Part count 1788 (old map 1295).
+- The Next Update stand: the live API answered "Event has already started"
+  for event 4257917435077853831, so the prompt is refused and the stand
+  shows its "not available right now" toast. The ID needs a future event.
+
+### 28.5 Studio-side (needs a Save / Publish)
+
+- `Workspace.Map` was rebuilt by the generator in Edit mode. To rebuild
+  again after a code change: `require` a FRESH CLONE of
+  `ServerScriptService.Server` (Edit-mode `require` caches modules for the
+  whole session and serves a stale `MapBuilder` otherwise), call
+  `MapBuilder.build()`, destroy the clone.
+- Backups: `ServerStorage._MapBackup_2026-09-07` (the old Map, 1295 parts)
+  and `ServerStorage._RootBackup_2026-09-07`. Delete them once the new map
+  is accepted; they are not referenced by anything.
+- Still pending from §27: `ReplicatedStorage.UITemplates.MenuButtons`.
