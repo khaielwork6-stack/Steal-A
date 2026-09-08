@@ -26,6 +26,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 
+local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -63,7 +64,9 @@ function GiftChestService.start()
 		existing:Destroy()
 	end
 
-	local spot = MapConfig.HUB.giftChest
+	-- The owner's marker first (Workspace.LobbyMarkers.GiftChest), the config
+	-- default second. See LobbyLayout.
+	local spot = LobbyLayout.position("GiftChest", MapConfig.HUB.giftChest)
 	local model = Instance.new("Model")
 	model.Name = CHEST_NAME
 

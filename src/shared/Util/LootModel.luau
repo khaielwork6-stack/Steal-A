@@ -209,15 +209,15 @@ end
 -- BUILD
 -- ==========================================================
 
---- The widest a piece of world loot may get, in studs. The lane is 256 wide
---- and the sockets sit 72 studs off centre, so this is the largest thing that
+--- The widest a piece of world loot may get, in studs. The lane is 160 wide
+--- and the sockets sit 45 studs off centre, so this is the largest thing that
 --- still fits between a socket and the wall. HEIGHT IS NOT CAPPED: a Colossal
 --- is meant to tower over the walls, and this only ever binds on something
 --- both huge and flat.
-LootModel.WORLD_MAX_FOOTPRINT = 110
---- The widest a trophy may get on its 20-stud display pad: it may be as tall
+LootModel.WORLD_MAX_FOOTPRINT = 66
+--- The widest a trophy may get on its 15-stud display pad: it may be as tall
 --- as it likes, but it must not swallow the neighbouring exhibits.
-LootModel.TROPHY_MAX_FOOTPRINT = 15
+LootModel.TROPHY_MAX_FOOTPRINT = 13
 
 export type BuildOptions = {
 	itemId: string,

@@ -22,6 +22,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local EventStandService = {}
@@ -29,8 +30,14 @@ local EventStandService = {}
 --- Where the stand goes: composed with the rest of the hub in MapConfig.HUB,
 --- right of the spawn circle and turned to face it. The board's bottom edge
 --- sits BOARD_LIFT high on two posts.
-local STAND_POSITION = MapConfig.HUB.eventStand
-local FACE_TOWARD = MapConfig.HUB.spawn
+--- Both resolved at start from Workspace.LobbyMarkers (EventStand, Spawn),
+--- falling back to MapConfig.HUB. See LobbyLayout.
+local function standPosition(): Vector3
+	return LobbyLayout.position("EventStand", MapConfig.HUB.eventStand)
+end
+local function faceToward(): Vector3
+	return LobbyLayout.position("Spawn", MapConfig.HUB.spawn)
+end
 local BOARD_LIFT = 3.4
 local POST_COLOR = Color3.fromRGB(46, 50, 68)
 
@@ -119,8 +126,10 @@ function EventStandService.start()
 	-- Stood on the floor, facing the spawn. lookAt points the part's -Z at
 	-- the target, which is the face a SurfaceGui on Front draws on.
 	local height = board.Size.Y
-	local centre = STAND_POSITION + Vector3.new(0, BOARD_LIFT + height / 2, 0)
-	board.CFrame = CFrame.lookAt(centre, Vector3.new(FACE_TOWARD.X, centre.Y, FACE_TOWARD.Z))
+	local standAt = standPosition()
+	local toward = faceToward()
+	local centre = standAt + Vector3.new(0, BOARD_LIFT + height / 2, 0)
+	board.CFrame = CFrame.lookAt(centre, Vector3.new(toward.X, centre.Y, toward.Z))
 	model.PrimaryPart = board
 
 	local half = board.Size.X / 2 - 1.5
@@ -166,7 +175,7 @@ function EventStandService.start()
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = board
 
-	print(`[EventStandService] stand posted at {STAND_POSITION} for event {GameConfig.NEXT_UPDATE_EVENT_ID}`)
+	print(`[EventStandService] stand posted at {standPosition()} for event {GameConfig.NEXT_UPDATE_EVENT_ID}`)
 end
 
 return EventStandService

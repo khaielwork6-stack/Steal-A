@@ -22,7 +22,11 @@ local MapConfig = {}
 -- COUNTS
 -- ==========================================================
 MapConfig.ZONE_COUNT = 12
-MapConfig.BASE_COUNT = 7
+-- FIVE bases. The purchased lobby is 438.5 studs wide and 174 deep; five
+-- 82-wide plots stand along its back wall with room for their treadmills in
+-- front. Seven do not fit without shrinking a plot below its fourteen pads.
+-- Server Size in Game Settings must match (it is read-only to scripts).
+MapConfig.BASE_COUNT = 5
 MapConfig.SOCKETS_PER_ZONE = 4
 MapConfig.DISPLAY_SLOTS_PER_BASE = 14
 --- Head plot only: its pads run in rows ACROSS the back of the plaza.
@@ -37,27 +41,38 @@ MapConfig.DISPLAY_SLOT_ROWS = 2
 -- the starting Speed of 10 (~18.3 WalkSpeed). Zone dimensions are the previous
 -- values x0.70; the Zone 01 -> Zone 12 escalation curve below is untouched, so
 -- the whole curve simply moved down together.
-MapConfig.LANE_WIDTH = 256 -- interior, wall face to wall face
-MapConfig.ZONE_LENGTH = 154 -- depth of Zone 01; every later zone scales off this
-MapConfig.TRANSITION_DEPTH = 28 -- blend strip between two zones
-MapConfig.FLOOR_THICKNESS = 4
+-- THE TEMPLATE IS THE SOURCE OF TRUTH. Every number in this block was
+-- measured off the purchased kit the owner imported, which the builder now
+-- CLONES rather than approximates (ServerStorage.GameAssets.Template):
+--
+--   ZoneFloors/"Zone N"   one textured Part per zone. Its length along the
+--                         lane is that zone's length, exactly. Widths came in
+--                         between 154 and 165 studs from hand placement; the
+--                         lane runs at their median, 160, so the walls run
+--                         straight.
+--   LobbyFloor            438.5 x 1 x 174, cloned whole, never resized.
+--   WallSegment           8.56 thick, 36.94 tall plus a 2-stud grass cap,
+--                         145.31 long, texture on its Left face.
+--
+MapConfig.LANE_WIDTH = 160 -- interior, wall face to wall face
+MapConfig.TRANSITION_DEPTH = 0 -- the kit's zones abut; there are no blend strips
+MapConfig.FLOOR_THICKNESS = 4 -- our own slabs (plot floors); zone floors keep the kit's
 
--- Progression escalation: each zone is slightly longer than the last so late-game
--- Speed has room to matter and chases get more dramatic. Zone 01 is LOCKED at 1.0.
--- Lane WIDTH deliberately stays constant so the world keeps its clean corridor read.
-MapConfig.ZONE_LENGTH_SCALE = {
-	1.00, -- 01 Museum (locked, beginner-sized)
-	1.10, -- 02 Pirate Island
-	1.15, -- 03 Castle
-	1.20, -- 04 Area 51
-	1.25, -- 05 North Pole
-	1.30, -- 06 Ancient Egypt
-	1.35, -- 07 Gym
-	1.40, -- 08 Bank
-	1.45, -- 09 Secret Lab
-	1.50, -- 10 Grandma's House
-	1.55, -- 11 Construction Site
-	1.60, -- 12 Airport
+-- Each zone's length is its template floor's, to the decimal. The owner
+-- authored the escalation by resizing the floors; this is that escalation.
+MapConfig.ZONE_LENGTHS = {
+	97.5304946899414, -- 01 Museum
+	146.10552978515625, -- 02 Pirate Island
+	211.0, -- 03 Castle
+	236.1, -- 04 Area 51
+	324.1, -- 05 North Pole
+	385.1109924316406, -- 06 Ancient Egypt
+	429.1, -- 07 Gym
+	505.1, -- 08 Bank
+	640.1, -- 09 Secret Lab
+	505.1, -- 10 Grandma's House
+	637.1, -- 11 Construction Site
+	763.1109619140625, -- 12 Airport
 }
 
 -- Roblox clamps any Part axis at 2048 studs, so long runs are built in chunks.
@@ -66,10 +81,13 @@ MapConfig.MAX_PART_AXIS = 900
 -- ==========================================================
 -- CONTAINMENT WALLS
 -- ==========================================================
-MapConfig.WALL_HEIGHT = 80
-MapConfig.WALL_THICKNESS = 10
-MapConfig.WALL_CAP_HEIGHT = 8
-MapConfig.WALL_CAP_OVERHANG = 2
+-- The kit's wall segment, exactly. Height is the body plus its grass cap.
+MapConfig.WALL_BODY_HEIGHT = 36.935028076171875
+MapConfig.WALL_CAP_HEIGHT = 2
+MapConfig.WALL_HEIGHT = MapConfig.WALL_BODY_HEIGHT + MapConfig.WALL_CAP_HEIGHT
+MapConfig.WALL_THICKNESS = 8.560052871704102
+MapConfig.WALL_SEGMENT_LENGTH = 145.3063201904297
+MapConfig.WALL_CAP_OVERHANG = 0
 
 -- ==========================================================
 -- SAFE ZONE
@@ -80,7 +98,12 @@ MapConfig.WALL_CAP_OVERHANG = 2
 -- Compression pass 2: the apron was 64 deep with the hub furniture pushed out
 -- to +-66, so a new player crossed an empty field to reach a shop. It is now
 -- 52 deep with everything inside 40 studs of the spawn circle.
-MapConfig.SAFE_ZONE_DEPTH = 52
+-- The lobby is the kit's LobbyFloor: 438.5 wide, 174 deep, one part. The
+-- plots take the back 96 of that depth; the apron in front - spawn, the
+-- feature wings, the treadmill row - is the rest.
+MapConfig.LOBBY_WIDTH = 438.5028076171875
+MapConfig.LOBBY_DEPTH = 173.99996948242188
+MapConfig.SAFE_ZONE_DEPTH = 78
 MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 
 -- ==========================================================
@@ -100,24 +123,26 @@ MapConfig.SAFE_LINE_WIDTH = 4 -- thickness of the painted boundary stripe
 -- 80 is sized off what actually stands in it: a treadmill deck reaches 20
 -- studs in from each plot edge, leaving a clear 40-stud street down the middle
 -- (the paved avenue is 20 of that) - room for several players at full Speed.
-MapConfig.PLAZA_CORRIDOR_WIDTH = 80
+MapConfig.PLAZA_CORRIDOR_WIDTH = 80 -- RETIRED: plots no longer face a corridor
 -- Sized from what a plot has to hold: two ranks of seven display pads
 -- (DISPLAY_SLOT_SIZE) with room for a Giant trophy on each, a back inset, and
 -- the porch at the front for the spawn, the upgrade pad and the signs.
 -- Compression pass 2: three ranks of pads instead of two ranks of seven, so
 -- the same 14 displays fit in 28 fewer studs of depth and the plaza loses 56
 -- studs of width. Frontage came down 8 with the porch furniture re-spaced.
-MapConfig.PLOT_DEPTH = 148 -- plot extent along its inward-facing axis
-MapConfig.PLOT_WIDTH = 76 -- plot extent across its inward-facing axis
-MapConfig.PLOT_GAP = 4 -- clear space between neighbouring side plots
-MapConfig.PLOTS_PER_SIDE = 3 -- 3 left + 3 right + 1 head = 7
+-- Five plots in a row along the lobby's back wall, every one facing the lane.
+-- 5 x 82 + 4 x 6 = 434 of the 438.5 available. Depth 96 holds fourteen
+-- 15-stud pads in four ranks behind a 20-stud porch.
+MapConfig.PLOT_DEPTH = 96 -- plot extent along its inward-facing axis
+MapConfig.PLOT_WIDTH = 82 -- plot extent across its inward-facing axis
+MapConfig.PLOT_GAP = 6 -- clear space between neighbouring plots
+MapConfig.PLOTS_PER_SIDE = 0 -- RETIRED: see getPlotLayouts
 -- The head plot spans the WHOLE back of the plaza (set in the derived section
 -- below, once PLAZA_WIDTH is known). At lane width it left a 60-stud pocket of
 -- bare floor in each back corner - open space nobody used and nothing filled.
 -- Its pads stay grouped in the middle: see HEAD_PLOT_RANK_SPAN.
-MapConfig.HEAD_PLOT_WIDTH = 256 -- overwritten below; kept for readability
-MapConfig.HEAD_PLOT_DEPTH = 84
---- How wide the head plot spreads its two rows of pads, whatever its floor is.
+MapConfig.HEAD_PLOT_WIDTH = 0 -- RETIRED: there is no head plot in the kit's lobby
+MapConfig.HEAD_PLOT_DEPTH = 0
 MapConfig.HEAD_PLOT_RANK_SPAN = 232
 
 -- Per-base furniture
@@ -130,13 +155,13 @@ MapConfig.PAD_SIZE = Vector3.new(12, 1, 12)
 
 -- Display slots run as two long ranks down the plot's deep axis, which both fits
 -- the new footprint and shows a collection off better to anyone walking past.
-MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(17, 1, 17)
-MapConfig.DISPLAY_SLOT_COLS = 3 -- ranks across the plot width
-MapConfig.DISPLAY_BACK_INSET = 14 -- first slot, measured from the plot back edge
-MapConfig.DISPLAY_FRONT_RESERVE = 40 -- room kept clear at the front for the porch
+MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(15, 1, 15)
+MapConfig.DISPLAY_SLOT_COLS = 4 -- ranks across the plot width
+MapConfig.DISPLAY_BACK_INSET = 8 -- first slot, measured from the plot back edge
+MapConfig.DISPLAY_FRONT_RESERVE = 30 -- room kept clear at the front for the porch
 -- The porch: a paved strip across the plot front carrying the spawn, the
 -- upgrade pad and the signs, so the entrance reads as an entrance.
-MapConfig.PORCH_DEPTH = 22
+MapConfig.PORCH_DEPTH = 20
 
 -- ==========================================================
 -- WALL DETAIL AND ZONE GATES
@@ -145,13 +170,14 @@ MapConfig.PORCH_DEPTH = 22
 -- between them. A gate - two pylons and a lintel carrying the zone's name -
 -- marks every zone entrance, high enough that the tallest guardian passes
 -- under it and nothing ever stands in the lane.
-MapConfig.WALL_PILASTER_SPACING = 82
+MapConfig.WALL_PILASTER_SPACING = 82 -- RETIRED: the kit's wall carries its own detail
 MapConfig.WALL_PILASTER_SIZE = Vector3.new(6, 80, 6)
 MapConfig.WALL_TRIM_HEIGHT = 44
-MapConfig.GATE_PYLON_SIZE = Vector3.new(9, 48, 9)
-MapConfig.GATE_LINTEL_HEIGHT = 52
-MapConfig.GATE_LINTEL_THICKNESS = 5
-MapConfig.GATE_INSET = 10 -- pylon centre in from the wall face
+-- Under the 39-stud wall line, so the gate reads as a doorway in the wall.
+MapConfig.GATE_PYLON_SIZE = Vector3.new(7, 29, 7) -- lintel top lands at 38, a stud under the wall cap
+MapConfig.GATE_LINTEL_HEIGHT = 33
+MapConfig.GATE_LINTEL_THICKNESS = 4
+MapConfig.GATE_INSET = 6 -- pylon centre in from the wall face
 
 MapConfig.SAFE_ZONE_HEIGHT = 60
 MapConfig.SAFE_ZONE_CORRIDOR_BLEED = 50 -- how far the safe volume reaches past the plot
@@ -191,13 +217,13 @@ MapConfig.ZONES = {
 -- ratio keeps every silhouette inside the walls after a lane resize.
 MapConfig.LANDMARK_SCALE = MapConfig.LANE_WIDTH / 320
 
-MapConfig.PLAZA_WIDTH = MapConfig.PLAZA_CORRIDOR_WIDTH + 2 * MapConfig.PLOT_DEPTH
-MapConfig.HEAD_PLOT_WIDTH = MapConfig.PLAZA_WIDTH
-
-MapConfig.PLAZA_SIDE_RUN = MapConfig.PLOTS_PER_SIDE * MapConfig.PLOT_WIDTH
-	+ (MapConfig.PLOTS_PER_SIDE - 1) * MapConfig.PLOT_GAP
-
-MapConfig.BASE_AREA_DEPTH = MapConfig.PLAZA_SIDE_RUN + MapConfig.HEAD_PLOT_DEPTH
+MapConfig.PLAZA_WIDTH = MapConfig.LOBBY_WIDTH
+MapConfig.PLAZA_SIDE_RUN = 0
+MapConfig.BASE_AREA_DEPTH = MapConfig.PLOT_DEPTH
+assert(
+	math.abs(MapConfig.SAFE_ZONE_DEPTH + MapConfig.BASE_AREA_DEPTH - MapConfig.LOBBY_DEPTH) < 0.01,
+	"MapConfig: apron + plot depth must equal the template lobby's depth"
+)
 
 MapConfig.PLAZA_FRONT_Z = -MapConfig.SAFE_ZONE_DEPTH
 
@@ -212,27 +238,38 @@ MapConfig.PLAZA_FRONT_Z = -MapConfig.SAFE_ZONE_DEPTH
 --   trailBooth   left of spawn, counter turned to face it
 --   eventStand   right of spawn, board turned to face it
 --   leaderboards flanking the gate, on the safe side, facing back at spawn
+-- THESE ARE DEFAULTS, NOT THE LAYOUT. The layout lives in Studio as the
+-- invisible parts under Workspace.LobbyMarkers (see LobbyLayout): move a
+-- marker and its object follows at the next server start. The builder creates
+-- any marker that is missing from the numbers here and never overwrites one
+-- that exists.
+--
+-- The composition, in the kit's 438.5 x 174 lobby with the lane mouth (160
+-- wide) centred on its front edge at Z = 0:
+--   spawn        centre of the apron, facing the lane
+--   -X wing      the feature area - Money board, trail booth, gift chest -
+--                against the front wall, all facing the spawn. This is on the
+--                player's RIGHT as they face the lane (facing +Z puts +X on
+--                the left in Roblox).
+--   +X wing      the event stand and the Speed board, likewise (player's left)
+--   back wall    five plots, treadmills in a row in front of them
 MapConfig.HUB = {
-	spawn = Vector3.new(0, 0, -26),
-	spawnPlazaDiameter = 26,
-	trailBooth = CFrame.new(-38, 0, -32) * CFrame.Angles(0, math.rad(90), 0),
-	eventStand = Vector3.new(38, 0, -32),
+	spawn = Vector3.new(0, 0, -34),
+	spawnPlazaDiameter = 24,
+	trailBooth = CFrame.new(-146, 0, -12) * CFrame.Angles(0, math.rad(180), 0),
+	eventStand = Vector3.new(128, 0, -12),
 	leaderboards = {
-		Money = Vector3.new(-44, 6.4, -10),
-		Speed = Vector3.new(44, 6.4, -10),
+		Money = Vector3.new(-192, 6.4, -12),
+		Speed = Vector3.new(178, 6.4, -12),
 	},
-	-- The paved avenue from the spawn plaza back through the corridor. 20 is
-	-- five avatars abreast: a street, not the runway 26 read as.
-	avenueWidth = 20,
-	-- The free-gift chest: front-left of the spawn circle, inside the first
-	-- thing a player sees, clear of the avenue and of both leaderboards.
-	giftChest = Vector3.new(-19, 0, -13),
+	avenueWidth = 20, -- RETIRED: the kit's lobby has no avenue
+	giftChest = Vector3.new(-104, 0, -16),
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 
---- Depth of zone `index`, escalating with progression.
+--- Depth of zone `index`: its template floor's length.
 function MapConfig.zoneLength(index: number): number
-	return MapConfig.ZONE_LENGTH * MapConfig.ZONE_LENGTH_SCALE[index]
+	return MapConfig.ZONE_LENGTHS[index]
 end
 
 -- Cumulative near-edge offsets, computed once so nothing recomputes the chain.
@@ -278,42 +315,27 @@ export type PlotLayout = {
 	depth: number, -- extent along `inward`
 }
 
---- Footprint + facing for every one of the seven plots.
--- Sides alternate left/right front-to-back; Base07 caps the head of the plaza.
+--- Footprint + facing for every plot: a row of BASE_COUNT along the lobby's
+--- back wall, centred, every one facing +Z toward the lane. Base01 is the
+--- leftmost as the player looks from the spawn toward the back.
 function MapConfig.getPlotLayouts(): { PlotLayout }
 	local layouts: { PlotLayout } = {}
+	local count = MapConfig.BASE_COUNT
+	local pitch = MapConfig.PLOT_WIDTH + MapConfig.PLOT_GAP
+	local rowWidth = count * MapConfig.PLOT_WIDTH + (count - 1) * MapConfig.PLOT_GAP
+	local firstX = -rowWidth / 2 + MapConfig.PLOT_WIDTH / 2
+	local centerZ = MapConfig.PLAZA_BACK_Z + MapConfig.PLOT_DEPTH / 2
 
-	local sideCenterX = MapConfig.CORRIDOR_HALF + MapConfig.PLOT_DEPTH / 2
-
-	for row = 1, MapConfig.PLOTS_PER_SIDE do
-		local centerZ = MapConfig.PLAZA_FRONT_Z
-			- (row - 1) * (MapConfig.PLOT_WIDTH + MapConfig.PLOT_GAP)
-			- MapConfig.PLOT_WIDTH / 2
-
-		for side = 0, 1 do
-			local sign = if side == 0 then -1 else 1
-			local index = (row - 1) * 2 + side + 1
-
-			table.insert(layouts, {
-				index = index,
-				name = string.format("Base%02d", index),
-				center = Vector3.new(sign * sideCenterX, 0, centerZ),
-				inward = Vector3.new(-sign, 0, 0),
-				width = MapConfig.PLOT_WIDTH,
-				depth = MapConfig.PLOT_DEPTH,
-			})
-		end
+	for index = 1, count do
+		table.insert(layouts, {
+			index = index,
+			name = string.format("Base%02d", index),
+			center = Vector3.new(firstX + (index - 1) * pitch, 0, centerZ),
+			inward = Vector3.new(0, 0, 1),
+			width = MapConfig.PLOT_WIDTH,
+			depth = MapConfig.PLOT_DEPTH,
+		})
 	end
-
-	-- Head plot closes the back of the plaza and faces straight down the world.
-	table.insert(layouts, {
-		index = MapConfig.BASE_COUNT,
-		name = string.format("Base%02d", MapConfig.BASE_COUNT),
-		center = Vector3.new(0, 0, MapConfig.PLAZA_BACK_Z + MapConfig.HEAD_PLOT_DEPTH / 2),
-		inward = Vector3.new(0, 0, 1),
-		width = MapConfig.HEAD_PLOT_WIDTH,
-		depth = MapConfig.HEAD_PLOT_DEPTH,
-	})
 
 	return layouts
 end

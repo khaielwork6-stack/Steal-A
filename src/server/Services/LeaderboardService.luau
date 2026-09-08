@@ -33,6 +33,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
@@ -59,7 +60,11 @@ local STORES = {
 --- the red line, facing back at the spawn so a player walking out toward the
 --- zones reads them on approach. One table (MapConfig.HUB) composes the whole
 --- hub; the height keeps the plate's foot on the floor.
-local BOARD_POSITIONS = MapConfig.HUB.leaderboards
+--- Resolved when a board is placed: Workspace.LobbyMarkers.LeaderboardMoney /
+--- LeaderboardSpeed if the owner has them, else MapConfig.HUB. See LobbyLayout.
+local function boardPosition(stat: string): Vector3
+	return LobbyLayout.position("Leaderboard" .. stat, MapConfig.HUB.leaderboards[stat])
+end
 
 -- ==========================================================
 -- STATE
@@ -325,7 +330,7 @@ local function place(stat: string, board: Model)
 	if not plate then
 		return
 	end
-	local position = BOARD_POSITIONS[stat]
+	local position = boardPosition(stat)
 	plate.Anchored = true
 	plate.CanCollide = true
 	plate.CFrame = CFrame.lookAt(position, position + Vector3.new(0, 0, 1))

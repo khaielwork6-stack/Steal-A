@@ -40,6 +40,7 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local DataService = require(script.Parent.DataService)
@@ -307,7 +308,13 @@ end
 -- is where every customer arrives from. One CFrame moves the whole stall.
 --- Now composed with the rest of the hub in MapConfig.HUB: left of the spawn
 --- circle, counter turned to face it.
-local BOOTH_CFRAME = MapConfig.HUB.trailBooth
+--- Resolved when the booth is built: the owner's Workspace.LobbyMarkers.TrailBooth
+--- if it exists, else MapConfig.HUB. Read late on purpose - markers are
+--- instances in the workspace, and a module-level constant would be captured
+--- before the owner's placement could be consulted.
+local function boothCFrame(): CFrame
+	return LobbyLayout.frame("TrailBooth", MapConfig.HUB.trailBooth)
+end
 --- The interaction circle sits in FRONT of the counter, where a customer stands.
 local ZONE_OFFSET = CFrame.new(0, 0, 9)
 local ZONE_RADIUS = 8.5
@@ -339,7 +346,7 @@ local function buildKeeper()
 
 	local model = Instance.new("Model")
 	model.Name = KEEPER_NAME
-	local base = BOOTH_CFRAME
+	local base = boothCFrame()
 
 	-- Footprint: 12 wide (X), 7 deep (Z). Counter along the front edge.
 	local width, depth = 12, 7
@@ -476,7 +483,7 @@ end
 local inZone: { [Player]: boolean } = {}
 
 local function stepZone()
-	local centre = (BOOTH_CFRAME * ZONE_OFFSET).Position
+	local centre = (boothCFrame() * ZONE_OFFSET).Position
 	for _, player in Players:GetPlayers() do
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")

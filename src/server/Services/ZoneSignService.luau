@@ -138,10 +138,14 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 	-- would silently disagree with it the first time a band boundary moves.
 	local accent = RarityConfig.Colors[RarityConfig.jackpotRarityFor(zone.index)] or RarityConfig.Colors.Common
 
-	-- ONE sign per zone, on the LEFT of the entrance as the player approaches
-	-- (they come up the lane along +Z, so their left is -X). The gate's lintel
-	-- carries the zone's name across the lane; this board carries the number.
-	for _, side in { -1 } do
+	-- ONE sign per zone, on the LEFT of the entrance as the player approaches.
+	-- They come up the lane along +Z, and a character facing +Z has +X on
+	-- its LEFT (Roblox is right-handed: RightVector = Look x Up = -X). The
+	-- earlier pass put the board at -X believing that was left; a Play
+	-- screenshot from the spawn circle showed it on the right. The gate's
+	-- lintel carries the zone's name across the lane; this board carries the
+	-- number.
+	for _, side in { 1 } do
 		local x = side * (MapConfig.LANE_HALF - SIGN_INSET)
 		-- Turned in toward the centre line: the left sign looks a little
 		-- right, the right sign a little left. Front (-Z) faces the approach.

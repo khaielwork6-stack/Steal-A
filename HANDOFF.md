@@ -2,7 +2,10 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §30** (pre-release polish: leaderboards, prompts, the owner
+> **START AT §31** (the template rebuild: the world is cloned from the
+> owner's purchased kit - lane 160, five bases, kit zone lengths, tiled kit
+> walls, rain over 9-12, movable `LobbyMarkers`, decorations gone, the
+> sign-side fix), then §30 (pre-release polish: leaderboards, prompts, the owner
 > avatar display, random bases, night announcement timing, the chase fix, the
 > carry-physics root cause, boss Zzz, the barrier, the gift chest and button,
 > size auras, forward-only zone pop-ups), then §29 (map polish 2: the lobby
@@ -2776,3 +2779,108 @@ eleven equipment-shaped imports build to plain Models; standing on the Passport
 and the Shawarma four times each leaves the backpack at Bat + Trap; the hotbar
 keeps slots 3 and 4 empty while carrying; the carried passport rides 6.1 studs
 in front with its bottom 0.4 above the soles.
+
+## 31. The template rebuild — the world is now built from the purchased kit
+
+The owner bought a map kit (lobby floor, per-zone floors, a wall segment, four
+weather emitters), imported it and named the pieces. This pass makes the
+generator CLONE those pieces instead of drawing its own, and re-sizes the
+whole world to the kit's numbers. The old map is in
+`ServerStorage._MapBackup_pre-kit`.
+
+### 31.1 The kit, and where it lives
+
+Parked under `ServerStorage.GameAssets.Template` (moved out of Workspace so
+nothing stands in the world twice; needs a Save):
+
+| piece | shape | what it decides |
+| --- | --- | --- |
+| `LobbyFloor` | one Part, 438.5 x 1 x 174, 8-stud checker texture | the lobby, cloned whole |
+| `ZoneFloors/"Zone N"` | one thick textured Part each | each zone's LENGTH (97.5 ... 763.1) and look |
+| `WallSegment` | body 8.56 x 36.94 x 145.31 + 2-stud grass cap, texture on the Left face | every wall |
+| `Weather/Zone09..12` | 25 x 2 x 25 Part with box emitters | rain over zones 9-12 |
+
+The kit's checker is a `Texture` (`rbxassetid://6372755229`, 8 studs, 80%
+transparent black) on the part's top: the part colour is the light tile, the
+overlay is the dark one. So "recolour the floor" is one property.
+
+### 31.2 What the world is now (MapConfig)
+
+- **Lane 160 wide** (the kit floors came in 154-165 wide from hand placement;
+  the median keeps the walls straight). Zone lengths are the kit's, to the
+  decimal, in `ZONE_LENGTHS`. No transition strips: the kit's zones abut.
+  Total lane 4,879.6 (was 2,726).
+- **Lobby 438.5 x 174** - `LOBBY_WIDTH/DEPTH`; apron 78, plots 96 deep.
+- **Five bases** (`BASE_COUNT = 5`), 82 wide, in a row along the back wall
+  facing the lane, treadmills 13 out at Z -65. Fourteen 15-stud pads in four
+  ranks (4/4/3/3). **Server Size must be set to 5 in Game Settings.**
+- **Walls 38.94 tall, 8.56 thick**, gates 29-stud pylons with the lintel top
+  at 38.
+- Hub defaults moved to the wings either side of the lane mouth; see 31.4.
+
+### 31.3 What the builder does now (MapBuilder)
+
+- `tileWall` lays kit segments end to end, last one cut to fit, textured face
+  turned inward (`right = -inward`, `back = right x up`). Corners are OWNED:
+  the back wall takes the back corners, the shoulders take the front corners
+  and stop flush against the lane walls' outer faces, so nothing overlaps and
+  nothing is open. Audited: 4,143 rays from inside at ankle, mid and cap
+  height, 0 found no wall; 0 overlapping wall pairs; 0 textured faces facing
+  out; lane mouth open.
+- Zone floors: kit part cloned, `Size = (160, kitThickness, kitLength)`,
+  `Color = MapPalette.Zones[i].a`. The builder WARNS if a kit floor's length
+  disagrees with `ZONE_LENGTHS`, and if the lobby part disagrees with
+  `LOBBY_*`.
+- Zone walls: the kit clay pulled halfway toward `ZoneConfig.color`; the
+  lobby keeps the kit clay; caps stay the kit green.
+- Plot floors: a piece of the same kit floor, one step lighter, still named
+  `PlotFloor.Slab` because BaseService measures the plot from it.
+- **No landmarks, no dressing, no aisles, no planters, no lamps, no avenue.**
+  `MapLandmarks` is no longer required by anything (kept in the repo).
+  Sockets are the even grid (x +-44.8, z at 25% / 75%); the guardian post is
+  the zone centre.
+- `buildWeather`: the kit emitter part stretched to `160 x length` at Y 30,
+  rates scaled by area up to 6x (about 1,000 particles/s in the largest zone;
+  12x looked better and cost 2,100/s in Zone 9 alone).
+- Part count 659 (was 2,765 - the checker is a texture now).
+
+### 31.4 Lobby objects the owner can move in Studio (LobbyLayout)
+
+`Workspace.LobbyMarkers` holds an invisible anchored part per runtime object:
+`Spawn`, `TrailBooth`, `EventStand`, `GiftChest`, `LeaderboardMoney`,
+`LeaderboardSpeed`. TrailService, EventStandService, LeaderboardService,
+GiftChestService and the LobbySpawn read their marker at start and fall back
+to `MapConfig.HUB` only if it is missing; `LobbyLayout.ensureMarkers()` stamps
+out missing ones and never touches existing ones, and the folder lives outside
+`Workspace.Map` so a rebuild cannot reset it. Move a marker, save, done.
+
+Verified: after a rebuild every object stood on its marker (0.0 studs; the
+booth 6.8 because its pivot is its bounding centre, its base point is the
+marker).
+
+### 31.5 A sidedness bug found on the way
+
+A character facing +Z has +X on its LEFT (Roblox is right-handed:
+`RightVector = Look x Up = -X`). `ZoneSignService` had put the zone sign at
+-X believing that was left, so since §28 the sign stood on the player's RIGHT.
+A Play screenshot from the spawn circle showed it. It is at +50 now.
+
+### 31.6 Tested in Play (one client, DataStores off)
+
+Clean console. 48 sockets, 12 guardians, 12 signs facing -Z (LookVector.Z
+-0.94 on all), booth / stand / chest / boards on their markers, weather in
+zones 9-12 only. Join -> random plot of five -> spawn on its porch facing the
+lane. Steal -> escape -> place (pedestal 6.3 on the 15 pad). Treadmill.
+Upgrade 7 -> 8. Booth circle at (-146, -21) opened the shop. Zone 1 chase in
+the 97.5-stud zone: Waking facing the thief, then Chasing at +1.00, escape
+recognised across the line. Zone pop-up fired entering zone 9. Sockets and
+posts all inside their zones. Night barrier 257 wide covers the 160 mouth and
+runs into the shoulder walls.
+
+### 31.7 Not verified / left for the owner
+
+- Multiplayer with five plots at once; mobile frame rate with the weather.
+- The chase balance: zone lengths grew a lot (Zone 12 is 763 studs). Guardian
+  SPEEDS are unchanged (§25's audit), but a late chase is now longer.
+- Server Size 5, Save the place (kit moved to ServerStorage, LobbyMarkers
+  created, Map rebuilt, `_MapBackup_pre-kit`).

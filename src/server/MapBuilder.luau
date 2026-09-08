@@ -10,28 +10,29 @@
 	It is idempotent: an existing Workspace.Map is destroyed and rebuilt, so the
 	generator stays the source of truth while individual parts remain hand-editable.
 
-	WHAT THE WORLD IS MADE OF (the pre-release layout pass)
-	  * THE HUB: the apron between the plaza and the red line. Spawn stands on
-	    a paved circle in its middle facing the Zone 01 gate; the trail booth is
-	    to its left, the event stand to its right, the leaderboards flank the
-	    gate. Every destination is a few seconds' walk (MapConfig.HUB).
-	  * THE PLAZA: a paved avenue runs from the hub back between two rows of
-	    plots, each with its treadmill at the kerb. The plots are sized from
-	    what they hold - two ranks of seven display pads and a porch - and no
-	    more (MapConfig.PLOT_DEPTH / PLAZA_CORRIDOR_WIDTH).
-	  * THE LANE: twelve zones, each with a GATE at its entrance (two pylons
-	    and a lintel carrying the zone's name), a landmark, a composed layout
-	    of four loot plinths and one guardian post (MapLandmarks.layouts), and
-	    supporting scenery. Pilasters and a trim band break the long walls
-	    into bays.
+	WHAT THE WORLD IS MADE OF (the template rebuild)
+	  * THE KIT. The owner bought a map kit; its floor, zone floors and wall
+	    segment are parked under ServerStorage.GameAssets.Template and this
+	    builder CLONES them. Their sizes are the world's sizes (MapConfig
+	    carries the measured numbers; the builder warns if a kit part and the
+	    config ever disagree).
+	  * THE LOBBY: the kit's LobbyFloor, whole - 438.5 x 174. Five plots stand
+	    along its back wall, treadmills in a row in front of them; the spawn
+	    circle is in the middle of the apron facing the lane; the trail booth,
+	    gift chest and Money board are the feature wing on the left of the lane
+	    mouth, the event stand and Speed board on the right. Every one of those
+	    stands on a MARKER the owner can move in Studio (LobbyLayout).
+	  * THE LANE: 160 wide, twelve zones, each floor a clone of its kit part at
+	    its kit length, tinted the zone's colour. A gate at each entrance, one
+	    sign on the left, an even grid of four plinths and a guardian post,
+	    rain over zones 9-12 - and nothing else on the floor.
+	  * THE WALLS: the kit segment tiled end to end around the lobby and down
+	    both sides of the lane, textured face inward, the lobby in the kit's
+	    clay and every zone's run tinted toward that zone's colour. Corners are
+	    owned by one run each, so nothing overlaps and nothing is open.
 	  * FUNCTIONAL PARTS ARE DRESSED, NEVER REMOVED. Sockets, guardian posts,
 	    slot pads, spawn pads and trigger volumes keep their names, sizes and
-	    attributes; what changed is that a socket is a stone plinth instead of
-	    a glowing yellow square and a guardian post is invisible.
-
-	Checker surfaces are built as coarse overlay tiles (one slab per surface plus
-	alternating plates) rather than per-stud parts, which keeps the whole world
-	around 1,500 parts while still reading as real geometry up close.
+	    attributes.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -40,7 +41,8 @@ local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
-local MapLandmarks = require(script.Parent.MapLandmarks)
+local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
+local ServerStorage = game:GetService("ServerStorage")
 
 local MapBuilder = {}
 
@@ -101,65 +103,6 @@ local function segmentRun(center: number, total: number): { { center: number, le
 	return segments
 end
 
---- Horizontal checkered floor whose walkable surface sits exactly at Y = 0.
--- One full-size slab in shade A, plus alternating thin plates in shade B.
-local function makeCheckerFloor(
-	name: string,
-	width: number,
-	depth: number,
-	centerX: number,
-	centerZ: number,
-	surface: MapPalette.Surface,
-	parent: Instance
-): Folder
-	local group = folder(name, parent)
-	local t = MapConfig.FLOOR_THICKNESS
-	local top = if surface.studded then Enum.SurfaceType.Studs else Enum.SurfaceType.Smooth
-	-- Studs only render on Plastic; SmoothPlastic silently swallows the surface type.
-	local mat = if surface.studded then Enum.Material.Plastic else Enum.Material.SmoothPlastic
-
-	for _, seg in segmentRun(centerZ, depth) do
-		makePart({
-			name = "Slab",
-			size = Vector3.new(width, t, seg.length),
-			cframe = CFrame.new(centerX, -t / 2, seg.center),
-			color = surface.a,
-			parent = group,
-			castShadow = false,
-			topSurface = top,
-			material = mat,
-		})
-	end
-
-	-- Checker plates. Cell sizes are derived so the pattern divides the surface
-	-- exactly and never leaves a sliver at the edge.
-	local cols = math.max(1, math.round(width / surface.tile))
-	local rows = math.max(1, math.round(depth / surface.tile))
-	local cw, cd = width / cols, depth / rows
-	local x0, z0 = centerX - width / 2, centerZ - depth / 2
-
-	local tiles = folder("Checker", group)
-	for col = 1, cols do
-		for row = 1, rows do
-			if (col + row) % 2 == 0 then
-				makePart({
-					name = "Tile",
-					size = Vector3.new(cw, 1, cd),
-					cframe = CFrame.new(x0 + cw * (col - 0.5), -0.48, z0 + cd * (row - 0.5)),
-					color = surface.b,
-					parent = tiles,
-					canCollide = false,
-					castShadow = false,
-					topSurface = top,
-					material = mat,
-				})
-			end
-		end
-	end
-
-	return group
-end
-
 --- A paved surface laid ON a floor: a thin smooth slab sitting proud of the
 --- ground by its own thickness, so it never shares a plane with the checker.
 local function makePaving(name: string, size: Vector3, cframe: CFrame, parent: Instance, shape: Enum.PartType?): Part
@@ -174,139 +117,6 @@ local function makePaving(name: string, size: Vector3, cframe: CFrame, parent: I
 		castShadow = false,
 		shape = shape,
 	})
-end
-
---- Vertical checker plating applied to one inward-facing wall surface.
--- `normalX` is +1 when the visible face points toward +X.
-local function plateWallFace(
-	parent: Instance,
-	faceX: number,
-	normalX: number,
-	runCenterZ: number,
-	runLength: number,
-	surface: MapPalette.Surface
-)
-	local height = MapConfig.WALL_HEIGHT
-	local rows = math.max(1, math.round(height / surface.tile))
-	local cols = math.max(1, math.round(runLength / surface.tile))
-	local ch, cw = height / rows, runLength / cols
-	local z0 = runCenterZ - runLength / 2
-
-	local tiles = folder("Checker", parent)
-	for col = 1, cols do
-		for row = 1, rows do
-			if (col + row) % 2 == 0 then
-				makePart({
-					name = "Tile",
-					size = Vector3.new(0.4, ch, cw),
-					cframe = CFrame.new(faceX + normalX * 0.2, ch * (row - 0.5), z0 + cw * (col - 0.5)),
-					color = surface.b,
-					parent = tiles,
-					canCollide = false,
-					castShadow = false,
-				})
-			end
-		end
-	end
-end
-
---- Pilasters and a trim band along one inward-facing wall run. Non-colliding:
---- they are relief, and a shoulder or a guardian must never catch on them.
-local function detailWallFace(parent: Instance, faceX: number, normalX: number, runCenterZ: number, runLength: number)
-	local size = MapConfig.WALL_PILASTER_SIZE
-	local spacing = MapConfig.WALL_PILASTER_SPACING
-	local z0 = runCenterZ - runLength / 2
-	local count = math.max(1, math.floor(runLength / spacing))
-	local step = runLength / count
-
-	local detail = folder("Detail", parent)
-	for i = 0, count do
-		local z = z0 + step * i
-		makePart({
-			name = "Pilaster",
-			size = size,
-			cframe = CFrame.new(faceX + normalX * size.X / 2, size.Y / 2, z),
-			color = MapPalette.WallPilaster,
-			parent = detail,
-			canCollide = false,
-			castShadow = false,
-		})
-	end
-	for _, seg in segmentRun(runCenterZ, runLength) do
-		makePart({
-			name = "Trim",
-			size = Vector3.new(0.8, 3, seg.length),
-			cframe = CFrame.new(faceX + normalX * 0.4, MapConfig.WALL_TRIM_HEIGHT, seg.center),
-			color = MapPalette.WallTrim,
-			parent = detail,
-			canCollide = false,
-			castShadow = false,
-		})
-	end
-end
-
---- Containment wall plus its bright cap, bottom-aligned to Y = 0.
--- Long runs are chunked so no Part exceeds Roblox's 2048-stud axis cap.
--- `checkerNormal` (-1 / 0 / +1) says which side, if any, gets checker plating
--- and wall detail.
-local function makeWall(
-	name: string,
-	width: number,
-	depth: number,
-	centerX: number,
-	centerZ: number,
-	parent: Instance,
-	checkerNormal: number?
-): Folder
-	local h = MapConfig.WALL_HEIGHT
-	local capH = MapConfig.WALL_CAP_HEIGHT
-	local over = MapConfig.WALL_CAP_OVERHANG
-	local surface = MapPalette.WallFace
-
-	local group = folder(name, parent)
-
-	local alongZ = depth >= width
-	local runTotal = if alongZ then depth else width
-	local runCenter = if alongZ then centerZ else centerX
-	local segments = segmentRun(runCenter, runTotal)
-
-	for i, seg in segments do
-		local sx = if alongZ then width else seg.length
-		local sz = if alongZ then seg.length else depth
-		local cx = if alongZ then centerX else seg.center
-		local cz = if alongZ then seg.center else centerZ
-		local suffix = if #segments == 1 then "" else string.format("_%02d", i)
-
-		makePart({
-			name = "Face" .. suffix,
-			size = Vector3.new(sx, h, sz),
-			cframe = CFrame.new(cx, h / 2, cz),
-			color = surface.a,
-			parent = group,
-		})
-
-		makePart({
-			name = "Cap" .. suffix,
-			size = Vector3.new(
-				if alongZ then sx + over * 2 else sx,
-				capH,
-				if alongZ then sz else sz + over * 2
-			),
-			cframe = CFrame.new(cx, h + capH / 2, cz),
-			color = MapPalette.WallCap,
-			parent = group,
-			topSurface = Enum.SurfaceType.Studs,
-			material = Enum.Material.Plastic,
-		})
-	end
-
-	if checkerNormal and checkerNormal ~= 0 and alongZ then
-		local faceX = centerX + checkerNormal * width / 2
-		plateWallFace(group, faceX, checkerNormal, centerZ, depth, surface)
-		detailWallFace(group, faceX, checkerNormal, centerZ, depth)
-	end
-
-	return group
 end
 
 --- Invisible, non-colliding trigger volume.
@@ -381,118 +191,172 @@ end
 -- SMALL PROPS
 -- ==========================================================
 
---- A planter box with a bush in it. Two parts, no collision.
-local function makePlanter(name: string, cframe: CFrame, parent: Instance)
-	makePart({
-		name = name,
-		size = Vector3.new(8, 3, 8),
-		cframe = cframe * CFrame.new(0, 1.5, 0),
-		parent = parent,
-		color = MapPalette.Planter,
-		material = Enum.Material.Plastic,
-		canCollide = false,
-		castShadow = false,
-	})
-	makePart({
-		name = name .. "Bush",
-		size = Vector3.new(9, 8, 9),
-		cframe = cframe * CFrame.new(0, 6.5, 0),
-		parent = parent,
-		color = MapPalette.Bush,
-		material = Enum.Material.Grass,
-		canCollide = false,
-		castShadow = false,
-		shape = Enum.PartType.Ball,
-	})
-end
-
---- A lamp post: a dark post with a warm glowing head. No light source - the
---- neon head reads as lit without a PointLight per plot.
-local function makeLamp(name: string, cframe: CFrame, parent: Instance)
-	makePart({
-		name = name,
-		size = Vector3.new(0.9, 9, 0.9),
-		cframe = cframe * CFrame.new(0, 4.5, 0),
-		parent = parent,
-		color = MapPalette.LampPost,
-		canCollide = false,
-		castShadow = false,
-	})
-	makePart({
-		name = name .. "Glow",
-		size = Vector3.new(2.4, 2.4, 2.4),
-		cframe = cframe * CFrame.new(0, 9.8, 0),
-		parent = parent,
-		color = MapPalette.LampGlow,
-		material = Enum.Material.Neon,
-		canCollide = false,
-		castShadow = false,
-		shape = Enum.PartType.Ball,
-	})
-end
-
 -- ==========================================================
 -- LANE FLOORS AND THE HUB
 -- ==========================================================
 
+-- ==========================================================
+-- THE TEMPLATE KIT
+-- ==========================================================
+--
+-- The owner bought a map kit and imported it; it is parked, by name, under
+-- ServerStorage.GameAssets.Template:
+--
+--   LobbyFloor          one textured Part, 438.5 x 1 x 174. The lobby IS this
+--                       part, cloned whole - its size is the lobby's size.
+--   ZoneFloors/"Zone N" one textured Part per zone, a thick slab. Its length
+--                       is that zone's length; the lane is 160 wide (their
+--                       median) so the walls run straight.
+--   WallSegment         a body and a grass cap, 8.56 thick, 38.9 tall,
+--                       145.3 long, texture on the body's LEFT face.
+--   Weather/ZoneNN      the rain / snow / dust emitter parts for zones 9-12.
+--
+-- Everything visual is CLONED from those. Nothing here draws a checker with
+-- parts any more; the kit's 8-stud texture is the checker. Colours are the
+-- one thing changed: zone floors and zone walls take their zone's identity,
+-- the lobby keeps the kit's own.
+
+local function templateKit(): Instance
+	local assets = ServerStorage:FindFirstChild("GameAssets")
+	local kit = assets and assets:FindFirstChild("Template")
+	assert(kit, "MapBuilder: ServerStorage.GameAssets.Template is missing - park the imported kit there")
+	return kit :: Instance
+end
+
+local function zoneFloorTemplate(index: number): BasePart
+	local floors = templateKit():FindFirstChild("ZoneFloors")
+	local part = floors and floors:FindFirstChild("Zone " .. index)
+	assert(part and part:IsA("BasePart"), `MapBuilder: Template.ZoneFloors."Zone {index}" is missing`)
+	return part :: BasePart
+end
+
+local function lobbyFloorTemplate(): BasePart
+	local part = templateKit():FindFirstChild("LobbyFloor")
+	assert(part and part:IsA("BasePart"), "MapBuilder: Template.LobbyFloor is missing")
+	return part :: BasePart
+end
+
+--- The wall kit's two parts, told apart by shape: the tall one is the body.
+local function wallSegmentTemplate(): (BasePart, BasePart)
+	local seg = templateKit():FindFirstChild("WallSegment")
+	assert(seg, "MapBuilder: Template.WallSegment is missing")
+	local body: BasePart? = nil
+	local cap: BasePart? = nil
+	for _, child in seg:GetChildren() do
+		if child:IsA("BasePart") then
+			if child.Size.Y > 10 then
+				body = child
+			else
+				cap = child
+			end
+		end
+	end
+	assert(body and cap, "MapBuilder: Template.WallSegment needs a body part and a cap part")
+	return body :: BasePart, cap :: BasePart
+end
+
+local function weatherTemplate(index: number): BasePart?
+	local weather = templateKit():FindFirstChild("Weather")
+	local part = weather and weather:FindFirstChild(string.format("Zone%02d", index))
+	return if part and part:IsA("BasePart") then part else nil
+end
+
+--- A zone's wall colour: the kit's own clay pulled halfway toward the zone's
+--- identity colour (the one its gate band and pop-up already wear). Halfway
+--- keeps it reading as the same wall kit all the way down the world while
+--- the hue turns with the zones; the texture is untouched.
+local function zoneWallColor(index: number, kitColor: Color3): Color3
+	local def = ZoneConfig.Zones[index]
+	return kitColor:Lerp(def.color, 0.5)
+end
+
+--- One straight run of wall from `from` to `to`, built from clones of the
+--- kit segment laid end to end, the last one cut to the remainder, with the
+--- textured face turned along `inward`. `zoneIndex` tints the body; nil
+--- keeps the kit's colour (the lobby).
+local function tileWall(name: string, parent: Instance, from: Vector3, to: Vector3, inward: Vector3, zoneIndex: number?)
+	local run = folder(name, parent)
+	local body, cap = wallSegmentTemplate()
+	local thickness = MapConfig.WALL_THICKNESS
+	local bodyH = MapConfig.WALL_BODY_HEIGHT
+	local capH = MapConfig.WALL_CAP_HEIGHT
+	local segLen = MapConfig.WALL_SEGMENT_LENGTH
+
+	local span = to - from
+	local length = span.Magnitude
+	if length < 0.01 then
+		return run
+	end
+	local dir = span.Unit
+	local up = Vector3.yAxis
+	-- Local +X is the untextured side, so local -X (the kit's textured Left
+	-- face) points inward. Local +Z, the segment's long axis, follows.
+	local right = -inward
+	local back = right:Cross(up)
+
+	local tint = if zoneIndex then zoneWallColor(zoneIndex, body.Color) else body.Color
+	local count = math.max(1, math.ceil(length / segLen - 0.001))
+	for i = 1, count do
+		local offset = (i - 1) * segLen
+		local len = math.min(segLen, length - offset)
+		local centre = from + dir * (offset + len / 2)
+		local frame = CFrame.fromMatrix(centre + up * (bodyH / 2), right, up, back)
+
+		local b = body:Clone()
+		b.Name = "Body"
+		b.Size = Vector3.new(thickness, bodyH, len)
+		b.CFrame = frame
+		b.Anchored = true
+		b.CanCollide = true
+		b.CanQuery = true
+		b.CanTouch = false
+		b.Color = tint
+		b.Parent = run
+
+		local c = cap:Clone()
+		c.Name = "Cap"
+		c.Size = Vector3.new(thickness, capH, len)
+		c.CFrame = frame + up * (bodyH / 2 + capH / 2)
+		c.Anchored = true
+		c.CanCollide = true
+		c.CanQuery = true
+		c.CanTouch = false
+		c.Parent = run
+	end
+	return run
+end
+
 local function buildLaneFloors(map: Instance)
 	local floors = folder("LaneFloors", map)
 
-	makeCheckerFloor(
-		"PlazaFloor",
-		MapConfig.PLAZA_WIDTH,
-		MapConfig.BASE_AREA_DEPTH,
-		0,
-		MapConfig.PLAZA_BACK_Z + MapConfig.BASE_AREA_DEPTH / 2,
-		MapPalette.Plaza,
-		floors
-	)
+	-- THE LOBBY IS THE KIT'S PART. Cloned whole and never resized: its 438.5 x
+	-- 174 is what MapConfig.LOBBY_WIDTH / LOBBY_DEPTH were measured from, and
+	-- if the two ever disagree the part wins on screen and the assert below
+	-- says so in the output.
+	local template = lobbyFloorTemplate()
+	local lobby = template:Clone()
+	lobby.Name = "LobbyFloor"
+	lobby.Anchored = true
+	lobby.CanCollide = true
+	lobby.CanQuery = true
+	lobby.CFrame = CFrame.new(0, -lobby.Size.Y / 2, MapConfig.PLAZA_BACK_Z + MapConfig.LOBBY_DEPTH / 2)
+	lobby.Parent = floors
+	if math.abs(lobby.Size.X - MapConfig.LOBBY_WIDTH) > 0.05 or math.abs(lobby.Size.Z - MapConfig.LOBBY_DEPTH) > 0.05 then
+		warn(string.format(
+			"[MapBuilder] Template.LobbyFloor is %.1f x %.1f but MapConfig says %.1f x %.1f - update MapConfig.LOBBY_*",
+			lobby.Size.X, lobby.Size.Z, MapConfig.LOBBY_WIDTH, MapConfig.LOBBY_DEPTH
+		))
+	end
 
-	makeCheckerFloor(
-		"SafeApronFloor",
-		MapConfig.LANE_WIDTH,
-		MapConfig.SAFE_ZONE_DEPTH,
-		0,
-		MapConfig.PLAZA_FRONT_Z + MapConfig.SAFE_ZONE_DEPTH / 2,
-		MapPalette.SafeApron,
-		floors
-	)
-
-	-- THE HUB PAVING. A circle under the spawn, and the avenue running from it
-	-- back through the plaza to the head plot's porch. Paving sits 0.3 proud
-	-- of the checker so it can never share a plane with it.
+	-- The spawn circle, under the Spawn marker. The one piece of paving left:
+	-- it tells a new player where they are standing and which way is forward.
 	local hub = MapConfig.HUB
+	local spawnAt = LobbyLayout.position("Spawn", hub.spawn)
 	local paving = folder("Paving", map)
 	local diameter = hub.spawnPlazaDiameter
-	makePaving("SpawnPlazaEdge", Vector3.new(0.4, diameter + 4, diameter + 4), CFrame.new(hub.spawn.X, 0.2, hub.spawn.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder).Color =
+	makePaving("SpawnPlazaEdge", Vector3.new(0.4, diameter + 4, diameter + 4), CFrame.new(spawnAt.X, 0.2, spawnAt.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder).Color =
 		MapPalette.PavingEdge
-	makePaving("SpawnPlaza", Vector3.new(0.6, diameter, diameter), CFrame.new(hub.spawn.X, 0.3, hub.spawn.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder)
-
-	local avenueFrontZ = hub.spawn.Z - diameter / 2
-	local avenueBackZ = MapConfig.PLAZA_BACK_Z + MapConfig.HEAD_PLOT_DEPTH
-	local avenueLength = avenueFrontZ - avenueBackZ
-	for _, seg in segmentRun((avenueFrontZ + avenueBackZ) / 2, avenueLength) do
-		makePaving("Avenue", Vector3.new(hub.avenueWidth, 0.3, seg.length), CFrame.new(0, 0.15, seg.center), paving)
-	end
-	-- A short spur from the spawn circle up to the red line, so the way into
-	-- the world is drawn on the ground.
-	local spurFrontZ = hub.spawn.Z + diameter / 2
-	makePaving("Spur", Vector3.new(hub.avenueWidth, 0.3, -6 - spurFrontZ), CFrame.new(0, 0.15, (spurFrontZ - 6) / 2), paving)
-
-	-- Greenery and lamps ring the spawn circle so the hub reads as a place.
-	-- Nothing stands on the circle's Z axis: that is the line a new player
-	-- walks from the spawn to the gate, and the line they look along.
-	local props = folder("Decorations", map)
-	for _, sign in { -1, 1 } do
-		local radius = diameter / 2 + 7
-		makePlanter("HubPlanter", CFrame.new(hub.spawn.X + sign * radius, 0, hub.spawn.Z), props)
-	end
-	for i = 0, 3 do
-		local angle = math.rad(45 + i * 90)
-		local radius = diameter / 2 + 5
-		local at = Vector3.new(hub.spawn.X + math.cos(angle) * radius, 0, hub.spawn.Z + math.sin(angle) * radius)
-		makeLamp("HubLamp" .. i, CFrame.new(at), props)
-	end
+	makePaving("SpawnPlaza", Vector3.new(0.6, diameter, diameter), CFrame.new(spawnAt.X, 0.3, spawnAt.Z) * CFrame.Angles(0, 0, math.rad(90)), paving, Enum.PartType.Cylinder)
 end
 
 -- ==========================================================
@@ -501,44 +365,53 @@ end
 
 local function buildWalls(map: Instance)
 	local walls = folder("Walls", map)
-
 	local t = MapConfig.WALL_THICKNESS
-	local laneOuterX = MapConfig.LANE_HALF + t / 2
-	local plazaOuterX = MapConfig.PLAZA_HALF + t / 2
+	local half = MapConfig.LANE_HALF
+	local lobbyHalf = MapConfig.PLAZA_HALF
+	local backZ = MapConfig.PLAZA_BACK_Z
+	local endZ = MapConfig.LANE_END_Z
 
-	local laneRun = MapConfig.LANE_END_Z - MapConfig.PLAZA_FRONT_Z
-	local laneCenterZ = MapConfig.PLAZA_FRONT_Z + laneRun / 2
+	-- CORNERS ARE OWNED, NOT OVERLAPPED. Every corner block of wall belongs to
+	-- exactly one run, and the run meeting it stops flush against its face -
+	-- so no two segments share a plane anywhere (no z-fighting at the tops or
+	-- the caps) and no corner is open.
+	--
+	-- Lane sides, one run per zone so each takes its zone's colour, and the
+	-- segment boundaries fall on the zone boundaries.
+	for i = 1, MapConfig.ZONE_COUNT do
+		local z0 = MapConfig.zoneStartZ(i)
+		local z1 = MapConfig.zoneEndZ(i)
+		for _, sign in { -1, 1 } do
+			local x = sign * (half + t / 2)
+			tileWall(
+				string.format("Zone%02d_%s", i, if sign < 0 then "Left" else "Right"),
+				walls,
+				Vector3.new(x, 0, z0),
+				Vector3.new(x, 0, z1),
+				Vector3.new(-sign, 0, 0),
+				i
+			)
+		end
+	end
+	-- The end of the world, across the lane, owning both far corners.
+	tileWall("WorldEnd", walls, Vector3.new(-(half + t), 0, endZ + t / 2), Vector3.new(half + t, 0, endZ + t / 2), Vector3.new(0, 0, -1), MapConfig.ZONE_COUNT)
 
+	-- The lobby, in the kit's own colour. The back wall owns the two back
+	-- corners; the shoulders own the two front corners and stop flush against
+	-- the lane walls' outer faces.
+	tileWall("LobbyBack", walls, Vector3.new(-(lobbyHalf + t), 0, backZ - t / 2), Vector3.new(lobbyHalf + t, 0, backZ - t / 2), Vector3.new(0, 0, 1))
 	for _, sign in { -1, 1 } do
 		local side = if sign < 0 then "Left" else "Right"
-
-		-- Inward face is the one players see, so that is the side we plate.
-		makeWall(side .. "Wall", t, laneRun, sign * laneOuterX, laneCenterZ, walls, -sign)
-		makeWall(
-			side .. "PlazaWall",
-			t,
-			MapConfig.BASE_AREA_DEPTH,
-			sign * plazaOuterX,
-			MapConfig.PLAZA_BACK_Z + MapConfig.BASE_AREA_DEPTH / 2,
+		local x = sign * (lobbyHalf + t / 2)
+		tileWall("Lobby" .. side, walls, Vector3.new(x, 0, backZ), Vector3.new(x, 0, 0), Vector3.new(-sign, 0, 0))
+		tileWall(
+			"Shoulder" .. side,
 			walls,
-			-sign
-		)
-
-		local shoulderInner = MapConfig.LANE_HALF
-		local shoulderOuter = MapConfig.PLAZA_HALF + t
-		local shoulderWidth = shoulderOuter - shoulderInner
-		makeWall(
-			side .. "Shoulder",
-			shoulderWidth,
-			t,
-			sign * (shoulderInner + shoulderWidth / 2),
-			MapConfig.PLAZA_FRONT_Z - t / 2,
-			walls
+			Vector3.new(sign * (half + t), 0, t / 2),
+			Vector3.new(sign * (lobbyHalf + t), 0, t / 2),
+			Vector3.new(0, 0, -1)
 		)
 	end
-
-	makeWall("PlazaBackWall", MapConfig.PLAZA_WIDTH + t * 2, t, 0, MapConfig.PLAZA_BACK_Z - t / 2, walls)
-	makeWall("WorldEndWall", MapConfig.LANE_WIDTH + t * 2, t, 0, MapConfig.LANE_END_Z + t / 2, walls)
 end
 
 -- ==========================================================
@@ -678,7 +551,6 @@ end
 
 local function buildZones(map: Instance)
 	local zones = folder("Zones", map)
-	local transitions = folder("Transitions", map)
 
 	for i, def in MapConfig.ZONES do
 		local startZ = MapConfig.zoneStartZ(i)
@@ -692,7 +564,24 @@ local function buildZones(map: Instance)
 		zone:SetAttribute("GuardianId", def.guardian)
 		zone:SetAttribute("ZoneLength", length)
 
-		makeCheckerFloor("Floor", MapConfig.LANE_WIDTH, length, 0, centerZ, surface, zone)
+		-- THE KIT FLOOR. Its length is the zone's length (that is where
+		-- MapConfig.ZONE_LENGTHS came from); its width is set to the lane's
+		-- 160 so the walls run straight; its thickness, texture and material
+		-- are the kit's. Only the colour is ours: the zone's own light tone,
+		-- which the kit's 8-stud checker overlay darkens on alternate tiles.
+		local template = zoneFloorTemplate(i)
+		local floor = template:Clone()
+		floor.Name = "Floor"
+		floor.Size = Vector3.new(MapConfig.LANE_WIDTH, template.Size.Y, length)
+		floor.CFrame = CFrame.new(0, -template.Size.Y / 2, centerZ)
+		floor.Anchored = true
+		floor.CanCollide = true
+		floor.CanQuery = true
+		floor.Color = surface.a
+		floor.Parent = zone
+		if math.abs(math.max(template.Size.X, template.Size.Z) - length) > 0.05 then
+			warn(string.format("[MapBuilder] Template.ZoneFloors.\"Zone %d\" is %.1f long but MapConfig.ZONE_LENGTHS says %.1f", i, math.max(template.Size.X, template.Size.Z), length))
+		end
 
 		makeVolume(
 			"Bounds",
@@ -707,18 +596,54 @@ local function buildZones(map: Instance)
 		folder("GuardianSpawns", zone)
 		buildGate(zone, i, startZ)
 
-		if i < MapConfig.ZONE_COUNT then
-			local blend = MapPalette.transition(i)
-			makeCheckerFloor(
-				string.format("Transition%02d_%02d", i, i + 1),
-				MapConfig.LANE_WIDTH,
-				MapConfig.TRANSITION_DEPTH,
-				0,
-				MapConfig.zoneEndZ(i) + MapConfig.TRANSITION_DEPTH / 2,
-				{ a = blend, b = blend:Lerp(Color3.new(0, 0, 0), 0.08), studded = surface.studded, tile = 40 },
-				transitions
-			)
+	end
+end
+
+-- ==========================================================
+-- WEATHER
+-- ==========================================================
+
+--- Rain over the zones the kit supplied it for. The emitter is the kit's own
+--- part stretched to the zone: its emitters are Box/Volume shaped, so the
+--- part's footprint IS the emission area, and a 160 x length part rains on
+--- the whole zone and nowhere else. Rate is scaled with the area up to a cap,
+--- so a big zone is not a drizzle but a phone is not asked to draw a storm.
+local WEATHER_HEIGHT = 30
+-- 6x the kit's authored rate is about 1,000 particles a second over the
+-- biggest zone: reads as weather from the ground, and a phone still draws it.
+-- 12x looked better and cost 2,100/s in Zone 9 alone.
+local WEATHER_RATE_CAP = 6
+
+local function buildWeather(map: Instance)
+	local zones = map:FindFirstChild("Zones")
+	if not zones then
+		return
+	end
+	for i, def in MapConfig.ZONES do
+		local template = weatherTemplate(i)
+		local zone = zones:FindFirstChild(def.id)
+		if not template or not zone then
+			continue
 		end
+		local length = MapConfig.zoneLength(i)
+		local weather = template:Clone()
+		weather.Name = "Weather"
+		weather.Size = Vector3.new(MapConfig.LANE_WIDTH, template.Size.Y, length)
+		weather.CFrame = CFrame.new(0, WEATHER_HEIGHT, MapConfig.zoneCenterZ(i))
+		weather.Anchored = true
+		weather.CanCollide = false
+		weather.CanQuery = false
+		weather.CanTouch = false
+		weather.CastShadow = false
+		weather.Transparency = 1
+		local factor = math.clamp((MapConfig.LANE_WIDTH * length) / (template.Size.X * template.Size.Z), 1, WEATHER_RATE_CAP)
+		for _, d in weather:GetDescendants() do
+			if d:IsA("ParticleEmitter") then
+				d.Rate = d.Rate * factor
+				d.Enabled = true
+			end
+		end
+		weather.Parent = zone
 	end
 end
 
@@ -813,7 +738,7 @@ end
 
 --- Places the four loot sockets and the guardian post of every zone.
 -- Runs AFTER landmarks so a socket can never end up buried inside a pyramid or
--- pressed against a wall. Each zone's layout comes from MapLandmarks.layouts -
+-- pressed against a wall. Each zone's layout is the even grid below -
 -- composed against its own landmark - and falls back to the symmetric grid
 -- for a zone that has none.
 local function placeSockets(map: Instance)
@@ -837,7 +762,9 @@ local function placeSockets(map: Instance)
 
 		local footprints = blockerFootprints(zone)
 		local minZ, maxZ = startZ + 14, startZ + length - 14
-		local layout = MapLandmarks.layouts[i]
+		-- No landmarks any more (the kit's zones are open floor), so no
+		-- authored layout: the even grid below is the layout.
+		local layout = nil
 
 		local wanted: { Vector2 } = {}
 		if layout then
@@ -864,10 +791,6 @@ local function placeSockets(map: Instance)
 			end
 			makeSocket(string.format("Socket%02d", n), CFrame.new(x, 0.3, z), sockets)
 			table.insert(placed, { x = x, z = z, hx = 10, hz = 10 })
-			-- Themed props BESIDE the plinth, so the loot reads as part of the
-			-- zone rather than dropped on a lawn. After settling on purpose:
-			-- anything placed before this would have pushed the socket away.
-			MapLandmarks.dressSocket(i, zone:FindFirstChild("Decorations"), Vector3.new(x, 0, z))
 		end
 
 		-- ONE guardian per zone, resting where its layout puts it. Validated
@@ -914,55 +837,25 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	-- the plaza slab runs underneath every plot, and while both tops sat at
 	-- Y = 0 the two surfaces z-fought across the whole footprint. 0.15 is well
 	-- under a humanoid step, so the plot is still one continuous walk.
-	local surface = MapPalette.PlotFloor
+	-- The plot floor is a piece of the SAME kit floor as the lobby - same
+	-- texture, same 8-stud checker - one step lighter so ownership reads,
+	-- named Slab because BaseService measures the plot from it.
 	local floorGroup = folder("PlotFloor", base)
-	makePart({
-		name = "Slab",
-		size = Vector3.new(layout.width, 1.2, layout.depth),
-		cframe = at(0, -0.45, 0),
-		color = surface.a,
-		parent = floorGroup,
-		castShadow = false,
-		topSurface = Enum.SurfaceType.Studs,
-		material = Enum.Material.Plastic,
-	})
-
-	local cols = math.max(1, math.round(layout.width / surface.tile))
-	local rows = math.max(1, math.round(layout.depth / surface.tile))
-	local cw, cd = layout.width / cols, layout.depth / rows
-	local tiles = folder("Checker", floorGroup)
-	for col = 1, cols do
-		for row = 1, rows do
-			if (col + row) % 2 == 0 then
-				makePart({
-					name = "Tile",
-					size = Vector3.new(cw, 1, cd),
-					cframe = at(-halfW + cw * (col - 0.5), -0.33, -halfD + cd * (row - 0.5)),
-					color = surface.b,
-					parent = tiles,
-					canCollide = false,
-					castShadow = false,
-					topSurface = Enum.SurfaceType.Studs,
-					material = Enum.Material.Plastic,
-				})
-			end
-		end
-	end
+	local slab = lobbyFloorTemplate():Clone()
+	slab.Name = "Slab"
+	slab.Size = Vector3.new(layout.width, 1.2, layout.depth)
+	slab.CFrame = at(0, -0.45, 0)
+	slab.Anchored = true
+	slab.CanCollide = true
+	slab.CanQuery = true
+	slab.Color = MapPalette.PlotFloor.a
+	slab.Parent = floorGroup
 
 	-- THE PORCH: a paved strip across the front carrying the spawn, the
 	-- upgrade pad and the signs, and a path from it back between the ranks.
 	local porch = MapConfig.PORCH_DEPTH
 	local paving = folder("Paving", base)
 	makePaving("Porch", Vector3.new(layout.width - 6, 0.3, porch), at(0, 0.15, -halfD + porch / 2 + 2), paving)
-	-- Aisles run back from the porch BETWEEN the ranks of pads, not under them:
-	-- with three ranks a single central path would have been buried by the
-	-- middle rank. One aisle per boundary, so the walk to any pad is paved.
-	local pathLength = layout.depth - porch - 8
-	local aisles = if layout.depth >= layout.width then MapConfig.DISPLAY_SLOT_COLS - 1 else 1
-	for i = 1, aisles do
-		local offset = if aisles == 1 then 0 else -layout.width / 2 + layout.width * i / MapConfig.DISPLAY_SLOT_COLS
-		makePaving("Path", Vector3.new(6, 0.3, pathLength), at(offset, 0.15, -halfD + porch + 2 + pathLength / 2), paving)
-	end
 
 	-- Post-and-two-rail fence on the three enclosed sides, in the reference's
 	-- dark-post / white-rail language; the front stays open so players run
@@ -1027,14 +920,6 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 			canCollide = false,
 			castShadow = false,
 		})
-	end
-
-	-- Planters in the two back corners; nothing else stands on the display
-	-- floor, so the trophies stay the exhibit.
-	local props = folder("Decorations", base)
-	for _, sign in { -1, 1 } do
-		makePlanter("Planter", at(sign * (halfW - 7), 0, halfD - 7), props)
-		makeLamp("Lamp", at(sign * (halfW - 4), 0, -halfD + porch + 1), props)
 	end
 
 	-- DISPLAY SLOTS: two ranks of seven along the plot's LONG axis. On a side
@@ -1187,10 +1072,13 @@ local function buildSpawns(map: Instance)
 	local s = Instance.new("SpawnLocation")
 	s.Name = "LobbySpawn"
 	s.Size = Vector3.new(24, 1, 24)
-	-- On the hub's paved circle, FACING THE GATE: the first thing a new player
-	-- sees is the red line, the Zone 01 sign and the Museum beyond it, with
-	-- the booth and the stand at the edges of the view.
-	s.CFrame = CFrame.lookAt(Vector3.new(hub.spawn.X, 0.7, hub.spawn.Z), Vector3.new(hub.spawn.X, 0.7, hub.spawn.Z + 40))
+	-- Where the Spawn MARKER is, facing the way it faces (Workspace.LobbyMarkers
+	-- .Spawn - move it in Studio and this follows). The default faces the lane.
+	local marker = LobbyLayout.frame("Spawn", CFrame.lookAt(hub.spawn, hub.spawn + Vector3.new(0, 0, 40)))
+	local look = marker.LookVector
+	local flatLook = if Vector3.new(look.X, 0, look.Z).Magnitude > 0.01 then Vector3.new(look.X, 0, look.Z).Unit else Vector3.zAxis
+	local at = Vector3.new(marker.Position.X, 0.7, marker.Position.Z)
+	s.CFrame = CFrame.lookAt(at, at + flatLook * 40)
 	s.Anchored = true
 	s.CanCollide = false
 	s.Transparency = 1
@@ -1256,18 +1144,22 @@ function MapBuilder.build(): Folder
 		existing:Destroy()
 	end
 
+	-- The owner's placements, outside the map so this rebuild never touches
+	-- them. Created from MapConfig.HUB only where missing.
+	LobbyLayout.ensureMarkers()
+
 	local map = folder("Map", workspace)
 
 	buildLaneFloors(map)
 	buildZones(map)
+	buildWeather(map)
 	buildWalls(map)
 	buildSafeZone(map)
 	buildBases(map)
 	buildSpawns(map)
 
-	-- Landmarks first, then sockets, so loot spawns can be validated against the
-	-- scenery that actually exists rather than against assumed clear ground.
-	MapLandmarks.build(map)
+	-- No landmarks and no dressing: the kit's zones are open floor with the
+	-- loot, the guardian, the gate and the sign on it, which is the brief.
 	placeSockets(map)
 	MapBuilder.applyDecorCollision(map)
 
