@@ -1214,6 +1214,10 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 				id = pass.gamePassId
 			elseif key == "Cash2x" then
 				id = MonetizationConfig.CashPass.gamePassId
+			elseif MonetizationConfig.GuardianPassByKey[key] then
+				id = MonetizationConfig.GuardianPassByKey[key].gamePassId
+			elseif key == "Slap" then
+				id = MonetizationConfig.SlapPass.gamePassId
 			else
 				local trail = MonetizationConfig.TrailByKey[key]
 				id = trail and trail.gamePassId
@@ -1243,6 +1247,10 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 					MonetizationService.setOwnedForTesting(player, trail.gamePassId, false)
 				end
 			end
+			for _, pass in MonetizationConfig.GuardianPasses do
+				MonetizationService.setOwnedForTesting(player, pass.gamePassId, false)
+			end
+			MonetizationService.setOwnedForTesting(player, MonetizationConfig.SlapPass.gamePassId, false)
 			local tier = MonetizationService.nextSpeedTier(player)
 			return {
 				disowned = true,
@@ -1476,6 +1484,71 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	end,
 
 	--- Inspects, resets, or attacks the one-time tutorial Cash bridge.
+	--- Base guardians. `bayTest Base01 Tiger` spawns a guardian on that plot
+	--- owned by NOBODY, so the one player in a Studio server counts as an
+	--- intruder to it; `bayTest clear` removes every such test guardian.
+	bayTest = function(player, plotName: string?, key: string?)
+		local BaseGuardianService = require(script.Parent.BaseGuardianService)
+		if plotName == "clear" then
+			return { cleared = BaseGuardianService.debugClear() }
+		end
+		local ok = BaseGuardianService.debugSpawn(plotName or "Base01", key or "Tiger")
+		return { spawned = ok, guardian = BaseGuardianService.inspect(player) }
+	end,
+
+	--- The player's own (or the test) base guardian, this frame.
+	guardianState = function(player)
+		local BaseGuardianService = require(script.Parent.BaseGuardianService)
+		return BaseGuardianService.inspect(player) or { none = true }
+	end,
+
+	--- Equip / unequip an OWNED base guardian through the real path.
+	guardianEquip = function(player, key: string?)
+		local BaseGuardianService = require(script.Parent.BaseGuardianService)
+		if key == nil or key == "" then
+			local ok, reason = BaseGuardianService.unequip(player)
+			return { ok = ok, reason = reason }
+		end
+		local ok, reason = BaseGuardianService.equip(player, key)
+		return { ok = ok, reason = reason, state = BaseGuardianService.inspect(player) }
+	end,
+
+	--- The rotation clock: what is on sale now and at the next three boundaries.
+	rotation = function()
+		local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
+		local now = workspace:GetServerTimeNow()
+		local rows = {}
+		for step = 0, 3 do
+			local at = now + step * BaseGuardianConfig.ROTATION_SECONDS
+			local key, index, endsAt = BaseGuardianConfig.rotation(at)
+			table.insert(rows, { at = math.floor(at), key = key, index = index, endsAt = endsAt, countdown = BaseGuardianConfig.formatCountdown(endsAt - at) })
+		end
+		return rows
+	end,
+
+	--- Live Roblox prices against the brief's intended ones.
+	prices = function()
+		local MonetizationService = require(script.Parent.MonetizationService)
+		MonetizationService.refreshLivePrices()
+		return MonetizationService.livePriceReport()
+	end,
+
+	--- Weapons: `weapon` reports; `weapon equip Slap` through the real path.
+	weapon = function(player, action: string?, name: string?)
+		local PvPService = require(script.Parent.PvPService)
+		if action == "equip" and name then
+			local ok, reason = PvPService.setWeapon(player, name)
+			return { ok = ok, reason = reason, equipped = PvPService.equippedWeapon(player) }
+		end
+		return PvPService.summarise(player)
+	end,
+
+	--- Base stealing state for this player.
+	heist = function(player)
+		local HeistService = require(script.Parent.HeistService)
+		return HeistService.snapshot(player)
+	end,
+
 	---   Invoke("bridge")                report the flag
 	---   Invoke("bridge", nil, "reset")  clear it, to re-run onboarding
 	---   Invoke("bridge", nil, "spam", 50)

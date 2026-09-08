@@ -41,9 +41,11 @@ local SLOT_PIXELS = 66
 local SLOT_GAP = 10
 local BOTTOM_INSET = 14
 
---- Fixed keys for the two tools every player carries, so "1 is the Bat"
---- stays true for life; anything else fills the remaining slots by name.
-local FIXED_SLOTS: { [string]: number } = { Bat = 1, Trap = 2 }
+--- Fixed keys, so "1 is my weapon" and "2 is the Trap" stay true for life.
+--- The Bat and the Slap share slot 1 because the server only ever hands out
+--- one of them (Storage > WEAPONS picks which); anything else fills the
+--- remaining slots by name.
+local FIXED_SLOTS: { [string]: number } = { Bat = 1, Slap = 1, Trap = 2 }
 local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
 	[Enum.KeyCode.Two] = 2,

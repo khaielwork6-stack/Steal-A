@@ -23,6 +23,7 @@
 	  GiftChest         the free-gift chest
 	  LeaderboardMoney  the Money board (turned to face the Spawn marker)
 	  LeaderboardSpeed  the Speed board
+	  GuardianShop      the rotating Guardian pedestal (its front is +Z local)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -47,10 +48,12 @@ local function defaults(): { [string]: CFrame }
 	return {
 		Spawn = CFrame.lookAt(spawn, spawn + Vector3.new(0, 0, 40)),
 		TrailBooth = hub.trailBooth,
-		EventStand = facingSpawn(hub.eventStand),
+		-- Faces -Z, into the lobby, with its back to the shoulder wall.
+		EventStand = CFrame.lookAt(hub.eventStand, hub.eventStand + Vector3.new(0, 0, -40)),
 		GiftChest = facingSpawn(hub.giftChest),
 		LeaderboardMoney = facingSpawn(hub.leaderboards.Money),
 		LeaderboardSpeed = facingSpawn(hub.leaderboards.Speed),
+		GuardianShop = hub.guardianShop,
 	}
 end
 

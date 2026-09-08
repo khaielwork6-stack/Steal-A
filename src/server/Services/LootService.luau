@@ -97,6 +97,12 @@ export type LootInstance = {
 	droppedAt: number?,
 	deliveredNotice: boolean?, -- so the "you're safe" toast fires only once
 	escapeNotice: boolean?, -- so the "you escaped" toast fires only once
+	--- A base steal (HeistService), not world loot: it lives in no socket and
+	--- is not tracked here. CarryService carries it with the same weld and
+	--- the same movement penalty, but every way it can be LOST (drop, death,
+	--- leaving, a guardian) calls `onLost` instead of sending it to a socket.
+	heist: boolean?,
+	onLost: ((reason: string) -> ())?,
 }
 
 --- The part a player interacts with. Ordinary loot: its PrimaryPart. A tall

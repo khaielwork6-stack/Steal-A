@@ -17,6 +17,11 @@ local BasePromptController = {}
 local player = Players.LocalPlayer
 
 local function refresh(plot: Instance, prompt: ProximityPrompt)
+	-- The STEAL prompts on a plot are the opposite rule - shown to everyone
+	-- BUT the owner - and RobPromptController drives those.
+	if prompt.Name == "RobPrompt" then
+		return
+	end
 	local owned = plot:GetAttribute("OwnerUserId") == player.UserId
 	prompt.Enabled = owned and prompt:GetAttribute("ServerEnabled") == true
 end

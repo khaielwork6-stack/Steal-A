@@ -44,6 +44,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -167,6 +168,103 @@ function MonetizationService.clearOwnedForTesting(player: Player)
 	ownership[player] = {}
 	MonetizationService.onOwnershipChanged(player)
 end
+
+-- ==========================================================
+-- LIVE PRICES
+-- ==========================================================
+--
+-- The Creator Dashboard is the only place a Robux price is decided. Every
+-- guardian sign, offer card, storage card and steal prompt shows the
+-- PriceInRobux Roblox returns for the pass or product - never a number
+-- typed into a config. `robux` on the config rows is a display fallback for
+-- the second or two before the first lookup lands, and what the debug
+-- report compares against.
+--
+-- Fetched once at start and every PRICE_REFRESH seconds after, in pcall: a
+-- failed lookup keeps the last good value (or the fallback) and nothing
+-- else notices.
+
+local livePrices: { [string]: number } = {}
+local PRICE_REFRESH = 600
+
+--- Called whenever a refresh changed at least one price. Wired by init to
+--- re-text the world signs and prompts and re-push every client.
+function MonetizationService.onPricesChanged() end
+
+local function fetchPrice(id: number, infoType: Enum.InfoType): number?
+	if id <= 0 then
+		return nil
+	end
+	local ok, info = pcall(function()
+		return MarketplaceService:GetProductInfo(id, infoType)
+	end)
+	if ok and type(info) == "table" and type(info.PriceInRobux) == "number" then
+		return info.PriceInRobux
+	end
+	return nil
+end
+
+function MonetizationService.livePassPrice(gamePassId: number): number?
+	return livePrices[`pass:{gamePassId}`]
+end
+
+function MonetizationService.liveProductPrice(productId: number): number?
+	return livePrices[`product:{productId}`]
+end
+
+function MonetizationService.refreshLivePrices(): boolean
+	local changed = false
+	local function record(key: string, price: number?)
+		if price ~= nil and livePrices[key] ~= price then
+			livePrices[key] = price
+			changed = true
+		end
+	end
+	for _, pass in MonetizationConfig.GuardianPasses do
+		record(`pass:{pass.gamePassId}`, fetchPrice(pass.gamePassId, Enum.InfoType.GamePass))
+	end
+	record(`pass:{MonetizationConfig.SlapPass.gamePassId}`, fetchPrice(MonetizationConfig.SlapPass.gamePassId, Enum.InfoType.GamePass))
+	for _, product in MonetizationConfig.StealProducts do
+		record(`product:{product.productId}`, fetchPrice(product.productId, Enum.InfoType.Product))
+	end
+	if changed then
+		MonetizationService.onPricesChanged()
+	end
+	return changed
+end
+
+--- Every live price beside the price the brief intended, for the handoff
+--- report and the debug bridge. A mismatch is a Creator Dashboard change,
+--- never a code one.
+function MonetizationService.livePriceReport(): { [string]: any }
+	local rows = {}
+	for _, pass in MonetizationConfig.GuardianPasses do
+		rows[pass.key .. "Pass"] = { live = MonetizationService.livePassPrice(pass.gamePassId), intended = pass.robux }
+	end
+	rows.SlapPass = { live = MonetizationService.livePassPrice(MonetizationConfig.SlapPass.gamePassId), intended = MonetizationConfig.SlapPass.robux }
+	for _, product in MonetizationConfig.StealProducts do
+		rows[product.key] = { live = MonetizationService.liveProductPrice(product.productId), intended = product.robux }
+	end
+	return rows
+end
+
+-- ==========================================================
+-- BASE GUARDIANS AND THE SLAP
+-- ==========================================================
+
+function MonetizationService.ownsGuardian(player: Player, key: string): boolean
+	local pass = MonetizationConfig.GuardianPassByKey[key]
+	return pass ~= nil and MonetizationService.ownsPassCached(player, pass.gamePassId)
+end
+
+function MonetizationService.ownsSlap(player: Player): boolean
+	return MonetizationService.ownsPassCached(player, MonetizationConfig.SlapPass.gamePassId)
+end
+
+--- Delivers a `Steal` receipt against the exact reserved item; installed by
+--- init (setStealHandler, below). Declared here because processReceipt,
+--- further down, reads it.
+local stealHandler: ((Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -379,6 +477,20 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			"levelup"
 		)
 
+	elseif product.kind == "Steal" then
+		-- Delivered only against the exact item the buyer reserved. Anything
+		-- less - target gone, wrong rarity, no reservation - leaves the receipt
+		-- OPEN for Roblox to retry rather than consuming a paid purchase for
+		-- nothing (HeistService.fulfil explains each case as it happens).
+		if not stealHandler then
+			warn(`[MonetizationService] steal receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		if not stealHandler(player, profile, product, purchaseId) then
+			return pending
+		end
+		rememberGrant(profile, purchaseId)
+
 	else
 		warn(`[MonetizationService] product "{product.key}" has unknown kind "{product.kind}" - receipt left open.`)
 		return pending
@@ -471,6 +583,50 @@ function MonetizationService.promptTrailPass(player: Player, trailKey: string): 
 	return promptPass(player, trail.gamePassId)
 end
 
+--- The guardian ON SALE RIGHT NOW, and only that one: the server derives it
+--- from the rotation clock, so a client cannot ask for a different animal.
+function MonetizationService.promptGuardianPass(player: Player): (boolean, string?)
+	local key = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
+	local pass = MonetizationConfig.GuardianPassByKey[key]
+	if not pass or pass.gamePassId <= 0 then
+		return false, "That Guardian is not available yet."
+	end
+	if MonetizationService.ownsPassCached(player, pass.gamePassId) then
+		return false, `You already own the {pass.label}! Equip it in Storage.`
+	end
+	return promptPass(player, pass.gamePassId)
+end
+
+function MonetizationService.promptSlapPass(player: Player): (boolean, string?)
+	local pass = MonetizationConfig.SlapPass
+	if pass.gamePassId <= 0 then
+		return false, "The Slap is not available yet."
+	end
+	if MonetizationService.ownsPassCached(player, pass.gamePassId) then
+		return false, "You already own the Slap! Equip it in Storage > WEAPONS."
+	end
+	return promptPass(player, pass.gamePassId)
+end
+
+-- ==========================================================
+-- BASE STEALING RECEIPTS
+-- ==========================================================
+--
+-- A `Steal` product is delivered by HeistService, which knows which exact
+-- item the buyer reserved. Injected from init rather than required, so this
+-- service never depends on the base systems it sells into. (The handler
+-- variable itself is declared up with the ownership helpers, ahead of
+-- processReceipt, which reads it.)
+
+function MonetizationService.setStealHandler(fn: (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)
+	stealHandler = fn
+end
+
+--- MarketplaceService.PromptProductPurchaseFinished, forwarded. NOTHING IS
+--- GRANTED THROUGH THIS. It exists so a reservation can be released the
+--- moment a player backs out of a steal dialog; see HeistService.
+function MonetizationService.onProductPromptClosed(_player: Player, _productId: number, _purchased: boolean) end
+
 -- ==========================================================
 -- THE BOSS-LOSS OFFER
 -- ==========================================================
@@ -531,6 +687,17 @@ function MonetizationService.start()
 		end
 	end)
 
+	-- Products: the dialog closing is forwarded and NOTHING is granted from
+	-- it. The one consumer (HeistService) uses `purchased == false` to free a
+	-- reserved item; a `true` is ignored there too, because ProcessReceipt
+	-- is the only thing that knows Roblox took the money.
+	MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, purchased)
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			MonetizationService.onProductPromptClosed(player, productId, purchased == true)
+		end
+	end)
+
 	Remotes.get("PurchaseRequest").OnServerEvent:Connect(function(player, action, argument)
 		if type(action) ~= "string" then
 			return
@@ -545,6 +712,10 @@ function MonetizationService.start()
 			ok, reason = MonetizationService.promptCashPass(player)
 		elseif action == "product" and type(argument) == "string" then
 			ok, reason = MonetizationService.promptProduct(player, argument)
+		elseif action == "guardian" then
+			ok, reason = MonetizationService.promptGuardianPass(player)
+		elseif action == "slap" then
+			ok, reason = MonetizationService.promptSlapPass(player)
 		else
 			return
 		end
@@ -566,6 +737,16 @@ function MonetizationService.start()
 		ownership[player] = nil
 		lastOfferAt[player] = nil
 		promptLimiter:release(player)
+	end)
+
+	-- Live prices: once now, then on a slow cadence. A web call, so never on
+	-- the main path of anything.
+	task.spawn(function()
+		MonetizationService.refreshLivePrices()
+		while true do
+			task.wait(PRICE_REFRESH)
+			MonetizationService.refreshLivePrices()
+		end
 	end)
 
 	local configured = 0

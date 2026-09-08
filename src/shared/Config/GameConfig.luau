@@ -254,6 +254,8 @@ GameConfig.RATE_LIMITS = {
 	TrailRequest = 4,
 	GroupGiftRequest = 1,
 	SettingsRequest = 4,
+	GuardianRequest = 3,
+	WeaponRequest = 3,
 }
 
 -- ==========================================================

@@ -78,6 +78,39 @@ MonetizationConfig.CashPass = {
 }
 
 -- ==========================================================
+-- BASE GUARDIANS AND THE SLAP
+-- ==========================================================
+
+export type SimplePass = {
+	key: string,
+	gamePassId: number,
+	--- Display fallback ONLY while the live price is still loading. The
+	--- brief supplied 399 for the guardians and the pass listings said 299;
+	--- neither is typed into any UI: MonetizationService.livePrices asks
+	--- Roblox and every sign, card and prompt shows that answer.
+	robux: number,
+	label: string,
+}
+
+--- One permanent pass per animal. Which of the four is on sale right now is
+--- BaseGuardianConfig.rotation's business; owning one is forever.
+MonetizationConfig.GuardianPasses = {
+	{ key = "Cat", gamePassId = 1969207802, robux = 399, label = "Cat Guardian" },
+	{ key = "Dog", gamePassId = 1970751473, robux = 399, label = "Dog Guardian" },
+	{ key = "Panda", gamePassId = 1970769517, robux = 399, label = "Panda Guardian" },
+	{ key = "Tiger", gamePassId = 1970601554, robux = 399, label = "Tiger Guardian" },
+} :: { SimplePass }
+
+MonetizationConfig.GuardianPassByKey = {} :: { [string]: SimplePass }
+for _, def in MonetizationConfig.GuardianPasses do
+	MonetizationConfig.GuardianPassByKey[def.key] = def
+end
+
+--- The Slap weapon. A permanent pass, sold from the lobby cage and the
+--- right-side offer, both through the same prompt.
+MonetizationConfig.SlapPass = { key = "Slap", gamePassId = 1968935748, robux = 29, label = "Slap" } :: SimplePass
+
+-- ==========================================================
 -- TRAILS
 -- ==========================================================
 
@@ -157,11 +190,33 @@ export type ProductDef = {
 	productId: number,
 	robux: number,
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
-	--- on `kind`; a treadmill tier ignores it.
-	kind: "Cash" | "Speed" | "TreadmillTier",
+	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
+	--- item of the matching rarity (HeistService) and carries no amount.
+	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal",
 	amount: number,
 	label: string,
+	--- Steal products only: the rarity this product pays for.
+	rarity: string?,
 }
+
+--- Player-to-player base stealing, one product per rarity. The server picks
+--- the row from the REAL item's rarity in the victim's profile; a client can
+--- never name one. `robux` is the brief's intended price and a display
+--- fallback only - the live PriceInRobux is what the prompt shows, and at
+--- handoff every one of these but Common differed from the intended value
+--- (see HANDOFF §32), which is a Creator Dashboard decision, not a code one.
+MonetizationConfig.StealProducts = {
+	{ key = "StealCommon", productId = 3711862263, robux = 7, kind = "Steal", amount = 0, label = "Common", rarity = "Common" },
+	{ key = "StealUncommon", productId = 3711862399, robux = 12, kind = "Steal", amount = 0, label = "Uncommon", rarity = "Uncommon" },
+	{ key = "StealRare", productId = 3711862419, robux = 24, kind = "Steal", amount = 0, label = "Rare", rarity = "Rare" },
+	{ key = "StealEpic", productId = 3711862431, robux = 39, kind = "Steal", amount = 0, label = "Epic", rarity = "Epic" },
+	{ key = "StealLegendary", productId = 3711862445, robux = 69, kind = "Steal", amount = 0, label = "Legendary", rarity = "Legendary" },
+	{ key = "StealMythic", productId = 3711862461, robux = 149, kind = "Steal", amount = 0, label = "Mythic", rarity = "Mythic" },
+	{ key = "StealCosmic", productId = 3711862478, robux = 199, kind = "Steal", amount = 0, label = "Cosmic", rarity = "Cosmic" },
+	{ key = "StealSecret", productId = 3711862490, robux = 249, kind = "Steal", amount = 0, label = "Secret", rarity = "Secret" },
+	{ key = "StealEternal", productId = 3711862508, robux = 399, kind = "Steal", amount = 0, label = "Eternal", rarity = "Eternal" },
+	{ key = "StealDivine", productId = 3711862519, robux = 599, kind = "Steal", amount = 0, label = "Divine", rarity = "Divine" },
+} :: { ProductDef }
 
 --- B. Direct Speed grants. Added verbatim - never scaled by a multiplier.
 MonetizationConfig.SpeedProducts = {
@@ -225,10 +280,18 @@ MonetizationConfig.BOSS_OFFER_COOLDOWN = 0
 MonetizationConfig.ProductByKey = {} :: { [string]: ProductDef }
 MonetizationConfig.ProductById = {} :: { [number]: ProductDef }
 
-for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts } do
+for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts } do
 	for _, product in list do
 		MonetizationConfig.ProductByKey[product.key] = product
 		MonetizationConfig.ProductById[product.productId] = product
+	end
+end
+
+--- Steal product by the rarity it pays for.
+MonetizationConfig.StealProductByRarity = {} :: { [string]: ProductDef }
+for _, product in MonetizationConfig.StealProducts do
+	if product.rarity then
+		MonetizationConfig.StealProductByRarity[product.rarity] = product
 	end
 end
 
@@ -294,6 +357,10 @@ function MonetizationConfig.allGamePassIds(): { number }
 			table.insert(ids, trail.gamePassId)
 		end
 	end
+	for _, pass in MonetizationConfig.GuardianPasses do
+		table.insert(ids, pass.gamePassId)
+	end
+	table.insert(ids, MonetizationConfig.SlapPass.gamePassId)
 	return ids
 end
 

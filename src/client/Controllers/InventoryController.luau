@@ -31,11 +31,15 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
+local ModelPreview = require(ReplicatedStorage.Shared.Util.ModelPreview)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local ItemThumb = require(ReplicatedStorage.Shared.Util.ItemThumb)
+local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local InventoryController = {}
@@ -73,6 +77,21 @@ local panelHomeTransparency = 0.4
 
 local latestState: any = nil
 local lastCapacity: number? = nil
+
+--- THREE PAGES IN ONE WINDOW. ITEMS is the Storage that always existed:
+--- limited capacity, DISPLAY and SELL. GUARDIANS and WEAPONS are permanent
+--- collections - Game Pass unlocks and the Bat - with EQUIP only, never a
+--- Sell, and they never count against the item capacity: buying a Guardian
+--- must never turn 0/10 into 1/10.
+type Tab = "Items" | "Guardians" | "Weapons"
+local TABS: { Tab } = { "Items", "Guardians", "Weapons" }
+local activeTab: Tab = "Items"
+local tabButtons: { [string]: TextButton } = {}
+local emptyTitleLabel: TextLabel? = nil
+local emptyHintLabel: TextLabel? = nil
+
+local EQUIPPED_GREEN = Color3.fromRGB(120, 255, 160)
+local PLATE_COLOR = Color3.fromRGB(28, 32, 44)
 
 -- ==========================================================
 -- TEMPLATE HELPERS
@@ -146,6 +165,155 @@ end
 -- ==========================================================
 -- CARDS
 -- ==========================================================
+
+--- Lays the pack's one price button out as a two-button column down the
+--- right-hand third of a card and returns both, labelled, claimed and ready
+--- to wire. Cloning keeps the pack's stroke/gradient/studs on both. The
+--- names are deliberately not "Display"/"Sell": the pack opens the panel in
+--- Frames whose name matches a clicked button, and a button named "Sell"
+--- would reopen the template panel.
+local function layoutActions(card: Frame, primaryLabel: string, secondaryLabel: string): (TextButton?, TextButton?)
+	local body = card:FindFirstChild("Frame")
+	local choose = body and body:FindFirstChild("Choose")
+	local money = choose and choose:FindFirstChild("Money")
+	if not choose or not money or not money:IsA("TextButton") then
+		return nil, nil
+	end
+	local second = money:Clone()
+
+	-- The pack's demo stacked two tiny buttons in the middle of the card. Give
+	-- the pair a real column down the right-hand third instead.
+	choose.AnchorPoint = Vector2.new(1, 0.5)
+	choose.Position = UDim2.fromScale(0.975, 0.5)
+	choose.Size = UDim2.fromScale(CARD.ACTION_WIDTH, 0.84)
+	local chooseLayout = choose:FindFirstChildOfClass("UIListLayout")
+	if chooseLayout then
+		chooseLayout.FillDirection = Enum.FillDirection.Vertical
+		chooseLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		chooseLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		chooseLayout.Padding = UDim.new(0.08, 0)
+		chooseLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+
+	local function dressAction(button: TextButton, label: string, order: number)
+		button.LayoutOrder = order
+		button.AnchorPoint = Vector2.new(0.5, 0.5)
+		button.Size = UDim2.fromScale(1, 0.44)
+		-- The pack locked these to 3:1. In a full-width column that squashes
+		-- them back to demo size, so the column decides the shape now.
+		local aspect = button:FindFirstChildOfClass("UIAspectRatioConstraint")
+		if aspect then
+			aspect:Destroy()
+		end
+		stripPromo(button)
+		local text = priceLabel(button)
+		if text then
+			text.Text = label
+			text.Size = UDim2.fromScale(0.92, 0.62)
+			text.TextScaled = true
+		end
+		-- The reason both of these did nothing: a pack button ships
+		-- Active = false and pre-stamped, so Activated never fired and
+		-- bindButton skipped it. See UIAnim.claimButton.
+		UIAnim.claimButton(button)
+	end
+
+	money.Name = "PrimaryAction"
+	dressAction(money, primaryLabel, 1)
+	second.Name = "SecondaryAction"
+	second.Parent = choose
+	dressAction(second, secondaryLabel, 2)
+	return money, second
+end
+
+--- A fresh, empty card in the list's geometry with its three text rows
+--- flattened and placed. Returns the card and its rows: name, variant, tag.
+local function blankCard(name: string, index: number): (Frame?, TextLabel?, TextLabel?, TextLabel?)
+	local template = cardTemplate
+	if not template then
+		return nil, nil, nil, nil
+	end
+	local card = template:Clone()
+	card.Name = name
+	card.Visible = true
+	card.LayoutOrder = index
+	local cardAspect = card:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if cardAspect then
+		cardAspect:Destroy()
+	end
+	card.AnchorPoint = Vector2.new(0.5, 0)
+	card.Size = UDim2.fromScale(CARD.WIDTH, CARD.HEIGHT)
+
+	local nameRow, variantRow, tagRow = cardRows(card)
+	local function placeRow(row: TextLabel?, y: number, height: number, size: number)
+		if not row then
+			return
+		end
+		row.AnchorPoint = Vector2.new(0, 0.5)
+		row.Position = UDim2.fromScale(CARD.TEXT_LEFT, y)
+		row.Size = UDim2.fromScale(CARD.TEXT_WIDTH, height)
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextScaled = false
+		row.TextSize = size
+		row.TextTruncate = Enum.TextTruncate.AtEnd
+		row.RichText = false
+	end
+	placeRow(nameRow, 0.27, 0.30, CARD.NAME_TEXT)
+	placeRow(variantRow, 0.56, 0.24, CARD.SUB_TEXT)
+	placeRow(tagRow, 0.80, 0.24, CARD.SUB_TEXT)
+	return card, nameRow, variantRow, tagRow
+end
+
+--- The card's thumbnail as a dark plate with the REAL model turning inside
+--- it (ModelPreview), edged in `stroke`. `earns` is the small caption the
+--- pack prints under the thumbnail; nil hides it.
+local function previewPlate(card: Frame, source: Model?, yaw: number, stroke: Color3, earns: string?)
+	local body = card:FindFirstChild("Frame")
+	local thumbHolder = body and body:FindFirstChild("BrainrotFrame")
+	local slot = thumbHolder and thumbHolder:FindFirstChild("1")
+	if not slot or not slot:IsA("GuiObject") then
+		return
+	end
+	slot.AnchorPoint = Vector2.new(0, 0.5)
+	slot.Position = UDim2.fromScale(CARD.THUMB_LEFT, 0.5)
+	slot.Size = UDim2.fromScale(1, CARD.THUMB_HEIGHT)
+	local slotAspect = slot:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if slotAspect then
+		slotAspect.AspectRatio = 1
+		slotAspect.DominantAxis = Enum.DominantAxis.Height
+	end
+	local edge = slot:FindFirstChildOfClass("UIStroke")
+	if edge then
+		edge.Color = stroke
+		edge.Thickness = 2
+	end
+	local inner = slot:FindFirstChild("Frame")
+	local icon = inner and inner:FindFirstChild("Icon")
+	if icon and icon:IsA("ImageLabel") then
+		icon.Image = ""
+		icon.ImageTransparency = 0
+		icon.BackgroundTransparency = 0
+		icon.BackgroundColor3 = PLATE_COLOR
+		if not icon:FindFirstChildOfClass("UICorner") then
+			local round = Instance.new("UICorner")
+			round.CornerRadius = UDim.new(0.18, 0)
+			round.Parent = icon
+		end
+		if source then
+			ModelPreview.mount(icon, source, { faceYaw = yaw, fit = 1.1 })
+		end
+	end
+	local caption = inner and inner:FindFirstChild("Earns")
+	if caption and caption:IsA("TextLabel") then
+		local gradient = caption:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient:Destroy()
+		end
+		caption.Visible = earns ~= nil
+		caption.Text = earns or ""
+		caption.TextColor3 = EQUIPPED_GREEN
+	end
+end
 
 local function buildCard(item: any, index: number): Frame?
 	local template = cardTemplate
@@ -254,69 +422,132 @@ local function buildCard(item: any, index: number): Frame?
 		end
 	end
 
-	-- Two actions where the pack had one price button. Cloning it keeps the
-	-- pack's stroke/gradient/studs treatment on both.
-	local choose = body and body:FindFirstChild("Choose")
-	local money = choose and choose:FindFirstChild("Money")
-	if choose and money and money:IsA("TextButton") then
-		local sell = money:Clone()
-
-		-- The pack's demo stacked two tiny buttons in the middle of the card. Give
-		-- the pair a real column down the right-hand third instead.
-		choose.AnchorPoint = Vector2.new(1, 0.5)
-		choose.Position = UDim2.fromScale(0.975, 0.5)
-		choose.Size = UDim2.fromScale(CARD.ACTION_WIDTH, 0.84)
-		local chooseLayout = choose:FindFirstChildOfClass("UIListLayout")
-		if chooseLayout then
-			chooseLayout.FillDirection = Enum.FillDirection.Vertical
-			chooseLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-			chooseLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-			chooseLayout.Padding = UDim.new(0.08, 0)
-			chooseLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		end
-
-		local function dressAction(button: TextButton, label: string, order: number)
-			button.LayoutOrder = order
-			button.AnchorPoint = Vector2.new(0.5, 0.5)
-			button.Size = UDim2.fromScale(1, 0.44)
-			-- The pack locked these to 3:1. In a full-width column that squashes
-			-- them back to demo size, so the column decides the shape now.
-			local aspect = button:FindFirstChildOfClass("UIAspectRatioConstraint")
-			if aspect then
-				aspect:Destroy()
-			end
-			stripPromo(button)
-			local text = priceLabel(button)
-			if text then
-				text.Text = label
-				text.Size = UDim2.fromScale(0.92, 0.62)
-				text.TextScaled = true
-			end
-			-- The reason both of these did nothing: a pack button ships
-			-- Active = false and pre-stamped, so Activated never fired and
-			-- bindButton skipped it. See UIAnim.claimButton.
-			UIAnim.claimButton(button)
-		end
-
-		-- Deliberately NOT "Display"/"Sell": the pack opens the panel in Frames
-		-- whose name matches a clicked button, and a button named "Sell" would
-		-- reopen the template panel.
-		money.Name = "DisplayAction"
-		dressAction(money, "DISPLAY", 1)
-		tintButton(money, Color3.fromRGB(0, 158, 40), Color3.fromRGB(120, 240, 130), Color3.fromRGB(0, 150, 40))
-		money.Activated:Connect(function()
+	-- Two actions where the pack had one price button: DISPLAY and SELL.
+	local display, sell = layoutActions(card, "DISPLAY", "SELL")
+	if display and sell then
+		display.Name = "DisplayAction"
+		tintButton(display, Color3.fromRGB(0, 158, 40), Color3.fromRGB(120, 240, 130), Color3.fromRGB(0, 150, 40))
+		display.Activated:Connect(function()
 			Remotes.get("InventoryRequest"):FireServer("equip", item.InstanceId)
 		end)
 
 		sell.Name = "SellAction"
-		sell.Parent = choose
-		dressAction(sell, "SELL", 2)
 		tintButton(sell, Color3.fromRGB(168, 30, 38), Color3.fromRGB(255, 108, 112), Color3.fromRGB(170, 24, 32))
 		sell.Activated:Connect(function()
 			Remotes.get("InventoryRequest"):FireServer("sell", item.InstanceId)
 		end)
 	end
 
+	return card
+end
+
+--- EQUIP / EQUIPPED on the primary button, UNEQUIP on the second while the
+--- thing is equipped. There is no Sell on either of these pages, anywhere.
+local function wireEquip(card: Frame, equipped: boolean, canUnequip: boolean, onEquip: () -> (), onUnequip: (() -> ())?)
+	local primary, secondary = layoutActions(card, if equipped then "EQUIPPED" else "EQUIP", "UNEQUIP")
+	if not primary or not secondary then
+		return
+	end
+	if equipped then
+		-- Inert and quiet: the state is the label.
+		tintButton(primary, Color3.fromRGB(70, 80, 100), Color3.fromRGB(160, 172, 196), Color3.fromRGB(96, 108, 136))
+		primary.AutoButtonColor = false
+	else
+		tintButton(primary, Color3.fromRGB(0, 158, 40), Color3.fromRGB(120, 240, 130), Color3.fromRGB(0, 150, 40))
+		primary.Activated:Connect(function()
+			UIAnim.punch(card, 0.04)
+			onEquip()
+		end)
+	end
+	if equipped and canUnequip and onUnequip then
+		tintButton(secondary, Color3.fromRGB(46, 70, 150), Color3.fromRGB(140, 170, 255), Color3.fromRGB(60, 90, 200))
+		secondary.Activated:Connect(function()
+			UIAnim.punch(card, 0.04)
+			onUnequip()
+		end)
+	else
+		secondary.Visible = false
+	end
+	local stroke = card:FindFirstChildOfClass("UIStroke")
+	if stroke and equipped then
+		-- Colour only, never the thickness (the pack's fractional-pixel
+		-- stroke trap; see ShopKit).
+		stroke.Color = EQUIPPED_GREEN
+	end
+end
+
+local function guardianSource(def: BaseGuardianConfig.GuardianDef): Model?
+	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
+	local folder = assets and assets:FindFirstChild("BaseGuardians")
+	local model = folder and folder:FindFirstChild(def.modelName)
+	return if model and model:IsA("Model") then model else nil
+end
+
+local function weaponSource(name: string): Model?
+	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
+	local folder = assets and assets:FindFirstChild("Weapons")
+	local model = folder and folder:FindFirstChild(name)
+	return if model and model:IsA("Model") then model else nil
+end
+
+--- One owned Guardian: the real animal turning on a plate, its name, and
+--- EQUIP / EQUIPPED / UNEQUIP. Never a price, never a Sell.
+local function buildGuardianCard(def: BaseGuardianConfig.GuardianDef, equipped: boolean, index: number): Frame?
+	local card, nameRow, variantRow, tagRow = blankCard(`Guardian_{def.key}`, index)
+	if not card then
+		return nil
+	end
+	flatten(nameRow, Color3.fromRGB(255, 255, 255))
+	flatten(variantRow, Color3.fromRGB(206, 216, 232))
+	flatten(tagRow, if equipped then EQUIPPED_GREEN else def.color)
+	if nameRow then
+		nameRow.Text = `{string.upper(def.name)} GUARDIAN`
+	end
+	if variantRow then
+		variantRow.Text = def.tagline
+	end
+	if tagRow then
+		tagRow.Text = if equipped then "ON GUARD AT YOUR BASE" else "PERMANENT"
+	end
+
+	previewPlate(card, guardianSource(def), ModelPreview.yawFor(def.faceLocal), if equipped then EQUIPPED_GREEN else def.accent, if equipped then "EQUIPPED" else nil)
+
+	wireEquip(card, equipped, true, function()
+		Remotes.get("GuardianRequest"):FireServer("equip", def.key)
+	end, function()
+		Remotes.get("GuardianRequest"):FireServer("unequip")
+	end)
+	return card
+end
+
+--- One owned weapon (the Bat always, the Slap once bought). One of the two
+--- is always equipped, so there is no UNEQUIP: choosing the other is the
+--- way to put this one down.
+local function buildWeaponCard(name: string, equipped: boolean, index: number): Frame?
+	local def = PvPConfig.Weapons[name]
+	local card, nameRow, variantRow, tagRow = blankCard(`Weapon_{name}`, index)
+	if not card or not def then
+		return nil
+	end
+	local accent = if name == "Slap" then Color3.fromRGB(255, 176, 92) else Color3.fromRGB(196, 150, 96)
+	flatten(nameRow, Color3.fromRGB(255, 255, 255))
+	flatten(variantRow, Color3.fromRGB(206, 216, 232))
+	flatten(tagRow, if equipped then EQUIPPED_GREEN else accent)
+	if nameRow then
+		nameRow.Text = string.upper(name)
+	end
+	if variantRow then
+		variantRow.Text = if name == "Slap" then "SLAP PLAYERS AWAY" else "KNOCK LOOT LOOSE"
+	end
+	if tagRow then
+		tagRow.Text = if equipped then "IN YOUR HOTBAR" else (if def.gamePass then "PERMANENT" else "STARTER WEAPON")
+	end
+
+	previewPlate(card, weaponSource(name), 0, if equipped then EQUIPPED_GREEN else accent, if equipped then "EQUIPPED" else nil)
+
+	wireEquip(card, equipped, false, function()
+		Remotes.get("WeaponRequest"):FireServer("equip", name)
+	end, nil)
 	return card
 end
 
@@ -353,6 +584,36 @@ local function clearList()
 	end
 end
 
+--- What the GUARDIANS page was last built from: the equipped key plus each
+--- animal's ownership. WEAPONS likewise.
+local function guardianSignature(guardians: any): string
+	local parts = { "G", tostring(guardians.equipped) }
+	for _, def in BaseGuardianConfig.Guardians do
+		table.insert(parts, `{def.key}={tostring(guardians.owned and guardians.owned[def.key])}`)
+	end
+	return table.concat(parts, "|")
+end
+
+local function weaponSignature(weapons: any): string
+	local parts = { "W", tostring(weapons.equipped) }
+	for _, name in PvPConfig.WeaponOrder do
+		table.insert(parts, `{name}={tostring(weapons.owned and weapons.owned[name])}`)
+	end
+	return table.concat(parts, "|")
+end
+
+local function setEmpty(visible: boolean, title: string, hint: string)
+	if emptyState then
+		emptyState.Visible = visible
+	end
+	if emptyTitleLabel then
+		emptyTitleLabel.Text = title
+	end
+	if emptyHintLabel then
+		emptyHintLabel.Text = hint
+	end
+end
+
 local function refresh(state: any)
 	latestState = state
 	local frame = panel
@@ -362,20 +623,46 @@ local function refresh(state: any)
 
 	local used = state.storageUsed or 0
 	local capacity = state.storageCapacity or 10
+	local guardians = if type(state.guardians) == "table" then state.guardians else nil
+	local weapons = if type(state.weapons) == "table" then state.weapons else nil
 
+	-- THE HEADER COUNTER is the capacity on ITEMS and an OWNED tally on the
+	-- other two. Guardians and weapons are permanent unlocks and never add
+	-- to the 0/10.
 	if countLabel then
-		UIAnim.countTo(countLabel, capacity, function(value: number)
-			return `{used}/{math.floor(value + 0.5)}`
-		end)
-		if lastCapacity and capacity > lastCapacity then
-			UIAnim.punch(countLabel, 0.25)
+		if activeTab == "Items" then
+			UIAnim.countTo(countLabel, capacity, function(value: number)
+				return `{used}/{math.floor(value + 0.5)}`
+			end)
+			if lastCapacity and capacity > lastCapacity then
+				UIAnim.punch(countLabel, 0.25)
+			end
+		elseif activeTab == "Guardians" then
+			local owned = 0
+			for _, def in BaseGuardianConfig.Guardians do
+				if guardians and guardians.owned and guardians.owned[def.key] then
+					owned += 1
+				end
+			end
+			countLabel:SetAttribute("_CountValue", nil)
+			countLabel.Text = `OWNED: {owned}/{#BaseGuardianConfig.Guardians}`
+		else
+			local owned = 0
+			for _, name in PvPConfig.WeaponOrder do
+				if weapons and weapons.owned and weapons.owned[name] then
+					owned += 1
+				end
+			end
+			countLabel:SetAttribute("_CountValue", nil)
+			countLabel.Text = `OWNED: {owned}/{#PvPConfig.WeaponOrder}`
 		end
 	end
 	lastCapacity = capacity
 
+	-- The storage upgrade belongs to ITEMS only.
 	if upgradeButton and upgradePrice then
 		local cost = state.storageNextCost
-		if cost then
+		if activeTab == "Items" and cost then
 			upgradeButton.Visible = true
 			upgradePrice.Text = `+ STORAGE  {NumberFormat.cash(cost)}`
 			-- Dim when unaffordable rather than hiding: the player should see the
@@ -394,15 +681,21 @@ local function refresh(state: any)
 		return -- the pack owns visibility; do not build rows behind a closed panel
 	end
 
-	-- Only rebuild the rows when the ITEMS changed. StatePush arrives every
-	-- second from the income tick alone (and four times a second while
+	-- Only rebuild the rows when what they SHOW changed. StatePush arrives
+	-- every second from the income tick alone (and four times a second while
 	-- training), and tearing the list down and re-cloning it on each one made
-	-- every button under the cursor a brand-new instance: hover state vanished,
-	-- a press that straddled the rebuild never became a click, and the whole
-	-- panel visibly flickered. Cash and capacity changes are painted above
-	-- without touching the rows.
-	local inventory = state.inventory or {}
-	local signature = inventorySignature(inventory)
+	-- every button under the cursor a brand-new instance: hover state
+	-- vanished, a press that straddled the rebuild never became a click, and
+	-- the whole panel visibly flickered. Cash and capacity changes are
+	-- painted above without touching the rows.
+	local signature: string
+	if activeTab == "Items" then
+		signature = "I|" .. inventorySignature(state.inventory or {})
+	elseif activeTab == "Guardians" then
+		signature = guardianSignature(guardians or {})
+	else
+		signature = weaponSignature(weapons or {})
+	end
 	if signature == builtSignature then
 		return
 	end
@@ -410,16 +703,164 @@ local function refresh(state: any)
 
 	clearList()
 
-	for index, item in inventory do
-		local card = buildCard(item, index)
-		if card then
-			card.Parent = scroll
+	local cards: { GuiObject } = {}
+	if activeTab == "Items" then
+		local inventory = state.inventory or {}
+		for index, item in inventory do
+			local card = buildCard(item, index)
+			if card then
+				card.Parent = scroll
+				table.insert(cards, card)
+			end
+		end
+		setEmpty(#inventory == 0, "Nothing Stored", "Store one of your displayed items to keep it here.")
+	elseif activeTab == "Guardians" then
+		local shown = 0
+		for index, def in BaseGuardianConfig.Guardians do
+			if guardians and guardians.owned and guardians.owned[def.key] then
+				shown += 1
+				local card = buildGuardianCard(def, guardians.equipped == def.key, index)
+				if card then
+					card.Parent = scroll
+					table.insert(cards, card)
+				end
+			end
+		end
+		setEmpty(shown == 0, "No Guardians Owned", "Watch the rotating Guardian shop to unlock one!")
+	else
+		local shown = 0
+		for index, name in PvPConfig.WeaponOrder do
+			if weapons and weapons.owned and weapons.owned[name] then
+				shown += 1
+				local card = buildWeaponCard(name, weapons.equipped == name, index)
+				if card then
+					card.Parent = scroll
+					table.insert(cards, card)
+				end
+			end
+		end
+		setEmpty(shown == 0, "No Weapons", "Every player carries the Bat.")
+	end
+	ShopKit.cascadeIn(cards, 0.03)
+end
+
+-- ==========================================================
+-- TABS
+-- ==========================================================
+
+local TAB_SELECTED = { plate = Color3.fromRGB(22, 120, 70), top = Color3.fromRGB(96, 240, 150), bottom = Color3.fromRGB(28, 190, 110) }
+local TAB_IDLE = { plate = Color3.fromRGB(34, 44, 84), top = Color3.fromRGB(96, 112, 170), bottom = Color3.fromRGB(52, 66, 120) }
+
+local function styleTabs()
+	for name, button in tabButtons do
+		local selected = name == activeTab
+		local colors = if selected then TAB_SELECTED else TAB_IDLE
+		tintButton(button, colors.plate, colors.top, colors.bottom)
+		local label = priceLabel(button)
+		if label then
+			label.TextTransparency = if selected then 0 else 0.2
+		end
+		local scale = UIAnim.scaleOf(button)
+		if scale then
+			game:GetService("TweenService"):Create(scale, UIAnim.POP, { Scale = if selected then 1.05 else 1 }):Play()
 		end
 	end
+end
 
-	if emptyState then
-		emptyState.Visible = #inventory == 0
+local function selectTab(name: Tab)
+	if activeTab == name then
+		return
 	end
+	activeTab = name
+	styleTabs()
+	-- A fresh list, cascaded in (refresh) - the quick transition the switch
+	-- is asked for, without a second animation system.
+	builtSignature = nil
+	local list = scroll
+	if list then
+		list.CanvasPosition = Vector2.zero
+	end
+	refresh(latestState)
+end
+
+--- Three tabs directly under the header, cloned from the pack's own header
+--- button so they carry its gradient, stroke and studs; the list shrinks to
+--- make room for them.
+local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?)
+	list.AnchorPoint = Vector2.new(0.5, 1)
+	list.Position = UDim2.fromScale(0.5, 0.99)
+	list.Size = UDim2.fromScale(1, 0.70)
+
+	local bar = Instance.new("Frame")
+	bar.Name = "Tabs"
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.fromScale(0.5, 0.19)
+	bar.Size = UDim2.fromScale(0.94, 0.085)
+	bar.BackgroundTransparency = 1
+	bar.ZIndex = list.ZIndex + 1
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0.02, 0)
+	layout.Parent = bar
+
+	for order, name in TABS do
+		local button: TextButton
+		if source then
+			button = source:Clone()
+			local aspect = button:FindFirstChildOfClass("UIAspectRatioConstraint")
+			if aspect then
+				aspect:Destroy()
+			end
+			local ripple = button:FindFirstChild("_RippleContainer")
+			if ripple then
+				ripple:Destroy()
+			end
+			stripPromo(button)
+			local label = priceLabel(button)
+			if label then
+				label.Text = string.upper(name)
+				label.Size = UDim2.fromScale(0.92, 0.66)
+				label.Position = UDim2.fromScale(0.5, 0.5)
+				label.AnchorPoint = Vector2.new(0.5, 0.5)
+				label.TextScaled = true
+			end
+		else
+			button = Instance.new("TextButton")
+			button.Font = Enum.Font.FredokaOne
+			button.TextScaled = true
+			button.TextColor3 = Color3.fromRGB(255, 255, 255)
+			button.Text = string.upper(name)
+			local round = Instance.new("UICorner")
+			round.CornerRadius = UDim.new(0.3, 0)
+			round.Parent = button
+		end
+		button.Name = `Tab{name}`
+		button.LayoutOrder = order
+		button.AnchorPoint = Vector2.new(0, 0)
+		button.Position = UDim2.fromScale(0, 0)
+		button.Size = UDim2.fromScale(0.31, 1)
+		button.ZIndex = bar.ZIndex
+		UIAnim.claimButton(button)
+		button.Activated:Connect(function()
+			selectTab(name)
+		end)
+		button.Parent = bar
+		tabButtons[name] = button
+	end
+	-- A second way in, for tests and for anything that wants to open the
+	-- panel on a given page: set the bar's `Active` attribute to a tab name.
+	bar:SetAttribute("Active", activeTab)
+	bar:GetAttributeChangedSignal("Active"):Connect(function()
+		local wanted = bar:GetAttribute("Active")
+		if wanted == "Items" or wanted == "Guardians" or wanted == "Weapons" then
+			selectTab(wanted :: Tab)
+		end
+	end)
+	bar.Parent = built
+	styleTabs()
 end
 
 -- ==========================================================
@@ -590,6 +1031,8 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 	emptyHint.Text = "Store one of your displayed items to keep it here."
 	emptyHint.Parent = empty
 	emptyState = empty
+	emptyTitleLabel = emptyTitle
+	emptyHintLabel = emptyHint
 
 	-- Canvas grows with the content. Measured in pixels from the layout, which
 	-- stays correct with the pack's scale-sized cards at any item count.
@@ -602,6 +1045,9 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 	end
 	list.ScrollBarThickness = 6
 	scroll = list
+
+	-- ITEMS / GUARDIANS / WEAPONS, under the header.
+	buildTabs(built, list, upgradeButton)
 
 	-- Rows are only built while open, so build them the moment the pack opens it.
 	built:GetPropertyChangedSignal("Visible"):Connect(function()

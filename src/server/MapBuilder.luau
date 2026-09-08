@@ -42,6 +42,11 @@ local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
+local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
+
+--- The Guardian Bay's footprint, shared with BaseGuardianService so the pad
+--- the builder lays and the platform the service raises on it agree.
+local BAY_PAD_SIZE = BaseGuardianConfig.BAY_SIZE
 local ServerStorage = game:GetService("ServerStorage")
 
 local MapBuilder = {}
@@ -931,30 +936,54 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 	local pad = MapConfig.DISPLAY_SLOT_SIZE.X
 	local n = 0
 	if layout.depth >= layout.width then
-		-- THREE ranks down the plot, front to back. 14 does not divide by 3, so
-		-- the ranks are 5/5/4 rather than a short rank of pads pushed off the
-		-- floor: `perRank` is recomputed for each column from what is left.
+		-- FOUR ranks of four, filled FRONT TO BACK, left to right. 14 pads in a
+		-- 16-cell grid leaves two cells empty, and filling from the front puts
+		-- both of them in the BACK rank, side by side at the corner: that strip
+		-- is the Guardian Bay (BaseGuardianService builds it on the pad below).
+		-- Slot 1 is the front-left pad, nearest the porch, so a new player's
+		-- first trophy lands where they can see it from the spawn.
 		local cols = MapConfig.DISPLAY_SLOT_COLS
 		local rankBack = halfD - MapConfig.DISPLAY_BACK_INSET
 		local rankFront = -halfD + MapConfig.DISPLAY_FRONT_RESERVE
 		local rankSpan = rankBack - rankFront
-		-- ONE rank grid shared by every column, so the pads line up across the
-		-- plot. 14 into 3 columns leaves the last column one short; that column
-		-- simply stops early rather than re-spacing itself, which would have
-		-- put its pads between the other columns rows.
 		local ranks = math.ceil(total / cols)
-		for col = 1, cols do
-			local perRank = math.min(ranks, total - n)
-			local localX = -halfW + layout.width * (col - 0.5) / cols
-			for i = 1, perRank do
+		local function rankZ(rank: number): number
+			return rankFront + rankSpan * (rank - 1) / math.max(1, ranks - 1)
+		end
+		local function colX(col: number): number
+			return -halfW + layout.width * (col - 0.5) / cols
+		end
+		for rank = 1, ranks do
+			for col = 1, cols do
+				if n >= total then
+					break
+				end
 				n += 1
-				local slot = makeSlotPad(
-					string.format("DisplaySlot%02d", n),
-					at(localX, 0.5, rankBack - rankSpan * (i - 1) / math.max(1, ranks - 1)),
-					slots
-				)
+				local slot = makeSlotPad(string.format("DisplaySlot%02d", n), at(colX(col), 0.5, rankZ(rank)), slots)
 				slot:SetAttribute("SlotIndex", n)
 			end
+		end
+
+		-- THE GUARDIAN BAY PAD: the anchor for the bay, centred on the empty
+		-- cells of the back rank. An invisible marker like BaseUpgradePad; the
+		-- platform, pillars and label are built on it at runtime so the look
+		-- can change without a map rebuild. `BayFacing` is the plot's front.
+		local emptyCells = ranks * cols - total
+		if emptyCells > 0 then
+			local firstEmptyCol = cols - emptyCells + 1
+			local bayX = (colX(firstEmptyCol) + colX(cols)) / 2
+			local bay = makePart({
+				name = "GuardianBayPad",
+				size = Vector3.new(BAY_PAD_SIZE, 1, BAY_PAD_SIZE),
+				cframe = at(bayX, 0.5, rankZ(ranks)),
+				color = MapPalette.PadUpgrade,
+				material = Enum.Material.SmoothPlastic,
+				parent = base,
+				canCollide = false,
+				castShadow = false,
+			})
+			bay.Transparency = 1
+			bay.CanQuery = false
 		end
 	else
 		-- The head plot is far wider than it is deep: its pads run in rows
@@ -974,23 +1003,17 @@ local function buildBase(layout: MapConfig.PlotLayout, parent: Instance)
 		end
 	end
 
-	-- The upgrade pad: the plinth the upgrade sign stands on, at the porch's
-	-- left; the spawn beside it, facing out of the plot toward the avenue.
+	-- The upgrade pad: the plinth the upgrade sign stands on, at the OUTER
+	-- FRONT CORNER of the plot, just inside the gate post, facing the plot's
+	-- centre. Out of the porch, off the treadmill line, clear of every pad
+	-- and of the bay at the back; PlacementService turns the sign it raises
+	-- here toward the slab's centre, so the owner reads it from the porch and
+	-- from inside the base alike. The spawn keeps its place on the porch.
 	local porchZ = -halfD + 12
-	-- Porch furniture, left to right across a 76-stud frontage: the owner's
-	-- nameplate at the corner (BaseService stands it 12 in), the upgrade pad
-	-- 30 in, the spawn beside it. Any tighter and the two sign boards share
-	-- the same studs.
 	makePart({
 		name = "BaseUpgradePad",
 		size = MapConfig.PAD_SIZE,
-		-- On the porch between the owner's nameplate (which BaseService stands
-		-- at the front corner, 12 in from the side) and the spawn pad: the
-		-- upgrade sign PlacementService raises here faces along the porch
-		-- toward the spawn, so the owner reads it from where they appear, and
-		-- an arriving player reads it walking down the avenue. Any closer to
-		-- the corner and the two signs share the same studs.
-		cframe = at(-halfW + 30, 0.5, porchZ),
+		cframe = at(-halfW + 9, 0.5, -halfD + 7),
 		color = MapPalette.PadUpgrade,
 		material = Enum.Material.SmoothPlastic,
 		parent = base,

@@ -75,6 +75,7 @@ function Audio.create(name: string): Sound?
 	sound.SoundId = cue.id
 	sound.Volume = cue.volume
 	sound.Looped = cue.looped == true
+	sound.PlaybackSpeed = cue.pitch or 1
 
 	if cue.category == "world" then
 		sound.RollOffMode = Enum.RollOffMode.InverseTapered

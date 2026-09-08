@@ -58,6 +58,16 @@ Remotes.NAMES = {
 	-- comfortably in the range of the smaller cash packs, and the shop would
 	-- celebrate a sale as a purchase.
 	"PurchaseFeedback",
+	-- Base Guardians: equip / unequip an OWNED animal by key. Buying goes
+	-- through PurchaseRequest("guardian"), and the server decides which of
+	-- the four is on sale. See BaseGuardianService.
+	"GuardianRequest",
+	-- Weapons: equip the Bat or the Slap by name. Buying the Slap goes through
+	-- PurchaseRequest("slap"). See PvPService.
+	"WeaponRequest",
+	-- server -> client. The back-to-base portal asking this client to play
+	-- its teleport transition. Carries nothing; the move already happened.
+	"PortalFx",
 	-- server -> client
 	"StatePush",
 	"Notify",

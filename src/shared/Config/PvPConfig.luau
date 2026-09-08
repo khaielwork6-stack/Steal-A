@@ -41,4 +41,67 @@ PvPConfig.TRAP_MAX_SLOPE = 30 -- degrees; refuse steep or invalid geometry
 --- control tool. Kept as a flag so the rule is explicit rather than implied.
 PvPConfig.BAT_AFFECTS_GUARDIANS = false
 
+-- ==========================================================
+-- WEAPONS
+-- ==========================================================
+--
+-- ONE swing framework, two weapons. The server decides which numbers apply
+-- from the Tool actually in the attacker's hand (never from the request),
+-- and every row goes through the same validation, cooldown, arc, safe-zone
+-- and ragdoll path as the Bat always has. The Slap is the Bat's rules with
+-- its own reach, timing, sound and a bigger, sillier launch.
+
+export type WeaponDef = {
+	name: string,
+	range: number,
+	cooldown: number,
+	--- Seconds after the press before the hit is resolved: matched to the
+	--- moment the client's swing visually arrives.
+	strikeDelay: number,
+	arcDegrees: number,
+	knockback: number,
+	lift: number,
+	stun: number,
+	--- AudioConfig cue played at the victim on a connect.
+	hitCue: string,
+	--- Whether owning it is a Game Pass (the Bat is free for everyone).
+	gamePass: boolean,
+}
+
+PvPConfig.Weapons = {
+	Bat = {
+		name = "Bat",
+		range = PvPConfig.BAT_RANGE,
+		cooldown = PvPConfig.BAT_COOLDOWN,
+		strikeDelay = PvPConfig.BAT_STRIKE_DELAY,
+		arcDegrees = PvPConfig.BAT_ARC_DEGREES,
+		knockback = PvPConfig.KNOCKBACK_SPEED,
+		lift = PvPConfig.KNOCKBACK_LIFT,
+		stun = PvPConfig.RAGDOLL_DURATION,
+		hitCue = "BatHit",
+		gamePass = false,
+	},
+	Slap = {
+		name = "Slap",
+		range = 7,
+		cooldown = 0.7,
+		strikeDelay = 0.22,
+		arcDegrees = 110,
+		-- Harder and higher than the bat: the joke is the distance.
+		knockback = 70,
+		lift = 30,
+		stun = 1.5,
+		hitCue = "SlapHit",
+		gamePass = true,
+	},
+} :: { [string]: WeaponDef }
+
+--- Order the Weapons page lists them in.
+PvPConfig.WeaponOrder = { "Bat", "Slap" }
+--- What a fresh profile holds.
+PvPConfig.DEFAULT_WEAPON = "Bat"
+--- How the held Slap is sized: the import's hand is 7 studs tall, which in a
+--- fist reads as a wall. Scaled once when the Tool is built.
+PvPConfig.SLAP_TOOL_SCALE = 0.42
+
 return PvPConfig

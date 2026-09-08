@@ -100,7 +100,11 @@ function GiftChestService.start()
 	end
 	chest.Size *= CHEST_SCALE
 	local restY = chest.Size.Y / 2 + 0.6
-	chest.CFrame = CFrame.new(spot.X, restY, spot.Z) * CFrame.Angles(0, math.rad(180), 0)
+	-- Turned exactly 180 degrees from the previous build: it stood with its
+	-- back to the players walking up from the spawn circle. The prompt is
+	-- screen-space and the FREE! sign always faces the camera, so the whole
+	-- display turns with the one part.
+	chest.CFrame = CFrame.new(spot.X, restY, spot.Z)
 	chest.Parent = model
 	model.PrimaryPart = chest
 
@@ -129,6 +133,8 @@ function GiftChestService.start()
 	sign.Adornee = chest
 	sign.Parent = chest
 
+	-- White under a gradient the client sweeps a rainbow across (GroupGift-
+	-- Controller), with a heavy dark outline so it reads against the wall.
 	local label = Instance.new("TextLabel")
 	label.Name = "Text"
 	label.Size = UDim2.fromScale(1, 1)
@@ -136,10 +142,19 @@ function GiftChestService.start()
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.Text = "FREE!"
-	label.TextColor3 = FREE_COLOR
-	label.TextStrokeTransparency = 0.1
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeTransparency = 0
 	label.TextStrokeColor3 = Color3.fromRGB(10, 40, 16)
 	label.Parent = sign
+	local rainbow = Instance.new("UIGradient")
+	rainbow.Name = "Rainbow"
+	rainbow.Color = ColorSequence.new(FREE_COLOR, Color3.fromRGB(255, 240, 150))
+	rainbow.Parent = label
+	local outline = Instance.new("UIStroke")
+	outline.Thickness = 3
+	outline.Color = Color3.fromRGB(10, 40, 16)
+	outline.Transparency = 0.1
+	outline.Parent = label
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "GiftPrompt"

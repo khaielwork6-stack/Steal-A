@@ -476,6 +476,18 @@ end
 --- nothing to carry does it go home the instant way.
 function CarryService.reclaim(loot: LootService.LootInstance)
 	local player = loot.carrier
+	if loot.heist then
+		-- A base steal has no socket to go back to: HeistService decides.
+		if player then
+			detach(loot)
+			clearCarry(player)
+		end
+		loot.carrier = nil
+		if loot.onLost then
+			loot.onLost("caught")
+		end
+		return
+	end
 	if player then
 		detach(loot)
 		clearCarry(player)
@@ -553,6 +565,20 @@ function CarryService.forceDrop(loot: LootService.LootInstance)
 		return
 	end
 
+	-- A STOLEN BASE ITEM NEVER LIES ON THE GROUND EITHER. Dropped, knocked
+	-- loose or trapped out of the thief's hands, it goes straight back to the
+	-- player it was taken from (HeistService.fail); nobody else can pick it
+	-- up off the floor, so a robbery can never turn into a free-for-all.
+	if loot.heist then
+		detach(loot)
+		clearCarry(player)
+		loot.carrier = nil
+		if loot.onLost then
+			loot.onLost("dropped")
+		end
+		return
+	end
+
 	-- THE TUTORIAL VASE NEVER LIES ON THE GROUND. The tutorial keeps a vase
 	-- pinned in its socket for whoever still needs one, and a steal empties that
 	-- socket - so a vase left on the floor plus a socket that wants filling was
@@ -623,6 +649,31 @@ function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInsta
 	return true
 end
 
+--- Puts an already-built item into a player's hands: the base steal path
+--- (HeistService), where the "item" is another player's trophy rather than a
+--- socket's loot. Same weld, same movement penalty, same DROP button; the
+--- only thing it skips is the socket bookkeeping, which does not apply.
+--- Returns false, with nothing changed, if the player cannot carry right now.
+function CarryService.beginCarry(player: Player, loot: LootService.LootInstance): boolean
+	if carrying[player] then
+		return false
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return false
+	end
+	if not attach(player, loot) then
+		return false
+	end
+	loot.carrier = player
+	loot.state = "Carried"
+	carrying[player] = loot
+	CarryService.applyMovement(player)
+	onCarryChanged(player)
+	return true
+end
+
 --- Hands the carried item off to the base. Unlike releaseCarry this does NOT
 --- send the item home: PlacementService has already turned it into a trophy.
 function CarryService.consumeCarry(player: Player)
@@ -643,6 +694,16 @@ end
 function CarryService.releaseCarry(player: Player)
 	local loot = carrying[player]
 	if not loot then
+		return
+	end
+
+	if loot.heist then
+		detach(loot)
+		clearCarry(player)
+		loot.carrier = nil
+		if loot.onLost then
+			loot.onLost("released")
+		end
 		return
 	end
 

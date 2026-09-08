@@ -41,9 +41,23 @@ local GroupGiftService = require(Services.GroupGiftService)
 local LeaderboardService = require(Services.LeaderboardService)
 local NightService = require(Services.NightService)
 local SettingsService = require(Services.SettingsService)
+local BaseGuardianService = require(Services.BaseGuardianService)
+local HeistService = require(Services.HeistService)
+local GuardianShopService = require(Services.GuardianShopService)
+local SlapDisplayService = require(Services.SlapDisplayService)
+local PortalService = require(Services.PortalService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
+
+-- BEFORE DataService.start(): PlayerRemoving handlers fire in the order they
+-- were connected, and a base robbery has to be resolved while BOTH profiles
+-- are still in memory and still about to be saved. This one connection is
+-- made first and hands off to HeistService once it exists.
+local heistLeaveHook: (Player) -> () = function() end
+Players.PlayerRemoving:Connect(function(player)
+	heistLeaveHook(player)
+end)
 
 EnvironmentService.start()
 DataService.start()
@@ -153,7 +167,34 @@ MonetizationService.onOwnershipChanged = function(player)
 	EconomyService.recalculate(player)
 	SpeedService.applyMovement(player)
 	TrailService.applyVisual(player)
+	-- A guardian pass just bought (or confirmed on join) puts the equipped
+	-- animal in the bay; the Slap appears in the Backpack the same way.
+	BaseGuardianService.sync(player)
+	PvPService.onOwnershipChanged(player)
 	StateService.pushNow(player)
+end
+
+-- ==========================================================
+-- BASE STEALING AND BASE GUARDIANS
+-- ==========================================================
+--
+-- A Steal receipt is delivered by HeistService against the exact reserved
+-- item; a closed steal dialog frees the reservation and grants nothing; a
+-- base guardian's hit on a thief carrying its owner's item sends it home.
+MonetizationService.setStealHandler(HeistService.fulfil)
+MonetizationService.onProductPromptClosed = HeistService.onPromptClosed
+BaseGuardianService.onIntruderCaught = HeistService.onIntruderCaught
+heistLeaveHook = HeistService.onPlayerLeaving
+
+-- Live Robux prices landed or changed: repaint every sign and prompt that
+-- shows one, and re-push every client so the cards follow.
+MonetizationService.onPricesChanged = function()
+	HeistService.retextPrompts()
+	GuardianShopService.retext()
+	SlapDisplayService.retext()
+	for _, player in Players:GetPlayers() do
+		StateService.markDirty(player)
+	end
 end
 
 -- A catch reclaims the loot - hands it to the guardian, which carries it back
@@ -271,6 +312,11 @@ RagdollService.setMovementRefresher(function(player)
 end)
 PvPService.start()
 
+-- Both listen for the plot rebuild that assignment fires, so they must be
+-- registered before BaseService hands out a single plot.
+BaseGuardianService.start()
+HeistService.start()
+
 -- BaseService goes LAST on purpose. Assigning a plot fires the rebuild hook that
 -- creates a player's display-slot prompts, so every listener must already be
 -- registered. Starting it early meant a player was assigned before
@@ -283,6 +329,9 @@ BaseService.start()
 GroupGiftService.start()
 GiftChestService.start()
 LeaderboardService.start()
+GuardianShopService.start()
+SlapDisplayService.start()
+PortalService.start()
 
 -- The Night cycle owns the world refresh, the guardian reset and the return to
 -- the lobby, so it starts once every one of those systems is up.

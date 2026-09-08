@@ -31,6 +31,7 @@ local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
+local HeistService = require(script.Parent.HeistService)
 local IndexService = require(script.Parent.IndexService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
@@ -79,6 +80,13 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		if item.SlotIndex == slotIndex then
 			return false, "That slot is already full."
 		end
+	end
+
+	-- A base steal is not a new item: the very same saved record moves from
+	-- the victim's base to this slot, protection stamped, once the thief is
+	-- home. Every check above still applied; the transfer is HeistService's.
+	if loot.heist then
+		return HeistService.deposit(player, loot, slotIndex)
 	end
 
 	-- Size and mutation were rolled when the item spawned and are never
@@ -167,6 +175,16 @@ function PlacementService.store(player: Player, slotIndex: number): (boolean, st
 	end
 	if not found or not foundAt then
 		return false, "Nothing on that slot."
+	end
+
+	-- An item a thief has paid for, or is holding the purchase prompt open
+	-- on, stays exactly where it is until that resolves: moving it would pull
+	-- the target out from under a real Robux purchase.
+	if found.RobbedBy then
+		return false, "That item is being stolen - stop the thief!"
+	end
+	if HeistService.isReserved(found.InstanceId) then
+		return false, "Someone is trying to steal that right now!"
 	end
 
 	if #profile.Inventory >= PlacementService.storageCapacity(player) then
@@ -344,14 +362,25 @@ local SIGN_HEIGHT = 7.4
 local SIGN_DEPTH = 0.9
 local SIGN_LIFT = 7.2
 
---- Which way the sign should face: toward the plot's own spawn point, so it
---- greets a player walking out of their base. Derived rather than assumed,
---- because plots on opposite sides of the plaza face opposite ways.
+--- Which way the sign should face: INWARD, toward the plot's own centre. The
+--- pad stands at the plot's outer front corner (MapBuilder.buildBase), so
+--- facing the centre points the board at the porch, the spawn and the pads
+--- at once - wherever the owner is when they look for it. Derived from the
+--- slab rather than assumed, so every plot gets the same answer.
 local function signFacing(plot: Instance, pad: BasePart): CFrame
-	local spawn = plot:FindFirstChild("Spawn")
-	if spawn and spawn:IsA("BasePart") then
-		local toSpawn = spawn.Position - pad.Position
-		local flat = Vector3.new(toSpawn.X, 0, toSpawn.Z)
+	local target: Vector3? = nil
+	local slab = BaseService.slabOf(plot)
+	if slab then
+		target = slab.Position
+	else
+		local spawn = plot:FindFirstChild("Spawn")
+		if spawn and spawn:IsA("BasePart") then
+			target = spawn.Position
+		end
+	end
+	if target then
+		local toward = target - pad.Position
+		local flat = Vector3.new(toward.X, 0, toward.Z)
 		if flat.Magnitude > 0.5 then
 			return CFrame.lookAt(pad.Position, pad.Position + flat.Unit)
 		end

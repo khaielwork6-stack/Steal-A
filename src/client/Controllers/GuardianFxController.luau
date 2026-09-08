@@ -184,10 +184,22 @@ local function runEffects(model: Model, root: BasePart)
 	local stage = 0
 	local nextPuff = 0
 	local wasSleeping = model:GetAttribute("State") == "Sleeping"
+	local wasAlert = model:GetAttribute("State") == "Alert"
 
 	while model.Parent and root.Parent do
 		RunService.Heartbeat:Wait()
-		local sleeping = model:GetAttribute("State") == "Sleeping"
+		local state = model:GetAttribute("State")
+		local sleeping = state == "Sleeping"
+
+		-- A base guardian never sleeps; it goes from Idle straight to Alert
+		-- when an intruder steps onto the plot. Same "!" and the same red
+		-- flash as a boss waking, once per alert.
+		local alert = state == "Alert"
+		if alert and not wasAlert then
+			alertPop(root, headroom() + ALERT_HEADROOM)
+			alertFlash(model)
+		end
+		wasAlert = alert
 
 		if sleeping then
 			if os.clock() >= nextPuff then

@@ -257,13 +257,18 @@ MapConfig.HUB = {
 	spawn = Vector3.new(0, 0, -34),
 	spawnPlazaDiameter = 24,
 	trailBooth = CFrame.new(-146, 0, -12) * CFrame.Angles(0, math.rad(180), 0),
-	eventStand = Vector3.new(128, 0, -12),
+	-- Four studs off the shoulder wall's lobby face (Z = 0): EventStandService
+	-- raycasts back from here and seats the board flat against that wall.
+	eventStand = Vector3.new(128, 0, -4),
 	leaderboards = {
 		Money = Vector3.new(-192, 6.4, -12),
 		Speed = Vector3.new(178, 6.4, -12),
 	},
 	avenueWidth = 20, -- RETIRED: the kit's lobby has no avenue
 	giftChest = Vector3.new(-104, 0, -16),
+	-- The rotating Guardian shop: the pedestal in the +X wing between the lane
+	-- mouth and the Next Update board, turned to face the spawn circle.
+	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -24), Vector3.new(0, 0, -34)),
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 

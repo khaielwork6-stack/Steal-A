@@ -68,6 +68,16 @@ function StateService.setGroupGiftProvider(fn: (Player) -> any)
 	groupGiftProvider = fn
 end
 
+--- Named extras riding the same push (base guardians, weapons). One
+--- registration per field; the field lands on the snapshot under `name`.
+--- Same reason as the providers above: whoever renders a thing must read it
+--- from the one snapshot everything else reads, so nothing can disagree.
+local extraProviders: { [string]: (Player) -> any } = {}
+
+function StateService.addProvider(name: string, fn: (Player) -> any)
+	extraProviders[name] = fn
+end
+
 export type ClientState = {
 	cash: number,
 	income: number,
@@ -107,7 +117,17 @@ local function build(player: Player): ClientState?
 	local nextCapacity = BaseConfig.nextUpgrade(profile.BaseCapacityTier)
 	local plot = BaseService.getPlot(player)
 
-	return {
+	local extras: { [string]: any } = {}
+	for name, provider in extraProviders do
+		local ok, value = pcall(provider, player)
+		if ok then
+			extras[name] = value
+		else
+			warn(`[StateService] provider "{name}" failed: {value}`)
+		end
+	end
+
+	local state = {
 		cash = profile.Cash,
 		income = EconomyService.getIncome(player),
 		speedPower = profile.SpeedPower,
@@ -140,6 +160,10 @@ local function build(player: Player): ClientState?
 			return if next then next.cost else nil
 		end)(),
 	}
+	for name, value in extras do
+		(state :: any)[name] = value
+	end
+	return state
 end
 
 --- Marks a player's state as needing replication on the next tick.

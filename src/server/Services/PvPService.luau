@@ -17,8 +17,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
+local Debris = game:GetService("Debris")
+
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -28,6 +31,7 @@ local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local GuardianService = require(script.Parent.GuardianService)
+local MonetizationService = require(script.Parent.MonetizationService)
 local RagdollService = require(script.Parent.RagdollService)
 local StateService = require(script.Parent.StateService)
 
@@ -35,6 +39,7 @@ local PvPService = {}
 
 local batLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.BatSwingRequest)
 local trapLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.TrapPlaceRequest)
+local weaponLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.WeaponRequest)
 
 local lastSwing: { [Player]: number } = {}
 
@@ -66,12 +71,101 @@ local function isAlive(player: Player): boolean
 end
 
 -- ==========================================================
--- BAT
+-- WEAPONS: WHICH ONE IS IN THE HAND
+-- ==========================================================
+--
+-- The Bat is everyone's. The Slap is a Game Pass. The profile remembers
+-- which of the two the player chose (EquippedWeapon); the server re-checks
+-- the pass before it ever hands the Slap out, so a save that says "Slap"
+-- on an account that does not own it simply gets the Bat.
+
+function PvPService.ownsSlap(player: Player): boolean
+	return MonetizationService.ownsPassCached(player, MonetizationConfig.SlapPass.gamePassId)
+end
+
+--- The weapon this player should be carrying: their choice, if they own it.
+function PvPService.equippedWeapon(player: Player): string
+	local profile = DataService.get(player)
+	local wanted = if profile then profile.EquippedWeapon else PvPConfig.DEFAULT_WEAPON
+	local def = PvPConfig.Weapons[wanted]
+	if not def then
+		return PvPConfig.DEFAULT_WEAPON
+	end
+	if def.gamePass and not PvPService.ownsSlap(player) then
+		return PvPConfig.DEFAULT_WEAPON
+	end
+	return wanted
+end
+
+--- The weapon definition for the Tool actually in the attacker's hand. The
+--- request names nothing; a Slap swing is a Slap swing because the Slap is
+--- what they are holding.
+local function heldWeapon(player: Player): PvPConfig.WeaponDef?
+	local character = player.Character
+	local tool = character and character:FindFirstChildOfClass("Tool")
+	return if tool then PvPConfig.Weapons[tool.Name] else nil
+end
+
+-- ==========================================================
+-- THE SWING (Bat and Slap)
 -- ==========================================================
 
+--- A comic-book smack at the point of impact, for the Slap only: a burst of
+--- sparks and a big yellow SLAP! that pops and fades. Built from parts and
+--- the sparkle texture the game already uses; gone in under a second.
+local function slapPop(at: Vector3)
+	local host = Instance.new("Part")
+	host.Name = "SlapPop"
+	host.Size = Vector3.new(1, 1, 1)
+	host.Transparency = 1
+	host.Anchored = true
+	host.CanCollide = false
+	host.CanQuery = false
+	host.CanTouch = false
+	host.CFrame = CFrame.new(at + Vector3.new(0, 2.5, 0))
+	host.Parent = workspace
+
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = host
+	local burst = Instance.new("ParticleEmitter")
+	burst.Texture = "rbxassetid://241594419"
+	burst.Color = ColorSequence.new(Color3.fromRGB(255, 226, 80), Color3.fromRGB(255, 120, 80))
+	burst.LightEmission = 0.8
+	burst.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 0) })
+	burst.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) })
+	burst.Lifetime = NumberRange.new(0.4, 0.7)
+	burst.Speed = NumberRange.new(14, 22)
+	burst.SpreadAngle = Vector2.new(180, 180)
+	burst.Rate = 0
+	burst.Parent = attachment
+	burst:Emit(26)
+
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromScale(7, 3)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.MaxDistance = 160
+	gui.Adornee = host
+	gui.Parent = host
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.TextColor3 = Color3.fromRGB(255, 226, 80)
+	text.TextStrokeTransparency = 0
+	text.TextStrokeColor3 = Color3.fromRGB(120, 30, 20)
+	text.Rotation = -12
+	text.Text = "SLAP!"
+	text.Parent = gui
+
+	Debris:AddItem(host, 0.9)
+end
+
 --- Server-side hit resolution. The attacker's own facing decides the arc, and
---- the server picks at most ONE victim from a spatial query.
-local function resolveSwing(attacker: Player)
+--- the server picks at most ONE victim from a spatial query. `weapon` is the
+--- one in their hand (heldWeapon), never one the request named.
+local function resolveSwing(attacker: Player, weapon: PvPConfig.WeaponDef)
 	local attackerRoot = rootPartOf(attacker)
 	if not attackerRoot then
 		return
@@ -95,7 +189,7 @@ local function resolveSwing(attacker: Player)
 
 		local offset = victimRoot.Position - origin
 		local distance = offset.Magnitude
-		if distance > PvPConfig.BAT_RANGE then
+		if distance > weapon.range then
 			continue
 		end
 
@@ -103,7 +197,7 @@ local function resolveSwing(attacker: Player)
 		local flat = Vector3.new(offset.X, 0, offset.Z)
 		if flat.Magnitude > 0.1 then
 			local angle = math.deg(math.acos(math.clamp(flat.Unit:Dot(Vector3.new(forward.X, 0, forward.Z).Unit), -1, 1)))
-			if angle > PvPConfig.BAT_ARC_DEGREES / 2 then
+			if angle > weapon.arcDegrees / 2 then
 				continue
 			end
 		end
@@ -131,7 +225,11 @@ local function resolveSwing(attacker: Player)
 	-- Positional, on the victim, so both players and any bystander hear the
 	-- connect from the right place. Only ever on a hit that actually resolved.
 	local victimCharacter = victim.Character
-	Audio.playAt("BatHit", victimCharacter and victimCharacter:FindFirstChild("HumanoidRootPart"))
+	local victimRoot = victimCharacter and victimCharacter:FindFirstChild("HumanoidRootPart")
+	Audio.playAt(weapon.hitCue, victimRoot)
+	if weapon.name == "Slap" and victimRoot and victimRoot:IsA("BasePart") then
+		slapPop(victimRoot.Position)
+	end
 
 	-- Drop BEFORE the launch so the item lands where the victim was standing.
 	local carried = CarryService.getCarried(victim)
@@ -143,14 +241,14 @@ local function resolveSwing(attacker: Player)
 		end
 		notify(attacker, "success", `You knocked the {carried.name} loose!`)
 	else
-		notify(attacker, "info", "Hit!")
+		notify(attacker, "info", if weapon.name == "Slap" then "SLAPPED!" else "Hit!")
 	end
 
 	RagdollService.launch(victim, origin, {
-		knockback = PvPConfig.KNOCKBACK_SPEED,
-		lift = PvPConfig.KNOCKBACK_LIFT,
-		stun = PvPConfig.RAGDOLL_DURATION,
-		immunity = PvPConfig.RAGDOLL_DURATION + PvPConfig.POST_RAGDOLL_IMMUNITY,
+		knockback = weapon.knockback,
+		lift = weapon.lift,
+		stun = weapon.stun,
+		immunity = weapon.stun + PvPConfig.POST_RAGDOLL_IMMUNITY,
 	})
 end
 
@@ -165,8 +263,16 @@ function PvPService.trySwing(player: Player): (boolean, string?)
 		return false, "not alive"
 	end
 
+	-- The weapon is whatever is in the hand. No Tool, no swing - a client
+	-- firing the remote with nothing equipped is asking for a hit it has no
+	-- weapon to make.
+	local weapon = heldWeapon(player)
+	if not weapon then
+		return false, "no weapon held"
+	end
+
 	local now = os.clock()
-	if now - (lastSwing[player] or 0) < PvPConfig.BAT_COOLDOWN then
+	if now - (lastSwing[player] or 0) < weapon.cooldown then
 		return false, "cooldown"
 	end
 
@@ -182,13 +288,13 @@ function PvPService.trySwing(player: Player): (boolean, string?)
 	end
 
 	lastSwing[player] = now
-	-- Resolved when the bat ARRIVES, not when the button is pressed. The client's
-	-- wind-up runs for the same delay, so the connect, the sound and the launch
-	-- all happen on the frame the swing visually lands. The cooldown was stamped
-	-- above, so a second press inside the delay is still refused.
-	task.delay(PvPConfig.BAT_STRIKE_DELAY, function()
+	-- Resolved when the weapon ARRIVES, not when the button is pressed. The
+	-- client's wind-up runs for the same delay, so the connect, the sound and
+	-- the launch all happen on the frame the swing visually lands. The cooldown
+	-- was stamped above, so a second press inside the delay is still refused.
+	task.delay(weapon.strikeDelay, function()
 		if player.Parent and isAlive(player) then
-			resolveSwing(player)
+			resolveSwing(player, weapon)
 		end
 	end)
 	return true
@@ -548,6 +654,122 @@ local function buildBat(): Tool
 	return tool
 end
 
+-- ==========================================================
+-- THE SLAP
+-- ==========================================================
+--
+-- The art is the hand-on-a-stick inside the lobby cage (workspace.Slap.Item
+-- with its Hand and Stick welded on). A copy lives in
+-- ReplicatedStorage.GameAssets.Weapons.Slap - published there rather than
+-- ServerStorage so the Storage card and the offer can draw the real thing -
+-- and every Tool is built from that copy, scaled down to fit a fist.
+
+local function weaponsFolder(): Folder
+	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
+	if not assets then
+		assets = Instance.new("Folder")
+		assets.Name = "GameAssets"
+		assets.Parent = ReplicatedStorage
+	end
+	local folder = assets:FindFirstChild("Weapons")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "Weapons"
+		folder.Parent = assets
+	end
+	return folder :: Folder
+end
+
+--- The published Slap model, building it from the cage display if needed.
+local function slapArt(): Model?
+	local folder = weaponsFolder()
+	local held = folder:FindFirstChild("Slap")
+	if held and held:IsA("Model") and held.PrimaryPart then
+		return held
+	end
+	local display = workspace:FindFirstChild("Slap")
+	local item = display and display:FindFirstChild("Item")
+	if not item or not item:IsA("BasePart") then
+		return nil
+	end
+	local model = Instance.new("Model")
+	model.Name = "Slap"
+	local handle = item:Clone()
+	handle.Name = "Handle"
+	handle.Parent = model
+	model.PrimaryPart = handle
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+		end
+	end
+	model.Parent = folder
+	return model
+end
+
+--- The Bat's preview copy, for the Weapons page. The mesh itself stays in
+--- ServerStorage where PvP adopted it.
+local function publishBatPreview()
+	local folder = weaponsFolder()
+	if folder:FindFirstChild("Bat") then
+		return
+	end
+	local art = batArt()
+	if not art then
+		return
+	end
+	local model = Instance.new("Model")
+	model.Name = "Bat"
+	local copy = art:Clone()
+	copy.Name = "Handle"
+	copy.Anchored = true
+	copy.CanCollide = false
+	copy.Parent = model
+	model.PrimaryPart = copy
+	model.Parent = folder
+end
+
+local function buildSlap(): Tool?
+	local art = slapArt()
+	if not art then
+		return nil
+	end
+
+	local tool = Instance.new("Tool")
+	tool.Name = "Slap"
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+	tool.ToolTip = "Slap players away"
+
+	-- Scale as a model (the welds keep their relative offsets), then move
+	-- the parts into the Tool. The WeldConstraints ride along with the parts.
+	local copy = art:Clone()
+	copy:ScaleTo(copy:GetScale() * PvPConfig.SLAP_TOOL_SCALE)
+	local handle = copy:FindFirstChild("Handle") or copy.PrimaryPart
+	for _, descendant in copy:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Anchored = false
+			descendant.CanCollide = false
+			descendant.CanQuery = false
+			descendant.CanTouch = false
+			descendant.Massless = true
+			descendant.CastShadow = true
+			descendant.Parent = tool
+		end
+	end
+	if handle and handle:IsA("BasePart") then
+		handle.Name = "Handle"
+	end
+	copy:Destroy()
+
+	-- The hand sits along the handle's local -Z (measured from the cage: the
+	-- stick runs from the handle up to the palm). Pitched -90 about X, like
+	-- the bat, that axis stands up out of the fist, gripped low on the stick.
+	tool.Grip = CFrame.new(0, -0.1, -1.0) * CFrame.Angles(math.rad(-90), 0, 0)
+	return tool
+end
+
 local function buildTrapTool(): Tool
 	local tool = Instance.new("Tool")
 	tool.Name = "Trap"
@@ -586,16 +808,102 @@ local function buildTrapTool(): Tool
 	return tool
 end
 
+--- The player's weapon (the Bat, or the Slap they own and chose) plus the
+--- Trap. ONE weapon at a time: whichever of the two they did not choose is
+--- taken out of the Backpack and the hand, so a respawn, a re-equip or an
+--- ownership refresh can never leave both, and never a duplicate of either.
 local function giveTools(player: Player)
 	local backpack = player:FindFirstChildOfClass("Backpack")
 	if not backpack then
 		return
 	end
-	if not backpack:FindFirstChild("Bat") and not (player.Character and player.Character:FindFirstChild("Bat")) then
-		buildBat().Parent = backpack
+	local character = player.Character
+	local wanted = PvPService.equippedWeapon(player)
+
+	for _, name in PvPConfig.WeaponOrder do
+		if name == wanted then
+			continue
+		end
+		for _, container in { backpack :: Instance?, character :: Instance? } do
+			local stale = if container then container:FindFirstChild(name) else nil
+			if stale and stale:IsA("Tool") then
+				stale:Destroy()
+			end
+		end
 	end
-	if not backpack:FindFirstChild("Trap") and not (player.Character and player.Character:FindFirstChild("Trap")) then
+
+	local has = backpack:FindFirstChild(wanted) or (character and character:FindFirstChild(wanted))
+	if not has then
+		local tool: Tool? = if wanted == "Slap" then buildSlap() else buildBat()
+		if not tool then
+			-- The Slap art is missing from the place: the Bat, never nothing.
+			warn("[PvPService] no Slap art available - giving the Bat instead")
+			tool = buildBat()
+		end
+		(tool :: Tool).Parent = backpack
+	end
+	if not backpack:FindFirstChild("Trap") and not (character and character:FindFirstChild("Trap")) then
 		buildTrapTool().Parent = backpack
+	end
+end
+
+--- Storage > WEAPONS: choose the Bat or the Slap. Replaces, never adds.
+function PvPService.setWeapon(player: Player, name: string): (boolean, string?)
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+	local def = PvPConfig.Weapons[name]
+	if not def then
+		return false, "That weapon does not exist."
+	end
+	if def.gamePass and not PvPService.ownsSlap(player) then
+		return false, "You don't own the Slap yet."
+	end
+	if profile.EquippedWeapon == name and PvPService.equippedWeapon(player) == name then
+		return true
+	end
+
+	-- If the old weapon was in the hand, the new one goes into it.
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	local wasHolding = false
+	if character then
+		for _, other in PvPConfig.WeaponOrder do
+			if other ~= name and character:FindFirstChild(other) then
+				wasHolding = true
+			end
+		end
+	end
+
+	profile.EquippedWeapon = name
+	giveTools(player)
+	if wasHolding and humanoid then
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		local tool = backpack and backpack:FindFirstChild(name)
+		if tool and tool:IsA("Tool") then
+			humanoid:EquipTool(tool)
+		end
+	end
+	StateService.pushNow(player)
+	notify(player, "success", `{string.upper(name)} EQUIPPED!`)
+	return true
+end
+
+--- What the Weapons page and the Slap offer render.
+function PvPService.summarise(player: Player): { [string]: any }
+	return {
+		equipped = PvPService.equippedWeapon(player),
+		owned = { Bat = true, Slap = PvPService.ownsSlap(player) },
+		slapPrice = MonetizationService.livePassPrice(MonetizationConfig.SlapPass.gamePassId),
+	}
+end
+
+--- Ownership was (re)checked: a Slap just bought appears in the Backpack at
+--- once, and one no longer owned goes back to the Bat.
+function PvPService.onOwnershipChanged(player: Player)
+	if player.Parent and DataService.get(player) then
+		giveTools(player)
 	end
 end
 
@@ -616,10 +924,31 @@ function PvPService.start()
 	if not trapArt() then
 		warn("[PvPService] no MeshPart named \"Trap\" found - using the neon disc trap.")
 	end
+	-- The Weapons page draws the real models: publish the Bat and the Slap
+	-- where a client can clone them.
+	publishBatPreview()
+	if not slapArt() then
+		warn("[PvPService] no Slap art (workspace.Slap.Item or ReplicatedStorage.GameAssets.Weapons.Slap) - the Slap cannot be built.")
+	end
 
+	-- One remote for every swing; the weapon is read from the hand.
 	Remotes.get("BatSwingRequest").OnServerEvent:Connect(function(player)
 		PvPService.trySwing(player)
 	end)
+
+	Remotes.get("WeaponRequest").OnServerEvent:Connect(function(player, action, name)
+		if not weaponLimiter:consume(player) then
+			return
+		end
+		if action == "equip" and type(name) == "string" then
+			local ok, reason = PvPService.setWeapon(player, name)
+			if not ok and reason then
+				notify(player, "error", reason)
+			end
+		end
+	end)
+
+	StateService.addProvider("weapons", PvPService.summarise)
 
 	Remotes.get("TrapPlaceRequest").OnServerEvent:Connect(function(player, position)
 		-- A Vector3 with a NaN component is still a Vector3; it would turn the
@@ -647,6 +976,7 @@ function PvPService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		batLimiter:release(player)
 		trapLimiter:release(player)
+		weaponLimiter:release(player)
 		lastSwing[player] = nil
 		for index = #traps, 1, -1 do
 			if traps[index].owner == player then

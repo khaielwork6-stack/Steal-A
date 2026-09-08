@@ -99,6 +99,24 @@ function BaseService.getOwner(plot: Instance): Player?
 	return owners[plot]
 end
 
+--- The plot's floor slab: its CFrame is the plot's own frame (local -Z is
+--- the open front, +Z the back wall) and its size the plot's footprint.
+function BaseService.slabOf(plot: Instance): BasePart?
+	local floor = plot:FindFirstChild("PlotFloor")
+	local slab = floor and floor:FindFirstChild("Slab")
+	return if slab and slab:IsA("BasePart") then slab else nil
+end
+
+--- The plot a UserId currently owns, if that player is here.
+function BaseService.plotOfUserId(userId: number): Instance?
+	for plot, owner in owners do
+		if owner.UserId == userId then
+			return plot
+		end
+	end
+	return nil
+end
+
 --- Vertical tolerance around the plot floor. Deliberately generous: whether a
 --- player is home is a question about the ground they are standing on, not
 --- about the exact height of an invisible volume. Testing Y against the part
@@ -499,6 +517,48 @@ local function styleSlot(slot: BasePart, state: SlotState, accent: Color3?)
 	slot:SetAttribute("NeonRest", transparency)
 end
 
+--- A slot whose trophy a thief is carrying away right now (HeistService).
+--- The pad stays claimed - nothing can be placed there and the item is still
+--- the owner's - but reads red and empty until the robbery resolves.
+local ROBBED_COLOR = Color3.fromRGB(255, 84, 84)
+local ROBBED_SIGN_NAME = "RobbedSign"
+
+local function robbedSign(slot: BasePart)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = ROBBED_SIGN_NAME
+	gui.Size = UDim2.fromScale(8, 3)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0)
+	gui.AlwaysOnTop = false
+	gui.MaxDistance = 160
+	gui.LightInfluence = 0
+	gui.Adornee = slot
+	gui.Parent = slot
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.fromScale(1, 0.55)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = ROBBED_COLOR
+	title.TextStrokeTransparency = 0.1
+	title.TextStrokeColor3 = Color3.fromRGB(40, 8, 8)
+	title.Text = "STOLEN!"
+	title.Parent = gui
+
+	local hint = Instance.new("TextLabel")
+	hint.Name = "Hint"
+	hint.Size = UDim2.fromScale(1, 0.4)
+	hint.Position = UDim2.fromScale(0, 0.58)
+	hint.BackgroundTransparency = 1
+	hint.Font = Enum.Font.FredokaOne
+	hint.TextScaled = true
+	hint.TextColor3 = Color3.fromRGB(255, 226, 226)
+	hint.TextStrokeTransparency = 0.3
+	hint.Text = "Stop the thief!"
+	hint.Parent = gui
+end
+
 --- Where an item's lowest point should sit: on the pedestal's top face, or on
 --- the pad when there is no pedestal.
 local function seatTrophy(trophy: Model, slot: BasePart, surfaceY: number)
@@ -567,7 +627,7 @@ function BaseService.rebuildDisplays(player: Player)
 			continue
 		end
 
-		for _, name in { "Trophy", "Pedestal" } do
+		for _, name in { "Trophy", "Pedestal", ROBBED_SIGN_NAME } do
 			local existing = slot:FindFirstChild(name)
 			if existing then
 				existing:Destroy()
@@ -581,6 +641,14 @@ function BaseService.rebuildDisplays(player: Player)
 		end
 		if not item then
 			styleSlot(slot, "Empty")
+			continue
+		end
+		if item.RobbedBy then
+			-- Being carried away by a thief: no trophy, no pedestal, a red pad
+			-- that still counts as taken. HeistService puts the item back here
+			-- (or hands it over) and rebuilds.
+			styleSlot(slot, "Occupied", ROBBED_COLOR)
+			robbedSign(slot)
 			continue
 		end
 

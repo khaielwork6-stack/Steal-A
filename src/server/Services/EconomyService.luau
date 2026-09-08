@@ -46,6 +46,12 @@ function EconomyService.recalculate(player: Player): number
 
 	local total = 0
 	for _, item in profile.DisplayItems do
+		-- An item a thief is carrying away earns nothing for anyone until the
+		-- robbery resolves: the victim's rate drops the moment it is lifted,
+		-- and the thief's only rises once it is deposited. Never both.
+		if item.RobbedBy then
+			continue
+		end
 		-- Maturity. A trophy that has been on display for a while earns a
 		-- little more (NightConfig.GROWTH_INCOME_BONUS at full growth). Applied
 		-- to the AGGREGATE from the saved growth seconds, so the item's own

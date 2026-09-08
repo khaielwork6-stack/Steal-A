@@ -77,6 +77,7 @@ local RAINBOW = ColorSequence.new({
 --- strobe, which matters on a button a child is looking at all session.
 local RAINBOW_PERIOD = 3.6
 local rainbowConnection: RBXScriptConnection? = nil
+local chestSignConnection: RBXScriptConnection? = nil
 local CLAIMED_COLOR = Color3.fromRGB(150, 156, 170)
 local CLAIMED_ACCENT = Color3.fromRGB(70, 74, 88)
 
@@ -393,8 +394,55 @@ local function repaint()
 		if text and text:IsA("TextLabel") and text.Text ~= "CLAIMED" then
 			text.Text = "CLAIMED"
 			text.TextColor3 = Color3.fromRGB(214, 226, 244)
+			-- Grey means grey: the rainbow comes off with the offer.
+			local rainbow = text:FindFirstChild("Rainbow")
+			if rainbow then
+				rainbow:Destroy()
+			end
+			if chestSignConnection then
+				chestSignConnection:Disconnect()
+				chestSignConnection = nil
+			end
 		end
 	end
+end
+
+-- ==========================================================
+-- THE CHEST'S FREE! SIGN
+-- ==========================================================
+--
+-- The server builds the sign white under a gradient; this sweeps the same
+-- rainbow the GIFT button wears across it and lets it breathe, so the word
+-- reads as the same offer from across the lobby. One RenderStepped, one
+-- gradient offset, one UIScale - and it stops the moment the gift is
+-- claimed (see repaint).
+
+local function dressChestSign()
+	local map = workspace:WaitForChild("Map", 120)
+	local chest = map and map:WaitForChild("GiftChest", 120)
+	local body = chest and chest:WaitForChild("Chest", 30)
+	local sign = body and body:WaitForChild("FreeSign", 30)
+	local text = sign and sign:FindFirstChild("Text")
+	if not text or not text:IsA("TextLabel") or claimedState() then
+		return
+	end
+	local rainbow = text:FindFirstChild("Rainbow")
+	if not rainbow or not rainbow:IsA("UIGradient") then
+		return
+	end
+	rainbow.Color = RAINBOW
+	local scale = text:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+	scale.Parent = text
+	local phase = math.random() * math.pi * 2
+	chestSignConnection = RunService.RenderStepped:Connect(function()
+		if not text.Parent then
+			return
+		end
+		local t = os.clock() / RAINBOW_PERIOD
+		rainbow.Offset = Vector2.new((t % 1) * 2 - 1, 0)
+		rainbow.Rotation = math.sin(t * math.pi * 2) * 14
+		scale.Scale = 1 + math.sin(os.clock() * 2.2 + phase) * 0.05
+	end)
 end
 
 local function show()
@@ -563,6 +611,8 @@ function GroupGiftController.start()
 	end)
 
 	player.CharacterAdded:Connect(close)
+
+	task.spawn(dressChestSign)
 end
 
 return GroupGiftController

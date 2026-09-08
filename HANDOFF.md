@@ -2,10 +2,14 @@
 
 Written for the next Claude session. Read this before touching anything.
 
-> **START AT §31** (the template rebuild: the world is cloned from the
-> owner's purchased kit - lane 160, five bases, kit zone lengths, tiled kit
-> walls, rain over 9-12, movable `LobbyMarkers`, decorations gone, the
-> sign-side fix), then §30 (pre-release polish: leaderboards, prompts, the owner
+> **START AT §32** (the major update: four base guardians on a three-hour
+> rotation, the Guardian Bay on every plot, the Slap weapon, Storage with
+> ITEMS / GUARDIANS / WEAPONS, player-to-player base stealing through
+> Developer Products, the two portals, live Robux prices - and the two-player
+> tests that could not be run), then §31 (the template rebuild: the world is
+> cloned from the owner's purchased kit - lane 160, five bases, kit zone
+> lengths, tiled kit walls, rain over 9-12, movable `LobbyMarkers`,
+> decorations gone, the sign-side fix), then §30 (pre-release polish: leaderboards, prompts, the owner
 > avatar display, random bases, night announcement timing, the chase fix, the
 > carry-physics root cause, boss Zzz, the barrier, the gift chest and button,
 > size auras, forward-only zone pop-ups), then §29 (map polish 2: the lobby
@@ -2884,3 +2888,224 @@ runs into the shoulder walls.
   SPEEDS are unchanged (§25's audit), but a late chase is now longer.
 - Server Size 5, Save the place (kit moved to ServerStorage, LobbyMarkers
   created, Map rebuilt, `_MapBackup_pre-kit`).
+
+## 32. The major update — base guardians, the rotating shop, the Slap, player-to-player stealing, the portals
+
+The owner's fourth brief (30 pages). Everything below is implemented and
+the single-client parts are tested; §32.9 says exactly what a one-player
+Studio session cannot prove.
+
+### 32.1 Live prices, and why none of them are typed anywhere
+
+`MonetizationService.refreshLivePrices` asks `GetProductInfo` for every
+guardian pass, the Slap pass and the ten steal products at start and every
+ten minutes; `livePassPrice` / `liveProductPrice` are what every sign,
+prompt, card and offer shows. `onPricesChanged` (wired in init) re-texts
+the world and re-pushes every client. `DebugInvoke("prices")` prints live
+against intended. At handoff the live prices were:
+
+| item | live | brief |
+| --- | --- | --- |
+| Cat / Dog / Panda / Tiger pass | 240 each | 399 (listing said 299) |
+| Slap pass (`SlapBat`) | 24 | 29 |
+| Steal Common | 7 | 7 |
+| Uncommon / Rare / Epic | 10 / 20 / 32 | 12 / 24 / 39 |
+| Legendary / Mythic / Cosmic | 56 / 120 / 160 | 69 / 149 / 199 |
+| Secret / Eternal / Divine | 200 / 320 / 480 | 249 / 399 / 599 |
+
+Every one but Common differs. That is a Creator Dashboard change; the
+code follows whatever Roblox returns within ten minutes.
+
+### 32.2 Small map fixes (section 2)
+
+- **Event stand** (`EventStandService`): the marker moved to (128, 0, -4)
+  facing -Z; the service raycasts back from the marker, finds the shoulder
+  wall and seats the board 0.15 proud of its face, facing the wall's
+  normal. A subtle shine is cloned from `GameAssets.Mutations.Shiny`
+  (`addShine`: rate x0.35, cap 6/s, emitting off the front face); the
+  original is only read.
+- **Gift chest** (`GiftChestService`): the chest part turned exactly 180
+  degrees (the `Angles(0, 180)` came off). The FREE! label is white under a
+  `Rainbow` UIGradient with a 3-px outline; `GroupGiftController.
+  dressChestSign` sweeps the GIFT button's rainbow across it and breathes
+  it, and removes the gradient once claimed.
+- **Upgrade sign** (`MapBuilder.buildBase` + `PlacementService.signFacing`):
+  the pad moved to the plot's outer front corner, local (-32, -41), inside
+  the gate post; the sign faces the slab's centre. Rebuilt into the place.
+
+### 32.3 Base guardians (sections 3-5)
+
+- **Config**: `BaseGuardianConfig` (models, aura kits, colours, `faceLocal`
+  - the measured local direction each import faces - rotation order and
+  length, bay size, chase tuning). Pass ids in
+  `MonetizationConfig.GuardianPasses`; `SlapPass` beside them;
+  `allGamePassIds` warms all five so `ownsPassCached` answers on join.
+- **Assets** moved out of Workspace in the place: `ReplicatedStorage.
+  GameAssets.BaseGuardians/{Cat,Dog,Panda,Tiger}` and `.../Auras/*Aura`
+  (ReplicatedStorage so the client can draw them in cards). The lowercase
+  duplicate `cat` import is in `ServerStorage._UnusedImports`. Rigs: the
+  Dog is a real R6 rig (walks with Roblox's own R6 cycle, idles with the
+  R6 idle); the Cat is a skinned mesh with no Humanoid; the Panda and Tiger
+  are static props. All four are dressed over the bosses' invisible rig by
+  `GuardianService.buildRigFrom` (extracted from `buildRig`; `dressRig`
+  gained a `shellRotation` so an import authored facing +X runs nose
+  first). The three jointless animals run the cartoon way, like the prop
+  bosses. No animation id was invented.
+- **`BaseGuardianService`**: `owns` = the pass; `sync` re-validates the
+  saved `EquippedGuardian` against ownership before spawning; the bay is
+  built at runtime on `GuardianBayPad` (platform, neon frame, paw emblem,
+  two pillars, energy emitter, GUARDIAN label); Idle / Alert / Chasing /
+  Returning with a fresh `Humanoid:Move` every frame, sidestep-when-stuck,
+  nearest intruder with hysteresis, never the owner, leash = the plot plus
+  `CHASE_MARGIN` (except a hunted thief for `GUARDIAN_HUNT_SECONDS`), hit at
+  `CATCH_RADIUS`, `RagdollService.launch` OUTWARD FROM THE SLAB CENTRE,
+  immunity as the per-target cooldown, exact return to the bay CFrame.
+  `GuardianFxController` pops the "!" and the red flash on `State ==
+  "Alert"`. Remote `GuardianRequest` ("equip", key / "unequip").
+- **Display grid**: `buildBase` fills the 4x4 grid FRONT to back, so the
+  two empty cells sit together in the back rank and the bay stands on
+  them (local (20.5, 40)). Slot 1 is now the front-left pad.
+
+### 32.4 The rotating shop (section 3) and the offers (section 6)
+
+- `BaseGuardianConfig.rotation(unixTime)`: three-hour slots of the Unix
+  clock, order Cat, Dog, Panda, Tiger. Pure arithmetic - every server and
+  every client (`GetServerTimeNow`) agree, restarts change nothing.
+  `DebugInvoke("rotation")` prints the next four boundaries.
+- `GuardianShopService`: pedestal (the trophy pedestal asset scaled), the
+  animal on it (built with the same rig, statue-anchored), a throttled aura,
+  the sign (name, LIMITED TIME!, live price, countdown) and a prompt on a
+  `LobbyMarkers.GuardianShop` marker (default (104, 0, -24) facing the
+  spawn). Buy prompts the pass ON SALE NOW (`promptGuardianPass` derives it
+  from the clock; a client cannot name one); owned -> Equip / Equipped.
+  `GuardianShopController` draws the countdown once a second, turns the
+  statue locally and labels the prompt per player.
+- `OfferRailController` takes over the pack's `UI FOR ANIMAL + SLAP`
+  frame: top = the rotation guardian (ModelPreview of the real model,
+  name, LIMITED! tag, live price, countdown), bottom = the Slap (rainbow
+  SLAP!, OP DEAL, live price). Owned reads OWNED, does nothing, keeps its
+  breath. Taps go through `PurchaseRequest("guardian" | "slap")`.
+
+### 32.5 Storage: ITEMS / GUARDIANS / WEAPONS (section 7)
+
+`InventoryController` grew three tabs under the header (cloned from the
+pack's header button), a shrunken list, and two more card builders on the
+same pack card: `buildGuardianCard` (real model in a `ModelPreview` plate,
+EQUIP / EQUIPPED + UNEQUIP, never a price) and `buildWeaponCard` (Bat
+always, Slap when owned, EQUIP / EQUIPPED). The header reads `OWNED: X/4`
+or `X/2` on those pages and hides the storage upgrade; the item capacity
+never counts them. Data rides StatePush via `StateService.addProvider`:
+`guardians` (BaseGuardianService.summarise) and `weapons`
+(PvPService.summarise). Set `Storage.Tabs` attribute `Active` to switch
+pages from code.
+
+### 32.6 The Slap (section 7)
+
+`PvPConfig.Weapons` (Bat, Slap) is the one swing framework: `trySwing`
+reads the weapon from the Tool in the hand, resolves with that row's
+range, arc, delay, knockback and cue, and the Slap adds a `slapPop`
+(sparks + a SLAP! pop) at the victim. `SlapHit` is the bat's own impact
+asset at pitch 1.35 (no slap sound was supplied and none invented; swap
+the id in AudioConfig). The Tool is built from
+`ReplicatedStorage.GameAssets.Weapons.Slap` (the cage's Item + Hand + Stick,
+published from the display, scaled 0.55). `EquippedWeapon` on the profile,
+validated against the pass on every hand-out; `giveTools` removes the
+other weapon so a respawn can never duplicate. `WeaponRequest("equip",
+name)`. The hotbar keeps slot 1 for whichever weapon is out.
+`SlapDisplayService` dresses the cage (SLAM! rainbow, SLAP PLAYERS AWAY!,
+live price, Buy / Owned / Equipped prompt); `SlapDisplayController` turns
+and bobs the hand locally.
+
+### 32.7 Player-to-player stealing (section 8)
+
+`HeistService`. Read its header; the short form:
+
+- `RobPrompt` per occupied slot (server-made, disabled; `RobPromptController`
+  enables it for everyone but the owner and hides it while protected).
+  `BasePromptController` skips it by name. ActionText `STEAL FOR R$<live>`.
+- Hold -> `begin`: own base, carrying, base full, robbed, reserved,
+  protected (`ProtectedUntil`, a Unix second saved ON THE ITEM), victim
+  cooldown (60 s) - each with its own toast - then the exact item is
+  reserved (memory + `profile.PendingSteal`) and the rarity's product is
+  prompted. The product comes from the victim's real item, never the
+  client. Cancel (`PromptProductPurchaseFinished`, purchased = false)
+  releases; nothing is ever granted from that event.
+- Receipt -> `MonetizationService.processReceipt` (`kind == "Steal"`) ->
+  `fulfil`: re-checks victim, InstanceId, rarity; flags the item
+  `RobbedBy`, builds the carry from the saved record (real art, size,
+  mutation, aura) and hands it over with `CarryService.beginCarry`. The
+  victim's guardian hunts the thief. Anything less leaves the receipt
+  OPEN (`NotProcessedYet`); it is never swapped for another item.
+- While carried: victim slot shows STOLEN! (`BaseService` robbed style),
+  earns nothing (`EconomyService` skips `RobbedBy`), cannot be stored
+  (`PlacementService.store`). Drop, bat, trap, death, reset, leave, the
+  guardian: `CarryService` heist branches call `loot.onLost` -> `fail`,
+  item back to the victim, nothing on the floor.
+- Deposit: `PlacementService.place` -> `HeistService.deposit`: the same
+  record moves, `ProtectedUntil = now + 600`, both incomes recalculated
+  once, both profiles saved.
+- Victim leaves mid-robbery: `onPlayerLeaving` (connected in init BEFORE
+  DataService's own PlayerRemoving, so it runs first) lifts the item out of
+  their profile into the pending robbery; the thief deposits it as normal
+  or gets it in Storage on a failed escape. Thief leaves: the item goes
+  back to the victim before anyone saves.
+- Schema v7 (`DataService`): `EquippedGuardian`, `EquippedWeapon`,
+  `PendingSteal`, and `ProtectedUntil` / `RobbedBy` on items (`RobbedBy`
+  cleared on every load).
+
+### 32.8 Portals (sections 9-10)
+
+`PortalService`. World2Portal: collision off, a WORLD 2 / COMING SOON sign
+(rainbow swept client-side), a breathing light, one debounced "WORLD 2 —
+COMING SOON!" toast per touch. Backtobase: moved in the place from 15
+studs in the air to (0, 4, 4866) on the floor 13 studs before the end
+wall; touching it teleports home through `BaseService.teleportHome`
+after the SERVER checks `CarryService.getCarried` - any carry at all is
+refused with "You can't teleport while carrying an item!" (debounced) -
+and `PortalFx("teleport")` dips the client to black.
+
+### 32.9 Tested (one client, Studio, DataStores off)
+
+- Console clean on server and client; 103 modules compile.
+- Shop: Panda on the pedestal, sign "PANDA GUARDIAN / LIMITED TIME! / R$240
+  / New Guardian In: hh:mm:ss" counting down; prompt reads Equip for an
+  owner (the creator owns every pass in Studio).
+- Offers: PANDA + LIMITED! + timer, SLAP! + OP DEAL, both OWNED here,
+  previews drawn from the real models.
+- Storage: ITEMS 0/10 with the upgrade button; GUARDIANS "OWNED: 4/4", four
+  cards with EQUIP; WEAPONS "OWNED: 2/2", Bat EQUIPPED, Slap EQUIP; after
+  equipping, Tiger shows EQUIPPED + UNEQUIP.
+- `guardianEquip Tiger`: Tiger stands in Base04's bay, feet on the platform,
+  label "TIGER GUARDIAN / On guard". `bayTest Base01 Cat` + walking in: the
+  Cat chased at 24 studs/s, hit (PlatformStand), launched the player OUT
+  the front of the plot (local z -117), walked home and idled. Trace in the
+  session log.
+- Slap: `weapon equip Slap` -> Backpack holds Trap + Slap only, hotbar
+  slot 1 = Slap, swing refused in the safe zone as the Bat is.
+- Portals: walking into World2 -> the toast; into Backtobase carrying the
+  vase -> refused, still standing there; after dropping -> teleported to
+  the Base04 spawn with PortalFx and "Back to base!".
+- Event stand flat on the wall at (128, 8.3, -0.3) facing -Z with six shine
+  emitters; chest lock facing the spawn; SLAM! and FREE! both rainbow.
+
+### 32.10 NOT tested, and blockers
+
+- **Two players**: stealing end to end (prompt, receipt, chase, deposit,
+  protection, cooldown, victim/thief leaving), a guardian versus a real
+  intruder who is not the tester, the Slap connecting with a player, and
+  right-side offers on a second account. Studio here runs one client.
+  The pipeline was exercised as far as one client allows and reviewed
+  line by line; it needs a two-account test before release.
+- **Real purchases**: Studio cannot spend Robux. The prompts open; the
+  receipt path was exercised only by the existing synthetic-receipt debug
+  command for the older products.
+- **Mobile / controller**: the prompts are ProximityPrompts (touch and
+  gamepad work by construction); the tab buttons and offers are ordinary
+  GuiButtons. Not run on a phone.
+- **Prices**: see 32.1 - the Dashboard, not the code.
+- **A slap sound** and **animal attack animations** were not supplied; the
+  Slap reuses the bat impact at a higher pitch and the animals lunge
+  procedurally.
+- Save the place: assets moved to ReplicatedStorage, markers moved/added,
+  the Backtobase cube moved, the map rebuilt (bay pad, upgrade pad, slot
+  order).

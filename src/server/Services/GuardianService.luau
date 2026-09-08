@@ -367,10 +367,13 @@ local function partsCarriedBy(rootPart: BasePart, shell: Model): { [BasePart]: b
 	return carried
 end
 
-local function dressRig(model: Model, root: BasePart, shell: Model)
+local function dressRig(model: Model, root: BasePart, shell: Model, shellRotation: CFrame?)
 	ensureShellCollisionGroup()
 	shell.Name = "Shell"
-	shell:PivotTo(root.CFrame)
+	-- `shellRotation` turns a costume authored facing some other axis (the
+	-- base guardians: a cat modelled looking down +X) so it faces the root's
+	-- forward. Identity for the zone bosses, which are all character rigs.
+	shell:PivotTo(root.CFrame * (shellRotation or CFrame.identity))
 
 	-- A character-shaped import brings its own Humanoid. It stays, as a
 	-- renderer only: the clothing, body meshes and colours hang off it.
@@ -467,31 +470,20 @@ end
 --- costume balanced on a small invisible box.
 local BASE_ROOT_SIZE = Vector3.new(2.6, 4, 1.6)
 
-local function buildRig(zoneIndex: number): (Model, number)
-	local zone = ZoneConfig.Zones[zoneIndex]
-	local assets = ServerStorage:FindFirstChild("GameAssets")
-	local source = if assets and assets:FindFirstChild("Guardians")
-		then assets.Guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{zone.guardian}`)
-		else nil
-
-	-- Guardians grow zone by zone so a later zone reads as dangerous on sight.
-	--
-	-- TWO SIZES, ON PURPOSE. `targetHeight` is what the costume is scaled to -
-	-- the table in GameConfig, climbing to forty studs at the Airport. `growth`
-	-- is what the PHYSICS body follows, and it stops at a cap: the invisible
-	-- collider, the hip height, the step height and the catch radius all come
-	-- from this, so a late-zone boss is a giant to look at and a guardian-sized
-	-- thing to chase you - it corners, fits the lane and catches exactly like
-	-- the early zones do. A collider that grew with the costume jammed on
-	-- doorways it dwarfed and caught players from half a zone away.
-	local targetHeight = GameConfig.guardianHeightFor(zoneIndex)
-	local growth = GameConfig.guardianPhysicsGrowthFor(zoneIndex)
-
+--- A working guardian rig dressed in `source`: an invisible collidable
+--- body and Humanoid with the costume welded on. Shared by the zone bosses
+--- (below) and the base guardians (BaseGuardianService), so the two kinds
+--- of guardian are built, sized and animated by exactly the same code.
+---
+--- `growth` is how much bigger than the zone-1 body the PHYSICS is (1 for a
+--- base guardian); `shellRotation` turns a costume authored facing some
+--- other axis so it faces forward (see dressRig).
+local function buildRigFrom(source: Instance?, targetHeight: number, growth: number, name: string, shellRotation: CFrame?): Model
 	-- The HumanoidRootPart doubles as the COLLIDABLE body. A rig whose parts all
 	-- have CanCollide off never leaves Freefall, and a Humanoid in Freefall
 	-- silently refuses to move.
 	local model = Instance.new("Model")
-	model.Name = zone.guardian
+	model.Name = name
 
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
@@ -529,7 +521,7 @@ local function buildRig(zoneIndex: number): (Model, number)
 			shell:ScaleTo(shell:GetScale() * (targetHeight / height))
 		end
 
-		local motor = dressRig(model, root, shell)
+		local motor = dressRig(model, root, shell, shellRotation)
 
 		-- FEET ON THE FLOOR. The costume is pivoted onto the root, but an import's
 		-- pivot sits wherever it was authored - the Elf Guard's is at its head -
@@ -566,7 +558,31 @@ local function buildRig(zoneIndex: number): (Model, number)
 	end
 
 	model:SetAttribute("Height", targetHeight)
-	return model, growth
+	return model
+end
+
+GuardianService.buildRigFrom = buildRigFrom
+
+local function buildRig(zoneIndex: number): (Model, number)
+	local zone = ZoneConfig.Zones[zoneIndex]
+	local assets = ServerStorage:FindFirstChild("GameAssets")
+	local source = if assets and assets:FindFirstChild("Guardians")
+		then assets.Guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{zone.guardian}`)
+		else nil
+
+	-- Guardians grow zone by zone so a later zone reads as dangerous on sight.
+	--
+	-- TWO SIZES, ON PURPOSE. `targetHeight` is what the costume is scaled to -
+	-- the table in GameConfig, climbing to forty studs at the Airport. `growth`
+	-- is what the PHYSICS body follows, and it stops at a cap: the invisible
+	-- collider, the hip height, the step height and the catch radius all come
+	-- from this, so a late-zone boss is a giant to look at and a guardian-sized
+	-- thing to chase you - it corners, fits the lane and catches exactly like
+	-- the early zones do. A collider that grew with the costume jammed on
+	-- doorways it dwarfed and caught players from half a zone away.
+	local targetHeight = GameConfig.guardianHeightFor(zoneIndex)
+	local growth = GameConfig.guardianPhysicsGrowthFor(zoneIndex)
+	return buildRigFrom(source, targetHeight, growth, zone.guardian), growth
 end
 
 --- A guardian's WalkSpeed, derived from the SAME recommendation the zone sign
@@ -1230,6 +1246,12 @@ local function prepareWalk(model: Model): (AnimationTrack?, AnimationTrack?, num
 	local reference = WALK_REFERENCE_SPEED[rigType] or 16
 	return walk, idle, reference * math.max(height / STANDARD_RIG_HEIGHT, 0.5)
 end
+
+--- Shared with BaseGuardianService: the Dog is an R6 rig and walks with the
+--- same Roblox cycle the rigged bosses use.
+GuardianService.prepareWalk = prepareWalk
+GuardianService.WALK_RATE_MIN = WALK_RATE_MIN
+GuardianService.WALK_RATE_MAX = WALK_RATE_MAX
 
 --- Poses the imported costume.
 ---

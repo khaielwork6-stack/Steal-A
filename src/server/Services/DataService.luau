@@ -26,7 +26,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
-local SCHEMA_VERSION = 6
+local SCHEMA_VERSION = 7
 local STORE_NAME = "PlayerProfiles_v1"
 
 --- The longest a growth value may claim. NightService caps growth at
@@ -52,6 +52,15 @@ export type DisplayItem = {
 	--- Seconds of effective growth accrued while on display (v6). Capped by
 	--- NightService; drives the maturity income/size bonus.
 	GrowthSeconds: number?,
+	--- Unix second until which no other player may steal this item (v7).
+	--- Set on a successful robbery; travels with the item through store and
+	--- re-display, so it cannot be shaken off by moving it. Nil = unprotected.
+	ProtectedUntil: number?,
+	--- SESSION ONLY: the UserId of the thief currently carrying this item
+	--- away. While set the item earns nothing and its slot shows as robbed.
+	--- Cleared on every load - a robbery never survives a session - and
+	--- resolved by HeistService before the owner's profile is saved on leave.
+	RobbedBy: number?,
 }
 
 export type Profile = {
@@ -98,6 +107,17 @@ export type Profile = {
 	-- reason as the receipt list: an in-memory flag would pay out again on every
 	-- rejoin. See GroupGiftService.
 	GroupGiftClaimed: boolean,
+	-- v7. Which OWNED base guardian stands in the bay ("" = none). Ownership
+	-- itself is never stored: the Game Pass is the source of truth and
+	-- BaseGuardianService re-checks it before spawning anything.
+	EquippedGuardian: string,
+	-- v7. "Bat" or "Slap". The Slap is validated against its Game Pass on
+	-- every join; an unowned selection falls back to the Bat.
+	EquippedWeapon: string,
+	-- v7. A base steal whose purchase prompt was opened and not yet resolved:
+	-- kept durable so a Developer Product receipt that lands after a rejoin
+	-- can still be matched to the item it paid for. See HeistService.
+	PendingSteal: any?,
 }
 
 local store: DataStore? = nil
@@ -135,6 +155,9 @@ local function defaultProfile(): Profile
 		TrailsOwned = {},
 		EquippedTrail = "",
 		GroupGiftClaimed = false,
+		EquippedGuardian = "",
+		EquippedWeapon = "Bat",
+		PendingSteal = nil,
 	}
 end
 
@@ -222,7 +245,20 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 6
 	end
 
-	-- Future migrations chain here: if version < 7 then ... end
+	if version < 7 then
+		-- v7 adds base guardians, the weapon choice and base stealing. A player
+		-- from before owns whatever Game Passes Roblox says they own (never
+		-- stored here), has nothing equipped, and carries the Bat.
+		if type(profile.EquippedGuardian) ~= "string" then
+			profile.EquippedGuardian = ""
+		end
+		if type(profile.EquippedWeapon) ~= "string" then
+			profile.EquippedWeapon = "Bat"
+		end
+		profile.SchemaVersion = 7
+	end
+
+	-- Future migrations chain here: if version < 8 then ... end
 
 	return profile
 end
@@ -273,6 +309,24 @@ local function reconcileItem(item: DisplayItem): boolean
 	growth = math.clamp(growth, 0, GROWTH_SECONDS_SANITY)
 	if item.GrowthSeconds ~= growth then
 		item.GrowthSeconds = growth
+		changed = true
+	end
+
+	-- A robbery is session state. Whatever the save says, nobody is carrying
+	-- this item away when it loads.
+	if item.RobbedBy ~= nil then
+		item.RobbedBy = nil
+		changed = true
+	end
+	-- Protection is an absolute Unix second, finite and in the future or gone.
+	local protectedUntil = tonumber(item.ProtectedUntil)
+	if protectedUntil == nil or protectedUntil ~= protectedUntil or protectedUntil <= os.time() then
+		if item.ProtectedUntil ~= nil then
+			item.ProtectedUntil = nil
+			changed = true
+		end
+	elseif item.ProtectedUntil ~= protectedUntil then
+		item.ProtectedUntil = protectedUntil
 		changed = true
 	end
 
@@ -375,6 +429,18 @@ local function reconcile(profile: Profile): Profile
 	end
 	if type(profile.EquippedTrail) ~= "string" then
 		profile.EquippedTrail = ""
+	end
+
+	-- Base guardian and weapon selections: strings, validated against what
+	-- the player actually OWNS by the services that spawn them, never here.
+	if type(profile.EquippedGuardian) ~= "string" then
+		profile.EquippedGuardian = ""
+	end
+	if type(profile.EquippedWeapon) ~= "string" or profile.EquippedWeapon == "" then
+		profile.EquippedWeapon = "Bat"
+	end
+	if type(profile.PendingSteal) ~= "table" then
+		profile.PendingSteal = nil
 	end
 
 	-- Recompute every stored item's economy from the live config. Runs on EVERY

@@ -28,6 +28,7 @@ export type Cue = {
 	looped: boolean?,
 	rollOff: number?, -- studs; world cues only
 	fade: number?, -- seconds; music only
+	pitch: number?, -- PlaybackSpeed; 1 when absent
 }
 
 local function asset(id: string | number): string
@@ -45,6 +46,10 @@ AudioConfig.Cues = {
 	NpcCatch = { id = asset(114303603199822), volume = 0.95, category = "world", rollOff = 160 },
 	--- Bat connecting with another player.
 	BatHit = { id = asset(106511269477863), volume = 0.9, category = "world", rollOff = 140 },
+	--- The Slap connecting. No slap sound was supplied and none is invented:
+	--- this is the bat's own impact asset played sharper and higher, which
+	--- reads as a smack rather than a thud. Swap the id when a real one lands.
+	SlapHit = { id = asset(106511269477863), volume = 1.0, category = "world", rollOff = 150, pitch = 1.35 },
 	--- Loops only while a guardian is asleep. Stops the instant it wakes.
 	Snoring = { id = asset(97721920245356), volume = 0.55, category = "world", looped = true, rollOff = 70 },
 

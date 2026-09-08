@@ -41,7 +41,7 @@ local player = Players.LocalPlayer
 local WINDUP = 0.06
 local SETTLE = 0.34
 
-local function gripSwing(tool: Tool)
+local function gripSwing(tool: Tool, strikeDelay: number)
 	local handle = tool:FindFirstChild("Handle")
 	if not handle or not handle:IsA("BasePart") then
 		return
@@ -68,7 +68,7 @@ local function gripSwing(tool: Tool)
 	local restC1 = rest :: CFrame
 	local back = restC1 * CFrame.Angles(math.rad(35), math.rad(-20), 0)
 	local through = restC1 * CFrame.Angles(math.rad(-110), math.rad(25), 0)
-	local strikeTime = math.max(0.02, PvPConfig.BAT_STRIKE_DELAY - WINDUP)
+	local strikeTime = math.max(0.02, strikeDelay - WINDUP)
 	grip.C1 = restC1
 	local windup = TweenService:Create(grip, TweenInfo.new(WINDUP, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C1 = back })
 	windup:Play()
@@ -81,7 +81,7 @@ local function gripSwing(tool: Tool)
 	end)
 end
 
-local function playSwing(tool: Tool)
+local function playSwing(tool: Tool, strikeDelay: number)
 	local character = player.Character
 	local animate = character and character:FindFirstChild("Animate")
 	if animate and animate:FindFirstChild("toolslash") then
@@ -99,7 +99,7 @@ local function playSwing(tool: Tool)
 		end)
 		return
 	end
-	gripSwing(tool)
+	gripSwing(tool, strikeDelay)
 end
 
 local function hookTool(tool: Tool)
@@ -112,18 +112,22 @@ local function hookTool(tool: Tool)
 	end
 	tool:SetAttribute("_CombatHooked", true)
 
-	if tool.Name == "Bat" then
+	-- Any weapon in PvPConfig.Weapons swings the same way: the Bat and the
+	-- Slap share the animation, the request and the server's resolution; only
+	-- the numbers differ, and the server reads those from the Tool in hand.
+	local weapon = PvPConfig.Weapons[tool.Name]
+	if weapon then
 		local cooling = false
 		tool.Activated:Connect(function()
 			if cooling then
 				return
 			end
 			cooling = true
-			task.delay(PvPConfig.BAT_COOLDOWN, function()
+			task.delay(weapon.cooldown, function()
 				cooling = false
 			end)
 
-			playSwing(tool)
+			playSwing(tool, weapon.strikeDelay)
 			Remotes.get("BatSwingRequest"):FireServer()
 		end)
 	elseif tool.Name == "Trap" then
