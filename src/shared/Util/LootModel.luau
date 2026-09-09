@@ -809,13 +809,24 @@ function LootModel.publishPreviews(): number
 	local folder = Instance.new("Folder")
 	folder.Name = PREVIEW_FOLDER
 
+	-- A preview is published under the ITEM ID it serves, not under the asset's
+	-- own name, because previewSource() looks up by id. An item that adopts a
+	-- differently-named asset through LootConfig.ModelOverrides would otherwise
+	-- publish as (say) "Toy Train", be looked up as "NorthPole_NiceList", miss,
+	-- and lose its thumbnail everywhere ItemThumb paints one - storage cards,
+	-- Index cards and reveals. An asset no item claims keeps its own name.
+	local idForAsset: { [string]: string } = {}
+	for itemId in LootConfig.ById do
+		idForAsset[LootConfig.modelNameFor(itemId)] = itemId
+	end
+
 	local count = 0
 	for _, item in source:GetChildren() do
 		local model = adopt(item)
 		if not model then
 			continue
 		end
-		model.Name = item.Name
+		model.Name = idForAsset[item.Name] or item.Name
 		unwrapEquipment(model)
 		for _, descendant in model:GetDescendants() do
 			if descendant:IsA("BasePart") then
