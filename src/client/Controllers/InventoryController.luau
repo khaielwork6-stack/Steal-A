@@ -33,13 +33,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local ModelPreview = require(ReplicatedStorage.Shared.Util.ModelPreview)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local ItemThumb = require(ReplicatedStorage.Shared.Util.ItemThumb)
 local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
-local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local InventoryController = {}
@@ -62,6 +62,29 @@ local CARD = {
 	NAME_TEXT = 20,
 	SUB_TEXT = 14,
 }
+
+--- How a card's text rows size themselves. Desktop keeps the fixed sizes the
+--- card was tuned at. On touch the panel is a fraction of that height, so a
+--- fixed 20px name overflowed its row and every tag ended in "..." - the rows
+--- scale to fit instead, bounded above by the same sizes.
+local function fitRowText(row: TextLabel, size: number)
+	if Device.isTouch() then
+		row.TextScaled = true
+		local limit = row:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
+		limit.MinTextSize = 9
+		limit.MaxTextSize = size
+		limit.Parent = row
+	else
+		row.TextScaled = false
+		row.TextSize = size
+	end
+end
+
+--- Short forms of the card tags for a phone's narrow text column. Same
+--- meaning, fewer characters; the desktop wording is untouched.
+local function shortTag(long: string, short: string): string
+	return if Device.isPhone() then short else long
+end
 
 local panel: Frame? = nil
 local scroll: ScrollingFrame? = nil
@@ -253,8 +276,7 @@ local function blankCard(name: string, index: number): (Frame?, TextLabel?, Text
 		row.Position = UDim2.fromScale(CARD.TEXT_LEFT, y)
 		row.Size = UDim2.fromScale(CARD.TEXT_WIDTH, height)
 		row.TextXAlignment = Enum.TextXAlignment.Left
-		row.TextScaled = false
-		row.TextSize = size
+		fitRowText(row, size)
 		row.TextTruncate = Enum.TextTruncate.AtEnd
 		row.RichText = false
 	end
@@ -355,8 +377,7 @@ local function buildCard(item: any, index: number): Frame?
 		row.Position = UDim2.fromScale(CARD.TEXT_LEFT, y)
 		row.Size = UDim2.fromScale(CARD.TEXT_WIDTH, height)
 		row.TextXAlignment = Enum.TextXAlignment.Left
-		row.TextScaled = false
-		row.TextSize = size
+		fitRowText(row, size)
 		row.TextTruncate = Enum.TextTruncate.AtEnd
 		row.RichText = false
 	end
@@ -507,7 +528,7 @@ local function buildGuardianCard(def: BaseGuardianConfig.GuardianDef, equipped: 
 		variantRow.Text = def.tagline
 	end
 	if tagRow then
-		tagRow.Text = if equipped then "ON GUARD AT YOUR BASE" else "PERMANENT"
+		tagRow.Text = if equipped then shortTag("ON GUARD AT YOUR BASE", "ON GUARD") else shortTag("PERMANENT", "OWNED")
 	end
 
 	previewPlate(card, guardianSource(def), ModelPreview.yawFor(def.faceLocal), if equipped then EQUIPPED_GREEN else def.accent, if equipped then "EQUIPPED" else nil)
@@ -540,7 +561,9 @@ local function buildWeaponCard(name: string, equipped: boolean, index: number): 
 		variantRow.Text = if name == "Slap" then "SLAP PLAYERS AWAY" else "KNOCK LOOT LOOSE"
 	end
 	if tagRow then
-		tagRow.Text = if equipped then "IN YOUR HOTBAR" else (if def.gamePass then "PERMANENT" else "STARTER WEAPON")
+		tagRow.Text = if equipped
+			then shortTag("IN YOUR HOTBAR", "EQUIPPED")
+			else (if def.gamePass then shortTag("PERMANENT", "OWNED") else shortTag("STARTER WEAPON", "STARTER"))
 	end
 
 	previewPlate(card, weaponSource(name), 0, if equipped then EQUIPPED_GREEN else accent, if equipped then "EQUIPPED" else nil)
@@ -560,6 +583,57 @@ end
 --- left out so it cannot force a rebuild.
 local builtSignature: string? = nil
 
+-- ==========================================================
+-- STABLE SLOTS
+-- ==========================================================
+--
+-- WHY THE LIST USED TO JUMP. Every rebuild popped each card in through a
+-- UIScale tween (0.85 -> 1 with an overshoot, staggered per card), and a
+-- UIListLayout positions children from their live AbsoluteSize - which a
+-- UIScale changes. So as each card swelled, every card below it slid, then
+-- bounced back on the overshoot, thirty milliseconds apart down the column.
+-- On top of that the whole list was torn down and re-cloned on any change,
+-- so even the cards that had not changed flickered.
+--
+-- Now each card lives inside a CanvasGroup of FIXED size that the layout
+-- positions. The card's entrance is a fade on the group - no scale, no
+-- overshoot, nothing the layout can see. And cards are keyed by what they
+-- show, so a refresh reuses the ones that are still there and only adds or
+-- removes the ones that changed.
+
+local slotsByKey: { [string]: CanvasGroup } = {}
+
+local function fadeIn(group: CanvasGroup)
+	group.GroupTransparency = 1
+	game:GetService("TweenService"):Create(group, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		GroupTransparency = 0,
+	}):Play()
+end
+
+--- Wraps a freshly built card in its fixed slot and parents it to the list.
+local function mountCard(card: Frame, key: string, index: number): CanvasGroup
+	local group = Instance.new("CanvasGroup")
+	group.Name = "Slot_" .. key
+	group.BackgroundTransparency = 1
+	group.BorderSizePixel = 0
+	group.AnchorPoint = Vector2.new(0.5, 0)
+	group.Size = UDim2.fromScale(CARD.WIDTH, CARD.HEIGHT)
+	group.LayoutOrder = index
+	-- The card fills its slot exactly; the slot is what the layout sizes.
+	card.AnchorPoint = Vector2.new(0, 0)
+	card.Position = UDim2.fromScale(0, 0)
+	card.Size = UDim2.fromScale(1, 1)
+	local stray = card:FindFirstChildOfClass("UIScale")
+	if stray then
+		stray:Destroy()
+	end
+	card.Parent = group
+	group.Parent = scroll
+	slotsByKey[key] = group
+	fadeIn(group)
+	return group
+end
+
 local function inventorySignature(inventory: { any }): string
 	local parts = table.create(#inventory)
 	for index, item in inventory do
@@ -570,6 +644,7 @@ end
 
 local function clearList()
 	builtSignature = nil
+	table.clear(slotsByKey)
 	local list = scroll
 	if not list then
 		return
@@ -692,56 +767,75 @@ local function refresh(state: any)
 	if activeTab == "Items" then
 		signature = "I|" .. inventorySignature(state.inventory or {})
 	elseif activeTab == "Guardians" then
-		signature = guardianSignature(guardians or {})
+		signature = "G|" .. guardianSignature(guardians or {})
 	else
-		signature = weaponSignature(weapons or {})
+		signature = "W|" .. weaponSignature(weapons or {})
 	end
 	if signature == builtSignature then
 		return
 	end
+	local sameTab = builtSignature ~= nil and string.sub(builtSignature, 1, 2) == string.sub(signature, 1, 2)
 	builtSignature = signature
 
-	clearList()
-
-	local cards: { GuiObject } = {}
 	if activeTab == "Items" then
+		if not sameTab then
+			clearList()
+			builtSignature = signature
+		end
+		-- DIFF, do not rebuild. A card whose item is still stored keeps its
+		-- instance (and its hover state, and its position); only the ones
+		-- that arrived are built and only the ones that left are removed.
 		local inventory = state.inventory or {}
+		local wanted: { [string]: boolean } = {}
 		for index, item in inventory do
-			local card = buildCard(item, index)
-			if card then
-				card.Parent = scroll
-				table.insert(cards, card)
+			local key = tostring(item.InstanceId)
+			wanted[key] = true
+			local existing = slotsByKey[key]
+			if existing and existing.Parent then
+				existing.LayoutOrder = index
+			else
+				local card = buildCard(item, index)
+				if card then
+					mountCard(card, key, index)
+				end
+			end
+		end
+		for key, group in slotsByKey do
+			if not wanted[key] then
+				slotsByKey[key] = nil
+				group:Destroy()
 			end
 		end
 		setEmpty(#inventory == 0, "Nothing Stored", "Store one of your displayed items to keep it here.")
 	elseif activeTab == "Guardians" then
+		clearList()
+		builtSignature = signature
 		local shown = 0
 		for index, def in BaseGuardianConfig.Guardians do
 			if guardians and guardians.owned and guardians.owned[def.key] then
 				shown += 1
 				local card = buildGuardianCard(def, guardians.equipped == def.key, index)
 				if card then
-					card.Parent = scroll
-					table.insert(cards, card)
+					mountCard(card, "G_" .. def.key, index)
 				end
 			end
 		end
 		setEmpty(shown == 0, "No Guardians Owned", "Watch the rotating Guardian shop to unlock one!")
 	else
+		clearList()
+		builtSignature = signature
 		local shown = 0
 		for index, name in PvPConfig.WeaponOrder do
 			if weapons and weapons.owned and weapons.owned[name] then
 				shown += 1
 				local card = buildWeaponCard(name, weapons.equipped == name, index)
 				if card then
-					card.Parent = scroll
-					table.insert(cards, card)
+					mountCard(card, "W_" .. name, index)
 				end
 			end
 		end
 		setEmpty(shown == 0, "No Weapons", "Every player carries the Bat.")
 	end
-	ShopKit.cascadeIn(cards, 0.03)
 end
 
 -- ==========================================================
@@ -1034,15 +1128,11 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 	emptyTitleLabel = emptyTitle
 	emptyHintLabel = emptyHint
 
-	-- Canvas grows with the content. Measured in pixels from the layout, which
-	-- stays correct with the pack's scale-sized cards at any item count.
-	if layout then
-		local function resize()
-			list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
-		end
-		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resize)
-		resize()
-	end
+	-- Canvas grows with the content through AutomaticCanvasSize (set above).
+	-- A second, manual CanvasSize write on every AbsoluteContentSize change
+	-- used to sit beside it; two owners of the canvas re-laid the scale-sized
+	-- rows against each other on every push, which is the flicker touch
+	-- scrolling showed. One owner now.
 	list.ScrollBarThickness = 6
 	scroll = list
 
@@ -1156,6 +1246,63 @@ local function ensureOpenerWorks(opener: TextButton)
 	end)
 end
 
+--- A storage chest drawn from frames: lid, body, a strap and a latch, every
+--- piece with the pack's thick dark outline. Fills `holder` (the button's
+--- Icon slot) and keeps its aspect, so it sits exactly where the image did.
+local function buildStorageGlyph(holder: GuiObject)
+	local OUTLINE = Color3.fromRGB(28, 22, 12)
+	local WOOD = Color3.fromRGB(255, 196, 80)
+	local WOOD_DARK = Color3.fromRGB(226, 140, 34)
+	local BRASS = Color3.fromRGB(255, 240, 170)
+
+	local glyph = Instance.new("Frame")
+	glyph.Name = "StorageGlyph"
+	glyph.AnchorPoint = Vector2.new(0.5, 0.5)
+	glyph.Position = UDim2.fromScale(0.5, 0.52)
+	glyph.Size = UDim2.fromScale(0.86, 0.86)
+	glyph.BackgroundTransparency = 1
+	glyph.ZIndex = holder.ZIndex + 1
+	glyph.Parent = holder
+	local ratio = Instance.new("UIAspectRatioConstraint")
+	ratio.AspectRatio = 1
+	ratio.Parent = glyph
+
+	local function piece(name: string, x: number, y: number, w: number, h: number, color: Color3, radius: number, z: number): Frame
+		local part = Instance.new("Frame")
+		part.Name = name
+		part.AnchorPoint = Vector2.new(0.5, 0.5)
+		part.Position = UDim2.fromScale(x, y)
+		part.Size = UDim2.fromScale(w, h)
+		part.BackgroundColor3 = color
+		part.BorderSizePixel = 0
+		part.ZIndex = glyph.ZIndex + z
+		part.Parent = glyph
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(radius, 0)
+		round.Parent = part
+		local edge = Instance.new("UIStroke")
+		edge.Thickness = 2.5
+		edge.Color = OUTLINE
+		edge.LineJoinMode = Enum.LineJoinMode.Round
+		edge.Parent = part
+		return part
+	end
+
+	-- Body, then the lid over its top edge, a strap down the middle, a latch.
+	local bodyPiece = piece("Body", 0.5, 0.64, 0.9, 0.5, WOOD, 0.14, 1)
+	local bodyShade = Instance.new("UIGradient")
+	bodyShade.Rotation = 90
+	bodyShade.Color = ColorSequence.new(WOOD, WOOD_DARK)
+	bodyShade.Parent = bodyPiece
+	local lid = piece("Lid", 0.5, 0.33, 0.94, 0.3, WOOD, 0.35, 2)
+	local lidShade = Instance.new("UIGradient")
+	lidShade.Rotation = 90
+	lidShade.Color = ColorSequence.new(Color3.fromRGB(255, 226, 140), WOOD)
+	lidShade.Parent = lid
+	piece("Strap", 0.5, 0.56, 0.2, 0.7, WOOD_DARK, 0.2, 3)
+	piece("Latch", 0.5, 0.5, 0.26, 0.2, BRASS, 0.3, 4)
+end
+
 --- The opener, cloned from a pack menu button so it matches Shop/Index/Settings
 --- exactly. Named "Storage" so the pack pairs it with the panel automatically.
 local function buildOpener(ui: ScreenGui)
@@ -1205,8 +1352,13 @@ local function buildOpener(ui: ScreenGui)
 	local body = opener:FindFirstChild("Frame")
 	local icon = body and body:FindFirstChild("Icon")
 	if icon and icon:IsA("ImageLabel") then
-		-- Reuse the icon the pack already ships on this panel's header.
-		icon.Image = "rbxassetid://112931960147028"
+		-- A STORAGE icon, not the cash note the pack's header carried. The
+		-- project ships no storage image, and no asset id is invented for one:
+		-- the chest is drawn from the pack's own vocabulary - outlined shapes
+		-- on the studded plate - so it matches the other three buttons.
+		icon.Image = ""
+		icon.BackgroundTransparency = 1
+		buildStorageGlyph(icon)
 	end
 
 	-- A count badge so a full storage is obvious without opening the panel.

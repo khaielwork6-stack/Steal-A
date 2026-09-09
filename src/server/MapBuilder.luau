@@ -260,9 +260,22 @@ local function wallSegmentTemplate(): (BasePart, BasePart)
 	return body :: BasePart, cap :: BasePart
 end
 
+--- Which kit weather part a zone uses, where it is not its own. The kit's
+--- Zone09 weather is SNOW, which belongs to the North Pole (zone 5), not
+--- the Secret Lab; the Lab gets none.
+local WEATHER_TEMPLATE_FOR: { [number]: string | boolean } = {
+	[5] = "Zone09",
+	[9] = false,
+}
+
 local function weatherTemplate(index: number): BasePart?
 	local weather = templateKit():FindFirstChild("Weather")
-	local part = weather and weather:FindFirstChild(string.format("Zone%02d", index))
+	local override = WEATHER_TEMPLATE_FOR[index]
+	if override == false then
+		return nil
+	end
+	local key = if type(override) == "string" then override else string.format("Zone%02d", index)
+	local part = weather and weather:FindFirstChild(key)
 	return if part and part:IsA("BasePart") then part else nil
 end
 
@@ -650,6 +663,51 @@ local function buildWeather(map: Instance)
 		end
 		weather.Parent = zone
 	end
+end
+
+--- Moves the weather part already baked into one zone to another, sized to
+--- the destination and with its emitter rates rescaled so the DENSITY is
+--- the same (a 324-stud zone gets half the snowflakes of a 640-stud one, and
+--- reads exactly as full). Runs at server start because the map is baked
+--- into the place; idempotent - once the destination has weather and the
+--- source has none there is nothing to do. Returns true when it moved.
+function MapBuilder.relocateWeather(fromIndex: number, toIndex: number): boolean
+	local map = workspace:FindFirstChild("Map")
+	local zones = map and map:FindFirstChild("Zones")
+	if not zones then
+		return false
+	end
+	local fromZone = zones:FindFirstChild(MapConfig.ZONES[fromIndex].id)
+	local toZone = zones:FindFirstChild(MapConfig.ZONES[toIndex].id)
+	if not fromZone or not toZone then
+		return false
+	end
+	local weather = fromZone:FindFirstChild("Weather")
+	if toZone:FindFirstChild("Weather") then
+		-- Already there. A leftover copy in the source is retired.
+		if weather then
+			weather:Destroy()
+		end
+		return false
+	end
+	if not weather or not weather:IsA("BasePart") then
+		return false
+	end
+
+	local oldArea = weather.Size.X * weather.Size.Z
+	local length = MapConfig.zoneLength(toIndex)
+	weather.Size = Vector3.new(MapConfig.LANE_WIDTH, weather.Size.Y, length)
+	weather.CFrame = CFrame.new(0, WEATHER_HEIGHT, MapConfig.zoneCenterZ(toIndex))
+	local newArea = weather.Size.X * weather.Size.Z
+	local factor = if oldArea > 0 then newArea / oldArea else 1
+	for _, d in weather:GetDescendants() do
+		if d:IsA("ParticleEmitter") then
+			d.Rate = math.max(1, math.floor(d.Rate * factor + 0.5))
+			d.Enabled = true
+		end
+	end
+	weather.Parent = toZone
+	return true
 end
 
 -- ==========================================================
@@ -1133,26 +1191,134 @@ end
 --
 -- CanQuery is left ON. Only collision is removed, so anything that raycasts
 -- against the world still sees the scenery.
+--- Workspace children that are NOT scenery, whatever they look like: the
+--- map itself, the lobby markers, the runtime-built displays and portals,
+--- the PvP art templates, the pack's leaderboard sources and the Next
+--- Update board's folder. Everything else at the top of Workspace that sits
+--- in the lane (Z > 0) is a Toolbox decoration the owner dropped in.
+local DECOR_KEEP: { [string]: boolean } = {
+	Map = true,
+	LobbyMarkers = true,
+	Terrain = true,
+	Camera = true,
+	Folder = true, -- the NextUpdate board (EventStandService.findBoardModel)
+	["Leaderboard Money"] = true,
+	["Leaderboard Speed"] = true,
+	Bat = true, -- PvP art template
+	Trap = true, -- PvP art template
+	Slap = true, -- lobby display, dressed by SlapDisplayService
+	Backtobase = true, -- portal
+	World2Portal = true, -- portal
+	Bounds = true,
+	CarriedLoot = true,
+	SpeedPopups = true,
+	TreadmillFx = true,
+	Guardians = true,
+	BaseGuardians = true,
+	_Guards = true,
+}
+
+--- Makes one decoration harmless: anchored, walk-through, no Touched, no
+--- pushing, no scripts. Returns how many parts were changed.
+local function hollowDecoration(root: Instance): (number, number)
+	local parts, scripts = 0, 0
+	local function treat(instance: Instance)
+		if instance:IsA("BasePart") then
+			local changed = false
+			if not instance.Anchored then
+				instance.Anchored = true
+				changed = true
+			end
+			if instance.CanCollide then
+				instance.CanCollide = false
+				changed = true
+			end
+			if instance.CanTouch then
+				instance.CanTouch = false
+				changed = true
+			end
+			if changed then
+				parts += 1
+			end
+		elseif instance:IsA("BaseScript") then
+			-- A Toolbox model's own script (a spinner, a sound loop, a sword
+			-- handler). Disabled and removed: nothing inside a decoration
+			-- should run.
+			instance:Destroy()
+			scripts += 1
+		elseif instance:IsA("Seat") or instance:IsA("VehicleSeat") then
+			instance.Disabled = true
+		elseif instance:IsA("BodyMover") or instance:IsA("Constraint") then
+			instance:Destroy()
+		end
+	end
+	treat(root)
+	for _, descendant in root:GetDescendants() do
+		treat(descendant)
+	end
+	return parts, scripts
+end
+
+--- True when a top-level Workspace child is scenery in the lane.
+local function isLaneDecoration(child: Instance): boolean
+	if DECOR_KEEP[child.Name] then
+		return false
+	end
+	if child:IsA("Terrain") or child:IsA("Camera") or child:IsA("Folder") and child.Name ~= "Construction Site Props-1" then
+		return false
+	end
+	local position: Vector3? = nil
+	if child:IsA("BasePart") then
+		position = child.Position
+	elseif child:IsA("Model") then
+		local ok, cf = pcall(function()
+			return (child:GetBoundingBox())
+		end)
+		position = if ok then cf.Position else nil
+	elseif child:IsA("Accoutrement") or child:IsA("Tool") or child:IsA("Folder") then
+		local part = child:FindFirstChildWhichIsA("BasePart", true)
+		position = if part then part.Position else nil
+	end
+	-- Only the lane. The lobby's runtime objects live behind the red line
+	-- and are built by services that own their own collision.
+	return position ~= nil and position.Z > 0
+end
+
 function MapBuilder.applyDecorCollision(map: Instance?): number
 	local target = map or workspace:FindFirstChild("Map")
 	local zones = target and target:FindFirstChild("Zones")
-	if not zones then
-		return 0
-	end
 
 	local cleared = 0
-	for _, zone in zones:GetChildren() do
-		for _, name in { "Decorations", "Gate" } do
-			local container = zone:FindFirstChild(name)
-			if container then
-				for _, part in container:GetDescendants() do
-					if part:IsA("BasePart") and part.CanCollide then
-						part.CanCollide = false
-						cleared += 1
+	if zones then
+		for _, zone in zones:GetChildren() do
+			for _, name in { "Decorations", "Gate" } do
+				local container = zone:FindFirstChild(name)
+				if container then
+					for _, part in container:GetDescendants() do
+						if part:IsA("BasePart") and part.CanCollide then
+							part.CanCollide = false
+							cleared += 1
+						end
 					end
 				end
 			end
 		end
+	end
+
+	-- The Toolbox scenery the owner placed straight into Workspace (ships,
+	-- castles, lab benches, airport seats, construction props): walk-through,
+	-- anchored, silent. Floors, walls, gates and the red line all live under
+	-- Map and are never in this loop.
+	local scripts = 0
+	for _, child in workspace:GetChildren() do
+		if isLaneDecoration(child) then
+			local parts, removed = hollowDecoration(child)
+			cleared += parts
+			scripts += removed
+		end
+	end
+	if scripts > 0 then
+		print(`[MapBuilder] removed {scripts} script(s) embedded in imported decorations`)
 	end
 	return cleared
 end

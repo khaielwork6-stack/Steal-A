@@ -248,8 +248,9 @@ local function paintClaim()
 		return
 	end
 
+	-- A set claim pays SPEED. Cash comes per item, the moment each is first
+	-- placed (the discovery reward), and there is no income percentage.
 	local reward = IndexConfig.zoneReward(selectedZone)
-	local percent = math.floor(reward.incomeBonus * 100 + 0.5)
 
 	-- `Active` is doing real work here, not just styling: with it false the
 	-- button stops firing Activated at all, so an unclaimable bar is genuinely
@@ -260,19 +261,19 @@ local function paintClaim()
 		button.BackgroundColor3 = CLAIMABLE
 		button.BackgroundTransparency = 0
 		button.Active = true
-		label.Text = `CLAIM  {NumberFormat.cash(reward.cash)}  +{NumberFormat.short(reward.speed)} SPEED  +{percent}%`
+		label.Text = `CLAIM  +{NumberFormat.short(reward.speed)} SPEED`
 		label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	elseif row.claimed then
 		button.BackgroundColor3 = CLAIMED
 		button.BackgroundTransparency = 0.25
 		button.Active = false
-		label.Text = `{string.upper(zone.name)} SET CLAIMED  -  +{percent}% INCOME`
+		label.Text = `{string.upper(zone.name)} SET CLAIMED`
 		label.TextColor3 = Color3.fromRGB(214, 220, 232)
 	else
 		button.BackgroundColor3 = INCOMPLETE
 		button.BackgroundTransparency = 0.25
 		button.Active = false
-		label.Text = `{row.discovered}/{row.total} FOUND  -  REWARD {NumberFormat.cash(reward.cash)}`
+		label.Text = `{row.discovered}/{row.total} FOUND  -  REWARD +{NumberFormat.short(reward.speed)} SPEED`
 		label.TextColor3 = Color3.fromRGB(176, 184, 200)
 	end
 end

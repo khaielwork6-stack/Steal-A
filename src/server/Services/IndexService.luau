@@ -162,7 +162,16 @@ end
 function IndexService.onDiscovered(player: Player, itemId: string)
 	IndexService.push(player)
 	StateService.markDirty(player)
-	StateService.sound(player, "NewDiscovery")
+	-- No cue and no banner here: discovery happens on the reveal, and the
+	-- reveal's own pop is the one sound and the one moment.
+
+	-- THE DISCOVERY REWARD: one-time Cash equal to DISCOVERY_CASH_SECONDS of
+	-- the item's Scale-1, unmutated base income. Paid through `earn` so the 2x
+	-- Cash pass applies exactly once; tagged so the parity tool can see it.
+	local discoveryCash = IndexConfig.discoveryReward(itemId)
+	if discoveryCash > 0 then
+		EconomyService.earn(player, discoveryCash, "discovery")
+	end
 
 	local zoneIndex = LootConfig.ZoneOf[itemId]
 	if not zoneIndex then
@@ -201,21 +210,21 @@ local function payOut(player: Player, reward: IndexConfig.Reward, label: string)
 		return
 	end
 
-	EconomyService.earn(player, reward.cash)
+	-- A set claim pays SPEED. Its Cash is 0 by config (the per-item discovery
+	-- reward is where Index Cash comes from) and there is no income
+	-- percentage any more; recurring income is item income and nothing else.
+	if reward.cash > 0 then
+		EconomyService.earn(player, reward.cash, "index")
+	end
 	profile.SpeedPower += reward.speed
 
-	-- The permanent multiplier is read straight off ClaimedIndexRewards, so this
-	-- recalculate is what actually applies it. Order matters: the claim is
-	-- already recorded by the time this runs.
-	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 	IndexService.push(player)
 
-	local percent = math.floor(reward.incomeBonus * 100 + 0.5)
 	StateService.notify(
 		player,
 		"success",
-		`{label}  +{NumberFormat.cash(reward.cash)}  +{NumberFormat.short(reward.speed)} Speed  +{percent}% income`,
+		`{label}  +{NumberFormat.short(reward.speed)} Speed`,
 		"levelup"
 	)
 end

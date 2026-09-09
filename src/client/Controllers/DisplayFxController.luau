@@ -99,6 +99,13 @@ local function popIn(model: Model)
 	if reducedEffects then
 		return
 	end
+	-- A trophy arriving under a reveal gets its entrance from the reveal
+	-- itself (HatchController marks it the frame it replicates). Popping it
+	-- in here as well would fight that bounce and could leave the item at the
+	-- wrong size: this reads the rest scale mid-tween, that one settles last.
+	if model:GetAttribute("RevealHold") then
+		return
+	end
 	-- A local scale-in about the pivot. The server's sizes replicate back over
 	-- ours if they change later, which is exactly the right thing.
 	local from = model:GetScale()
@@ -209,7 +216,7 @@ local function cull(cameraPosition: Vector3)
 	end
 end
 
-local function step(dt: number)
+local function step(_dt: number)
 	local camera = workspace.CurrentCamera
 	if not camera then
 		return
@@ -225,9 +232,11 @@ local function step(dt: number)
 			displays[model] = nil
 			continue
 		end
-		if not display.near then
-			continue
-		end
+		-- EVERY display turns, near or far. The angle is a function of the
+		-- clock, not a counter that only advanced while the camera was close,
+		-- so a pedestal seen from the avenue is at exactly the angle it would
+		-- have reached had it been watched the whole time - no frozen pose,
+		-- no jump on approach. The near set still gates the extras below.
 
 		-- Capture the authored pose the first time we touch it, and again if
 		-- the server re-seated the model for growth.
@@ -235,11 +244,16 @@ local function step(dt: number)
 		if not display.base or growth ~= display.growthSeen then
 			display.base = model:GetPivot()
 			display.growthSeen = growth
+			-- Continuous from the first frame: the turn starts from the
+			-- authored pose and the bob from zero, so nothing jumps when a
+			-- trophy begins to move.
+			display.angle = -display.spin * now
+			display.phase = -(now / BOB_PERIOD) * math.pi * 2
 		end
 		local base = display.base :: CFrame
 
-		display.angle += dt * display.spin
-		local bob = if reducedEffects or display.bob <= 0
+		local angle = display.angle + display.spin * now
+		local bob = if reducedEffects or display.bob <= 0 or not display.near
 			then 0
 			else math.sin((now / BOB_PERIOD) * math.pi * 2 + display.phase) * display.bob
 		-- Turn about the pedestal's vertical axis (the slot centre), not the
@@ -247,7 +261,7 @@ local function step(dt: number)
 		local slotX, slotZ = display.slot.Position.X, display.slot.Position.Z
 		local about = CFrame.new(slotX, base.Position.Y, slotZ)
 		local relative = about:ToObjectSpace(base)
-		model:PivotTo(about * CFrame.Angles(0, display.angle, 0) * relative + Vector3.new(0, bob, 0))
+		model:PivotTo(about * CFrame.Angles(0, angle, 0) * relative + Vector3.new(0, bob, 0))
 	end
 
 	if reducedEffects then
@@ -319,7 +333,11 @@ function DisplayFxController.start()
 		end
 	end)
 
-	RunService.RenderStepped:Connect(step)
+	-- Heartbeat, like the world crates: the turn keeps its full rate even when
+	-- rendering is throttled (an unfocused Studio window, a phone in the
+	-- background), and the one-frame latency against the render step is
+	-- invisible at half a radian a second.
+	RunService.Heartbeat:Connect(step)
 end
 
 return DisplayFxController

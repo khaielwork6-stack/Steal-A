@@ -5,16 +5,19 @@
 
 	Every CYCLE_SECONDS the world closes for NIGHT_SECONDS. During that closure
 	the zones are shut, every guardian is reset, every player is brought back to
-	the lobby, the unclaimed world loot is rerolled (with a modest lean toward the
-	exciting outcomes), owned trophies grow faster, and the lighting turns to
-	night. Then the zones reopen and the race starts again.
+	the lobby, every socket is re-rolled, placed items get a burst of growth
+	credit, and the lighting turns to night. Then the zones reopen.
+
+	NIGHT CHANGES NOTHING ABOUT WHAT SPAWNS. There is no rarity lean, no size
+	lean, no mutation lean, no pity and no jackpot. The refresh that runs at
+	Night uses exactly the tables a server-start fill uses, and the regression
+	tests (EconomyTests) assert it. Night's only gameplay effects are the
+	closure itself and the growth credit below.
 
 	Everything a designer might want to retune lives here. NightService reads
 	it on the server; NightController reads it on the client. Neither hard-codes
 	a number from it.
 ]]
-
-local RarityConfig = require(script.Parent.RarityConfig)
 
 local NightConfig = {}
 
@@ -22,9 +25,10 @@ local NightConfig = {}
 -- SCHEDULE
 -- ==========================================================
 
---- Full cycle, INCLUDING the Night closure. 240 = 230 seconds of play, then a
---- 10-second Night, then the next cycle.
-NightConfig.CYCLE_SECONDS = 240
+--- Full cycle, INCLUDING the Night closure. 270 = 260 seconds of play, then a
+--- 10-second Night, then the next cycle. Twelve refreshes an hour; with five
+--- sockets a zone that is sixty rolls per zone per hour.
+NightConfig.CYCLE_SECONDS = 270
 --- How long the zones stay closed.
 NightConfig.NIGHT_SECONDS = 10
 
@@ -37,64 +41,48 @@ NightConfig.WARNING_SOFT_SECONDS = 10
 NightConfig.COUNTDOWN_SECONDS = 5
 
 -- ==========================================================
--- REFRESH LEAN
--- ==========================================================
---
--- Applied ONLY while the Night refresh is generating, then removed. Weights are
--- multiplied and then renormalised by the roller, so a 2% tier never becomes
--- 150% - it becomes 3% with everything else shrinking to make room.
-
---- Multiplier on the spawn weight of every rarity at or above
---- REFRESH_RARITY_BOOST_MIN. Tiers with no normal weight (Secret, Eternal,
---- Divine) still have none: the jackpot path is untouched.
-NightConfig.REFRESH_RARITY_BOOST = 1.5
-NightConfig.REFRESH_RARITY_BOOST_MIN = "Legendary"
-
---- Multiplier on the roll weight of every size at or above
---- REFRESH_SIZE_BOOST_MIN (Huge, Giant, Titan, Colossal).
-NightConfig.REFRESH_SIZE_BOOST = 1.5
-NightConfig.REFRESH_SIZE_BOOST_MIN = "Huge"
-
--- ==========================================================
 -- SPOTLIGHT ANNOUNCEMENTS
 -- ==========================================================
+--
+-- ANNOUNCEMENT ONLY. The announcer inspects what was ACTUALLY generated and
+-- never feeds back into a roll; a Secret is exactly as likely with the
+-- spotlight on or off.
 
 --- At most this many genuine spawns are called out after a refresh, best
 --- first, with a gap between them so each one lands.
 NightConfig.SPOTLIGHT_MAX = 2
---- How long BEFORE Night ends the "X spawned in Y" calls go out. The player
---- reads them while the barrier is still up and is moving the moment it drops,
---- instead of reading them with the world already open.
+--- How long BEFORE Night ends the "X spawned in Y" calls go out.
 NightConfig.SPOTLIGHT_LEAD_SECONDS = 3
 NightConfig.SPOTLIGHT_GAP_SECONDS = 2.5
---- What earns a spotlight: a rarity at or above this, a size at or above this,
---- or a jackpot. Nothing else is announced - no fabricated excitement.
-NightConfig.SPOTLIGHT_MIN_RARITY = "Legendary"
+--- What earns a spotlight: a rarity at or above this (Secret, Eternal,
+--- Divine), or a size at or above this. Nothing else is announced.
+NightConfig.SPOTLIGHT_MIN_RARITY = "Secret"
 NightConfig.SPOTLIGHT_MIN_SIZE = "Titan"
-
---- Anti-drought pity. Deliberately OFF until the baseline has been played and
---- measured; see NightService for what it would do when on.
-NightConfig.PITY_ENABLED = false
 
 -- ==========================================================
 -- GROWTH DURING OWNERSHIP
 -- ==========================================================
 --
--- A placed trophy matures. It is a small, capped bonus - never a replacement
--- for the size roll - and it is saved as SECONDS OF EFFECTIVE GROWTH on the
--- item, so it can never be applied twice to the same model.
+-- A placed item MATURES before it earns: its maturation time is its base
+-- growth time times ScaleConfig.growthMultiplier(Scale), and it earns
+-- nothing until its accrued growth seconds reach it. Growth affects WHEN an
+-- item starts earning, never HOW MUCH - there is no income bonus for age.
+--
+-- Credit accrues one second per real second by day. During the ten-second
+-- Night, NIGHT_GROWTH_CREDIT_SECONDS of credit are handed out in total,
+-- spread evenly: 300 over 10 seconds is thirty per real second.
 
---- Seconds of effective growth to reach full maturity (20 minutes).
-NightConfig.GROWTH_FULL_SECONDS = 1200
---- Income and visual bonus at full maturity.
-NightConfig.GROWTH_INCOME_BONUS = 0.10
-NightConfig.GROWTH_SCALE_BONUS = 0.08
---- Growth runs this many times faster while it is Night.
-NightConfig.GROWTH_NIGHT_MULTIPLIER = 5
---- How often the server advances growth. Income is recalculated only when an
---- item crosses a GROWTH_STEPS boundary, so the loop stays cheap.
-NightConfig.GROWTH_TICK_SECONDS = 5
-NightConfig.GROWTH_STEPS = 10
+NightConfig.NIGHT_GROWTH_CREDIT_SECONDS = 300
+--- How often the server advances growth.
+NightConfig.GROWTH_TICK_SECONDS = 1
+
+--- Credit granted per real second in each phase.
+function NightConfig.growthCreditPerSecond(isNight: boolean): number
+	if isNight then
+		return NightConfig.NIGHT_GROWTH_CREDIT_SECONDS / NightConfig.NIGHT_SECONDS
+	end
+	return 1
+end
 
 -- ==========================================================
 -- THE RETURN TO THE LOBBY
@@ -107,29 +95,5 @@ NightConfig.LOBBY_RING_RADIUS = 12
 --- The Night refresh runs this long after the closure begins, so the client
 --- has finished its transition to night before the world changes under it.
 NightConfig.REFRESH_DELAY_SECONDS = 1.5
-
--- ==========================================================
--- THE LEAN, AS FUNCTIONS
--- ==========================================================
---
--- One definition, used by the real refresh and by the debug simulation, so the
--- two cannot disagree about what "boosted" means.
-
-function NightConfig.rarityBoost(rarity: string): number
-	return if RarityConfig.rank(rarity) >= RarityConfig.rank(NightConfig.REFRESH_RARITY_BOOST_MIN)
-		then NightConfig.REFRESH_RARITY_BOOST
-		else 1
-end
-
-function NightConfig.sizeBoost(sizeId: string): number
-	return if RarityConfig.sizeRank(sizeId) >= RarityConfig.sizeRank(NightConfig.REFRESH_SIZE_BOOST_MIN)
-		then NightConfig.REFRESH_SIZE_BOOST
-		else 1
-end
-
---- The boost table LootService.refreshAll takes for a Night refresh.
-function NightConfig.refreshBoosts(): { rarity: (string) -> number, size: (string) -> number }
-	return { rarity = NightConfig.rarityBoost, size = NightConfig.sizeBoost }
-end
 
 return NightConfig

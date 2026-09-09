@@ -154,6 +154,12 @@ end
 --- care (movement, training, the state push).
 function MonetizationService.onOwnershipChanged(_player: Player) end
 
+--- A Game Pass the player has JUST bought in this session, after ownership
+--- was re-read from Roblox. Distinct from onOwnershipChanged, which also fires
+--- on the join-time warm-up: a purchase is the only moment that should, for
+--- example, auto-equip a freshly bought guardian. Overridden by init.
+function MonetizationService.onGamePassPurchased(_player: Player, _gamePassId: number) end
+
 --- STUDIO TESTING ONLY. Robux cannot be spent in Studio, so ownership has to be
 --- faked to exercise the tier logic at all. Writes to the SERVER's cache, which
 --- no client can reach; the debug bridge that calls it does not exist outside
@@ -265,6 +271,7 @@ end
 --- init (setStealHandler, below). Declared here because processReceipt,
 --- further down, reads it.
 local stealHandler: ((Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)? = nil
+local revealHandler: ((Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -439,7 +446,7 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		-- FACE VALUE. The 2x Cash pass multiplies EARNINGS, never a purchased
 		-- pack - doubling this would be handing the player something they did
 		-- not buy, and halving the value of the pass they might buy later.
-		EconomyService.award(player, product.amount)
+		EconomyService.award(player, product.amount, "product")
 		rememberGrant(profile, purchaseId)
 		StateService.notify(player, "success", `+{NumberFormat.short(product.amount)} CASH!`, "levelup")
 
@@ -476,6 +483,19 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			`Treadmill {if tier then tier.name else level}! Thanks for the support.`,
 			"levelup"
 		)
+
+	elseif product.kind == "Reveal" then
+		-- Delivered only against the container the buyer selected. A receipt
+		-- with nothing to deliver yet is left OPEN for Roblox to retry rather
+		-- than consumed for nothing (HatchService.fulfil explains each case).
+		if not revealHandler then
+			warn(`[MonetizationService] reveal receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		if not revealHandler(player, profile, product, purchaseId) then
+			return pending
+		end
+		rememberGrant(profile, purchaseId)
 
 	elseif product.kind == "Steal" then
 		-- Delivered only against the exact item the buyer reserved. Anything
@@ -622,6 +642,13 @@ function MonetizationService.setStealHandler(fn: (Player, DataService.Profile, M
 	stealHandler = fn
 end
 
+--- A `Reveal` product is delivered by HatchService, which knows which exact
+--- container the buyer selected. Injected for the same reason as the steal
+--- handler.
+function MonetizationService.setRevealHandler(fn: (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)
+	revealHandler = fn
+end
+
 --- MarketplaceService.PromptProductPurchaseFinished, forwarded. NOTHING IS
 --- GRANTED THROUGH THIS. It exists so a reservation can be released the
 --- moment a player backs out of a steal dialog; see HeistService.
@@ -681,9 +708,14 @@ function MonetizationService.start()
 	-- Gamepasses are different, and this is NOT the same mistake. Nothing is
 	-- granted here: the event only triggers a re-check, and the answer comes from
 	-- UserOwnsGamePassAsync - Roblox - not from the client's claim.
-	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, _id, purchased)
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, id, purchased)
 		if purchased then
-			task.spawn(MonetizationService.refreshOwnership, player)
+			task.spawn(function()
+				MonetizationService.refreshOwnership(player)
+				-- Only AFTER Roblox has confirmed ownership: whoever listens
+				-- (the guardian auto-equip) re-checks ownsPassCached itself.
+				MonetizationService.onGamePassPurchased(player, id)
+			end)
 		end
 	end)
 

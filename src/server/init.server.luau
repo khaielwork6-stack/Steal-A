@@ -10,10 +10,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 -- Creates ReplicatedStorage.Remotes before any client tries to wait on it.
-require(ReplicatedStorage.Shared.Remotes)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local Services = script.Services
@@ -46,6 +48,9 @@ local HeistService = require(Services.HeistService)
 local GuardianShopService = require(Services.GuardianShopService)
 local SlapDisplayService = require(Services.SlapDisplayService)
 local PortalService = require(Services.PortalService)
+local HatchService = require(Services.HatchService)
+local MysterySpawnService = require(Services.MysterySpawnService)
+local OfflineService = require(Services.OfflineService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -174,6 +179,13 @@ MonetizationService.onOwnershipChanged = function(player)
 	StateService.pushNow(player)
 end
 
+-- A guardian pass bought THIS session: if the bay is empty the new animal is
+-- put on guard through the same equip path Storage uses (saved, validated
+-- against ownership, pushed). An occupied bay is left alone.
+MonetizationService.onGamePassPurchased = function(player, gamePassId)
+	BaseGuardianService.autoEquipAfterPurchase(player, gamePassId)
+end
+
 -- ==========================================================
 -- BASE STEALING AND BASE GUARDIANS
 -- ==========================================================
@@ -182,7 +194,15 @@ end
 -- item; a closed steal dialog frees the reservation and grants nothing; a
 -- base guardian's hit on a thief carrying its owner's item sends it home.
 MonetizationService.setStealHandler(HeistService.fulfil)
-MonetizationService.onProductPromptClosed = HeistService.onPromptClosed
+MonetizationService.setRevealHandler(HatchService.fulfil)
+HatchService.onLockLifted = PlacementService.refreshPrompts
+-- Both services only ever use a CANCELLED dialog to release what they were
+-- holding; a completed one is ignored by both, because ProcessReceipt is the
+-- only authority for delivery.
+MonetizationService.onProductPromptClosed = function(player, productId, purchased)
+	HeistService.onPromptClosed(player, productId, purchased)
+	HatchService.onPromptClosed(player, productId, purchased)
+end
 BaseGuardianService.onIntruderCaught = HeistService.onIntruderCaught
 heistLeaveHook = HeistService.onPlayerLeaving
 
@@ -193,8 +213,25 @@ MonetizationService.onPricesChanged = function()
 	GuardianShopService.retext()
 	SlapDisplayService.retext()
 	for _, player in Players:GetPlayers() do
+		-- The treadmill board's Robux button shows the live price.
+		SpeedService.refreshTreadmill(player)
 		StateService.markDirty(player)
 	end
+end
+
+-- The treadmill upgrade board: its Robux button and price come from
+-- MonetizationService, which requires SpeedService, so both are injected.
+SpeedService.robuxPriceFor = function(productKey)
+	local id = MonetizationConfig.productIdFor(productKey)
+	local live = if id then MonetizationService.liveProductPrice(id) else nil
+	if live then
+		return live
+	end
+	local product = MonetizationConfig.ProductByKey[productKey]
+	return if product then product.robux else nil
+end
+SpeedService.promptRobuxUpgrade = function(player)
+	return MonetizationService.promptTreadmillUpgrade(player)
 end
 
 -- A catch reclaims the loot - hands it to the guardian, which carries it back
@@ -219,9 +256,10 @@ GuardianService.setEscapeHandler(function(loot, player)
 	if not loot.escapeNotice then
 		loot.escapeNotice = true
 		StateService.notify(player, "success", "ESCAPED!")
-		-- The sting. The client stops the chase music, plays it, and follows
-		-- with the safe-zone cue half a second later (ChaseAudioController).
-		StateService.sound(player, "EscapeSting")
+		-- ONE sound for the escape. The client stops the chase music on this
+		-- cue (ChaseAudioController) and AudioController plays it; the old
+		-- sting-then-cue pair is gone.
+		StateService.sound(player, "Escape")
 	end
 end)
 
@@ -246,53 +284,26 @@ CarryService.setDeliveredHandler(function(player, loot)
 	end
 end)
 
--- Which zones the global refresh may drop a jackpot into.
---
--- Installed here rather than inside LootService so that service keeps knowing
--- nothing about players or profiles. A jackpot in a zone nobody online can reach
--- is not an event, so eligibility is the furthest zone ANY current player has
--- either already looted or has the Speed for - whichever is further - and every
--- zone up to it is fair game.
-LootService.eligibleJackpotZones = function(): { number }
-	local reach = 1
-	for _, player in Players:GetPlayers() do
-		local profile = DataService.get(player)
-		if profile then
-			reach = math.max(reach, profile.HighestZoneReached)
-			for _, zone in ZoneConfig.Zones do
-				if profile.SpeedPower >= zone.recommendedSpeed then
-					reach = math.max(reach, zone.index)
-				end
-			end
-		end
-	end
+-- RETIRED: the jackpot eligibility and announcement hooks. Every item is an
+-- ordinary socket roll at its zone weight; Secret-and-above spawns are called
+-- out by NightService's spotlight after each refresh, which reads what was
+-- rolled and never feeds back into a roll.
 
-	local zones = {}
-	for index = 1, math.min(reach, ZoneConfig.COUNT) do
-		table.insert(zones, index)
-	end
-	return zones
-end
-
--- A jackpot is a world event: everyone is told, everyone is told WHERE, and
--- nobody is given it. Players still have to go and steal it.
-LootService.onJackpot = function(loot)
-	local zone = ZoneConfig.Zones[loot.zoneIndex]
-	local zoneName = if zone then string.upper(zone.name) else "THE WORLD"
-	local variant = ""
-	if loot.size ~= "Normal" then
-		variant ..= ` {loot.size}`
-	end
-	if loot.mutation ~= "Normal" then
-		variant ..= ` {loot.mutation}`
-	end
-	StateService.announce(
-		"success",
-		`{string.upper(loot.rarity)}!  {loot.name}{variant} has appeared in {zoneName}  ({NumberFormat.income(loot.finalIncome)})`,
-		"levelup",
-		"NewDiscovery"
-	)
-	print(`[Jackpot] {loot.itemId} [{loot.rarity}] {loot.size}/{loot.mutation} -> zone {loot.zoneIndex} socket {loot.socketIndex}`)
+-- The hatch reveal payload. Deliberately thin: the pedestal to animate and
+-- the two colours the burst uses. No income, no odds, nothing the client
+-- could have used before the commit - by then the trophy is already on the
+-- base and every client can see it anyway.
+HatchService.onHatched = function(player, item)
+	local plot = BaseService.getPlot(player)
+	local slots = plot and plot:FindFirstChild("DisplaySlots")
+	local slot = slots and slots:FindFirstChild(string.format("DisplaySlot%02d", item.SlotIndex))
+	Remotes.get("HatchReveal"):FireClient(player, {
+		slot = slot,
+		instanceId = item.InstanceId,
+		rarityColor = RarityConfig.Colors[item.Rarity] or Color3.new(1, 1, 1),
+		mutationColor = RarityConfig.MutationColors[RarityConfig.normaliseMutation(item.Mutation)]
+			or Color3.fromRGB(226, 236, 255),
+	})
 end
 
 LootService.start()
@@ -300,6 +311,9 @@ CarryService.start()
 GuardianService.start()
 PlacementService.start()
 SpeedService.start()
+-- After BaseService and EconomyService: a commit rebuilds the base and
+-- recalculates income through both of them.
+HatchService.start()
 -- Must follow SpeedService: a receipt grants its tier through it.
 MonetizationService.start()
 TrailService.start()
@@ -338,6 +352,11 @@ PortalService.start()
 NightService.start()
 SettingsService.start()
 
+-- Offline earnings ride DataService's save hook and StatePush, both of which
+-- exist by now; the absence itself is settled per player below, once the
+-- income has been rebuilt from the loaded profile.
+OfflineService.start()
+
 DebugService.start()
 
 -- Scenery is visible but hollow: 186 decorative parts across the twelve zones
@@ -348,6 +367,11 @@ do
 	local MapBuilder = require(script.MapBuilder)
 	local cleared = MapBuilder.applyDecorCollision()
 	print(`[MapBuilder] decor made hollow: {cleared} part(s) no longer collide`)
+	-- The kit's snow was baked over the Secret Lab; it belongs to the North
+	-- Pole. Moved (once) at start, sized and rated for zone 5.
+	if MapBuilder.relocateWeather(9, 5) then
+		print("[MapBuilder] snow moved from the Secret Lab to the North Pole")
+	end
 end
 
 -- Movement is owned by SpeedService/CarryService so the compressed formula and
@@ -374,6 +398,9 @@ local function onPlayer(player: Player)
 		DataService.waitForProfile(player)
 		EconomyService.recalculate(player)
 		SpeedService.applyMovement(player)
+		-- AFTER the income is rebuilt: the absence is measured once, banked as
+		-- a pending claim, and the claim modal rides the first push below.
+		OfflineService.settle(player)
 		StateService.pushNow(player)
 
 		-- The push above races the client: a profile that loads instantly (Studio

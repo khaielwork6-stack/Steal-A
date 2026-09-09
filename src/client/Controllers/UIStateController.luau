@@ -4,16 +4,17 @@
 	The ONE thing allowed to hide and restore the normal HUD.
 
 	WHY IT IS CENTRAL
-	The treadmill wants the HUD out of the way; a full-screen shop wants the same.
-	If each did it themselves, two overlapping requests would fight and whichever
-	restored last would win - which is exactly how a player ends up with a
-	permanently missing HUD and no way to get it back.
+	The treadmill wants the HUD out of the way; a full-screen shop wants the
+	same; a player carrying loot wants nothing but DROP. If each did it
+	themselves, two overlapping requests would fight and whichever restored
+	last would win - which is exactly how a player ends up with a permanently
+	missing HUD and no way to get it back.
 
 	HOW IT AVOIDS THAT
-	Callers do not hide things. They CLAIM a named suppressor
-	("treadmill", "trailshop"). The HUD is hidden while at least one claim is
-	held and restored when the last one is released, so two overlapping claims
-	behave correctly however they interleave.
+	Callers do not hide things. They CLAIM a named suppressor ("treadmill",
+	"trailshop", "carry"). The HUD is hidden while at least one claim is held
+	and restored when the last one is released, so overlapping claims behave
+	correctly however they interleave.
 
 	RESTORE IS TO REMEMBERED STATE, NOT TO `true`.
 	Each element's own Visible is captured the first time it is hidden and put
@@ -34,8 +35,13 @@ local player = Players.LocalPlayer
 
 --- Top-level MainUI children that make up "the normal HUD". Panels the player
 --- opens themselves (Frames) are NOT in this list: hiding those would fight the
---- pack's own open/close logic.
-local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD" }
+--- pack's own open/close logic. The DROP button is not in it either - it is
+--- the one thing a carrier keeps. The offer rail is matched by prefix because
+--- the pack named it with a trailing space.
+local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer" }
+local HUD_PREFIXES = { "UI FOR ANIMAL" }
+--- Whole ScreenGuis of ours that are HUD too (the hotbar).
+local HUD_SCREENS = { "HotbarUI" }
 
 local claims: { [string]: boolean } = {}
 local remembered: { [Instance]: boolean } = {}
@@ -55,6 +61,30 @@ local function elements(): { GuiObject }
 		local child = ui:FindFirstChild(name)
 		if child and child:IsA("GuiObject") then
 			table.insert(found, child)
+		end
+	end
+	for _, child in ui:GetChildren() do
+		if child:IsA("GuiObject") then
+			for _, prefix in HUD_PREFIXES do
+				if child.Name:find(prefix, 1, true) == 1 then
+					table.insert(found, child)
+				end
+			end
+		end
+	end
+	return found
+end
+
+local function screens(): { ScreenGui }
+	local gui = player:FindFirstChild("PlayerGui")
+	if not gui then
+		return {}
+	end
+	local found = {}
+	for _, name in HUD_SCREENS do
+		local screen = gui:FindFirstChild(name)
+		if screen and screen:IsA("ScreenGui") then
+			table.insert(found, screen)
 		end
 	end
 	return found
@@ -88,6 +118,12 @@ local function applyHidden()
 			end)
 		end
 	end
+	for _, screen in screens() do
+		if remembered[screen] == nil then
+			remembered[screen] = screen.Enabled
+		end
+		screen.Enabled = false
+	end
 end
 
 local function applyRestored()
@@ -99,6 +135,13 @@ local function applyRestored()
 		if was == nil or was == true then
 			element.Visible = true
 			UIAnim.popIn(element, 0.85)
+		end
+	end
+	for _, screen in screens() do
+		local was = remembered[screen]
+		remembered[screen] = nil
+		if was == nil or was == true then
+			screen.Enabled = true
 		end
 	end
 end
@@ -128,6 +171,10 @@ end
 
 function UIStateController.isSuppressed(): boolean
 	return anyClaim()
+end
+
+function UIStateController.hasClaim(reason: string): boolean
+	return claims[reason] == true
 end
 
 function UIStateController.start()

@@ -39,6 +39,10 @@ local player = Players.LocalPlayer
 local PERIOD = 1.0
 --- How much of the screen edge the red reaches into before it has fully faded.
 local EDGE_DEPTH = 0.22
+--- How solid the full-screen wash is at the top of a beat. Light: the lane
+--- must stay readable through it, the strips carry the intensity.
+local WASH_PEAK_TRANSPARENCY = 0.5
+local washFrame: Frame? = nil
 --- Peak transparency of the red at the very edge (0 = solid). Kept off solid so
 --- the world is still visible through the border.
 local PEAK_TRANSPARENCY = 0.18
@@ -95,9 +99,34 @@ local function build()
 	screen.Name = "ChaseWarning"
 	screen.ResetOnSpawn = false
 	screen.IgnoreGuiInset = true
+	-- The WHOLE glass, phones included: no top-bar inset and no safe-area
+	-- inset (a notch or rounded corners otherwise leave the edges and
+	-- corners of the screen unpainted, which is exactly the gap this fixes).
+	screen.ScreenInsets = Enum.ScreenInsets.None
+	screen.SafeAreaCompatibility = Enum.SafeAreaCompatibility.None
 	screen.DisplayOrder = 40
 	screen.Enabled = false
 	screen.Parent = playerGui
+
+	-- THE WASH: one plain frame over the WHOLE viewport, under the edge
+	-- strips. The strips alone are a vignette that left the middle of a phone
+	-- screen untouched; this is what makes the beat read as the entire screen
+	-- flashing red, every corner, on any aspect ratio. IgnoreGuiInset on the
+	-- ScreenGui means fromScale(1, 1) covers the top bar too. It never takes
+	-- input (Active false), so movement and the thumbstick are unaffected.
+	local wash = Instance.new("Frame")
+	wash.Name = "Wash"
+	-- Overscanned by a tenth on every side, so a rounding of the viewport
+	-- or a device inset can never expose a hairline at a corner.
+	wash.Size = UDim2.fromScale(1.2, 1.2)
+	wash.Position = UDim2.fromScale(-0.1, -0.1)
+	wash.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+	wash.BackgroundTransparency = 1
+	wash.BorderSizePixel = 0
+	wash.Active = false
+	wash.ZIndex = 29
+	wash.Parent = screen
+	washFrame = wash
 
 	-- Gradient rotation 0 runs left->right; each strip is rotated so its red end
 	-- is the screen border.
@@ -155,6 +184,15 @@ end
 --- One beat: the edges flash to peak and the label punches in; both then ease
 --- out over the rest of the period. Called once per PERIOD from the loop.
 local function beat()
+	local wash = washFrame
+	if wash then
+		wash.BackgroundTransparency = WASH_PEAK_TRANSPARENCY
+		TweenService:Create(
+			wash,
+			TweenInfo.new(PERIOD * 0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 1 }
+		):Play()
+	end
 	for _, strip in edges do
 		strip.BackgroundTransparency = PEAK_TRANSPARENCY
 		TweenService:Create(
@@ -194,6 +232,9 @@ local function stop()
 	-- exit reads as a deliberate motion, not a fade to nothing.
 	for _, strip in edges do
 		TweenService:Create(strip, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+	end
+	if washFrame then
+		TweenService:Create(washFrame, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
 	end
 	local label = runLabel
 	if label then

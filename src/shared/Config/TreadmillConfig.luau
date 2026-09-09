@@ -3,18 +3,19 @@
 	TreadmillConfig
 	Speed training tiers (GDD section 9).
 
-	Training is server-authoritative on a fixed 0.25s tick while the player stands
-	in their own treadmill trigger. Never detect animation footsteps, and never
-	let client effects drive reward frequency. The UI may label `gainPerTick` as
-	"per step".
+	Training is server-authoritative on a fixed ONE-SECOND tick while the player
+	stands in their own treadmill trigger. Never detect animation footsteps, and
+	never let client effects drive reward frequency.
 
-	Level 0 = treadmill visible but dark; the $1,000 Base Activation moves the
-	player to level 1.
+	The tiers are the reference progression's factor / cost pairs; the gain
+	behind a factor is GameConfig.TRAINING_BASE_GAIN (see gainPerTick).
 ]]
 
 local TreadmillConfig = {}
 
-TreadmillConfig.TICK_INTERVAL = 0.25
+--- The standard training tick. One second: one grant per second while on
+--- the belt, so a tier's factor reads directly as Speed per second.
+TreadmillConfig.TICK_INTERVAL = 1
 
 -- ==========================================================
 -- NORMALISATION
@@ -111,6 +112,35 @@ TreadmillConfig.RUN_ANIMATION_SPEED_MAX = 2.6
 --- gains never make it stutter.
 TreadmillConfig.RUN_ANIMATION_EASE = 4
 
+--- The WalkSpeed at which the stride reaches RUN_ANIMATION_SPEED_MAX. Above
+--- it the animation is already as fast as it can read, so it holds there.
+TreadmillConfig.RUN_ANIMATION_WALKSPEED_SPAN = 200
+
+--- Where the run cycle rate sits for a WalkSpeed: RUN_ANIMATION_SPEED at the
+--- slowest a player can be, RUN_ANIMATION_SPEED_MAX by the top of the span,
+--- straight between. ONE function, used by the runner's own client and by
+--- the server when it publishes the pace to spectators, so the runner and
+--- everyone watching see the same stride.
+function TreadmillConfig.runAnimationRate(walkSpeed: number): number
+	local GameConfig = require(script.Parent.GameConfig)
+	local base = GameConfig.WALKSPEED_MIN
+	local span = math.max(TreadmillConfig.RUN_ANIMATION_WALKSPEED_SPAN - base, 1)
+	local alpha = math.clamp((walkSpeed - base) / span, 0, 1)
+	return TreadmillConfig.RUN_ANIMATION_SPEED
+		+ (TreadmillConfig.RUN_ANIMATION_SPEED_MAX - TreadmillConfig.RUN_ANIMATION_SPEED) * alpha
+end
+
+--- THE RUNNING FLAG OTHER PLAYERS SEE. Set on the runner's Character by
+--- SpeedService (the authority on who is training) to the stride rate above,
+--- cleared when the session ends; TreadmillSpectateController plays the run
+--- cycle on every other character that carries it. An attribute, not a
+--- RemoteEvent: written only on start, stop and a rate step - never per
+--- frame - and it arrives with the character for anyone who joins late.
+TreadmillConfig.RUN_ATTRIBUTE = "TreadmillRun"
+--- The published rate is rounded to this, so the trickle of treadmill ticks
+--- does not become a trickle of attribute writes.
+TreadmillConfig.RUN_RATE_STEP = 0.05
+
 --- Floating "+N Speed" text.
 TreadmillConfig.POPUP_MIN_INTERVAL = 0.35 -- seconds between popups; gains between are summed
 TreadmillConfig.POPUP_RISE = 3.0 -- studs travelled upward
@@ -124,7 +154,10 @@ export type Tier = {
 	name: string,
 	cost: number, -- Cash price to reach this level
 	robuxProductKey: string?, -- looked up in MonetizationConfig
-	gainPerTick: number,
+	--- The treadmill's training FACTOR (the reference progression's x2, x5,
+	--- x12 ... x2000). Speed per tick = GameConfig.TRAINING_BASE_GAIN x this
+	--- x the additive trail / Speed-pass bonus; see gainPerSecond.
+	factor: number,
 	--- Key under ReplicatedStorage.GameAssets.Treadmills.
 	modelKey: string,
 	--- Uniform scale that brings this model's long axis to STANDARD_LENGTH.
@@ -133,28 +166,30 @@ export type Tier = {
 	deckHeight: number,
 }
 
+-- THE REFERENCE PROGRESSION'S FACTOR / COST PAIRS, in order. Ten tiers; the
+-- tenth reuses the Ascendant model (nine were authored) and has no Robux
+-- product configured, so it is Cash-only until one is added in
+-- MonetizationConfig.
 TreadmillConfig.Tiers = {
-	{ level = 1, name = "Rusty", cost = 0, gainPerTick = 2, -- granted by activation
+	{ level = 1, name = "Rusty", cost = 0, factor = 2, -- free
 		modelKey = "Rusty", scale = 1.0000, deckHeight = 2.558 },
-	-- +20/tick (~80/s), raised from the old +12. Tiers 3-9 are deliberately
-	-- UNCHANGED: the Cash economy was the thing that was broken, and multiplying
-	-- every Speed gain to "match" it would just create the same problem on the
-	-- other axis. Only this one step was retuned.
-	{ level = 2, name = "Velocity", cost = 15e3, robuxProductKey = "TreadmillTier2", gainPerTick = 20,
+	{ level = 2, name = "Velocity", cost = 15e3, robuxProductKey = "TreadmillTier2", factor = 5,
 		modelKey = "Velocity", scale = 1.0000, deckHeight = 2.279 },
-	{ level = 3, name = "Voltic", cost = 250e3, robuxProductKey = "TreadmillTier3", gainPerTick = 60,
+	{ level = 3, name = "Voltic", cost = 250e3, robuxProductKey = "TreadmillTier3", factor = 12,
 		modelKey = "Voltic", scale = 1.0000, deckHeight = 1.917 },
-	{ level = 4, name = "Inferno", cost = 5e6, robuxProductKey = "TreadmillTier4", gainPerTick = 300,
+	{ level = 4, name = "Inferno", cost = 5e6, robuxProductKey = "TreadmillTier4", factor = 30,
 		modelKey = "Inferno", scale = 1.7173, deckHeight = 1.937 },
-	{ level = 5, name = "Frostbite", cost = 100e6, robuxProductKey = "TreadmillTier5", gainPerTick = 1.5e3,
+	{ level = 5, name = "Frostbite", cost = 120e6, robuxProductKey = "TreadmillTier5", factor = 80,
 		modelKey = "Frostbite", scale = 1.0000, deckHeight = 2.286 },
-	{ level = 6, name = "Midas", cost = 2.5e9, robuxProductKey = "TreadmillTier6", gainPerTick = 7.5e3,
+	{ level = 6, name = "Midas", cost = 3e9, robuxProductKey = "TreadmillTier6", factor = 100,
 		modelKey = "Midas", scale = 1.0000, deckHeight = 2.442 },
-	{ level = 7, name = "Overclock", cost = 75e9, robuxProductKey = "TreadmillTier7", gainPerTick = 40e3,
+	{ level = 7, name = "Overclock", cost = 75e9, robuxProductKey = "TreadmillTier7", factor = 200,
 		modelKey = "Overclock", scale = 1.0000, deckHeight = 2.934 },
-	{ level = 8, name = "Eclipse", cost = 2.5e12, robuxProductKey = "TreadmillTier8", gainPerTick = 200e3,
+	{ level = 8, name = "Eclipse", cost = 2e12, robuxProductKey = "TreadmillTier8", factor = 500,
 		modelKey = "Eclipse", scale = 1.0000, deckHeight = 1.984 },
-	{ level = 9, name = "Ascendant", cost = 100e12, robuxProductKey = "TreadmillTier9", gainPerTick = 1e6,
+	{ level = 9, name = "Ascendant", cost = 50e12, robuxProductKey = "TreadmillTier9", factor = 1000,
+		modelKey = "Ascendant", scale = 1.0000, deckHeight = 1.548 },
+	{ level = 10, name = "Transcendent", cost = 1e15, factor = 2000,
 		modelKey = "Ascendant", scale = 1.0000, deckHeight = 1.548 },
 } :: { Tier }
 
@@ -169,13 +204,32 @@ function TreadmillConfig.nextTier(level: number): Tier?
 	return TreadmillConfig.Tiers[level + 1]
 end
 
---- SpeedPower gained per second at a level, for UI display only.
-function TreadmillConfig.gainPerSecond(level: number): number
+--- THE TRAINING CALCULATION, per standard one-second tick:
+---
+---     gain = TRAINING_BASE_GAIN x treadmill.factor x (1 + (trail - 1) + (pass - 1))
+---
+--- The treadmill factor multiplies on its own; the equipped trail's factor and
+--- the Speed-pass factor ADD above their base of 1 (a x1.5 trail and a x2
+--- pass together are 1 + 0.5 + 1 = x2.5, not x3). `bonusFactor` is that
+--- additive term, 1 when nothing is equipped or owned.
+function TreadmillConfig.gainPerTick(level: number, bonusFactor: number?): number
 	local tier = TreadmillConfig.Tiers[level]
 	if not tier then
 		return 0
 	end
-	return tier.gainPerTick / TreadmillConfig.TICK_INTERVAL
+	local GameConfig = require(script.Parent.GameConfig)
+	return GameConfig.TRAINING_BASE_GAIN * tier.factor * math.max(bonusFactor or 1, 0)
+end
+
+--- SpeedPower gained per second at a level with no bonuses: the standard
+--- tick is one second, so this is gainPerTick. Used by the UI and the board.
+function TreadmillConfig.gainPerSecond(level: number, bonusFactor: number?): number
+	return TreadmillConfig.gainPerTick(level, bonusFactor) / TreadmillConfig.TICK_INTERVAL
+end
+
+--- The additive bonus term from a trail factor and a Speed-pass factor.
+function TreadmillConfig.bonusFactor(trailFactor: number?, passFactor: number?): number
+	return 1 + math.max((trailFactor or 1) - 1, 0) + math.max((passFactor or 1) - 1, 0)
 end
 
 return TreadmillConfig

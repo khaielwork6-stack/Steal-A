@@ -53,16 +53,20 @@ local visible = false
 -- the banner takes the top-centre with clean padding under the Roblox topbar
 -- (MainUI ignores the inset, so 0.085 of the screen clears it on every device).
 -- The RUN!! warning shares this exact slot; the two hand off, never overlap.
-local SHOWN_POSITION = UDim2.new(0.5, 0, 0.085, 0)
+--- Top-centre. On touch a little lower and smaller: it must clear the stat
+--- card and the offer tiles, and cover less of the lane the player is
+--- trying to see.
+local TOUCH = require(ReplicatedStorage.Shared.Util.Device).isTouch()
+local SHOWN_POSITION = if TOUCH then UDim2.new(0.5, 0, 0.13, 0) else UDim2.new(0.5, 0, 0.085, 0)
 --- Slides DOWN into place from just off the top edge.
 local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.08, 0)
 --- The painted Speed card is a ~3:1 banner. A little under a third of the
 --- screen wide, clamped so it is never a strip on a phone or a billboard on a
 --- 4K; the family aspect inside PngCard keeps its shape whatever the clamp
 --- lands on.
-local BANNER_SIZE = UDim2.fromScale(0.30, 0.13)
-local BANNER_MIN = Vector2.new(300, 100)
-local BANNER_MAX = Vector2.new(480, 162)
+local BANNER_SIZE = if TOUCH then UDim2.fromScale(0.26, 0.11) else UDim2.fromScale(0.30, 0.13)
+local BANNER_MIN = if TOUCH then Vector2.new(230, 76) else Vector2.new(300, 100)
+local BANNER_MAX = if TOUCH then Vector2.new(330, 110) else Vector2.new(480, 162)
 --- Seconds the banner stays before leaving on its own.
 local AUTO_DISMISS = 6.5
 --- Delay between the RUN!! warning fading and this sliding into the same slot:

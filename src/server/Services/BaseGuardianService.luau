@@ -584,6 +584,34 @@ function BaseGuardianService.equip(player: Player, key: string): (boolean, strin
 	return true
 end
 
+--- A guardian pass has just been bought. If the bay is EMPTY the new animal
+--- goes straight on guard; an animal already standing there is never
+--- replaced - the player picked it, and Storage is where they change it.
+--- Idempotent: `equip` returns early when this key is already on guard, so a
+--- replayed purchase event cannot equip twice or toast twice.
+function BaseGuardianService.autoEquipAfterPurchase(player: Player, gamePassId: number): boolean
+	local key: string? = nil
+	for _, def in BaseGuardianConfig.Guardians do
+		if def.gamePassId == gamePassId then
+			key = def.key
+			break
+		end
+	end
+	if not key then
+		return false
+	end
+	local profile = DataService.get(player)
+	if not profile or not BaseGuardianService.owns(player, key) then
+		return false
+	end
+	-- Something owned is already on guard: leave it.
+	if profile.EquippedGuardian ~= "" and BaseGuardianService.owns(player, profile.EquippedGuardian) then
+		return false
+	end
+	local ok = BaseGuardianService.equip(player, key)
+	return ok == true
+end
+
 function BaseGuardianService.unequip(player: Player): (boolean, string?)
 	local profile = DataService.get(player)
 	if not profile then

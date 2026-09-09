@@ -257,29 +257,259 @@ function SpeedService.refreshTreadmill(player: Player)
 		local next = TreadmillConfig.nextTier(profile.TreadmillLevel)
 		title.Text = `{if tier then tier.name else "Basic"} · +{NumberFormat.short(TreadmillConfig.gainPerSecond(profile.TreadmillLevel))}/s`
 		title.TextColor3 = Color3.fromRGB(126, 236, 255)
-		detail.Text = if next
-			then `Upgrade · {NumberFormat.cash(next.cost)}`
-			else "MAX LEVEL"
-		detail.TextColor3 = if next then Color3.fromRGB(255, 214, 120) else Color3.fromRGB(140, 255, 160)
+		-- The price lives on the upgrade board beside the treadmill now; the
+		-- floating label only says when there is nothing left to buy.
+		detail.Text = if next then "" else "MAX LEVEL"
+		detail.TextColor3 = Color3.fromRGB(140, 255, 160)
 	end
 
-	-- Upgrade prompt lives on the treadmill frame.
+	-- The old Hold-E prompt is gone: the board beside the treadmill is the
+	-- upgrade. A prompt left on a baked plot is removed on sight.
 	if frame and frame:IsA("BasePart") then
-		local prompt = frame:FindFirstChild("TreadmillPrompt") :: ProximityPrompt?
-		if not prompt then
-			local created = Instance.new("ProximityPrompt")
-			created.Name = "TreadmillPrompt"
-			created.ActionText = "Upgrade Treadmill"
-			created.ObjectText = "Treadmill"
-			created.HoldDuration = 0.5
-			created.MaxActivationDistance = 14
-			created.RequiresLineOfSight = false
-			created.Enabled = false -- owner-only, enabled client-side
-			created.Parent = frame
-			prompt = created
+		local stale = frame:FindFirstChild("TreadmillPrompt")
+		if stale then
+			stale:Destroy()
 		end
-		local p = prompt :: ProximityPrompt
-		p:SetAttribute("ServerEnabled", TreadmillConfig.nextTier(profile.TreadmillLevel) ~= nil)
+		SpeedService.refreshUpgradeBoard(plot, frame, profile.TreadmillLevel)
+	end
+end
+
+-- ==========================================================
+-- THE UPGRADE BOARD
+-- ==========================================================
+--
+-- A sign beside the treadmill, in the base upgrade sign's own kit (post,
+-- edge, navy board, studs): "Upgrade", "Level N > Level N+1", a red Cash
+-- button and a purple Robux button. Each button is its own part with a
+-- ClickDetector - a click or a tap on a phone, no hold - answered ONLY for
+-- the plot's owner, through the same upgradeTreadmill / product prompt the
+-- old Hold-E prompt used. Server-built once per plot, repainted on every
+-- refresh, so what it shows is always the profile.
+
+local BOARD_NAME = "TreadmillUpgradeBoard"
+local BOARD_WIDTH = 11
+local BOARD_HEIGHT = 6.4
+local BOARD_DEPTH = 0.8
+local BOARD_LIFT = 5.6
+--- Studs off the deck's side, along its RightVector.
+local BOARD_SIDE_OFFSET = 9.4
+local BOARD_CLICK_RANGE = 40
+
+--- Live Robux price for a treadmill product key. Injected by init from
+--- MonetizationService (which requires this service, so it cannot be
+--- required back). Nil until prices have landed.
+function SpeedService.robuxPriceFor(_productKey: string): number?
+	return nil
+end
+
+--- Opens the Robux purchase for the NEXT tier. Injected by init for the
+--- same reason.
+function SpeedService.promptRobuxUpgrade(_player: Player): (boolean, string?)
+	return false, "Not available yet."
+end
+
+local function boardSlab(name: string, size: Vector3, cf: CFrame, color: Color3, parent: Instance, hittable: boolean?): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = hittable == true
+	part.CanTouch = false
+	part.CastShadow = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = parent
+	return part
+end
+
+local function boardText(parent: Instance, name: string, size: UDim2, position: UDim2, color: Color3, zIndex: number): TextLabel
+	local text = Instance.new("TextLabel")
+	text.Name = name
+	text.Size = size
+	text.Position = position
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.TextColor3 = color
+	text.TextStrokeTransparency = 0
+	text.TextStrokeColor3 = Color3.fromRGB(12, 16, 32)
+	text.ZIndex = zIndex
+	text.Parent = parent
+	return text
+end
+
+--- One of the two purchase buttons: a raised block on the board's face with
+--- its own SurfaceGui (icon + price) and ClickDetector.
+local function boardButton(model: Model, name: string, cf: CFrame, size: Vector3, color: Color3, edge: Color3, icon: string): (Part, TextLabel)
+	local edgePart = boardSlab(name .. "Edge", size + Vector3.new(0.5, 0.5, -0.1), cf, edge, model)
+	edgePart.CanQuery = false
+	local part = boardSlab(name, size, cf * CFrame.new(0, 0, -0.08), color, model, true)
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Face"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 48
+	gui.LightInfluence = 0
+	gui.Adornee = part
+	gui.Parent = part
+
+	local glyph = boardText(gui, "Icon", UDim2.fromScale(0.26, 0.7), UDim2.fromScale(0.03, 0.15), Color3.fromRGB(255, 255, 255), 3)
+	glyph.Text = icon
+	-- Named per button ("CashPrice" / "RobuxPrice") so a rebuild can find it.
+	local price = boardText(gui, name .. "Price", UDim2.fromScale(0.66, 0.72), UDim2.fromScale(0.3, 0.14), Color3.fromRGB(255, 255, 255), 3)
+	price.TextXAlignment = Enum.TextXAlignment.Left
+
+	local detector = Instance.new("ClickDetector")
+	detector.Name = "Click"
+	detector.MaxActivationDistance = BOARD_CLICK_RANGE
+	detector.Parent = part
+	return part, price
+end
+
+--- Builds the board once per plot and returns its labels.
+local function ensureBoard(plot: Instance, deck: BasePart): (Model, { [string]: TextLabel })
+	local existing = plot:FindFirstChild(BOARD_NAME)
+	if existing and existing:IsA("Model") then
+		local labels: { [string]: TextLabel } = {}
+		for key, name in { Title = "Title", Level = "Level", CashPrice = "CashButtonPrice", RobuxPrice = "RobuxButtonPrice" } do
+			local found = existing:FindFirstChild(name, true)
+			if found and found:IsA("TextLabel") then
+				labels[key] = found
+			end
+		end
+		return existing, labels
+	end
+
+	local model = Instance.new("Model")
+	model.Name = BOARD_NAME
+
+	-- Beside the deck (its -Right side, the side the base sign is not on),
+	-- facing the corridor the player walks in from.
+	local facing = CFrame.lookAt(
+		deck.Position - deck.CFrame.RightVector * BOARD_SIDE_OFFSET,
+		deck.Position - deck.CFrame.RightVector * BOARD_SIDE_OFFSET + deck.CFrame.LookVector
+	)
+	local floorY = deck.Position.Y - deck.Size.Y / 2
+	local base = CFrame.new(facing.Position.X, floorY + BOARD_LIFT, facing.Position.Z) * facing.Rotation
+
+	local postTop = BOARD_LIFT - BOARD_HEIGHT / 2
+	boardSlab("Post", Vector3.new(1.4, postTop, 1.4), CFrame.new(base.Position.X, floorY + postTop / 2, base.Position.Z) * facing.Rotation, MapPalette.SignPost, model)
+	boardSlab("Edge", Vector3.new(BOARD_WIDTH + 0.8, BOARD_HEIGHT + 0.8, BOARD_DEPTH), base, MapPalette.SignEdge, model)
+	local board = boardSlab("Board", Vector3.new(BOARD_WIDTH, BOARD_HEIGHT, BOARD_DEPTH + 0.1), base, MapPalette.SignBody, model)
+
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Face"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 48
+	gui.LightInfluence = 0
+	gui.Adornee = board
+	gui.Parent = board
+	local studs = Instance.new("ImageLabel")
+	studs.Name = "Studs"
+	studs.BackgroundTransparency = 1
+	studs.Image = "rbxassetid://76728843491214"
+	studs.ImageTransparency = 0.86
+	studs.ScaleType = Enum.ScaleType.Tile
+	studs.TileSize = UDim2.fromOffset(40, 40)
+	studs.Size = UDim2.fromScale(1, 1)
+	studs.ZIndex = 1
+	studs.Parent = gui
+
+	local labels: { [string]: TextLabel } = {}
+	labels.Title = boardText(gui, "Title", UDim2.fromScale(0.94, 0.24), UDim2.fromScale(0.03, 0.04), MapPalette.SignTitle, 2)
+	labels.Title.Text = "Upgrade"
+	labels.Level = boardText(gui, "Level", UDim2.fromScale(0.94, 0.2), UDim2.fromScale(0.03, 0.29), MapPalette.SignProgress, 2)
+
+	-- The two buttons stand proud of the board's face, side by side.
+	local faceZ = -(BOARD_DEPTH + 0.1) / 2 - 0.16
+	local buttonY = -BOARD_HEIGHT * 0.22
+	local buttonHeight = BOARD_HEIGHT * 0.34
+	local cashWidth = BOARD_WIDTH * 0.52
+	local robuxWidth = BOARD_WIDTH * 0.3
+	local gap = BOARD_WIDTH * 0.04
+	local cashX = -BOARD_WIDTH / 2 + 0.5 + cashWidth / 2
+	local robuxX = cashX + cashWidth / 2 + gap + robuxWidth / 2
+	local _, cashPrice = boardButton(model, "CashButton", base * CFrame.new(cashX, buttonY, faceZ), Vector3.new(cashWidth, buttonHeight, 0.3), MapPalette.SignButton, MapPalette.SignButtonEdge, "🏃")
+	local _, robuxPrice = boardButton(model, "RobuxButton", base * CFrame.new(robuxX, buttonY, faceZ), Vector3.new(robuxWidth, buttonHeight, 0.3), Color3.fromRGB(190, 70, 235), Color3.fromRGB(110, 30, 150), utf8.char(0xE002))
+	labels.CashPrice = cashPrice
+	labels.RobuxPrice = robuxPrice
+
+	-- Clicks: owner only, and never twice for one press (upgradeLimiter and
+	-- the purchase prompt's own limiter sit behind both).
+	local cashButton = model:FindFirstChild("CashButton") :: Part
+	local robuxButton = model:FindFirstChild("RobuxButton") :: Part
+	;(cashButton:FindFirstChild("Click") :: ClickDetector).MouseClick:Connect(function(player)
+		if BaseService.getPlot(player) ~= plot then
+			return
+		end
+		local ok, reason = SpeedService.upgradeTreadmill(player)
+		if not ok and reason then
+			notify(player, "error", reason)
+		end
+	end)
+	;(robuxButton:FindFirstChild("Click") :: ClickDetector).MouseClick:Connect(function(player)
+		if BaseService.getPlot(player) ~= plot then
+			return
+		end
+		local ok, reason = SpeedService.promptRobuxUpgrade(player)
+		if not ok and reason then
+			notify(player, "error", reason)
+		end
+	end)
+
+	model.Parent = plot
+	return model, labels
+end
+
+--- Repaints the board for the level the profile is at.
+function SpeedService.refreshUpgradeBoard(plot: Instance, deck: BasePart, level: number)
+	local model, labels = ensureBoard(plot, deck)
+	local next = TreadmillConfig.nextTier(level)
+	local cashButton = model:FindFirstChild("CashButton")
+	local robuxButton = model:FindFirstChild("RobuxButton")
+
+	if next then
+		if labels.Level then
+			labels.Level.Text = `Level {level} > Level {next.level}`
+			labels.Level.TextColor3 = MapPalette.SignProgress
+		end
+		if labels.CashPrice then
+			labels.CashPrice.Text = NumberFormat.cash(next.cost)
+		end
+		local robux = if next.robuxProductKey then SpeedService.robuxPriceFor(next.robuxProductKey) else nil
+		if labels.RobuxPrice then
+			labels.RobuxPrice.Text = if robux then tostring(robux) else "..."
+		end
+		if cashButton and cashButton:IsA("BasePart") then
+			cashButton.Color = MapPalette.SignButton
+		end
+		if robuxButton and robuxButton:IsA("BasePart") then
+			robuxButton.Color = Color3.fromRGB(190, 70, 235)
+			robuxButton.Transparency = if next.robuxProductKey then 0 else 0.6
+		end
+	else
+		if labels.Level then
+			labels.Level.Text = "MAX LEVEL"
+			labels.Level.TextColor3 = MapPalette.SignMaxed
+		end
+		if labels.CashPrice then
+			labels.CashPrice.Text = "MAXED"
+		end
+		if labels.RobuxPrice then
+			labels.RobuxPrice.Text = "-"
+		end
+		if cashButton and cashButton:IsA("BasePart") then
+			cashButton.Color = MapPalette.SignButtonEdge
+		end
+		if robuxButton and robuxButton:IsA("BasePart") then
+			robuxButton.Color = Color3.fromRGB(110, 30, 150)
+		end
 	end
 end
 
@@ -314,6 +544,58 @@ end
 
 SpeedService.isOnOwnTreadmill = isOnOwnTreadmill
 
+-- ==========================================================
+-- WHO IS RUNNING, FOR EVERYONE ELSE TO SEE
+-- ==========================================================
+--
+-- The runner's own client plays its run cycle locally the frame it steps on
+-- (TreadmillController). Nobody else can rely on that: a client-started
+-- track on an Animator the default Animate script also drives does not
+-- reliably reach other clients, so from across the plot a training player
+-- looked parked. The SERVER already knows who is training - it is the thing
+-- paying them - so it publishes that fact ONCE per change as an attribute on
+-- the character, and every client plays the run cycle on every OTHER
+-- character that carries it (TreadmillSpectateController). No RemoteEvent,
+-- nothing per frame: the attribute is written when a session starts, when
+-- the stride rate crosses a step, and cleared when the session ends -
+-- through this tick's own detection, which is the same one the reward uses,
+-- so a jump-off, a walk-off, a death, a teleport or a reset all clear it
+-- within one tick. A disconnect destroys the character, attribute and all.
+
+--- Characters currently published as running: which Model carries the flag
+--- and the rate written last. The Model is remembered so a respawn (a new
+--- character, no flag) that steps straight back on at the same rate is
+--- still written - the previous rate belonged to a character that is gone.
+local runningRate: { [Player]: number } = {}
+local runningCharacter: { [Player]: Model } = {}
+
+local function publishRunning(player: Player, character: Model?, rate: number?)
+	local previous = runningRate[player]
+	local previousCharacter = runningCharacter[player]
+	if rate == nil then
+		if previous ~= nil then
+			runningRate[player] = nil
+			runningCharacter[player] = nil
+			if previousCharacter then
+				previousCharacter:SetAttribute(TreadmillConfig.RUN_ATTRIBUTE, nil)
+			end
+		end
+		return
+	end
+	if not character then
+		return
+	end
+	-- Quantised so the steady trickle of treadmill ticks does not become a
+	-- steady trickle of attribute writes: a change reaches the spectators
+	-- only when the stride rate moves by a visible step.
+	local stepped = math.floor(rate / TreadmillConfig.RUN_RATE_STEP + 0.5) * TreadmillConfig.RUN_RATE_STEP
+	if previous ~= stepped or previousCharacter ~= character then
+		runningRate[player] = stepped
+		runningCharacter[player] = character
+		character:SetAttribute(TreadmillConfig.RUN_ATTRIBUTE, stepped)
+	end
+end
+
 --- One authoritative tick. Every condition is re-checked here; nothing is
 --- cached from the client.
 local function trainingTick()
@@ -326,40 +608,48 @@ local function trainingTick()
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then
+			publishRunning(player, character, nil)
 			continue
 		end
 
 		if not isOnOwnTreadmill(player) then
+			publishRunning(player, character, nil)
 			continue
 		end
 
 		local tier = TreadmillConfig.tier(profile.TreadmillLevel)
 		if not tier then
+			publishRunning(player, character, nil)
 			continue
 		end
 
+		-- Visible to everyone: the stride rate is the SAME function of the
+		-- player's real WalkSpeed the runner's own client uses, so the runner
+		-- and the spectators see the same pace.
+		publishRunning(player, character, TreadmillConfig.runAnimationRate(GameConfig.walkSpeedFromPower(profile.SpeedPower)))
+
 		local before = profile.SpeedPower
-		-- Base treadmill gain x the permanent Speed gamepass tier.
+		-- THE TRAINING CALCULATION (TreadmillConfig.gainPerTick):
 		--
-		-- The multiplier scales what is EARNED from here on. It deliberately does
-		-- NOT touch `profile.SpeedPower` itself: multiplying the saved total on
-		-- purchase would compound every time they bought a tier and corrupt the
-		-- stat permanently.
+		--     gain = TRAINING_BASE_GAIN x treadmill.factor x (1 + (trail - 1) + (pass - 1))
 		--
-		-- Trails are NOT in this line. A trail multiplies MOVEMENT, not training
-		-- (see CarryService.applyMovement) - keeping them in separate formulas is
-		-- what stops the two from silently multiplying together.
-		profile.SpeedPower += tier.gainPerTick * SpeedService.trainingMultiplier(player)
+		-- The treadmill factor multiplies on its own; the equipped trail's factor
+		-- and the Speed-pass tier ADD above their base of 1 and never multiply
+		-- each other. Nothing here touches `profile.SpeedPower` except the gain:
+		-- multiplying the saved total would compound on every purchase.
+		local bonus = TreadmillConfig.bonusFactor(CarryService.trailMultiplierFor(player), SpeedService.trainingMultiplier(player))
+		profile.SpeedPower += TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
 		SpeedService.applyMovement(player)
 		StateService.markDirty(player)
 
 		-- Crossing a zone's recommended Speed is the single moment the long
-		-- treadmill grind pays off, so it gets its own cue and a toast. Compared
-		-- against the value BEFORE the tick, so it fires exactly once per gate
-		-- however large the increment was.
+		-- treadmill grind pays off, so it gets its own cue. THE CUE ONLY: the
+		-- "<ZONE> UNLOCKED" toast used to land mid-screen over the runner and
+		-- the reward popups; the zone gate's sign and the Index still show
+		-- the unlock. Compared against the value BEFORE the tick, so it fires
+		-- exactly once per gate however large the increment was.
 		for _, zone in ZoneConfig.Zones do
 			if zone.recommendedSpeed > before and zone.recommendedSpeed <= profile.SpeedPower then
-				notify(player, "success", `{string.upper(zone.name)} UNLOCKED`, "unlock")
 				StateService.sound(player, "ZoneUnlock")
 				break
 			end
@@ -394,26 +684,8 @@ function SpeedService.start()
 		end
 	end
 
-	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-		if prompt.Name ~= "TreadmillPrompt" then
-			return
-		end
-
-		-- Ownership is re-validated here, not trusted from the client's prompt.
-		local plot = prompt:FindFirstAncestorOfClass("Folder")
-		while plot and plot.Parent ~= bases do
-			plot = plot.Parent :: Folder?
-		end
-		if not plot or BaseService.getPlot(player) ~= plot then
-			notify(player, "error", "That is not your base.")
-			return
-		end
-
-		local ok, reason = SpeedService.upgradeTreadmill(player)
-		if not ok and reason then
-			notify(player, "error", reason)
-		end
-	end)
+	-- The Hold-E treadmill prompt is retired (the board beside the treadmill
+	-- is the upgrade); any left on a baked plot is removed in refreshTreadmill.
 
 	Remotes.get("TreadmillUpgradeRequest").OnServerEvent:Connect(function(player)
 		local ok, reason = SpeedService.upgradeTreadmill(player)
@@ -441,6 +713,10 @@ function SpeedService.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		upgradeLimiter:release(player)
+		-- The character goes with the player, attribute and all; only the
+		-- bookkeeping needs clearing so a rejoin starts unpublished.
+		runningRate[player] = nil
+		runningCharacter[player] = nil
 	end)
 
 	task.spawn(function()

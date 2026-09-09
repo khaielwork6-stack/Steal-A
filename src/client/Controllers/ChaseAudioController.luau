@@ -146,17 +146,11 @@ local function onChaseStarted()
 	end)
 end
 
---- Crossing the line: the music stops NOW, the sting plays, and the safe-zone
---- cue follows - unless a new chase has begun in between.
+--- Crossing the line: the music stops NOW. The Escape cue itself is played
+--- by AudioController's generic SoundCue path, exactly once; nothing is
+--- played here, so the event can never sound twice.
 local function onEscaped()
 	toIdle(true)
-	local mine = token
-	Audio.play("EscapeSting")
-	task.delay(SAFE_DELAY, function()
-		if token == mine then
-			Audio.play("Escape")
-		end
-	end)
 end
 
 -- ==========================================================
@@ -180,7 +174,7 @@ function ChaseAudioController.start()
 	end
 
 	Remotes.get("SoundCue").OnClientEvent:Connect(function(name: string)
-		if name == "EscapeSting" then
+		if name == "Escape" or name == "EscapeSting" then
 			onEscaped()
 		end
 	end)

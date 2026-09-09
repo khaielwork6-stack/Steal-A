@@ -24,6 +24,15 @@ Remotes.NAMES = {
 	"BatSwingRequest",
 	"TrapPlaceRequest",
 	"IndexClaimRequest",
+	-- Asks to hatch ONE sealed container, named by its InstanceId. Carries no
+	-- reward, no timer and no result: the server owns all three and re-checks
+	-- ownership, readiness and the un-hatched flag before it commits.
+	"HatchRequest",
+	-- server -> the owning client only. Sent AFTER the hatch is committed, and
+	-- it is the first moment that client learns anything about the reward: the
+	-- pedestal to play on and the two colours the reveal burst uses. The item
+	-- itself arrives the ordinary way, as a rebuilt trophy on the base.
+	"HatchReveal",
 	-- The DROP button. Carries no payload at all: the server already knows what
 	-- this player is carrying, and asking the client which item to drop would be
 	-- handing it a target it has no business choosing.
@@ -68,6 +77,10 @@ Remotes.NAMES = {
 	-- server -> client. The back-to-base portal asking this client to play
 	-- its teleport transition. Carries nothing; the move already happened.
 	"PortalFx",
+	-- Claims the Cash earned while away. Carries NOTHING: the server computed
+	-- the amount when the profile loaded and holds it as a pending claim; the
+	-- client can only ask for it. Idempotent. See OfflineService.
+	"OfflineClaimRequest",
 	-- server -> client
 	"StatePush",
 	"Notify",

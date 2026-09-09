@@ -60,13 +60,23 @@ local function onTriggered(prompt: ProximityPrompt)
 		end
 	end)
 	task.spawn(function()
+		-- ALWAYS Roblox's own dialog. It is the only thing that turns the
+		-- notification on for the player (and lets a follower turn it off),
+		-- so the stand never answers with a toast in its place.
 		local ok, status = pcall(function()
 			return SocialService:PromptRsvpToEventAsync(EVENT_ID)
 		end)
 		busy = false
 		if not ok then
 			warn(`[EventStandController] RSVP prompt refused: {status}`)
-			ToastController.show("info", "Update alerts are not available right now.")
+			local message = tostring(status)
+			if message:find("already started", 1, true) or message:find("ended", 1, true) then
+				-- The configured event's start time has passed. The stand
+				-- needs the id of the NEXT scheduled event (GameConfig).
+				ToastController.show("info", "This update is already live! Check the Events page.")
+			else
+				ToastController.show("info", "Update alerts are not available right now.")
+			end
 			return
 		end
 		paintPrompt(prompt, status)

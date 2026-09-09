@@ -27,8 +27,14 @@ MapConfig.ZONE_COUNT = 12
 -- front. Seven do not fit without shrinking a plot below its fourteen pads.
 -- Server Size in Game Settings must match (it is read-only to scripts).
 MapConfig.BASE_COUNT = 5
+--- FOUR per zone. MysterySpawnService re-seats them into an arc around the
+--- zone's guardian at start-up and DESTROYS any fifth a baked map still
+--- carries, so the retired fifth spawn cannot return from an old place file.
 MapConfig.SOCKETS_PER_ZONE = 4
-MapConfig.DISPLAY_SLOTS_PER_BASE = 14
+--- Eighteen pads for a rebuilt plot (BaseConfig's top level). A baked plot
+--- keeps its fourteen until the map is rebuilt; BaseService clamps to what
+--- is physically there.
+MapConfig.DISPLAY_SLOTS_PER_BASE = 18
 --- Head plot only: its pads run in rows ACROSS the back of the plaza.
 MapConfig.DISPLAY_SLOT_ROWS = 2
 
@@ -156,7 +162,9 @@ MapConfig.PAD_SIZE = Vector3.new(12, 1, 12)
 -- Display slots run as two long ranks down the plot's deep axis, which both fits
 -- the new footprint and shows a collection off better to anyone walking past.
 MapConfig.DISPLAY_SLOT_SIZE = Vector3.new(15, 1, 15)
-MapConfig.DISPLAY_SLOT_COLS = 4 -- ranks across the plot width
+-- Five across: 82 / 5 = 16.4 pitch for 15-stud pads, so four ranks of five
+-- hold eighteen pads plus the two-cell Guardian Bay.
+MapConfig.DISPLAY_SLOT_COLS = 5 -- ranks across the plot width
 MapConfig.DISPLAY_BACK_INSET = 8 -- first slot, measured from the plot back edge
 MapConfig.DISPLAY_FRONT_RESERVE = 30 -- room kept clear at the front for the porch
 -- The porch: a paved strip across the plot front carrying the spawn, the
@@ -265,7 +273,9 @@ MapConfig.HUB = {
 		Speed = Vector3.new(178, 6.4, -12),
 	},
 	avenueWidth = 20, -- RETIRED: the kit's lobby has no avenue
-	giftChest = Vector3.new(-104, 0, -16),
+	-- Clear of the Slap cage (centred near X = -94, 11 wide) on the player's
+	-- right, with room for the chest's 13-stud glow disc between them.
+	giftChest = Vector3.new(-119, 0, -16),
 	-- The rotating Guardian shop: the pedestal in the +X wing between the lane
 	-- mouth and the Next Update board, turned to face the spawn circle.
 	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -24), Vector3.new(0, 0, -34)),

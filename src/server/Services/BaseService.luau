@@ -15,16 +15,20 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
 local SizeAura = require(ReplicatedStorage.Shared.Util.SizeAura)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
+local HatchConfig = require(ReplicatedStorage.Shared.Config.HatchConfig)
+local MysteryConfig = require(ReplicatedStorage.Shared.Config.MysteryConfig)
+local MysteryModel = require(ReplicatedStorage.Shared.Util.MysteryModel)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local DataService = require(script.Parent.DataService)
+local EconomyService = require(script.Parent.EconomyService)
 
 local BaseService = {}
 
@@ -182,12 +186,32 @@ function BaseService.isInOwnSafeZone(player: Player): boolean
 	return BaseService.plotAt(root.Position) == plot
 end
 
+--- How many display pads a plot physically carries. A baked plot has
+--- fourteen; a rebuilt one eighteen (MapConfig.DISPLAY_SLOTS_PER_BASE).
+function BaseService.physicalSlots(plot: Instance?): number
+	local slots = plot and plot:FindFirstChild("DisplaySlots")
+	if not slots then
+		return GameConfig.MAX_DISPLAY_SLOTS
+	end
+	local count = 0
+	for _, child in slots:GetChildren() do
+		if child:IsA("BasePart") and child:GetAttribute("SlotIndex") ~= nil then
+			count += 1
+		end
+	end
+	return math.max(count, GameConfig.STARTING_DISPLAY_SLOTS)
+end
+
+--- The slots the player may USE right now: their capacity level's count,
+--- never more than the pads their plot actually has. The level itself is
+--- kept on the profile, so a purchase past the plot's pads is not lost - the
+--- extra pads appear the moment the plot has them.
 function BaseService.unlockedSlots(player: Player): number
 	local profile = DataService.get(player)
 	if not profile then
 		return GameConfig.STARTING_DISPLAY_SLOTS
 	end
-	return BaseConfig.slotsForTier(profile.BaseCapacityTier)
+	return math.min(BaseConfig.slotsForTier(profile.BaseCapacityTier), BaseService.physicalSlots(assignments[player]))
 end
 
 --- Slot indices that are unlocked and currently empty.
@@ -223,28 +247,35 @@ end
 --- ServerStorage.GameAssets.Loot.<ItemId> and is used automatically once
 --- present; until then a rarity-tinted block keeps the economy fully testable
 --- without art. LootModel owns both branches - see it for the naming contract.
---- How much bigger a trophy has grown, 1 at placement rising to
---- 1 + GROWTH_SCALE_BONUS at full maturity. Read from the SAVED seconds, so it
---- is the same after every rebuild and never compounds.
-function BaseService.growthScale(item: DataService.DisplayItem): number
-	local seconds = math.clamp(tonumber(item.GrowthSeconds) or 0, 0, NightConfig.GROWTH_FULL_SECONDS)
-	return 1 + NightConfig.GROWTH_SCALE_BONUS * (seconds / NightConfig.GROWTH_FULL_SECONDS)
+--- The scale a saved item's MODEL is built at: its legacy look when it has
+--- one (an item from before the continuous Scale keeps the size it always
+--- stood at), otherwise its Scale. Pedestal, world and carry all read this
+--- one function.
+function BaseService.displayScale(item: DataService.DisplayItem): number
+	local legacy = tonumber(item.LegacyVisualScale)
+	if legacy and legacy > 0 then
+		return legacy
+	end
+	return ScaleConfig.clampScale(item.Scale)
 end
 
 local function buildTrophy(item: DataService.DisplayItem): Model
-	-- A trophy shows the size it was stolen at: the exact visual scale that was
-	-- rolled for the instance and saved with it, times its growth. Both come
-	-- from the save, so a rejoin, a store and a re-equip all build the same
-	-- model - nothing is ever scaled twice.
-	local visual = RarityConfig.clampVisualScale(item.Size, item.VisualScale)
+	-- A trophy shows its FULL saved size: the display scale, exactly once, on
+	-- a fresh clone. A rejoin, a store and a re-equip all build the same model
+	-- - nothing is ever scaled twice, and nothing grows or shrinks with age.
+	local visual = BaseService.displayScale(item)
 
+	-- SAME BUILD AS THE WORLD. Height target, footprint cap and the saved
+	-- scale are exactly what LootService used at the socket, so the thing on
+	-- the pedestal is the size of the thing that was stolen - a Colossal stays
+	-- a tower, hanging out over the pad and all.
 	local model = LootModel.build({
 		itemId = item.ItemId,
 		rarity = item.Rarity,
-		targetHeight = GameConfig.LOOT_TROPHY_HEIGHT,
-		sizeScale = visual * BaseService.growthScale(item),
-		maxFootprint = LootModel.TROPHY_MAX_FOOTPRINT,
-		placeholderSize = Vector3.new(8, 10, 8),
+		targetHeight = GameConfig.LOOT_WORLD_HEIGHT,
+		sizeScale = visual,
+		maxFootprint = LootModel.WORLD_MAX_FOOTPRINT,
+		placeholderSize = Vector3.new(6, 7, 6),
 	})
 
 	-- A trophy keeps the mutation it was stolen with. The whole point of the
@@ -259,11 +290,12 @@ local function buildTrophy(item: DataService.DisplayItem): Model
 	model:SetAttribute("ItemId", item.ItemId)
 	model:SetAttribute("FinalIncome", item.FinalIncome)
 	model:SetAttribute("Size", item.Size)
-	model:SetAttribute("VisualScale", RarityConfig.clampVisualScale(item.Size, item.VisualScale))
+	model:SetAttribute("Scale", ScaleConfig.clampScale(item.Scale))
+	model:SetAttribute("VisualScale", visual)
 	model:SetAttribute("Rarity", item.Rarity)
 	model:SetAttribute("Mutation", item.Mutation)
-	-- What growth this build already includes, for applyGrowth's ratio.
-	model:SetAttribute("GrowthApplied", BaseService.growthScale(item))
+	-- Seconds until it earns; 0 once it does. The label reads this.
+	model:SetAttribute("MaturationRemaining", EconomyService.maturationRemaining(item))
 
 	return model
 end
@@ -330,7 +362,15 @@ local function buildLabel(item: DataService.DisplayItem, parent: Model, topY: nu
 	income.TextScaled = true
 	income.TextColor3 = Color3.fromRGB(120, 255, 140)
 	income.TextStrokeTransparency = 0.4
-	income.Text = NumberFormat.income(item.FinalIncome)
+	-- A maturing item earns nothing yet: the card says so, with the wait,
+	-- instead of advertising a rate it is not paying.
+	local remaining = EconomyService.maturationRemaining(item)
+	if remaining > 0 then
+		income.TextColor3 = Color3.fromRGB(255, 214, 120)
+		income.Text = `GROWING  {math.floor(remaining / 60)}:{string.format("%02d", math.floor(remaining % 60))}`
+	else
+		income.Text = NumberFormat.income(item.FinalIncome)
+	end
 	income.Parent = gui
 end
 
@@ -369,8 +409,16 @@ local function buildPedestal(slot: BasePart, padTop: number, rarity: string): (M
 	for _, descendant in pedestal:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = true
-			descendant.CanCollide = true
+			-- WALK-THROUGH, ALWAYS. A pedestal is scenery: it must not block a
+			-- player, catch their legs on the way past, launch them, trap a
+			-- carried container against a pad, or stand in a guardian's path.
+			-- Nothing reads its collision - trophies are seated from measured
+			-- extents and the slot pad itself carries the interaction - so
+			-- turning it off costs nothing and fixes all of those at once.
+			descendant.CanCollide = false
+			-- Still raycastable, so seating and the camera behave; still lit.
 			descendant.CanQuery = true
+			descendant.CanTouch = false
 			descendant.CastShadow = true
 		elseif descendant:IsA("BaseScript") then
 			descendant:Destroy()
@@ -559,11 +607,150 @@ local function robbedSign(slot: BasePart)
 	hint.Parent = gui
 end
 
+-- ==========================================================
+-- SEALED CONTAINERS ON A BASE
+-- ==========================================================
+--
+-- An incubating reward is drawn as the container it was carried home in, and
+-- its countdown is drawn FLAT on the pedestal - never as floating text over
+-- the container, which is what would turn a mystery back into a label.
+
+local REVEAL_CARD_NAME = "RevealCard"
+
+--- The container standing on a pedestal: the same zone model, size and
+--- mutation dressing the player stole, at its full saved size.
+function BaseService.buildContainer(item: DataService.DisplayItem): Model?
+	return MysteryModel.build({
+		zoneIndex = item.ZoneId,
+		scale = ScaleConfig.clampScale(item.Scale),
+		mutation = item.Mutation,
+		maxFootprint = MysteryConfig.PEDESTAL_MAX_FOOTPRINT,
+		hitbox = false,
+	})
+end
+
+--- "11h 42m" / "14m 08s" / "8s". Mirrors HatchService.formatRemaining; kept
+--- here too so the display never has to require that service.
+local function formatRemaining(seconds: number): string
+	local total = math.max(0, math.ceil(seconds))
+	if total >= 3600 then
+		return string.format("%dh %02dm", total // 3600, (total % 3600) // 60)
+	elseif total >= 60 then
+		return string.format("%dm %02ds", total // 60, total % 60)
+	end
+	return string.format("%ds", total)
+end
+
+--- THE TIMER CARD: one BillboardGui floating just above the container's
+--- highest visible point, carrying ONLY a countdown and a progress bar. No
+--- name, no rarity, no income, no size or mutation word. The client retimes
+--- the text once a second from the absolute end stamp; the server never
+--- counts down. Built exactly once per rebuild - the rebuild destroys the
+--- previous one first - so state refreshes can never stack two.
+function BaseService.buildRevealCard(slot: BasePart, container: Model, item: DataService.DisplayItem)
+	local endsAt = tonumber(item.HatchEndsAt) or 0
+	local remaining = math.max(0, endsAt - os.time())
+	local ready = remaining <= 0
+
+	local anchor = container.PrimaryPart or container:FindFirstChildWhichIsA("BasePart", true)
+	if not anchor then
+		return
+	end
+	-- Positioned from the container's real bounding box, so a Normal and a
+	-- Colossal both get the same clearance above whatever is tallest.
+	local _, maxCorner = LootModel.visibleExtents(container)
+	local topY = if maxCorner then maxCorner.Y else anchor.Position.Y + anchor.Size.Y / 2
+
+	local gui = Instance.new("BillboardGui")
+	gui.Name = REVEAL_CARD_NAME
+	gui.Size = UDim2.fromScale(6.2, 2.6)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, (topY - anchor.Position.Y) + HatchConfig.CARD_CLEARANCE, 0)
+	gui.AlwaysOnTop = false
+	gui.LightInfluence = 0
+	gui.MaxDistance = HatchConfig.CARD_MAX_DISTANCE
+	gui.Adornee = anchor
+	gui:SetAttribute("HatchEndsAt", endsAt)
+	gui:SetAttribute("InstanceId", item.InstanceId)
+	gui:SetAttribute("SlotIndex", item.SlotIndex)
+	gui.Parent = slot
+
+	-- Dark translucent rounded card, a thin gold outline, a blue-violet accent.
+	local plate = Instance.new("Frame")
+	plate.Name = "Plate"
+	plate.Size = UDim2.fromScale(1, 1)
+	plate.BackgroundColor3 = Color3.fromRGB(14, 16, 30)
+	plate.BackgroundTransparency = 0.18
+	plate.BorderSizePixel = 0
+	plate.Parent = gui
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.22, 0)
+	corner.Parent = plate
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "Outline"
+	stroke.Thickness = 2
+	stroke.Color = if ready then MysteryConfig.READY_TINT else Color3.fromRGB(255, 208, 96)
+	stroke.Transparency = 0.15
+	stroke.Parent = plate
+	local accent = Instance.new("UIGradient")
+	accent.Color = ColorSequence.new(Color3.fromRGB(40, 48, 96), Color3.fromRGB(66, 34, 96))
+	accent.Transparency = NumberSequence.new(0.55)
+	accent.Rotation = 20
+	accent.Parent = plate
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.AnchorPoint = Vector2.new(0.5, 0)
+	caption.Position = UDim2.fromScale(0.5, 0.08)
+	caption.Size = UDim2.fromScale(0.9, 0.24)
+	caption.BackgroundTransparency = 1
+	caption.Font = Enum.Font.FredokaOne
+	caption.TextScaled = true
+	caption.TextColor3 = Color3.fromRGB(255, 208, 96)
+	caption.TextStrokeTransparency = 0.6
+	caption.Text = if ready then "" else "REVEAL IN"
+	caption.Parent = plate
+
+	local clock = Instance.new("TextLabel")
+	clock.Name = "Clock"
+	clock.AnchorPoint = Vector2.new(0.5, 0)
+	clock.Position = UDim2.fromScale(0.5, 0.30)
+	clock.Size = UDim2.fromScale(0.92, 0.42)
+	clock.BackgroundTransparency = 1
+	clock.Font = Enum.Font.FredokaOne
+	clock.TextScaled = true
+	clock.TextStrokeTransparency = 0.5
+	clock.TextColor3 = if ready then MysteryConfig.READY_TINT else Color3.fromRGB(255, 255, 255)
+	clock.Text = if ready then "READY TO REVEAL!" else formatRemaining(remaining)
+	clock.Parent = plate
+
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.AnchorPoint = Vector2.new(0.5, 1)
+	track.Position = UDim2.fromScale(0.5, 0.9)
+	track.Size = UDim2.fromScale(0.82, 0.1)
+	track.BackgroundColor3 = Color3.fromRGB(34, 40, 66)
+	track.BorderSizePixel = 0
+	track.Parent = plate
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(0.5, 0)
+	trackCorner.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(if ready then 1 else 0, 1)
+	fill.BackgroundColor3 = if ready then MysteryConfig.READY_TINT else Color3.fromRGB(120, 170, 255)
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0.5, 0)
+	fillCorner.Parent = fill
+end
+
 --- Where an item's lowest point should sit: on the pedestal's top face, or on
 --- the pad when there is no pedestal.
 local function seatTrophy(trophy: Model, slot: BasePart, surfaceY: number)
 	trophy:PivotTo(CFrame.new(slot.Position.X, surfaceY, slot.Position.Z) * (slot.CFrame - slot.CFrame.Position))
-	local minCorner = select(1, LootModel.worldExtents(trophy))
+	local minCorner = select(1, LootModel.visibleExtents(trophy))
 	if minCorner then
 		trophy:PivotTo(trophy:GetPivot() + Vector3.new(0, surfaceY + ITEM_HOVER - minCorner.Y, 0))
 	end
@@ -579,7 +766,7 @@ local function addSizeSparkle(trophy: Model, item: DataService.DisplayItem)
 	if not anchor then
 		return
 	end
-	local minCorner, maxCorner = LootModel.worldExtents(trophy)
+	local minCorner, maxCorner = LootModel.visibleExtents(trophy)
 	local span = if minCorner and maxCorner then math.max(maxCorner.X - minCorner.X, maxCorner.Y - minCorner.Y, maxCorner.Z - minCorner.Z) else 6
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "SizeSparkleAttachment"
@@ -627,7 +814,7 @@ function BaseService.rebuildDisplays(player: Player)
 			continue
 		end
 
-		for _, name in { "Trophy", "Pedestal", ROBBED_SIGN_NAME } do
+		for _, name in { "Trophy", "Pedestal", ROBBED_SIGN_NAME, REVEAL_CARD_NAME } do
 			local existing = slot:FindFirstChild(name)
 			if existing then
 				existing:Destroy()
@@ -652,17 +839,37 @@ function BaseService.rebuildDisplays(player: Player)
 			continue
 		end
 
-		styleSlot(slot, "Occupied", RarityConfig.Colors[item.Rarity])
+		local sealed = item.Hatched == false
+		-- A SEALED PAD IS NEUTRAL. Painting it the item's rarity colour would
+		-- announce the rarity of something the player has not seen yet, so a
+		-- container stands on a plain pad and only a hatched trophy colours it.
+		styleSlot(slot, "Occupied", if sealed then MysteryConfig.INCUBATING_TINT else RarityConfig.Colors[item.Rarity])
 
 		local padTop = slot.Position.Y + slot.Size.Y / 2
-		local _, surfaceY = buildPedestal(slot, padTop, item.Rarity)
+		local _, surfaceY = buildPedestal(slot, padTop, if sealed then "Common" else item.Rarity)
+
+		if sealed then
+			-- THE CONTAINER, not the item. Same model, size and mutation VFX it
+			-- had in the zone, so what the player carried home is what stands
+			-- on their pedestal - and still nothing that names the reward.
+			local container = BaseService.buildContainer(item)
+			if container then
+				container.Name = "Trophy"
+				container.Parent = slot
+				MysteryModel.seat(container, slot.Position, surfaceY, ITEM_HOVER)
+				-- The countdown floats just above the container and says only
+				-- how long is left.
+				BaseService.buildRevealCard(slot, container, item)
+			end
+			continue
+		end
 
 		local trophy = buildTrophy(item)
 		trophy.Name = "Trophy"
 		trophy.Parent = slot
 		seatTrophy(trophy, slot, surfaceY)
 
-		local _, maxCorner = LootModel.worldExtents(trophy)
+		local _, maxCorner = LootModel.visibleExtents(trophy)
 		buildLabel(item, trophy, if maxCorner then maxCorner.Y else surfaceY + GameConfig.LOOT_TROPHY_HEIGHT)
 		addSizeSparkle(trophy, item)
 	end
@@ -674,48 +881,8 @@ function BaseService.rebuildDisplays(player: Player)
 	end
 end
 
---- Re-applies growth to the trophies already standing, IN PLACE. Called when
---- an item crosses a growth step (NightService), so the base does not rebuild
---- - and flicker - every few seconds. Each trophy remembers the growth factor
---- it was built with; the change is the ratio, so it can never compound.
-function BaseService.applyGrowth(player: Player)
-	local plot = assignments[player]
-	local profile = DataService.get(player)
-	if not plot or not profile then
-		return
-	end
-	local slots = plot:FindFirstChild("DisplaySlots")
-	if not slots then
-		return
-	end
-
-	for _, item in profile.DisplayItems do
-		local slot = slots:FindFirstChild(string.format("DisplaySlot%02d", item.SlotIndex))
-		local trophy = slot and slot:FindFirstChild("Trophy")
-		if not slot or not slot:IsA("BasePart") or not trophy or not trophy:IsA("Model") then
-			continue
-		end
-		local applied = tonumber(trophy:GetAttribute("GrowthApplied")) or 1
-		local wanted = BaseService.growthScale(item)
-		if math.abs(wanted - applied) < 0.001 then
-			continue
-		end
-		trophy:ScaleTo(trophy:GetScale() * (wanted / applied))
-		trophy:SetAttribute("GrowthApplied", wanted)
-		-- ScaleTo grows about the pivot; re-seat the lowest point on whatever
-		-- the item stands on (the pedestal's top face, or the pad).
-		local minCorner = select(1, LootModel.worldExtents(trophy))
-		if minCorner then
-			local surfaceY = slot.Position.Y + slot.Size.Y / 2
-			local pedestal = slot:FindFirstChild("Pedestal")
-			local accent = pedestal and pedestal:FindFirstChild("Accent")
-			if accent and accent:IsA("BasePart") then
-				surfaceY = accent.Position.Y + accent.Size.X / 2
-			end
-			trophy:PivotTo(trophy:GetPivot() + Vector3.new(0, surfaceY + ITEM_HOVER - minCorner.Y, 0))
-		end
-	end
-end
+-- RETIRED: applyGrowth. Growth no longer changes a trophy's size or income;
+-- it only decides when a newly placed item starts earning (EconomyService).
 
 -- ==========================================================
 -- THE OWNER SIGN
@@ -800,8 +967,15 @@ local function ensureOwnerDisplay(plot: Instance): BillboardGui?
 	gui.Name = "Owner"
 	-- Studs, so it is the same physical size for everyone. ExtentsOffset keeps
 	-- the name under the portrait rather than the whole thing over the anchor.
-	gui.Size = UDim2.fromScale(7, 8.6)
+	-- TALLER THAN THE ART NEEDS, ON PURPOSE. The portrait is anchored to the
+	-- TOP of this billboard and the name to the BOTTOM, so the gap between
+	-- them is whatever height is left over. At 8.6 studs that gap was under a
+	-- stud and the circle sat on the name. Two extra studs of height, with the
+	-- whole billboard lifted one stud to compensate, moves the PORTRAIT up two
+	-- studs and leaves the NAME exactly where it was.
+	gui.Size = UDim2.fromScale(7, 10.6)
 	gui.SizeOffset = Vector2.new(0, 0)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 1, 0)
 	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
 	gui.MaxDistance = 260

@@ -23,14 +23,17 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local HatchConfig = require(ReplicatedStorage.Shared.Config.HatchConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 
-local SCHEMA_VERSION = 7
+local SCHEMA_VERSION = 12
 local STORE_NAME = "PlayerProfiles_v1"
 
---- The longest a growth value may claim. NightService caps growth at
---- NightConfig.GROWTH_FULL_SECONDS; this is only the sanity bound a corrupt
+--- The longest a growth value may claim. NightService stops crediting an
+--- item at its own MaturationSeconds; this is only the sanity bound a corrupt
 --- save is clamped to on load.
 local GROWTH_SECONDS_SANITY = 86400
 
@@ -49,6 +52,41 @@ export type DisplayItem = {
 	--- The exact visual scale rolled inside the Size tier when the instance
 	--- spawned (v6). Absent on older saves; reconcile fills the tier's default.
 	VisualScale: number?,
+	--- Which visual ladder VisualScale was rolled inside (v9). Equal to
+	--- RarityConfig.SIZE_VISUAL_VERSION once the item has been rolled or
+	--- migrated into the current ranges; anything lower (or absent, on a
+	--- pre-v9 profile) is a legacy roll the v9 migration maps EXACTLY ONCE.
+	SizeVisualVersion: number?,
+	--- THE ECONOMY SCALE (v10). One continuous, server-rolled number; income
+	--- is a function of it (ScaleConfig.sizeFactor) and of nothing else about
+	--- size. A legacy item gets the Scale whose sizeFactor equals its old
+	--- word's multiplier, so its income is preserved to the dollar.
+	Scale: number?,
+	--- v10. A legacy item's pre-rebuild look, kept so it still stands at the
+	--- size it always did while earning from its (much smaller) Scale. Nil on
+	--- everything rolled since the rebuild: those look exactly their Scale.
+	LegacyVisualScale: number?,
+	--- v10. Growth credit the item needs before it earns (base growth time x
+	--- ScaleConfig.growthMultiplier). 0 = earns from placement.
+	MaturationSeconds: number?,
+	--- v10. Stamped ScaleConfig.ECONOMY_SCALE_VERSION when Scale was rolled
+	--- or migrated onto the current ladder, so the migration never runs twice.
+	EconomyScaleVersion: number?,
+	--- v11. THE MYSTERY LOOP. False while the item is still a sealed container
+	--- incubating on its pedestal; true once it has been hatched and revealed.
+	--- An item that is not hatched shows a container, earns NOTHING, and keeps
+	--- its identity hidden from every client. Every item saved before v11 is
+	--- already hatched and is migrated as such - nobody re-hatches a collection
+	--- they already own.
+	Hatched: boolean?,
+	--- v11. Unix second (os.time) the incubation finishes. Server-authoritative
+	--- and absolute, so the timer runs while the player is offline, across a
+	--- server hop and through a shutdown. Nil once hatched.
+	HatchEndsAt: number?,
+	--- v11. The spawn token the container carried out of its zone. Lets a hatch
+	--- request name exactly one container and makes a replayed or racing
+	--- request identifiable.
+	SpawnToken: string?,
 	--- Seconds of effective growth accrued while on display (v6). Capped by
 	--- NightService; drives the maturity income/size bonus.
 	GrowthSeconds: number?,
@@ -118,6 +156,26 @@ export type Profile = {
 	-- kept durable so a Developer Product receipt that lands after a rejoin
 	-- can still be matched to the item it paid for. See HeistService.
 	PendingSteal: any?,
+	-- v12. An Instant Reveal whose purchase prompt was opened and not yet
+	-- resolved: { instanceId, productId }. Durable so a receipt that lands
+	-- after a rejoin still reveals the container it paid for. See HatchService.
+	PendingReveal: any?,
+	-- v12. The one-time opening popup has been shown. Durable so it never
+	-- returns after a respawn or a rejoin.
+	TutorialIntroSeen: boolean,
+	-- v8. Offline earnings (OfflineService). All three are written by the
+	-- SERVER only. `LastLeaveTimestamp` is the os.time() of the last save;
+	-- `OfflineCashRate` the authoritative $/s at that moment; and
+	-- `PendingOfflineCash` the capped payout computed on the next load, held
+	-- until the player claims it. 0 / 0 / 0 means "nothing owed".
+	LastLeaveTimestamp: number,
+	OfflineCashRate: number,
+	PendingOfflineCash: number,
+	-- v11. Unix second the next trap becomes available (0 = ready now). The
+	-- trap recharges rather than being spent: placing one stamps this, and
+	-- because it is an ABSOLUTE second the cooldown keeps running while the
+	-- player is away and cannot be reset by leaving, dying or rejoining.
+	TrapReadyAt: number,
 }
 
 local store: DataStore? = nil
@@ -158,6 +216,12 @@ local function defaultProfile(): Profile
 		EquippedGuardian = "",
 		EquippedWeapon = "Bat",
 		PendingSteal = nil,
+		PendingReveal = nil,
+		TutorialIntroSeen = false,
+		LastLeaveTimestamp = 0,
+		OfflineCashRate = 0,
+		PendingOfflineCash = 0,
+		TrapReadyAt = 0,
 	}
 end
 
@@ -233,7 +297,11 @@ local function migrate(profile: Profile): Profile
 				for _, item in list do
 					if type(item) == "table" then
 						if type(item.VisualScale) ~= "number" then
-							item.VisualScale = RarityConfig.defaultVisualScale(item.Size)
+							-- The LEGACY low end, not today's: this value is then carried
+							-- through the v9 mapping below like any other pre-v9 roll, and
+							-- lands on the new tier's low end.
+							local legacy = RarityConfig.LegacySizeRanges[item.Size]
+							item.VisualScale = if legacy then legacy[1] else 1
 						end
 						if type(item.GrowthSeconds) ~= "number" then
 							item.GrowthSeconds = 0
@@ -258,7 +326,126 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 7
 	end
 
-	-- Future migrations chain here: if version < 8 then ... end
+	if version < 8 then
+		-- v8 adds offline earnings. A player from before has no recorded
+		-- departure, so their first load after this pays NOTHING: a zero
+		-- timestamp is "never left", never "left at the epoch".
+		if type(profile.LastLeaveTimestamp) ~= "number" then
+			profile.LastLeaveTimestamp = 0
+		end
+		if type(profile.OfflineCashRate) ~= "number" then
+			profile.OfflineCashRate = 0
+		end
+		if type(profile.PendingOfflineCash) ~= "number" then
+			profile.PendingOfflineCash = 0
+		end
+		profile.SchemaVersion = 8
+	end
+
+	if version < 9 then
+		-- v9: the size visual ladder moved (Big 1.35 -> 1.6, Huge 1.8 -> 2.5,
+		-- Giant 2.6 -> 4, Titan 6-8 -> 7-10, Colossal 15-20 -> 16-22). Every
+		-- saved item is mapped ONCE: fixed tiers to their new fixed scale, a
+		-- ranged tier to the SAME relative position inside the new range, so
+		-- the uniqueness of every existing Titan and Colossal survives. The
+		-- item is then stamped SizeVisualVersion so this can never run twice,
+		-- whatever version the profile says. Size tier, mutation, rarity,
+		-- income, slot, protection and growth are not touched. Additive.
+		for _, list in { profile.DisplayItems, profile.Inventory } do
+			if type(list) == "table" then
+				for _, item in list do
+					if type(item) == "table" and (tonumber(item.SizeVisualVersion) or 0) < RarityConfig.SIZE_VISUAL_VERSION then
+						item.VisualScale = RarityConfig.migrateVisualScale(item.Size, item.VisualScale)
+						item.SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION
+					end
+				end
+			end
+		end
+		profile.SchemaVersion = 9
+	end
+
+	if version < 10 then
+		-- v10: the continuous economy Scale replaces the six discrete size
+		-- multipliers. Every saved item is mapped ONCE:
+		--   * Scale = the value whose sizeFactor equals the multiplier its
+		--     size WORD carried (1 / 1.35 / 2 / 3.5 / 4.5 / 6), solved through
+		--     the inverse curve - so the income it earned before this patch
+		--     is the income it earns after, to the dollar. The old visual scale
+		--     is NOT used for this: a 22x Colossal read as Scale 22 would earn
+		--     nearly twenty times what it did.
+		--   * LegacyVisualScale = its old VisualScale, so it still LOOKS the
+		--     size it always did on the pedestal.
+		--   * MaturationSeconds = 0: it was already earning, so it keeps earning.
+		--   * EconomyScaleVersion stamped, so this can never run twice.
+		-- Size word, mutation, rarity, income fields, slot, protection and
+		-- growth are not touched. Additive.
+		for _, list in { profile.DisplayItems, profile.Inventory } do
+			if type(list) == "table" then
+				for _, item in list do
+					if type(item) == "table" and (tonumber(item.EconomyScaleVersion) or 0) < ScaleConfig.ECONOMY_SCALE_VERSION then
+						local multiplier = RarityConfig.LegacySizeIncomeMultipliers[item.Size] or 1
+						item.Scale = ScaleConfig.roundScale(ScaleConfig.inverseSizeFactor(multiplier))
+						if type(item.VisualScale) == "number" and item.VisualScale == item.VisualScale then
+							item.LegacyVisualScale = item.VisualScale
+						end
+						if type(item.MaturationSeconds) ~= "number" then
+							item.MaturationSeconds = 0
+						end
+						item.EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION
+					end
+				end
+			end
+		end
+		profile.SchemaVersion = 10
+	end
+
+	if version < 11 then
+		-- The trap becomes a recharging ability. A player from before has no
+		-- cooldown to serve, so their trap is ready the moment they arrive.
+		if type(profile.TrapReadyAt) ~= "number" then
+			profile.TrapReadyAt = 0
+		end
+		-- v11 introduces the mystery container and the hatch timer. EVERY item
+		-- that already existed is a revealed, earning trophy: it is stamped
+		-- Hatched and given no timer, so an existing collection keeps earning
+		-- exactly as it did and nobody is asked to re-hatch what they own.
+		for _, list in { profile.DisplayItems, profile.Inventory } do
+			if type(list) == "table" then
+				for _, item in list do
+					if type(item) == "table" and item.Hatched == nil then
+						item.Hatched = true
+						item.HatchEndsAt = nil
+					end
+				end
+			end
+		end
+		profile.SchemaVersion = 11
+	end
+
+	if version < 12 then
+		-- The opening popup is new. A player who has already stolen anything
+		-- has already started, and is not shown a first-start message now.
+		if type(profile.TutorialIntroSeen) ~= "boolean" then
+			profile.TutorialIntroSeen = (tonumber(profile.TutorialStage) or 0) > 0
+		end
+		-- Storing a sealed container is refused from v12, and the raw
+		-- Inventory list is what the storage panel renders - so a container
+		-- that reached storage under v11 would name its reward there. Nothing
+		-- released ever wrote one (v11 and v12 shipped together); a Studio
+		-- save that did is revealed in place rather than left to leak.
+		if type(profile.Inventory) == "table" then
+			for _, item in profile.Inventory do
+				if type(item) == "table" and item.Hatched == false then
+					item.Hatched = true
+					item.HatchEndsAt = nil
+					warn(`[DataService] v12: sealed container {tostring(item.InstanceId)} found in storage; revealed in place`)
+				end
+			end
+		end
+		profile.SchemaVersion = 12
+	end
+
+	-- Future migrations chain here: if version < 13 then ... end
 
 	return profile
 end
@@ -293,11 +480,89 @@ local function reconcileItem(item: DisplayItem): boolean
 		changed = true
 	end
 
-	-- The visual scale must be a finite number INSIDE its tier's range; a save
-	-- cannot carry a 200x Normal. A missing value is the tier's low end.
-	local visual = RarityConfig.clampVisualScale(item.Size, item.VisualScale)
-	if item.VisualScale ~= visual then
-		item.VisualScale = visual
+	-- THE SCALE must be a finite number inside the roll's range. An item that
+	-- arrives without one on a current-schema profile (built by a path that
+	-- forgot it) is a Scale-1 copy - never remapped from its word, because the
+	-- v10 migration is the only place that mapping may happen, and it stamps.
+	local scale = if type(item.Scale) == "number" then ScaleConfig.clampScale(item.Scale) else 1
+	if item.Scale ~= scale then
+		item.Scale = scale
+		changed = true
+	end
+	if item.EconomyScaleVersion ~= ScaleConfig.ECONOMY_SCALE_VERSION then
+		item.EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION
+		changed = true
+	end
+	-- A legacy look, if it has one, is a finite positive number; otherwise
+	-- the item is shown at its Scale and VisualScale mirrors it.
+	local legacyVisual = tonumber(item.LegacyVisualScale)
+	if legacyVisual ~= nil and (legacyVisual ~= legacyVisual or legacyVisual <= 0 or legacyVisual == math.huge) then
+		item.LegacyVisualScale = nil
+		legacyVisual = nil
+		changed = true
+	end
+	local displayScale = legacyVisual or scale
+	if item.VisualScale ~= displayScale then
+		item.VisualScale = displayScale
+		changed = true
+	end
+	if item.SizeVisualVersion ~= RarityConfig.SIZE_VISUAL_VERSION then
+		item.SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION
+		changed = true
+	end
+	-- The size WORD: derived from Scale for everything rolled since the
+	-- rebuild; a legacy item keeps the word it was saved with, which matches
+	-- the size it still shows.
+	if legacyVisual == nil then
+		local label = RarityConfig.sizeLabelFor(scale)
+		if item.Size ~= label then
+			item.Size = label
+			changed = true
+		end
+	end
+	-- THE HATCH STATE. An item with no flag at all is a pre-v11 trophy that
+	-- reached reconcile without passing migrate (a hand-built record, a debug
+	-- grant): treat it as hatched, because an item that is already on a
+	-- pedestal earning is never a sealed container.
+	if type(item.Hatched) ~= "boolean" then
+		item.Hatched = true
+		changed = true
+	end
+	-- A hatched item carries no timer, and an incubating one carries a finite
+	-- absolute second. Anything else is repaired rather than trusted: a
+	-- corrupt timestamp must not strand a container forever.
+	if item.Hatched then
+		if item.HatchEndsAt ~= nil then
+			item.HatchEndsAt = nil
+			changed = true
+		end
+	else
+		local ends = tonumber(item.HatchEndsAt)
+		if ends == nil or ends ~= ends or ends == math.huge or ends <= 0 then
+			-- No usable end time: it is ready NOW rather than never.
+			item.HatchEndsAt = os.time()
+			changed = true
+		else
+			-- NOTHING INCUBATES LONGER THAN THE CAP. A stamp further out than
+			-- that cannot have been written by beginIncubation, so it is a
+			-- corrupt or tampered value: pull it back to the longest wait the
+			-- game can legitimately ask for rather than strand the container.
+			local latest = os.time() + HatchConfig.MAX_SECONDS
+			local repaired = math.min(ends, latest)
+			if item.HatchEndsAt ~= repaired then
+				item.HatchEndsAt = repaired
+				changed = true
+			end
+		end
+	end
+
+	-- Maturation is seconds, finite and non-negative.
+	local maturation = tonumber(item.MaturationSeconds) or 0
+	if maturation ~= maturation or maturation == math.huge or maturation < 0 then
+		maturation = 0
+	end
+	if item.MaturationSeconds ~= maturation then
+		item.MaturationSeconds = maturation
 		changed = true
 	end
 
@@ -344,7 +609,9 @@ local function reconcileItem(item: DisplayItem): boolean
 		changed = true
 	end
 
-	local final = RarityConfig.finalIncome(def.income, item.Size, item.Mutation)
+	-- The card rate: base x sizeFactor(Scale) x mutation at moneyPass 1,
+	-- rebuilt from the live curve on every load. Never trusted from the save.
+	local final = RarityConfig.finalIncome(def.income, scale, item.Mutation)
 	if item.FinalIncome ~= final then
 		item.FinalIncome = final
 		changed = true
@@ -354,6 +621,8 @@ local function reconcileItem(item: DisplayItem): boolean
 end
 
 DataService.reconcileItem = reconcileItem
+--- Exposed for the regression tests only: the same migration chain a load runs.
+DataService.migrate = migrate
 
 --- Repairs a loaded profile so a corrupt or partial save cannot crash services.
 local function reconcile(profile: Profile): Profile
@@ -367,6 +636,16 @@ local function reconcile(profile: Profile): Profile
 	profile.Cash = math.max(0, tonumber(profile.Cash) or 0)
 	profile.SpeedPower = math.max(GameConfig.STARTING_SPEED_POWER, tonumber(profile.SpeedPower) or 0)
 	profile.TrapCount = math.max(0, math.floor(tonumber(profile.TrapCount) or 0))
+	-- The trap cooldown stamp. A corrupt or absurd value resolves to READY
+	-- rather than to a wait nobody can serve: the failure mode of a broken
+	-- timestamp must never be "this player can never use their trap again".
+	local trapReady = tonumber(profile.TrapReadyAt) or 0
+	if trapReady ~= trapReady or trapReady == math.huge or trapReady < 0 then
+		trapReady = 0
+	end
+	-- More than one full cooldown in the future means the clock moved under
+	-- it (a DataStore restore, a machine with a bad clock); clamp it back.
+	profile.TrapReadyAt = math.min(trapReady, os.time() + PvPConfig.TRAP_COOLDOWN)
 	profile.HighestZoneReached = math.clamp(math.floor(tonumber(profile.HighestZoneReached) or 1), 1, 12)
 
 	if type(profile.DisplayItems) ~= "table" then
@@ -442,6 +721,25 @@ local function reconcile(profile: Profile): Profile
 	if type(profile.PendingSteal) ~= "table" then
 		profile.PendingSteal = nil
 	end
+	if type(profile.PendingReveal) ~= "table" then
+		profile.PendingReveal = nil
+	end
+	if type(profile.TutorialIntroSeen) ~= "boolean" then
+		profile.TutorialIntroSeen = false
+	end
+
+	-- Offline earnings: finite, non-negative numbers, whatever the save says.
+	-- A timestamp in the future (a clock skew, a tampered store) reads as
+	-- "just left" so it can never pay for time that has not happened.
+	local function finite(value: any): number
+		if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then
+			return 0
+		end
+		return math.max(value, 0)
+	end
+	profile.LastLeaveTimestamp = math.min(finite(profile.LastLeaveTimestamp), os.time())
+	profile.OfflineCashRate = math.floor(finite(profile.OfflineCashRate))
+	profile.PendingOfflineCash = math.floor(finite(profile.PendingOfflineCash))
 
 	-- Recompute every stored item's economy from the live config. Runs on EVERY
 	-- load, deliberately: saved income is a cache of a config value, never a
@@ -465,6 +763,9 @@ local function reconcile(profile: Profile): Profile
 
 	return profile
 end
+
+--- Exposed for the regression tests only: the same repair pass a load runs.
+DataService.reconcile = reconcile
 
 local function key(player: Player): string
 	return "player_" .. player.UserId
@@ -546,9 +847,27 @@ function DataService.load(player: Player)
 	profiles[player] = reconcile(profile :: Profile)
 end
 
+--- Runs on the profile immediately before EVERY save - autosave, leave and
+--- shutdown alike - so a service can stamp last-moment state (the offline
+--- earnings clock) without having to know which save path this is.
+local beforeSave: { (Player, Profile) -> () } = {}
+
+function DataService.onBeforeSave(fn: (Player, Profile) -> ())
+	table.insert(beforeSave, fn)
+end
+
 function DataService.save(player: Player): boolean
 	local profile = profiles[player]
-	if not profile or not useDataStore or not store then
+	if not profile then
+		return false
+	end
+	for _, fn in beforeSave do
+		local ok, err = pcall(fn, player, profile)
+		if not ok then
+			warn(`[DataService] before-save hook failed for {player.Name}: {err}`)
+		end
+	end
+	if not useDataStore or not store then
 		return false
 	end
 

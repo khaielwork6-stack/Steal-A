@@ -1,38 +1,41 @@
 --!strict
 --[[
 	InteractController
-	The single on-screen interaction prompt, built from the PACK'S OWN
-	"Action UI" billboard rather than hand-drawn frames.
+	The single on-screen interaction prompt - and, on touch, the thing you
+	press and hold.
 
-	SOURCE OF THE VISUAL
-	  StarterGui.MainUI.Surface/Billboards.<the interact billboard>
-	    Frame
-	      E [TextButton]        <- keycap
-	        Frame
-	          Studs, Rays       <- decorative art, reused for hold feedback
-	          Title             <- the letter shown on the keycap
-	      Object                <- item name
-	      Action                <- what holding will do
+	WHY ONE SHARED PROMPT
+	Roblox draws its default prompt UI for EVERY ProximityPrompt in range. A
+	base has fourteen display-slot prompts plus the treadmill within twelve
+	studs, so a player at their base saw a dozen overlapping cards. Every
+	prompt is therefore switched to Style = Custom (which suppresses Roblox's
+	UI entirely) and this controller renders exactly ONE - the nearest - so
+	there are never clones, stacks or flicker.
 
-	It is located by SHAPE, not by name - see findActionTemplate. The pack has
-	shipped this billboard as both "Action UI" and "Action", and matching on the
-	name meant a re-import silently disabled every interact prompt in the game.
+	VISIBLE THROUGH THE ITEM
+	The card is our own BillboardGui with AlwaysOnTop = true and a fixed
+	PIXEL size, adorned to the prompt's own part. Loot prompts already live
+	on an invisible anchor in clear air (LootService.materialise puts it just
+	above a short item, or at head height beside a tall one), so the card is
+	never inside a model, never at the top of a Colossal, and reads the same
+	at two studs and at fourteen. Anything else (a base pad, the treadmill)
+	gets a modest lift above its part.
 
-	WHY ONE SHARED BILLBOARD
-	Roblox draws its default prompt UI for EVERY ProximityPrompt in range. A base
-	has fourteen display-slot prompts plus activation, upgrade and treadmill pads
-	within twelve studs, so a player at their base saw a dozen overlapping cards.
-	Every prompt is therefore switched to Style = Custom (which suppresses
-	Roblox's UI entirely) and this controller renders exactly ONE - the nearest -
-	reusing a single clone of the pack template. Target changes swap the text in
-	place, so there are never clones, stacks or flicker.
-
-	HOLD-TO-STEAL
-	Stealing must not fire on a tap. The server sets HoldDuration on the loot
-	prompt; this controller renders that hold as a fill climbing the keycap plus
-	the pack's "Rays" art spinning up, so the player can see they must keep
-	holding. Releasing early rewinds both, and only PromptTriggered - which
-	Roblox fires at the end of a completed hold - counts as a steal.
+	HOLD-TO-STEAL, TWO INPUTS, ONE PATH
+	  Desktop  Roblox reads the E key for a Custom prompt itself. This only
+	           renders the hold: a radial ring fills over HoldDuration, and
+	           rewinds if the key is released early. PromptTriggered - which
+	           Roblox fires once at the end of a completed hold - is the only
+	           thing that counts.
+	  Touch    THE CARD ITSELF is the button. A BillboardGui in PlayerGui
+	           takes input, so the whole card (plus a generous invisible
+	           margin) calls the prompt's own InputHoldBegin / InputHoldEnd -
+	           the SAME server validation, HoldDuration and single Triggered
+	           apply. One active touch at a time; a second finger, a repeat
+	           touch or a spammed tap cannot start a second hold. Releasing,
+	           sliding off, dying, the item vanishing or the target changing
+	           all end the hold through one function. The thumbstick is a
+	           separate touch and keeps working.
 ]]
 
 local Players = game:GetService("Players")
@@ -42,224 +45,416 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
+
+local UIStateController = require(script.Parent.UIStateController)
 
 local InteractController = {}
 
 local player = Players.LocalPlayer
 
+-- ==========================================================
+-- LOOK
+-- ==========================================================
+
+local PANEL_COLOR = Color3.fromRGB(16, 22, 44)
+local PANEL_EDGE = Color3.fromRGB(0, 0, 0)
+local KEY_FACE = Color3.fromRGB(255, 255, 255)
+local KEY_TEXT = Color3.fromRGB(26, 32, 60)
+local RING_TRACK = Color3.fromRGB(44, 58, 104)
+local RING_FILL = Color3.fromRGB(120, 230, 255)
+local RING_DONE = Color3.fromRGB(126, 255, 148)
+local OBJECT_COLOR = Color3.fromRGB(255, 255, 255)
+local ACTION_COLOR = Color3.fromRGB(255, 226, 120)
+local PRESSED_EDGE = Color3.fromRGB(120, 230, 255)
+
+--- The card's on-screen size. Pixels, deliberately: a card that shrank with
+--- distance was mush at the edge of the interaction range.
+local CARD_WIDTH = 236
+local CARD_HEIGHT = 84
+local KEY_SIZE = 66
+--- Invisible margin around the card that still counts as pressing it, on
+--- touch. The billboard is the card plus this on every side.
+local TOUCH_MARGIN = 34
+--- Farthest the card draws. Every interaction in the game is within this.
+local CARD_MAX_DISTANCE = 64
+
+-- ==========================================================
+-- STATE
+-- ==========================================================
+
 local shown: { [ProximityPrompt]: boolean } = {}
 local current: ProximityPrompt? = nil
 
-local billboard: BillboardGui? = nil
-local idleParent: Instance
-local root: Frame
-local keycap: GuiObject
+local board: BillboardGui? = nil
+local hitArea: TextButton
+local card: Frame
+local cardEdge: UIStroke
 local keyLabel: TextLabel
 local objectLabel: TextLabel
 local actionLabel: TextLabel
-local holdFill: Frame
-local rays: ImageLabel?
+local cardRing: (alpha: number, color: Color3?) -> ()
 
-local holdTweens: { Tween } = {}
--- Bumped whenever the billboard changes hands, so a deferred hide can tell that
--- it has been superseded.
+--- The prompt a hold is in progress on (from either input).
+local holding: ProximityPrompt? = nil
+--- The touch driving the hold, so a second finger is ignored and only the
+--- finger that started it can end it.
+local activeTouch: InputObject? = nil
+--- Bumped whenever the card changes hands, so a deferred hide can tell it
+--- has been superseded.
 local hideToken = 0
 
-local function stopHoldTweens()
-	for _, tween in holdTweens do
-		tween:Cancel()
+-- ==========================================================
+-- RADIAL RING
+-- ==========================================================
+--
+-- A circular progress ring from plain Frames: two clipped halves, each
+-- holding a full disc whose gradient hides half of it, rotated so the
+-- visible wedge grows clockwise from twelve o'clock. No image assets.
+
+local function buildRing(parent: GuiObject, thickness: number): (alpha: number, color: Color3?) -> ()
+	local function halfClip(name: string, x: number, discX: number, transparency: NumberSequence): (Frame, Frame)
+		local clip = Instance.new("Frame")
+		clip.Name = name
+		clip.BackgroundTransparency = 1
+		clip.ClipsDescendants = true
+		clip.Position = UDim2.fromScale(x, 0)
+		clip.Size = UDim2.fromScale(0.5, 1)
+		clip.ZIndex = parent.ZIndex + 1
+		clip.Parent = parent
+
+		local disc = Instance.new("Frame")
+		disc.Name = "Disc"
+		disc.AnchorPoint = Vector2.new(0.5, 0.5)
+		disc.Position = UDim2.fromScale(discX, 0.5)
+		disc.Size = UDim2.fromScale(2, 1)
+		disc.BackgroundColor3 = RING_FILL
+		disc.BorderSizePixel = 0
+		disc.ZIndex = clip.ZIndex
+		disc.Parent = clip
+		local round = Instance.new("UICorner")
+		round.CornerRadius = UDim.new(1, 0)
+		round.Parent = disc
+		local gradient = Instance.new("UIGradient")
+		gradient.Transparency = transparency
+		gradient.Parent = disc
+		return clip, disc
 	end
-	table.clear(holdTweens)
+
+	-- Right half: the disc's RIGHT side is opaque.
+	local _, rightDisc = halfClip("Right", 0.5, 0, NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.499, 1),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(1, 0),
+	}))
+	-- Left half: the disc's LEFT side is opaque.
+	local _, leftDisc = halfClip("Left", 0, 1, NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.499, 0),
+		NumberSequenceKeypoint.new(0.5, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	}))
+
+	-- The hole, so the discs read as a ring rather than a pie.
+	local hole = Instance.new("Frame")
+	hole.Name = "Hole"
+	hole.AnchorPoint = Vector2.new(0.5, 0.5)
+	hole.Position = UDim2.fromScale(0.5, 0.5)
+	hole.Size = UDim2.new(1, -thickness * 2, 1, -thickness * 2)
+	hole.BackgroundColor3 = parent.BackgroundColor3
+	hole.BorderSizePixel = 0
+	hole.ZIndex = parent.ZIndex + 2
+	hole.Parent = parent
+	local holeRound = Instance.new("UICorner")
+	holeRound.CornerRadius = UDim.new(1, 0)
+	holeRound.Parent = hole
+
+	return function(alpha: number, color: Color3?)
+		local degrees = math.clamp(alpha, 0, 1) * 360
+		-- These rotations make the wedge start at twelve o'clock and sweep
+		-- clockwise, right half first.
+		rightDisc.Rotation = math.clamp(degrees, 0, 180) - 180
+		leftDisc.Rotation = math.clamp(degrees, 180, 360) - 360
+		rightDisc.Visible = degrees > 0.5
+		leftDisc.Visible = degrees > 180.5
+		local fill = color or RING_FILL
+		rightDisc.BackgroundColor3 = fill
+		leftDisc.BackgroundColor3 = fill
+	end
 end
 
---- True when a BillboardGui is the pack's interact prompt: what we actually
---- depend on is its SHAPE, not its name.
-local function isActionTemplate(candidate: Instance): boolean
-	if not candidate:IsA("BillboardGui") then
-		return false
-	end
-	local panel = candidate:FindFirstChild("Frame")
-	if not panel or not panel:IsA("Frame") then
-		return false
-	end
-	local key = panel:FindFirstChild("E")
-	local inner = key and key:FindFirstChild("Frame")
-	return (key ~= nil and key:IsA("GuiObject"))
-		and (inner ~= nil and inner:FindFirstChild("Title") ~= nil)
-		and panel:FindFirstChild("Object") ~= nil
-		and panel:FindFirstChild("Action") ~= nil
+-- ==========================================================
+-- BUILD
+-- ==========================================================
+
+local function label(parent: Instance, name: string, color: Color3, size: number, bold: boolean): TextLabel
+	local item = Instance.new("TextLabel")
+	item.Name = name
+	item.BackgroundTransparency = 1
+	item.Font = if bold then Enum.Font.FredokaOne else Enum.Font.GothamBold
+	item.TextColor3 = color
+	item.TextScaled = true
+	item.TextStrokeTransparency = 0.2
+	item.TextStrokeColor3 = Color3.fromRGB(8, 12, 28)
+	item.TextXAlignment = Enum.TextXAlignment.Left
+	item.TextTruncate = Enum.TextTruncate.AtEnd
+	item.ZIndex = 4
+	item.Parent = parent
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MinTextSize = 10
+	limit.MaxTextSize = size
+	limit.Parent = item
+	return item
 end
 
---- Finds the pack's interact billboard.
----
---- MATCHED BY SHAPE, NOT BY NAME. This looked up exactly
---- `Surface/Billboards.Action UI`, and when the pack folder was re-imported the
---- billboard came back named just "Action" - so a perfectly good, fully intact
---- prompt sat there while every interact prompt in the game silently turned
---- itself off. The known names are still tried first because they are cheap and
---- unambiguous; the scan is what stops a rename from disabling the feature
---- again.
-local function findActionTemplate(mainUi: Instance): BillboardGui?
-	local surface = mainUi:FindFirstChild("Surface/Billboards") or mainUi
-	for _, name in { "Action UI", "Action", "ActionUI" } do
-		local named = surface:FindFirstChild(name) or mainUi:FindFirstChild(name, true)
-		if named and isActionTemplate(named) then
-			return named :: BillboardGui
+--- The pack's demo billboards ("Top Cash", "Gamepasses", "Next Update!",
+--- the Action template) ship ENABLED with no Adornee, and a BillboardGui
+--- with no Adornee draws at the world origin - the red line in front of the
+--- spawn, dead centre of a new player's first view. The server clones what
+--- it needs from StarterGui; the copies in PlayerGui are leftovers.
+local function silencePackBillboards(mainUi: Instance)
+	local surface = mainUi:FindFirstChild("Surface/Billboards")
+	if not surface then
+		return
+	end
+	for _, gui in surface:GetDescendants() do
+		if gui:IsA("BillboardGui") and gui.Adornee == nil then
+			gui.Enabled = false
 		end
 	end
-
-	for _, descendant in mainUi:GetDescendants() do
-		if isActionTemplate(descendant) then
-			warn(`[InteractController] adopted interact billboard by shape: {descendant:GetFullName()}`)
-			return descendant :: BillboardGui
-		end
-	end
-	return nil
 end
 
---- Clones the pack's Action UI once. Returns false if the pack is missing, in
---- which case the controller stays inert rather than inventing a replacement.
-local function build(): boolean
+local function buildCard(): boolean
 	local playerGui = player:WaitForChild("PlayerGui")
 	local mainUi = playerGui:WaitForChild("MainUI", 20)
-	if not mainUi then
-		warn("[InteractController] MainUI not found - interact prompt disabled.")
-		return false
+	if mainUi then
+		silencePackBillboards(mainUi)
 	end
 
-	local template = findActionTemplate(mainUi)
-	if not template then
-		warn(
-			"[InteractController] no interact billboard found in the pack - prompt disabled. "
-				.. "Expected a BillboardGui under MainUI containing Frame > {E > Frame > Title, Object, Action}."
-		)
-		return false
-	end
+	local touch = Device.isTouch()
+	local margin = if touch then TOUCH_MARGIN else 0
 
-	-- The template itself must never render. It has no Adornee so it would not
-	-- anyway, but being explicit stops a future edit from surprising us.
-	template.Enabled = false
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "InteractPrompt"
+	gui.Size = UDim2.fromOffset(CARD_WIDTH + margin * 2, CARD_HEIGHT + margin * 2)
+	gui.StudsOffsetWorldSpace = Vector3.zero
+	gui.MaxDistance = CARD_MAX_DISTANCE
+	-- THROUGH the item. A prompt hidden behind the thing it acts on is the
+	-- whole bug this controller exists to fix.
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.ClipsDescendants = false
+	-- Input only reaches a BillboardGui that is Active and lives in
+	-- PlayerGui - both true here - which is what lets the card be the button.
+	gui.Active = true
+	-- A BillboardGui is a LayerCollector: PlayerGui wipes it on respawn
+	-- unless told otherwise, and being caught by a guardian respawns you.
+	gui.ResetOnSpawn = false
+	gui.Enabled = false
+	gui.Parent = playerGui
+	board = gui
 
-	-- The pack's other demo billboards ("Top Cash", "Gamepasses", "Next
-	-- Update! Notify Here!") ARE enabled and have no Adornee, and a BillboardGui
-	-- with no Adornee draws at the world origin - which is the red line in
-	-- front of the spawn circle, dead centre of a new player's first view. The
-	-- server clones the StarterGui originals for the boards and the stand and
-	-- enables its own copies, so this copy in PlayerGui is only ever a leftover.
-	local surface = mainUi:FindFirstChild("Surface/Billboards")
-	local titles = surface and surface:FindFirstChild("Titles")
-	if titles then
-		for _, gui in titles:GetDescendants() do
-			if gui:IsA("BillboardGui") and gui.Adornee == nil then
-				gui.Enabled = false
-			end
-		end
-	end
+	-- The whole billboard is the touch target: card plus margin.
+	local hit = Instance.new("TextButton")
+	hit.Name = "HitArea"
+	hit.Size = UDim2.fromScale(1, 1)
+	hit.BackgroundTransparency = 1
+	hit.Text = ""
+	hit.AutoButtonColor = false
+	hit.Active = touch
+	hit.Selectable = false
+	hit.ZIndex = 1
+	hit.Visible = false
+	hit.Parent = gui
+	hitArea = hit
 
-	local clone = template:Clone()
-	clone.Name = "InteractPrompt"
-	-- The pack clips the billboard, which cuts the keycap off: the E button is
-	-- 1.15x the panel height on purpose so it overhangs.
-	clone.ClipsDescendants = false
-	-- LightInfluence 1 (the pack default) lets night-time lighting darken the
-	-- prompt into unreadability.
-	clone.LightInfluence = 0
-	-- The pack leaves this at infinity, which draws prompts across the whole map.
-	clone.MaxDistance = 60
-	-- AlwaysOnTop must stay FALSE. Re-verified in Studio: with it enabled the
-	-- billboard reports Enabled = true, Visible = true and a correct AbsoluteSize
-	-- of 255x85, yet draws literally nothing on screen. Depth sorting is also
-	-- more honest - a prompt behind a wall should not punch through it - so the
-	-- occlusion problem is solved by lifting the billboard instead (see liftFor).
-	clone.AlwaysOnTop = false
-	-- The pack ships this at 15 studs, which renders the inner panel at roughly
-	-- 256x85 - readable at point-blank range and mushy from a few studs back.
-	clone.Size = UDim2.fromScale(19, 19)
-	-- Positioning is computed per target in apply(); a fixed offset cannot clear
-	-- loot models that range from a coin to a statue.
-	clone.StudsOffset = Vector3.zero
-	-- A BillboardGui is a LayerCollector, so PlayerGui wipes it on respawn unless
-	-- this is set. Being caught by a guardian respawns you, which destroyed the
-	-- shared prompt and left every later reparent erroring with "Parent property
-	-- is locked, current parent: NULL".
-	clone.ResetOnSpawn = false
-	clone.Enabled = false
-	clone.Parent = playerGui
-	idleParent = playerGui
-	billboard = clone
+	local panel = Instance.new("Frame")
+	panel.Name = "Card"
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(CARD_WIDTH, CARD_HEIGHT)
+	panel.BackgroundColor3 = PANEL_COLOR
+	panel.BackgroundTransparency = 0.08
+	panel.BorderSizePixel = 0
+	panel.ZIndex = 2
+	panel.Parent = hit
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 18)
+	corner.Parent = panel
+	local edge = Instance.new("UIStroke")
+	edge.Thickness = 3
+	edge.Color = PANEL_EDGE
+	edge.Parent = panel
+	cardEdge = edge
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 90
+	gradient.Color = ColorSequence.new(Color3.fromRGB(44, 58, 104), Color3.fromRGB(18, 24, 48))
+	gradient.Parent = panel
+	card = panel
 
-	local panel = clone:FindFirstChild("Frame")
-	if not panel or not panel:IsA("Frame") then
-		warn("[InteractController] Action UI has no Frame - interact prompt disabled.")
-		return false
-	end
-	root = panel
+	-- The keycap: a ring around a white disc with the key (or HOLD) on it.
+	local keyHolder = Instance.new("Frame")
+	keyHolder.Name = "Key"
+	keyHolder.AnchorPoint = Vector2.new(0, 0.5)
+	keyHolder.Position = UDim2.new(0, 9, 0.5, 0)
+	keyHolder.Size = UDim2.fromOffset(KEY_SIZE, KEY_SIZE)
+	keyHolder.BackgroundColor3 = RING_TRACK
+	keyHolder.BorderSizePixel = 0
+	keyHolder.ZIndex = 3
+	keyHolder.Parent = panel
+	local keyRound = Instance.new("UICorner")
+	keyRound.CornerRadius = UDim.new(1, 0)
+	keyRound.Parent = keyHolder
+	cardRing = buildRing(keyHolder, 6)
 
-	local key = panel:FindFirstChild("E")
-	local inner = key and key:FindFirstChild("Frame")
-	local title = inner and inner:FindFirstChild("Title")
-	local object = panel:FindFirstChild("Object")
-	local action = panel:FindFirstChild("Action")
+	local face = Instance.new("Frame")
+	face.Name = "Face"
+	face.AnchorPoint = Vector2.new(0.5, 0.5)
+	face.Position = UDim2.fromScale(0.5, 0.5)
+	face.Size = UDim2.new(1, -16, 1, -16)
+	face.BackgroundColor3 = KEY_FACE
+	face.BorderSizePixel = 0
+	face.ZIndex = 6
+	face.Parent = keyHolder
+	local faceRound = Instance.new("UICorner")
+	faceRound.CornerRadius = UDim.new(1, 0)
+	faceRound.Parent = face
+	local faceEdge = Instance.new("UIStroke")
+	faceEdge.Thickness = 2
+	faceEdge.Color = Color3.fromRGB(20, 24, 40)
+	faceEdge.Parent = face
 
-	if
-		not (key and key:IsA("GuiObject"))
-		or not (inner and inner:IsA("GuiObject"))
-		or not (title and title:IsA("TextLabel"))
-		or not (object and object:IsA("TextLabel"))
-		or not (action and action:IsA("TextLabel"))
-	then
-		warn("[InteractController] Action UI hierarchy unexpected - interact prompt disabled.")
-		return false
-	end
+	keyLabel = Instance.new("TextLabel")
+	keyLabel.Name = "KeyText"
+	keyLabel.BackgroundTransparency = 1
+	keyLabel.Size = UDim2.fromScale(0.8, 0.8)
+	keyLabel.Position = UDim2.fromScale(0.5, 0.5)
+	keyLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	keyLabel.Font = Enum.Font.FredokaOne
+	keyLabel.TextScaled = true
+	keyLabel.TextColor3 = KEY_TEXT
+	keyLabel.Text = "E"
+	keyLabel.ZIndex = 7
+	keyLabel.Parent = face
 
-	keycap = key
-	keyLabel = title
-	objectLabel = object
-	actionLabel = action
-
-	local raysChild = inner:FindFirstChild("Rays")
-	rays = if raysChild and raysChild:IsA("ImageLabel") then raysChild else nil
-
-	-- The keycap is a TextButton in the pack. Nothing should be clickable here -
-	-- input comes from the ProximityPrompt - and leaving it active swallows
-	-- clicks meant for the world behind it.
-	if key:IsA("TextButton") then
-		key.Active = false
-		key.AutoButtonColor = false
-		key.Selectable = false
-	end
-
-	-- Hold progress climbs the keycap. Clipped to the inner frame so it cannot
-	-- spill past the pack's rounded border, and sits under Title (ZIndex 5) but
-	-- over Studs/Rays (1 and 2).
-	inner.ClipsDescendants = true
-
-	holdFill = Instance.new("Frame")
-	holdFill.Name = "HoldFill"
-	holdFill.AnchorPoint = Vector2.new(0, 1)
-	holdFill.Position = UDim2.fromScale(0, 1)
-	holdFill.Size = UDim2.fromScale(1, 0)
-	holdFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	holdFill.BackgroundTransparency = 0.6
-	holdFill.BorderSizePixel = 0
-	holdFill.ZIndex = 3
-	holdFill.Parent = inner
+	local textLeft = 9 + KEY_SIZE + 10
+	objectLabel = label(panel, "Object", OBJECT_COLOR, 24, true)
+	objectLabel.Position = UDim2.new(0, textLeft, 0, 12)
+	objectLabel.Size = UDim2.new(1, -textLeft - 12, 0, 30)
+	actionLabel = label(panel, "Action", ACTION_COLOR, 17, false)
+	actionLabel.Position = UDim2.new(0, textLeft, 0, 46)
+	actionLabel.Size = UDim2.new(1, -textLeft - 12, 0, 24)
 
 	return true
 end
 
+-- ==========================================================
+-- HOLD RENDERING
+-- ==========================================================
+
+local ringTween: Tween? = nil
+local ringAlpha = Instance.new("NumberValue")
+
+local function paintRing(color: Color3?)
+	cardRing(ringAlpha.Value, color)
+end
+
+local function stopRingTween()
+	if ringTween then
+		ringTween:Cancel()
+		ringTween = nil
+	end
+end
+
+local function rewindRing()
+	stopRingTween()
+	local tween = TweenService:Create(ringAlpha, UIAnim.SNAP, { Value = 0 })
+	ringTween = tween
+	tween:Play()
+	if cardEdge then
+		cardEdge.Color = PANEL_EDGE
+	end
+end
+
+local function fillRing(duration: number)
+	stopRingTween()
+	ringAlpha.Value = 0
+	local tween = TweenService:Create(ringAlpha, TweenInfo.new(math.max(duration, 0.05), Enum.EasingStyle.Linear), { Value = 1 })
+	ringTween = tween
+	tween:Play()
+	if cardEdge then
+		cardEdge.Color = PRESSED_EDGE
+	end
+end
+
+local function completeRing()
+	stopRingTween()
+	ringAlpha.Value = 1
+	paintRing(RING_DONE)
+	task.delay(0.18, function()
+		if not holding then
+			ringAlpha.Value = 0
+			paintRing()
+			if cardEdge then
+				cardEdge.Color = PANEL_EDGE
+			end
+		end
+	end)
+end
+
+-- ==========================================================
+-- HOLD CONTROL (touch side)
+-- ==========================================================
+
+--- Ends the touch hold, if one is running. The ONE place a mobile hold
+--- stops: release, slide-off, target change, death, despawn all come here.
+local function endTouchHold()
+	local prompt = holding
+	activeTouch = nil
+	if not prompt then
+		return
+	end
+	holding = nil
+	if prompt.Parent and prompt:IsDescendantOf(workspace) then
+		prompt:InputHoldEnd()
+	end
+	rewindRing()
+end
+
+local function beginTouchHold(input: InputObject)
+	local prompt = current
+	if not prompt or holding or activeTouch then
+		return
+	end
+	if not prompt.Enabled or not prompt:IsDescendantOf(workspace) then
+		return
+	end
+	activeTouch = input
+	holding = prompt
+	prompt:InputHoldBegin()
+	if prompt.HoldDuration <= 0 then
+		-- A tap prompt triggers on the begin; close the hold straight away
+		-- so a finger resting there cannot re-trigger anything.
+		task.defer(endTouchHold)
+	else
+		fillRing(prompt.HoldDuration)
+	end
+	UIAnim.punch(card, 0.06)
+end
+
+-- ==========================================================
+-- TARGETING
+-- ==========================================================
+
 --- Nearest currently-shown prompt, so walking past a row of slots highlights
 --- only the one the player actually means.
 ---
---- The `prompt:IsDescendantOf(workspace)` test is load-bearing, not defensive
---- tidiness. `PromptHidden` does NOT fire for a prompt whose part is destroyed -
---- which is what happens to every piece of loot the moment it is stolen - so a
---- destroyed prompt stays in `shown`, and a destroyed prompt still reports
---- `Enabled = true` with a `Parent` that still passes `IsA("BasePart")`. It
---- therefore kept WINNING this search, and the billboard was handed a target
---- that is no longer in the world: nothing rendered, while the real prompt the
---- player was standing next to never got a turn.
+--- The `IsDescendantOf(workspace)` test is load-bearing: PromptHidden does
+--- NOT fire for a prompt whose part is destroyed (every piece of loot, the
+--- moment it is stolen), and a destroyed prompt still reports Enabled and a
+--- Parent - so it kept winning this search while nothing rendered.
 local function pickNearest(): ProximityPrompt?
 	local character = player.Character
 	local origin = character and character:FindFirstChild("HumanoidRootPart")
@@ -282,36 +477,17 @@ local function pickNearest(): ProximityPrompt?
 	return best
 end
 
--- The pack's panel occupies this fraction of the billboard's height; the rest
--- of the 19x19 square is empty padding.
-local PANEL_HEIGHT_SCALE = 0.15
-
---- How far above the target's origin the prompt should float.
+--- How far above the prompt's part the card floats.
 ---
---- Two things have to be cleared. First the object itself: loot ranges from a
---- coin to a seven-stud statue, so a fixed offset buries the prompt inside the
---- big ones. Second, any label the object already carries - loot spawns with its
---- own name/rarity/income billboard, and at a fixed offset the two drew straight
---- through each other.
----
---- The prompt sits just above the object and BELOW that label. Stacking it above
---- instead was tried and looked fine in a pinned camera, but in normal
---- third-person play it pushed the prompt off the top of the screen entirely.
---- The call to action belongs nearest the thing it acts on.
+--- Loot prompts live on LootService's `PromptAnchor`, already placed in clear
+--- air at the reachable side of the item: no lift. Anything else gets a
+--- modest lift above the part (or its small model), capped so a tall part
+--- never pushes the card off the top of the screen.
 local function liftFor(part: BasePart): number
+	if part.Name == "PromptAnchor" then
+		return 0
+	end
 	local height = part.Size.Y
-
-	-- Prefer the whole model's height, so a prompt clears a multi-part object
-	-- rather than just the one part it is attached to. Two guards, both learned
-	-- the hard way:
-	--
-	--   * Workspace IS a Model. A part with no model of its own - every base pad,
-	--     display slot and treadmill - resolved its "model" to Workspace, whose
-	--     bounding box is the entire map. That lifted those prompts about 150
-	--     studs into the sky, which is why base and treadmill interactions
-	--     worked perfectly while appearing to have no UI at all.
-	--   * Even a real model must plausibly describe THIS part; a small part
-	--     parented into a large container should not inherit its height.
 	local model = part:FindFirstAncestorWhichIsA("Model")
 	if model and model ~= workspace then
 		local _, size = model:GetBoundingBox()
@@ -319,171 +495,112 @@ local function liftFor(part: BasePart): number
 			height = math.max(height, size.Y)
 		end
 	end
-
-	local board = billboard
-	local halfPanel = if board then (board.Size.Y.Scale * PANEL_HEIGHT_SCALE) / 2 else 1.5
-	local floor = height / 2 + 1
-	local lift = height / 2 + 2.2
-
-	-- Duck under anything already adorned to this object.
-	local root: Instance = model or part
-	for _, descendant in root:GetDescendants() do
-		if descendant:IsA("BillboardGui") and descendant ~= board then
-			-- Scale-only billboard sizes are measured in studs.
-			local bottom = descendant.StudsOffsetWorldSpace.Y - descendant.Size.Y.Scale / 2
-			lift = math.min(lift, bottom - 0.5 - halfPanel)
-		end
-	end
-
-	-- ...but never so far down that it sinks into the object itself.
-	return math.max(lift, floor)
-end
-
---- Re-applies the lift for whatever the billboard is currently attached to.
----
---- This cannot be computed once when the target changes. A loot model grows
---- after it spawns - mutation effects add parts, and its name/rarity label is
---- parented a moment later - so a lift measured on the first frame is wrong by
---- the time the player reads it. Measured live, the prompt settles correctly no
---- matter what the object does after spawning.
-local function refreshLift()
-	local board = billboard
-	local part = board and board.Adornee
-	if board and part and part:IsA("BasePart") then
-		board.StudsOffsetWorldSpace = Vector3.new(0, liftFor(part), 0)
-	end
+	return math.min(height / 2 + 2.2, 6)
 end
 
 local function keyNameFor(prompt: ProximityPrompt): string
-	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-		return "TAP"
+	if Device.isTouch() then
+		return if prompt.HoldDuration > 0 then "HOLD" else "TAP"
 	end
 	if UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
-		return "Y"
+		return prompt.GamepadKeyCode.Name
 	end
 	return prompt.KeyboardKeyCode.Name
 end
 
-local function resetHold()
-	stopHoldTweens()
-	holdFill.Size = UDim2.fromScale(1, 0)
-	if rays then
-		rays.BackgroundTransparency = 1
-		rays.ImageTransparency = 1
-		rays.Rotation = 0
-	end
-end
+--- The current prompt can be RETITLED under us: a display slot flips from
+--- "Instant Reveal" to "Reveal" the second its container is ready. This
+--- follows that change on the one prompt being shown, so the card never
+--- has to be re-applied to notice.
+local retitle: RBXScriptConnection? = nil
 
---- Swaps content in place. Never creates a second billboard.
----
---- ORDER MATTERS HERE, and getting it wrong is what made the prompt go
---- permanently invisible while still being interactable.
----
---- `current` used to be assigned BEFORE the liveness check below. So if the
---- billboard was unavailable for one frame, `current` was already pointing at
---- the live prompt while nothing had actually been rendered - and the
---- `prompt == current` guard on the next frame then returned immediately,
---- forever. The prompt kept working (it is a real ProximityPrompt; holding E
---- still fired it) and the UI never came back. `current` is now only committed
---- once the billboard has genuinely been claimed.
+--- Swaps content in place. Never creates a second card.
 local function apply(prompt: ProximityPrompt?)
 	if prompt == current then
 		return
 	end
-
-	local board = billboard
-	-- A destroyed instance is no longer under `game`, and reparenting one throws
-	-- "Parent property is locked". Bail WITHOUT committing `current`, so the next
-	-- frame tries again instead of latching a target that was never shown.
-	if not board or not board:IsDescendantOf(game) then
+	if retitle then
+		retitle:Disconnect()
+		retitle = nil
+	end
+	if prompt then
+		retitle = prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
+			if prompt == current then
+				actionLabel.Text = if prompt.HoldDuration > 0 then `HOLD  {prompt.ActionText}` else prompt.ActionText
+			end
+		end)
+	end
+	local gui = board
+	if not gui or not gui:IsDescendantOf(game) then
 		return
+	end
+
+	-- A hold on the previous target cannot survive a target change.
+	if holding and holding ~= prompt then
+		endTouchHold()
+		rewindRing()
 	end
 
 	current = prompt
 
 	if not prompt then
-		if board.Enabled then
-			-- Hiding is deferred, so it MUST be cancellable. A plain popOut sets
-			-- Visible = false from a tween-completion callback that keeps firing
-			-- even after a new target has claimed the billboard, which left the
-			-- billboard enabled and correctly positioned but with an invisible
-			-- root - the prompt silently never came back. Bumping the token below
-			-- makes any in-flight hide a no-op.
-			hideToken += 1
-			local token = hideToken
-
-			local scale = UIAnim.scaleOf(root)
-			if scale then
-				TweenService:Create(scale, UIAnim.SNAP, { Scale = 0.85 }):Play()
-			end
-
-			task.delay(0.14, function()
-				local live = billboard
-				if token ~= hideToken or current or not live or not live:IsDescendantOf(game) then
-					return -- a new prompt took over mid-hide, or we were destroyed
-				end
-				root.Visible = false
-				if scale then
-					scale.Scale = 1
-				end
-				live.Enabled = false
-				live.Adornee = nil
-			end)
+		hideToken += 1
+		local token = hideToken
+		local scale = UIAnim.scaleOf(card)
+		if scale then
+			TweenService:Create(scale, UIAnim.SNAP, { Scale = 0.85 }):Play()
 		end
+		task.delay(0.12, function()
+			if token ~= hideToken or current then
+				return
+			end
+			hitArea.Visible = false
+			if scale then
+				scale.Scale = 1
+			end
+			gui.Enabled = false
+			gui.Adornee = nil
+		end)
 		return
 	end
 
-	-- Claiming the billboard cancels any hide still counting down.
 	hideToken += 1
-
 	local part = prompt.Parent :: BasePart
-	-- ADORNEE ONLY. NEVER REPARENT THIS INTO THE WORLD.
-	--
-	-- The billboard used to be parented to the target part as well as adorned to
-	-- it, and that is the root cause of the disappearing prompt. Loot models are
-	-- Destroy()ed the instant they are stolen, refreshed or reclaimed, and a
-	-- billboard living inside one is destroyed with it - taking the single shared
-	-- prompt for the whole game with it, permanently, from one steal.
-	--
-	-- A BillboardGui in PlayerGui renders at its Adornee perfectly well, so
-	-- nothing is gained by parenting it into the target and everything is at
-	-- risk. It now stays in PlayerGui for the life of the session.
-	board.Adornee = part
-	if board.Parent ~= idleParent then
-		board.Parent = idleParent
-	end
-	refreshLift()
+	-- ADORNEE ONLY. Parented into the world, the card would be destroyed with
+	-- the first piece of loot it was attached to.
+	gui.Adornee = part
+	gui.StudsOffsetWorldSpace = Vector3.new(0, liftFor(part), 0)
 
 	objectLabel.Text = prompt.ObjectText
-	-- Say the quiet part out loud: a hold prompt must read as a hold.
-	actionLabel.Text = if prompt.HoldDuration > 0
-		then `HOLD  {prompt.ActionText}`
-		else prompt.ActionText
+	actionLabel.Text = if prompt.HoldDuration > 0 then `HOLD  {prompt.ActionText}` else prompt.ActionText
 	keyLabel.Text = keyNameFor(prompt)
-	resetHold()
+	ringAlpha.Value = 0
+	paintRing()
 
-	local wasHidden = not board.Enabled or not root.Visible
-
-	board.Enabled = true
-	-- Re-show explicitly as well as bumping the token above: the token stops a
-	-- future hide from blanking us, and this repairs the root if an earlier one
-	-- already did.
-	root.Visible = true
+	local wasHidden = not gui.Enabled or not hitArea.Visible
+	gui.Enabled = true
+	hitArea.Visible = true
 	if wasHidden then
-		UIAnim.popIn(root, 0.7)
+		UIAnim.popIn(card, 0.7)
 	else
-		-- Same billboard, different target: a small punch reads as a swap.
-		UIAnim.punch(root, 0.08)
+		UIAnim.punch(card, 0.08)
 	end
 end
 
+-- ==========================================================
+-- START
+-- ==========================================================
+
 function InteractController.start()
-	if not build() then
+	if not buildCard() then
 		return
 	end
+	ringAlpha.Changed:Connect(function()
+		paintRing()
+	end)
 
-	-- Suppress Roblox's built-in prompt UI everywhere, including prompts created
-	-- later at runtime.
+	-- Suppress Roblox's built-in prompt UI everywhere, including prompts
+	-- created later at runtime.
 	local function makeCustom(instance: Instance)
 		if instance:IsA("ProximityPrompt") then
 			instance.Style = Enum.ProximityPromptStyle.Custom
@@ -500,37 +617,33 @@ function InteractController.start()
 	end)
 	ProximityPromptService.PromptHidden:Connect(function(prompt)
 		shown[prompt] = nil
+		if holding == prompt then
+			endTouchHold()
+		end
 	end)
 
+	-- Desktop / gamepad hold: Roblox drives the input; this draws it.
 	ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
 		if prompt ~= current or prompt.HoldDuration <= 0 then
 			return
 		end
-		stopHoldTweens()
-
-		local linear = TweenInfo.new(prompt.HoldDuration, Enum.EasingStyle.Linear)
-		local fill = TweenService:Create(holdFill, linear, { Size = UDim2.fromScale(1, 1) })
-		fill:Play()
-		table.insert(holdTweens, fill)
-
-		if rays then
-			rays.Rotation = 0
-			local spin = TweenService:Create(rays, linear, { Rotation = 180, ImageTransparency = 0.25 })
-			spin:Play()
-			table.insert(holdTweens, spin)
+		if not holding then
+			holding = prompt
 		end
+		fillRing(prompt.HoldDuration)
 	end)
 
 	-- Fires on release AND on completion, so it must only rewind what the
-	-- trigger handler has not already cleared.
+	-- trigger handler has not already claimed.
 	ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt)
 		if prompt ~= current then
 			return
 		end
-		stopHoldTweens()
-		TweenService:Create(holdFill, UIAnim.SNAP, { Size = UDim2.fromScale(1, 0) }):Play()
-		if rays then
-			TweenService:Create(rays, UIAnim.SNAP, { ImageTransparency = 1 }):Play()
+		if holding == prompt and not activeTouch then
+			holding = nil
+		end
+		if ringAlpha.Value < 0.999 then
+			rewindRing()
 		end
 	end)
 
@@ -538,56 +651,76 @@ function InteractController.start()
 		if prompt ~= current then
 			return
 		end
-		resetHold()
-		UIAnim.punch(keycap, 0.3)
-		UIAnim.punch(root, 0.1)
+		holding = nil
+		activeTouch = nil
+		completeRing()
+		UIAnim.punch(card, 0.12)
 	end)
 
-	-- Re-measuring the lift every frame would mean a GetDescendants per frame for
-	-- no benefit; four times a second is well under what the eye notices while
-	-- an object is still settling.
-	local nextLiftCheck = 0
-	local nextRebuildAttempt = 0
+	-- The card as a button. Touch only: a mouse over it does nothing, so a
+	-- desktop click can never start a hold Roblox is not also driving.
+	hitArea.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			beginTouchHold(input)
+		end
+	end)
+	hitArea.InputEnded:Connect(function(input)
+		if input == activeTouch then
+			endTouchHold()
+		end
+	end)
+	-- A finger that slides off the card ends the hold even though the button
+	-- never sees the InputEnded.
+	hitArea.MouseLeave:Connect(function()
+		if activeTouch then
+			endTouchHold()
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input == activeTouch then
+			endTouchHold()
+		end
+	end)
+
+	-- Death, respawn: nothing is held by a character that no longer exists.
+	player.CharacterAdded:Connect(function()
+		endTouchHold()
+		rewindRing()
+	end)
 
 	RunService.Heartbeat:Connect(function()
-		local now = os.clock()
-
-		-- SELF-HEAL. With the Adornee-only change in apply() nothing routine can
-		-- destroy the billboard any more, but "the prompt is invisible forever"
-		-- is a bad enough failure that it is worth not trusting that. Rate
-		-- limited so a genuinely missing UI pack warns occasionally rather than
-		-- once a frame.
-		if (not billboard or not billboard:IsDescendantOf(game)) and now >= nextRebuildAttempt then
-			nextRebuildAttempt = now + 2
-			billboard = nil
-			current = nil
-			warn("[InteractController] interact billboard went missing - rebuilding it")
-			if not build() then
-				return
-			end
-		end
-
-		local board = billboard
-		if not board then
+		local gui = board
+		if not gui or not gui:IsDescendantOf(game) then
 			return
 		end
 
-		-- An adornee that has left the world renders nothing. Releasing the
-		-- target here is what lets the next candidate claim the billboard on the
-		-- following frame; without it the controller sits pointed at a destroyed
-		-- part with `current` still set, which looks exactly like a broken prompt.
-		local adornee = board.Adornee
-		if current and adornee and not adornee:IsDescendantOf(workspace) then
+		-- An adornee that has left the world renders nothing. Release the
+		-- target so the next candidate can claim the card next frame.
+		local adornee = gui.Adornee
+		if current and (not adornee or not adornee:IsDescendantOf(workspace)) then
+			if holding == current then
+				endTouchHold()
+			end
 			current = nil
-			board.Enabled = false
-			board.Adornee = nil
+			gui.Enabled = false
+			gui.Adornee = nil
 		end
 
-		apply(pickNearest())
+		-- While carrying, the only prompts that matter are the display slots
+		-- the item can be placed on. Steal prompts and everything else stay
+		-- hidden with the rest of the HUD; DROP is the only button.
+		local candidate = pickNearest()
+		if UIStateController.hasClaim("carry") and candidate and candidate.Name ~= "SlotPrompt" then
+			candidate = nil
+		end
+		apply(candidate)
 
-		if current and now >= nextLiftCheck then
-			nextLiftCheck = now + 0.25
-			refreshLift()
+		-- A touch hold that outlives its prompt (disabled mid-hold by the
+		-- server, or the player walked out of range) is cut, never left to
+		-- trigger later.
+		local held = holding
+		if held and activeTouch and (not held.Enabled or not held:IsDescendantOf(workspace) or held ~= current) then
+			endTouchHold()
 		end
 	end)
 end

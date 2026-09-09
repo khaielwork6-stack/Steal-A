@@ -20,6 +20,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BaseConfig = require(ReplicatedStorage.Shared.Config.BaseConfig)
 local MapPalette = require(ReplicatedStorage.Shared.MapPalette)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
@@ -31,6 +33,7 @@ local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
+local HatchService = require(script.Parent.HatchService)
 local HeistService = require(script.Parent.HeistService)
 local IndexService = require(script.Parent.IndexService)
 local LootService = require(script.Parent.LootService)
@@ -89,8 +92,10 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		return HeistService.deposit(player, loot, slotIndex)
 	end
 
-	-- Size and mutation were rolled when the item spawned and are never
-	-- rerolled here; income is simply carried across.
+	-- Scale and mutation were rolled when the item spawned and are never
+	-- rerolled here; income is derived from them on every load.
+	local def = LootConfig.ById[loot.itemId]
+	local growthBase = if def then def.growthSeconds else LootConfig.DEFAULT_GROWTH_SECONDS
 	table.insert(profile.DisplayItems, {
 		InstanceId = HttpService:GenerateGUID(false),
 		ItemId = loot.itemId,
@@ -101,20 +106,34 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		BaseIncome = loot.baseIncome,
 		FinalIncome = loot.finalIncome,
 		SlotIndex = slotIndex,
-		-- The instance's own rolled scale travels with it; growth starts now.
+		-- THE economy Scale, and the look that goes with it.
+		Scale = loot.scale,
 		VisualScale = loot.visualScale,
+		SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION,
+		EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION,
+		-- MATURATION: the item earns nothing until its growth credit reaches
+		-- its base growth time stretched by its Scale. Snapshotted here, at
+		-- placement, exactly as the reference freezes GrowthDuration.
+		MaturationSeconds = ScaleConfig.maturationSeconds(growthBase, loot.scale),
 		GrowthSeconds = 0,
+		-- IT ARRIVES SEALED. The escape is finished, but the reward is still
+		-- hidden: the container sits on the pedestal and incubates, earns
+		-- nothing, and shows nothing about itself until it is hatched.
+		Hatched = false,
+		SpawnToken = loot.spawnToken,
 	})
+	local placed = profile.DisplayItems[#profile.DisplayItems]
+	-- THE TIMER STARTS HERE and nowhere else - the moment the base accepts it.
+	HatchService.beginIncubation(player, placed)
 
-	-- Discovery fires only on a successful placement (GDD section 13).
-	local firstTime = not profile.Index[loot.itemId]
-	profile.Index[loot.itemId] = true
-	-- Lifetime.Secrets is the "I brought home a jackpot" counter. It used to test
-	-- for the literal rarity "Secret", which under the current ladder exists in
-	-- only four of the twelve zones - so a Cosmic Diamond or a Divine Diamond
-	-- Hammer would not have counted. The jackpot flag is the real thing being
-	-- measured; the save key keeps its name so existing profiles carry over.
-	if loot.jackpot then
+	-- DISCOVERY IS DEFERRED. A sealed container must not add its item to the
+	-- Index, announce a new find, or pay a discovery reward - all three would
+	-- name the reward before the reveal. HatchService does it on the hatch.
+	local firstTime = false
+	-- Lifetime.Secrets counts the top-tier trophies brought home: Secret,
+	-- Eternal and Divine (RarityConfig.ANNOUNCE_MIN_RARITY). The save key
+	-- keeps its name so existing profiles carry over.
+	if RarityConfig.rank(loot.rarity) >= RarityConfig.rank(RarityConfig.ANNOUNCE_MIN_RARITY) then
 		profile.Lifetime.Secrets += 1
 	end
 	if loot.zoneIndex > profile.HighestZoneReached then
@@ -129,18 +148,11 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
-	notify(
-		player,
-		"success",
-		`PLACED  {loot.name}  +{NumberFormat.income(loot.finalIncome)}`
-			.. (if firstTime then "  (NEW!)" else "")
-	)
+	-- No banner. The card over the container says how long the wait is, and
+	-- the placement cue is the only feedback.
+	StateService.sound(player, "PlaceItem")
 
-	-- After the placement toast, so "NEW!" reads before any set-complete banner.
-	if firstTime then
-		IndexService.onDiscovered(player, loot.itemId)
-	end
-
+	local _ = firstTime
 	return true
 end
 
@@ -186,6 +198,12 @@ function PlacementService.store(player: Player, slotIndex: number): (boolean, st
 	if HeistService.isReserved(found.InstanceId) then
 		return false, "Someone is trying to steal that right now!"
 	end
+	-- A SEALED CONTAINER CANNOT BE STORED, and neither can one mid-reveal.
+	-- Authoritative: the prompt never offers it, and a remote fired by hand
+	-- lands here and is refused all the same.
+	if found.Hatched == false or HatchService.isRevealing(found.InstanceId) then
+		return false, "Reveal it first!"
+	end
 
 	if #profile.Inventory >= PlacementService.storageCapacity(player) then
 		return false, "Storage full - sell something first."
@@ -201,6 +219,7 @@ function PlacementService.store(player: Player, slotIndex: number): (boolean, st
 
 	local def = LootConfig.ById[found.ItemId]
 	notify(player, "info", `Stored {if def then def.name else found.ItemId}`)
+	StateService.sound(player, "StoredItem")
 	return true
 end
 
@@ -230,6 +249,13 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 			EconomyService.recalculate(player)
 			StateService.pushNow(player)
 
+			if item.Hatched == false then
+				-- A sealed container (a save from before storing one was
+				-- refused): it goes back on its pedestal to finish its wait,
+				-- and nothing here may name what is inside it.
+				HatchService.beginIncubation(player, item)
+				return true
+			end
 			local def = LootConfig.ById[item.ItemId]
 			-- Name AND the income it just started earning: placing a trophy is
 			-- the payoff beat of the loop, so it should read as a gain.
@@ -257,13 +283,25 @@ function PlacementService.sellStored(player: Player, instanceId: string): (boole
 
 	for index, item in profile.Inventory do
 		if item.InstanceId == instanceId then
+			-- An unrevealed container has no price: nobody knows what it is,
+			-- and pricing it would say. Reveal it first.
+			if item.Hatched == false then
+				return false, "Reveal it first!"
+			end
 			-- Server calculates the payout; the client never supplies a value.
-			local payout = math.floor(item.FinalIncome * GameConfig.SELL_REFUND_SECONDS)
+			-- Priced from the item WITH ITS MUTATION STRIPPED (the reference
+			-- game's verified rule) at moneyPass 1, for SELL_REFUND_SECONDS of
+			-- that rate; `earn` applies the 2x Cash pass exactly once. The
+			-- seconds figure is provisional - see GameConfig.SELL_STATUS.
 			local def = LootConfig.ById[item.ItemId]
+			local base = if def then def.income else item.BaseIncome
+			local mutationForPrice = if GameConfig.SELL_STRIPS_MUTATION then "Normal" else item.Mutation
+			local rate = RarityConfig.preBoostRate(base, ScaleConfig.clampScale(item.Scale), mutationForPrice, 1)
+			local payout = math.floor(rate * GameConfig.SELL_REFUND_SECONDS)
 			table.remove(profile.Inventory, index)
 
 			-- Index discovery survives a sale (GDD section 13).
-			EconomyService.earn(player, payout)
+			EconomyService.earn(player, payout, "sell")
 			StateService.pushNow(player)
 			notify(
 				player,
@@ -636,6 +674,13 @@ function PlacementService.refreshPrompts(player: Player)
 	end
 
 	local unlocked = BaseService.unlockedSlots(player)
+	local profile = DataService.get(player)
+	local occupiedBySlot: { [number]: DataService.DisplayItem } = {}
+	if profile then
+		for _, item in profile.DisplayItems do
+			occupiedBySlot[item.SlotIndex] = item
+		end
+	end
 
 	for _, slot in slots:GetChildren() do
 		local index = slot:GetAttribute("SlotIndex") :: number?
@@ -657,24 +702,41 @@ function PlacementService.refreshPrompts(player: Player)
 			prompt = created
 		end
 
-		local occupied = slot:FindFirstChild("Trophy") ~= nil
 		local isUnlocked = index <= unlocked
+		local item = occupiedBySlot[index]
 
 		-- The slot's LOOK (pad, neon frame, pedestal) is BaseService's: it is
 		-- drawn from the profile in rebuildDisplays, which fires this refresh.
 		-- Only the prompt is owned here.
-
+		--
+		-- ONE PROMPT, ONE ACTION PER STATE:
+		--   empty slot            -> Place
+		--   sealed, counting      -> Instant Reveal
+		--   sealed, ready         -> Reveal
+		--   revealing (animation) -> nothing at all
+		--   revealed item         -> Store
+		-- The client flips Instant Reveal to Reveal itself the second its own
+		-- clock hits zero (RevealEndsAt), and the server re-derives the real
+		-- state on every trigger, so the label is never the authority.
 		local p = prompt :: ProximityPrompt
-		p:SetAttribute("ServerEnabled", isUnlocked)
-		-- Taking an item off display STORES it. Selling is a deliberate action
-		-- taken later from the inventory panel, so a mis-click cannot destroy
-		-- a rare trophy.
-		p.ActionText = if occupied then "Store" else "Place"
-		-- Every interactable holds, so the prompt's fill animation always plays
-		-- and the interaction reads the same everywhere. Placing is the lightest
-		-- of them, so it gets the shortest hold.
+		local sealed = item ~= nil and item.Hatched == false
+		local revealing = item ~= nil and HatchService.isRevealing(item.InstanceId)
+		p:SetAttribute("ServerEnabled", isUnlocked and not revealing)
+		p:SetAttribute("RevealEndsAt", if sealed and item then tonumber(item.HatchEndsAt) or 0 else nil)
+		if not item then
+			p.ActionText = "Place"
+			p.HoldDuration = 0.35
+		elseif sealed then
+			p.ActionText = if HatchService.remaining(item) > 0 then "Instant Reveal" else "Reveal"
+			p.HoldDuration = 0.4
+		else
+			-- Taking an item off display STORES it. Selling is a deliberate
+			-- action taken later from the inventory panel, so a mis-click
+			-- cannot destroy a rare trophy.
+			p.ActionText = "Store"
+			p.HoldDuration = 0.4
+		end
 		p.ObjectText = `Display Slot {index}`
-		p.HoldDuration = if occupied then 0.4 else 0.35
 	end
 end
 
@@ -734,10 +796,30 @@ function PlacementService.start()
 			return
 		end
 
-		local occupied = slot:FindFirstChild("Trophy") ~= nil
-		local ok, reason = if occupied
-			then PlacementService.store(player, index)
-			else PlacementService.place(player, index)
+		-- Dispatch on the item's REAL state, never on the label the client saw.
+		local profile = DataService.get(player)
+		local item: DataService.DisplayItem? = nil
+		if profile then
+			for _, candidate in profile.DisplayItems do
+				if candidate.SlotIndex == index then
+					item = candidate
+					break
+				end
+			end
+		end
+
+		local ok, reason
+		if not item then
+			ok, reason = PlacementService.place(player, index)
+		elseif item.Hatched == false then
+			if HatchService.remaining(item) > 0 then
+				ok, reason = HatchService.promptInstantReveal(player, item.InstanceId)
+			else
+				ok, reason = HatchService.commit(player, item.InstanceId)
+			end
+		else
+			ok, reason = PlacementService.store(player, index)
+		end
 
 		if not ok and reason then
 			notify(player, "error", reason)

@@ -18,14 +18,11 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
-local EconomyService = require(script.Parent.EconomyService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
 
@@ -53,12 +50,29 @@ local STAGE = {
 
 export type TutorialState = {
 	stage: number,
-	objective: string,
-	hint: string?,
+	--- The world arrow's target. There are no stage banners any more: the
+	--- pointer is the whole presentation of a stage.
 	target: Vector3?,
+	--- True on exactly one push in a player's life: the first-ever start. The
+	--- client shows the single opening popup and nothing else.
+	showIntro: boolean?,
 }
 
 local nextZoneShownAt: { [Player]: number } = {}
+--- Player -> os.clock until which the opening popup flag rides every push.
+--- The first push can land before the client has wired its controllers (the
+--- profile loads faster than forty modules require), so a single-tick flag
+--- was lost on a slow client. Sending it for a window is safe: the client
+--- shows it once and ignores repeats, and the saved flag still stops it ever
+--- returning after a rejoin.
+local introUntil: { [Player]: number } = {}
+local INTRO_WINDOW = 20
+--- Player -> os.clock of the last push made only to carry the intro. Pushes
+--- are otherwise event-driven, and a fresh idle profile has no events: the
+--- join push was the only one, and a client still wiring its controllers
+--- missed it for good. Inside the window this pushes once a second instead.
+local lastIntroPushAt: { [Player]: number } = {}
+local INTRO_PUSH_INTERVAL = 1
 local incomeShownAt: { [Player]: number } = {}
 local cached: { [Player]: TutorialState } = {}
 
@@ -158,64 +172,28 @@ end
 -- PRESENTATION
 -- ==========================================================
 
+--- Where the world arrow points for a stage. That is ALL a stage presents:
+--- the objective banners ("STEAL YOUR FIRST ITEM", "PLACE YOUR STOLEN ITEM",
+--- "NEXT: Pirate Island") were removed as screen noise, and the one opening
+--- popup replaces the lot.
 local function buildState(player: Player, stage: number): TutorialState
-	local profile = DataService.get(player)
-
 	if stage == STAGE.STEAL then
-		return {
-			stage = stage,
-			objective = "STEAL YOUR FIRST ITEM",
-			hint = "Hold the prompt on the Ancient Vase. The guard is asleep.",
-			target = tutorialSocketPosition(),
-		}
+		return { stage = stage, target = tutorialSocketPosition() }
 	elseif stage == STAGE.ESCAPE then
 		local home = plotPart(player, "Spawn") or plotPart(player, "Slab")
-		return {
-			stage = stage,
-			objective = "GET BACK TO YOUR BASE!",
-			hint = "Cross the red line - the guard cannot follow you past it.",
-			target = if home then home.Position else nil,
-		}
+		return { stage = stage, target = if home then home.Position else nil }
 	elseif stage == STAGE.PLACE then
 		local slot = firstEmptySlot(player)
-		return {
-			stage = stage,
-			objective = "PLACE YOUR STOLEN ITEM",
-			hint = "Stand on an empty display slot and interact.",
-			target = if slot then slot.Position else nil,
-		}
+		return { stage = stage, target = if slot then slot.Position else nil }
 	elseif stage == STAGE.INCOME then
-		local income = EconomyService.getIncome(player)
-		return {
-			stage = stage,
-			objective = `EARNING {NumberFormat.income(income)}`,
-			hint = "Displayed loot earns Cash every second.",
-		}
+		return { stage = stage }
 	elseif stage == STAGE.TRAIN then
 		local frame = plotPart(player, "Frame")
-		return {
-			stage = stage,
-			objective = "TRAIN ON YOUR TREADMILL",
-			hint = "Stand on it to gain Speed.",
-			target = if frame then frame.Position else nil,
-		}
+		return { stage = stage, target = if frame then frame.Position else nil }
 	elseif stage == STAGE.NEXT_ZONE then
-		local zone = ZoneConfig.Zones[2]
-		return {
-			stage = stage,
-			objective = `NEXT: {zone.name}`,
-			hint = `Recommended Speed {NumberFormat.short(zone.recommendedSpeed)}. Keep training!`,
-			target = zoneTwoSignPosition(),
-		}
+		return { stage = stage, target = zoneTwoSignPosition() }
 	end
-
-	-- COMPLETE: the tutorial is done and says nothing further. Zone requirements
-	-- are communicated by the zone signs and the top progress bar, so a trailing
-	-- "next goal" widget was pure duplication.
-	return {
-		stage = STAGE.COMPLETE,
-		objective = "",
-	}
+	return { stage = STAGE.COMPLETE }
 end
 
 --- Read by StateService each push.
@@ -272,12 +250,33 @@ local function evaluate(player: Player)
 
 	local previous = cached[player]
 	local state = buildState(player, stage)
+
+	-- THE ONE OPENING POPUP, on a first-ever start and never again. The flag
+	-- is flipped and saved before the push goes out, so a respawn, a rejoin or
+	-- a second server can never show it twice.
+	if not profile.TutorialIntroSeen then
+		profile.TutorialIntroSeen = true
+		introUntil[player] = os.clock() + INTRO_WINDOW
+		if DataService.isPersistent() then
+			task.spawn(DataService.save, player)
+		end
+	end
+	local window = introUntil[player]
+	if window and os.clock() < window then
+		state.showIntro = true
+	elseif window then
+		introUntil[player] = nil
+	end
 	cached[player] = state
 
-	if not previous
-		or previous.stage ~= state.stage
-		or previous.objective ~= state.objective
-	then
+	local introDue = state.showIntro == true and os.clock() - (lastIntroPushAt[player] or 0) >= INTRO_PUSH_INTERVAL
+	-- One push when the window closes, so the client sees the flag stop and
+	-- disarms; without it an idle profile would carry the armed state forever.
+	local introClosed = previous ~= nil and previous.showIntro == true and state.showIntro ~= true
+	if not previous or previous.stage ~= state.stage or introDue or introClosed then
+		if state.showIntro then
+			lastIntroPushAt[player] = os.clock()
+		end
 		StateService.pushNow(player)
 	end
 end
@@ -331,7 +330,7 @@ local function maintainTutorialLoot()
 		GameConfig.TUTORIAL_ZONE,
 		GameConfig.TUTORIAL_SOCKET,
 		GameConfig.TUTORIAL_ITEM_ID,
-		"Normal",
+		1, -- Scale 1: the reference-size vase, a Normal by label
 		"Normal"
 	)
 	if result then
@@ -346,6 +345,8 @@ function TutorialService.start()
 		cached[player] = nil
 		nextZoneShownAt[player] = nil
 		incomeShownAt[player] = nil
+		introUntil[player] = nil
+		lastIntroPushAt[player] = nil
 	end)
 
 	task.spawn(function()
@@ -364,5 +365,16 @@ end
 --- Exposed for the debug bridge.
 TutorialService.STAGE = STAGE
 TutorialService.deriveStage = deriveStage
+
+--- Debug only: lets the opening popup be shown again for a test.
+function TutorialService.resetIntro(player: Player)
+	local profile = DataService.get(player)
+	if profile then
+		profile.TutorialIntroSeen = false
+	end
+	introUntil[player] = nil
+	lastIntroPushAt[player] = nil
+	cached[player] = nil
+end
 
 return TutorialService

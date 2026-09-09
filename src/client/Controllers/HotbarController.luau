@@ -37,7 +37,9 @@ local HotbarController = {}
 local player = Players.LocalPlayer
 
 local SLOT_COUNT = 4
-local SLOT_PIXELS = 66
+--- 66 on desktop; a touch layout takes them ~12% smaller so the bar leaves
+--- more of the play area and never crowds the jump button.
+local SLOT_PIXELS = if require(ReplicatedStorage.Shared.Util.Device).isTouch() then 58 else 66
 local SLOT_GAP = 10
 local BOTTOM_INSET = 14
 
@@ -123,24 +125,50 @@ local function paintIcon(slot: Slot, tool: Tool?)
 		end
 	end
 	local handle = tool and tool:FindFirstChild("Handle")
-	if not handle or not handle:IsA("BasePart") then
+	if not tool or not handle or not handle:IsA("BasePart") then
 		viewport.Visible = false
 		return
 	end
 	viewport.Visible = true
-	local copy = handle:Clone()
-	for _, descendant in copy:GetDescendants() do
-		if descendant:IsA("BaseScript") or descendant:IsA("Sound") or descendant:IsA("JointInstance") then
-			descendant:Destroy()
+
+	-- THE WHOLE TOOL, not just its Handle. The Bat is one part, so the two
+	-- were the same thing; the Slap's Handle is a small grip and the hand
+	-- and stick are separate parts welded to it - cloning the Handle alone
+	-- put a stub in the slot instead of the Slap. Every part is copied at
+	-- its offset from the Handle, so the icon is the tool as it is held.
+	local copy = Instance.new("Model")
+	copy.Name = tool.Name
+	local anchor: BasePart? = nil
+	for _, descendant in tool:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			local part = descendant:Clone()
+			for _, inner in part:GetDescendants() do
+				if inner:IsA("BaseScript") or inner:IsA("Sound") or inner:IsA("JointInstance") or inner:IsA("Constraint") then
+					inner:Destroy()
+				end
+			end
+			part.Anchored = true
+			part.CanCollide = false
+			-- Relative to the Handle, so the pose is the authored one.
+			part.CFrame = handle.CFrame:ToObjectSpace(descendant.CFrame)
+			part.Parent = copy
+			if descendant == handle then
+				anchor = part
+			end
 		end
 	end
-	copy.Anchored = true
-	copy.CanCollide = false
+	if not anchor then
+		viewport.Visible = false
+		copy:Destroy()
+		return
+	end
+	copy.PrimaryPart = anchor
 	-- Stood up: a bat lies along its Z as authored; on its end it reads as a
-	-- bat in a slot rather than a stick seen from above.
-	local size = copy.Size
+	-- bat in a slot rather than a stick seen from above. Measured on the whole
+	-- tool, so the Slap (tall along Y already) keeps its hand upright.
+	local _, size = copy:GetBoundingBox()
 	local longest = math.max(size.X, size.Y, size.Z)
-	copy.CFrame = if longest == size.Z then CFrame.Angles(math.rad(-90), 0, math.rad(25)) else CFrame.Angles(0, 0, math.rad(15))
+	copy:PivotTo(if longest == size.Z then CFrame.Angles(math.rad(-90), 0, math.rad(25)) else CFrame.Angles(0, 0, math.rad(15)))
 	copy.Parent = viewport
 	local min, max = LootModel.worldExtents(copy)
 	local camera = viewport.CurrentCamera

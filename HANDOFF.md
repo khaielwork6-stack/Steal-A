@@ -1,3 +1,102 @@
+# START HERE (handoff, 2026-09-09)
+
+This is the orientation for whoever picks the project up next. The rest of this
+file is the running engineering log, newest sections at the bottom; the
+sections that matter most for the current build are listed under "Where to
+read" below.
+
+## What this is
+
+A Roblox/Luau game ("Steal & Escape"): steal sealed mystery crates from twelve
+guarded zones, escape past the red line, place the crate on a pedestal at your
+base, wait out a reveal timer (or pay to skip it), reveal the item, and it
+earns Cash every second. Source is synced into Studio with Rojo; the place file
+itself is NOT in git (see "Place-file steps" - this matters).
+
+## Running it
+
+1. Install the Rojo plugin in Studio and the Rojo CLI.
+2. In the repo root: `rojo serve` (uses `default.project.json`).
+3. Open the place in Studio, connect the Rojo plugin, press Play.
+4. Every service prints one line on boot; a healthy boot ends with
+   `[Config] validation PASSED` and `[EconomyTests] PASSED`.
+
+There is no formatter or linter configured. The check used throughout was a
+full syntax load of every script in Studio (see the Edit-mode snippet in the
+log) plus the in-game suites below.
+
+## Place-file steps (do these once, they are not in git)
+
+Two changes were made directly in the Studio place and only exist in the saved
+`.rbxlx`. If you are starting from a place that predates them:
+
+- Move the Tool `Workspace["Chemical Flask"]` into
+  `ServerStorage.GameAssets.Loot` (it is the art for `SecretLab_SecretFormula`
+  via `LootConfig.ModelOverrides`). The start-up size audit will say `stale`
+  or `missing` for that item until it is there.
+- Set `Workspace.StreamingEnabled = false`. The project file already says so,
+  but Rojo only re-applies Workspace properties on a fresh sync.
+
+Then save/publish the place.
+
+## Testing from the Studio command bar (Play mode, Server view)
+
+Everything goes through the debug bridge, never through a plain `require`
+(the command bar gets fresh, empty module copies):
+
+    local invoke = game.ServerStorage.DebugInvoke
+    invoke:Invoke("economyTests", PLAYER_NAME)          -- 202,280 checks
+    invoke:Invoke("paritySim", PLAYER_NAME, 1000000)    -- Zone 9 assertion
+    invoke:Invoke("sizeOdds", PLAYER_NAME, 200000)      -- crate size odds
+    invoke:Invoke("upright", PLAYER_NAME)               -- every model's pivot
+    invoke:Invoke("guardianAudit", PLAYER_NAME, 9)      -- chase margins
+    invoke:Invoke("persistTest", PLAYER_NAME)           -- save round trip
+    invoke:Invoke("sealGrant", PLAYER_NAME, "Museum_Ruby", 1, 3)  -- sealed crate on the base
+    invoke:Invoke("ripen", PLAYER_NAME)                 -- make it ready
+    invoke:Invoke("hatch", PLAYER_NAME)                 -- reveal it (server path)
+    invoke:Invoke("instantReveal", PLAYER_NAME, 1)      -- synthetic Robux receipt
+    invoke:Invoke("introReset", PLAYER_NAME)            -- show the opening popup again
+
+The full command list is the `COMMANDS` table in
+`src/server/Services/DebugService.luau`.
+
+## What shipped in this batch (all verified in Play)
+
+- Economy rebuild to the reference progression: continuous Scale, locked
+  mutations, corrected income funnel, save migration (schema v10).
+- Mystery crates and the reveal: sealed crate spawns, server-side hidden roll,
+  persistent reveal timer, one-prompt-per-state pedestal interaction, timer
+  card, scripted reveal animation, Instant Reveal products (schema v11/v12).
+- Guardian chase fix (carry penalty applied to both sides), trap cooldown,
+  pedestal walk-through, model pivot fixes (milkshake, crates), socket layout.
+- Streaming off, continuous crate rotation, stable storage panel, invisible
+  socket pads, reveal sound `RevealPop` (asset 92415130454101).
+
+## Known gaps and decisions to be aware of
+
+- `Pirate_CursedCoin` has no art in the place; it builds a placeholder.
+- Several economy values are the project's own, not traced from the reference
+  game; `paritySim` prints them as BLOCKED_* / PROVISIONAL_* every boot.
+- Mobile was tested by construction (touch-capable prompts, scale-sized UI),
+  not on a real phone viewport.
+- The seven Instant Reveal product ids are configured but were only exercised
+  with synthetic receipts through the live ProcessReceipt; a real Robux
+  test purchase has not been made.
+- Freshly spawned crates hold still for 0.5s before turning
+  (`SETTLE_SECONDS` in WorldLootFxController); this is a replication-safety
+  delay, not the old distance freeze.
+
+## Where to read
+
+- "The mystery container and the hatch" and "The reveal polish" - the state
+  machine, what a client may know, the swap timing, Instant Reveal.
+- "Model pivots: the bug class behind three separate symptoms" - read this
+  before touching any model seating code.
+- "The Scientist guardian" - the chase-speed formula.
+- "Map visibility, crate motion and the storage panel" - the last three fixes.
+
+---
+
 # Handoff — Steal Something
 
 Written for the next Claude session. Read this before touching anything.
@@ -3109,3 +3208,731 @@ and `PortalFx("teleport")` dips the client to black.
 - Save the place: assets moved to ReplicatedStorage, markers moved/added,
   the Backtobase cube moved, the map rebuilt (bay pad, upgrade pad, slot
   order).
+
+## 33. Release polish pass — item size for life, prompt rebuild, offline earnings, mobile layout, the new speed curve
+
+One focused pass over the systems the release brief named. Nothing was
+rebuilt that already worked; every change sits in the existing service or
+controller that owned the behaviour.
+
+### 33.1 Item size is preserved for the whole lifecycle
+
+- `RarityConfig.carryVisualScale` is now the identity. The old square-root
+  compression above the Giant knee is what shrank a Colossal the moment it
+  was lifted. CarryService and the guardian escort both go through it, so
+  nothing else changed there; `CARRY_SCALE_KNEE` still decides front-carry
+  versus overhead.
+- `BaseService.buildTrophy` builds with the SAME options LootService uses
+  at the socket (`LOOT_WORLD_HEIGHT`, `WORLD_MAX_FOOTPRINT`, the saved
+  `VisualScale`). `TROPHY_MAX_FOOTPRINT` is retired (aliased to the world
+  cap so nothing errors). Maturity growth still multiplies on top and is 1
+  at placement.
+- `LootConfig.BaseScale`: per-item multipliers for the imports the width
+  cap left tiny (money stack, gold bar, pilot's hat, dumbbells, passport,
+  crown, candy bowl), applied in `LootModel.build` UNDER the size roll.
+  Measured from a bounding-box scan of `ServerStorage.GameAssets.Loot`.
+- Saved records already carry `VisualScale` (v6); no new field was needed
+  and no inventory was migrated.
+- Measured in Play (art parts only - the invisible PromptAnchor rides with
+  loot and is not the item): Ancient Vase and Captain's Hat spawn > carried
+  > base at ratio 1.0000; Normal money stack, Giant vase, Huge Ruby and a
+  Colossal goblet (18x, 90 studs) world build == base build at 1.0000.
+
+### 33.2 World / UI corrections
+
+- `Museum_Ruby` art: `Workspace["Zone 1 Ruby"]` (MeshPart) was cloned into
+  `ServerStorage.GameAssets.Loot.Museum_Ruby` and the stray removed. Same
+  item id, rarity, income, sockets, saves. SAVE THE PLACE.
+- FREE chest: `LobbyMarkers.GiftChest` moved from X=-104 to X=-119
+  (MapConfig default too). Ten studs clear of the Slap cage's disc.
+- Slap sign reads `SLAP!` (label still named `Slam` for the controller).
+- Event board stands 0.6 studs off the wall (`WALL_STANDOFF`), was 0.15.
+- Storage button: a chest glyph drawn from frames (InventoryController
+  `buildStorageGlyph`); no storage image exists in the project and none
+  was invented.
+- Guardian auto-equip: `MonetizationService.onGamePassPurchased` fires
+  after ownership is re-read from Roblox; init routes it to
+  `BaseGuardianService.autoEquipAfterPurchase`, which equips only when the
+  bay is empty, through the normal `equip` path (saved, pushed, idempotent).
+
+### 33.3 Interaction prompt
+
+`InteractController` was rewritten with its own card: a pixel-sized
+BillboardGui, `AlwaysOnTop = true`, adorned to the prompt's part (loot
+prompts already sit on LootService's clear-air `PromptAnchor`; other parts
+get a small capped lift). The hold is a frame-built radial ring. On touch
+a large screen button (160 px target, 104 px disc, right of the hotbar)
+drives `ProximityPrompt:InputHoldBegin/End`, so the server's own hold,
+range and validation apply; one active touch at a time; release, drag-off,
+target change, death and despawn all end the hold through `endTouchHold`.
+`Shared/Util/Device` is the one touch/phone test every controller uses.
+
+### 33.4 Player-hit toast
+
+`PvPService` no longer sends the "Hit!" / "SLAPPED!" toast. Sound, swing,
+launch, ragdoll and the "knocked loose" toast are unchanged.
+
+### 33.5 Audio
+
+`AudioConfig`: Notification 78340041384722, Escape 114542988141330, and
+new cues PlaceItem 139670424345585 (PlacementService.place), StoredItem
+101163709235612 (PlacementService.store), NightSpawn 87846239038276
+(NightService spotlight announce, was NewDiscovery). The guardian hit
+table already held the twelve ids; playback (`Audio.playAt` on the
+guardian root at the catch) was verified to build the right Sound per
+zone. AudioController now preloads all of them plus the event cues.
+
+### 33.6 Offline earnings (`OfflineService`, `OfflineEarningsController`)
+
+Profile v8 adds `LastLeaveTimestamp`, `OfflineCashRate`,
+`PendingOfflineCash`. `DataService.onBeforeSave` stamps the clock and the
+authoritative `EconomyService.getIncome` on every save (autosave, leave,
+shutdown). `settle` runs once per join after the income is rebuilt:
+elapsed clamped to 0..6h, rate x seconds banked as pending, timestamp
+advanced. `OfflineClaimRequest` carries nothing; the server pays what it
+holds via `award` (the rate already includes the 2x pass), zeroes it,
+pushes and saves. The modal shows on the first positive `offlineCash` push
+and closes when the push goes to zero. Debug: `offline simulate <seconds>
+<rate>`, `offline claim`, `offline`. Tested: never-left 0, 90 s at 1000 =
+90000, double and spam claims refused, 8 h capped to 216000, zero rate 0.
+
+### 33.7 Mobile (touch layouts only; desktop untouched)
+
+- `ShiftLockController`: forces `LandscapeSensor`, adds a lock button left
+  of Jump; toggles `UserGameSettings.RotationType = CameraRelative` plus
+  the shoulder `CameraOffset` - the engine's own shift lock, no camera
+  script. Re-applied per character.
+- `HUDLayoutController.applyTouchLayout`: 2x2 menu block (60 px tiles),
+  stat card top-left under the Roblox buttons with 18 px text, every panel
+  in Frames at 0.94 x 0.9 of a 0.96-wide container with bounded TextScaled
+  (26 px), offer rail pinned to the right edge as two 64 px tiles under
+  the top strip.
+- `lockVerticalScroll` (all devices): every ScrollingFrame in Frames is
+  Y-only with a zero-width canvas.
+- InventoryController card rows scale to fit on touch (`fitRowText`) and
+  use short tags on phones (`shortTag`).
+- NOT run on a phone or the device emulator this session - see 33.10.
+
+### 33.8 Speed curve and guardian calibration
+
+`GameConfig.walkSpeedFromPower` is the brief's formula: log base 1.15
+compression into 10..300, linear remap onto 16..300. Measured on the
+character: 10 > 16.00, 1M > 118.50, 170M > 190.46, 225M > 194.39 (old
+curve: 18.26 / 67.47 / 97.26 / 99.01). `WALKSPEED_MIN` 16, `MAX` 300. The
+old curve is kept as `legacyWalkSpeedFromPower` for calibration only.
+
+Guardians: `GameConfig.guardianGateWalkSpeed(recommended, gateMargin,
+runDistance)` = new at-gate player speed x the OLD guardian/player ratio,
+plus the head start a faster player now gets during `GUARDIAN_WAKE_DELAY`
+over the zone's run to the line (`MapConfig.zoneCenterZ`), capped so an
+at-gate player still clears the guardian by `GUARDIAN_MIN_GATE_MARGIN`
+(0.5). `GuardianService.guardianSpeed` uses it; the deficit catch-up,
+steering, catch radius and red-line rules are untouched. `speedAudit` in
+Play: every zone 75% CAUGHT, 100% escapes (+0.5..+1.75), 150% escapes
+clearly; a 170M player (190.5) escapes the Bank guardian (158.5).
+
+Treadmill rewards are a server tick (`TreadmillConfig.TICK_INTERVAL` x
+`gainPerTick` x the pass multiplier) and never read WalkSpeed, so the
+economy was left alone; validate still pins tiers 1-4.
+
+### 33.9 Treadmill reward visuals (`TreadmillController`)
+
+Shoe icon (the Speed stat's `102080723305863`) + `+N` in white/cyan/blue
+with a navy stroke, from a pool of four billboards over four lanes; 0.7 >
+1.15 > 1.0 pop, float up and out, fade; gains within 0.25 s summed. The
+old "+N Speed" world and HUD texts are gone (the stat row still flashes).
+While training: tier-tinted belt strip + PointLight that pulse on each
+reward, and cyan streaks at the feet; built on entry, destroyed on exit.
+Verified in Play: FX present while standing, up to four popups, all gone
+after stepping off.
+
+### 33.10 NOT tested, and what to check by hand
+
+- Mobile layouts, hold button, shift lock: written against the measured
+  pack geometry but not run on a phone or in the device emulator. Check a
+  landscape phone and a tablet: 2x2 menu, stat card, panel sizes, offer
+  tiles, hold button clear of Jump, lock toggle.
+- Player-hit toast removal / the Slap on a player: needs two players.
+- Sounds audible: ids resolve and Sounds build correctly; whether each
+  asset is approved for the experience is a Studio/live check.
+- Save the place: Ruby asset moved into ServerStorage, GiftChest marker
+  moved.
+
+## 34. Mobile + map follow-up
+
+- Touch menu: rows 26 px apart and the top row layered above the bottom
+  (HUDLayoutController `layoutTouchRail`), so "Shop" reads in full.
+  Hotbar slots 58 px on touch (66 desktop). Shift lock at (1,-30,1,-108),
+  above Jump; the Night timer moves to the top strip on touch
+  (NightController); the boss offer is smaller and at y 0.13 on touch.
+- Hold-to-steal: the card IS the touch target (`InteractPrompt.HitArea`, a
+  TextButton filling the billboard plus a 34 px margin) driving
+  InputHoldBegin/End on the real prompt; the separate emoji HOLD button is
+  gone. The pack's no-Adornee billboards (Top Cash / Gamepasses / Next
+  Update / Action template) are disabled in PlayerGui - they were the
+  "pile" at the red line; no world object was deleted.
+- Carrying mode: `CarryUIController` mirrors StatePush `carrying` into one
+  UIStateController claim ("carry"). UIStateController now also hides
+  Notifications, NightTimer, the offer rail and the HotbarUI screen; the
+  interact prompt hides while the claim is held. Verified: steal hides all
+  of it and leaves DROP; drop restores all of it.
+- Chase warning: a full-viewport `Wash` frame under the edge strips beats
+  with them (peak transparency 0.62).
+- Storage: the manual CanvasSize writer was removed; AutomaticCanvasSize
+  is the single canvas owner (the flicker source). Signatures already
+  gated row rebuilds.
+- Next Update board 2 studs off the wall (`WALL_STANDOFF`).
+- Collision: `Players` and `GuardianBody` groups (GuardianService). Every
+  character part is `Players`; every guardian root is `GuardianBody`
+  (world yes, players no, shell no). `MapBuilder.applyDecorCollision` now
+  also hollows every top-level Workspace decoration in the lane (Z > 0,
+  not in `DECOR_KEEP`): anchored, CanCollide/CanTouch off, embedded
+  scripts removed. Verified: 3598 parts, 39 models, 0 scripts; floors,
+  walls and the red line untouched.
+- Escape is ONE sound: the server sends "Escape"; ChaseAudioController
+  only stops the music on it; the EscapeSting cue is retired.
+
+## 35. Treadmill upgrade board, mobile placement, full red overlay
+
+- The Hold-E `TreadmillPrompt` is gone (removed from baked plots on
+  refresh). `SpeedService.refreshUpgradeBoard` builds `TreadmillUpgradeBoard`
+  beside the deck (-RightVector, 9.4 studs, facing the corridor): "Upgrade",
+  "Level N > Level N+1", a red Cash button (`CashButton`, ClickDetector →
+  `upgradeTreadmill`, owner-checked) and a purple Robux button
+  (`RobuxButton` → `promptRobuxUpgrade`, injected from
+  MonetizationService.promptTreadmillUpgrade; price = live product price,
+  config fallback; repainted on onPricesChanged). Verified: fresh board
+  Level 1 > 2 / $15K / 16, after an upgrade Level 2 > 3 / $250K / 24.
+- Mobile placement: while carrying, InteractController now lets
+  `SlotPrompt` through the carry filter (everything else stays hidden), so
+  hold-to-place works on touch exactly like desktop. Verified: at a slot
+  while carrying the card shows "Display Slot 1 / HOLD Place" with the HUD
+  hidden and DROP up; place succeeds.
+- Chase overlay: `ScreenInsets = None`, `SafeAreaCompatibility = None`, the
+  `Wash` frame overscans 10% on every side (peak transparency 0.5).
+
+## 36. Six small fixes
+
+- Treadmill: the "<ZONE> UNLOCKED" toast on crossing a gate is gone; the
+  ZoneUnlock cue still plays (SpeedService.trainingTick).
+- Update alerts: the configured event `4257917435077853831` HAS STARTED -
+  Roblox refuses `PromptRsvpToEventAsync` with "Event has already started"
+  (tested in Play; `GetEventRsvpStatusAsync` returns Going). The stand
+  now says "You're following the next update!" for a follower without
+  prompting, and "This update is already live!" when the event has
+  started. To prompt again, schedule the NEXT event on the Creator Hub
+  and paste its id into `GameConfig.NEXT_UPDATE_EVENT_ID`.
+- Hover SFX is not hooked on touch (AudioController.hookButton), so a
+  thumbstick drag through the menu block no longer spams it.
+- Night: `CarryService.cancelForNight` (called in NightService.beginNight
+  before guardians reset and everyone is moved) detaches any carry, sends
+  a socket item straight home / a base steal back through onLost, and
+  toasts. Verified mid-chase: carry cleared, player at the lobby, nothing
+  left in CarriedLoot.
+- Pets: unchanged. The Dog is an R6 rig and already plays the stock walk
+  cycle; the Cat (AnimationController, no clips), Panda and Tiger
+  (unrigged part models) have no clean animation path.
+- Hotbar: `paintIcon` clones the WHOLE tool (every part at its offset from
+  the Handle), so the Slap slot shows the hand and stick, not the grip.
+  Updates on every equip/unequip through the existing container watch.
+
+## 37. Treadmill offer on touch, the Next Update face, snow to the North Pole
+
+- TreadmillOfferController: on touch the Speed-tier card sits bottom-left
+  at (0,150,1,-150), 230x72 max - right of the thumbstick, beside the menu,
+  above the hotbar row - instead of following the stat card to the top.
+- Next Update stand: 4 studs off the wall (`WALL_STANDOFF`). The borrowed
+  Shiny-mutation emitters (one texture streamed as a black square) are
+  replaced by one additive sparkle (`StandShine`, texture 241594419,
+  LightEmission 1). The face no longer shows the pack's "DM ... TO BUY"
+  advert: `GameConfig.NEXT_UPDATE_IMAGE` (an IMAGE asset id) goes on it
+  when set, else a drawn bell / NEXT UPDATE! / Notify me face. NOTE: the
+  event id 4257917435077853831 is not an image and cannot be shown.
+- Snow: the kit's Zone09 weather is snow. `MapBuilder.WEATHER_TEMPLATE_FOR`
+  maps zone 5 -> Zone09 and zone 9 -> none for future rebuilds, and
+  `MapBuilder.relocateWeather(9, 5)` runs at server start on the baked map:
+  the part is resized to 160 x 324, recentred over the North Pole, emitter
+  rates scaled by area (1062 -> 538/s, same density). Verified in Play.
+  Save the place to keep it out of the Lab without the runtime move.
+
+## 38. Nightfall luck, visible treadmill running, size normalisation and odds, trillion formatting
+
+### Nightfall luck (NightConfig / LootService)
+- MEASURED FIRST (exact enumeration of the real roller, `scratchpad/nightodds.js`
+  mirrors `rollItem` + the 4-socket no-duplicate fill). Per-socket odds of
+  Legendary-or-better in zones 5-12: day 9.00%, old Night (1.5x) 12.92% =
+  +43.5% relative; Huge-or-better sizes 10% -> 14.29% = +42.9% on top.
+- THE STRUCTURAL FINDING: a zone draws 4 of its 7 normal items WITHOUT
+  replacement, so a zone shows >= Legendary 59% of the time in zones 5-12
+  (37% in 1-4) even in the DAY; the world spawns 6.7 Legendary+ / 2.3
+  Mythic+ / 0.3 Cosmic per 48-socket refresh in the day and 8.6 / 3.0 / 0.4
+  at the old Night. This is not a Night mechanic and was left alone (it is
+  the "a zone never shows the same item twice" rule); it is the lever if
+  progression is still fast. The whole world refresh happens ONLY at Night
+  (server start is the only plain-table fill), so the Night lean is the
+  effective spawn rate of the game.
+- Fix: ONE value, `NightConfig.NIGHTFALL_RARITY_BOOST = 1.30` on
+  `NIGHTFALL_RARITY_BOOST_MIN = "Legendary"`: per-socket 9.0% -> 11.4%
+  (+26.6% relative); world Legendary+ per refresh 6.67 -> 7.86 (+17.8%).
+  The size lean is REMOVED (RollBoosts is rarity-only; `rollSizeId()` takes
+  no boost), the 10% per-refresh jackpot roll is unchanged, no pity exists.
+  validate pins the boost to [1, 1.35] and asserts no size/mutation lean.
+
+### Treadmill running visible to others (SpeedService / TreadmillSpectateController)
+- Server publishes `Character:SetAttribute("TreadmillRun", rate)` from the
+  same 0.25s tick that pays the reward (set on start, rewritten only when
+  the stride rate moves a 0.05 step, cleared on any exit the tick sees:
+  walk/jump off, death, teleport, reset; disconnect destroys the character).
+  Rate = `TreadmillConfig.runAnimationRate(walkSpeed)`, the ONE formula the
+  runner's own client now uses too.
+- New `TreadmillSpectateController`: every client plays the run cycle
+  locally on every OTHER character carrying the flag (their own Animate
+  run/walk id, stock R15/R6 cycle as fallback), Action priority, eased to
+  the published rate; one track per character, retimed in place, stopped +
+  destroyed on flag clear / death / removal / leave; stops any replicated
+  duplicate of the runner's own local track on the same Animator.
+- The runner's own TreadmillController keeps its Animation instance alive
+  for the life of the track (was destroyed right after LoadAnimation).
+
+### Loot sizes (LootModel / LootConfig / RarityConfig / DataService / CarryService)
+- Size odds 60 / 24 / 10 / 4 / 1.5 / 0.5 (Giant+ 6%, Titan+Colossal 2%);
+  visual 1 / 1.6 / 2.5 / 4 / 7-10 / 16-22; income multipliers unchanged
+  (average 1.2065 -> 1.3615, +12.85%, mirror-simulated at 1e6 rolls).
+- Schema v9: every saved item gets `SizeVisualVersion = 2`; legacy scales
+  are mapped once by position in range (`RarityConfig.migrateVisualScale`:
+  Titan 7 -> 8.5, Colossal 17.5 -> 19); reconcile stamps but never remaps.
+- Carry compression is back: `carryVisualScale(v) = min(v, 2.6 + sqrt(max(0,
+  v - 2.6)))` (4 -> 3.78, 10 -> 5.32, 22 -> 7.0). Carry only; world,
+  socket and pedestal use the full VisualScale.
+- Normalisation: `LootModel.visibleExtents` (Transparency >= 0.95, helper
+  names, slivers ignored) feeds `LootModel.normalisationFor` (height 5;
+  width past 1.5x height binds instead, but height never below 4, width
+  never past 18). Per-item rows live in `LootConfig.Normalization`
+  (`{ multiplier, srcX, srcY, srcZ }`), written by `Invoke("lootAudit")`;
+  a missing/stale/orphan row is warned by name at server start
+  (`LootModel.checkNormalization`). `LootConfig.BaseScale` is retired (the
+  height floor covers what it patched). Seating everywhere uses the visible
+  box.
+
+### Trillion formatting (NumberFormat)
+- Tier by repeated division, not `math.log(n, 1000)` (which gave 3.99999
+  for 1e12 -> "1000B"), and a post-rounding carry (999.6B -> 1T).
+
+## 39. Economy rebuild to the reference progression (zones 1-11), Zone 12 fenced as post-game
+
+### Spawning (LootService / LootConfig / RarityConfig / ZoneConfig)
+- FIVE sockets per zone (`ZoneConfig.SOCKETS_PER_ZONE = 5`); `LootService.synthesiseSocket`
+  builds `Socket05` at the zone centre on the baked map (mean of the corner four);
+  `MapBuilder.placeSockets` lays it too for a rebuilt map.
+- Every socket rolls INDEPENDENTLY from all eight items at its zone weight
+  (`LootConfig.ZoneWeights`, the reference per-slot arrays for 1-11; Zone 12 =
+  Zone 11's, provisional). No exclusion, no reroll, no jackpot slot, no
+  `JACKPOT_REFRESH_CHANCE`, no Night lean of any kind. Duplicates allowed.
+- Rarity is a per-zone LABEL ladder (`RarityConfig.ZoneRarities`, reference
+  arrays for 1-11). Secret first appears in Zone 4. Announcements
+  (`NightService` spotlight, Secret+) read what rolled and feed nothing back.
+- Base income fixes: Grandma_CookieJar 4B -> 1.8B, Construction_MetalFence 3M ->
+  11M, Construction_DiamondHammer 6B -> 3B.
+- Cycle 270s / 10s Night (13.33 refreshes/h, 66.7 rolls/zone/h). NOTE: the
+  brief's "60 rolls/h = 5 x 12" implies a 300s cycle; 270s was implemented as
+  specified and the discrepancy is reported. Zone 9 Blue Crystal: 0.495856%
+  per socket, 2.4548% at least once in five, 0.2975136/h on the 12-refresh
+  basis, 0.3306/h at 270s.
+
+### Scale (ScaleConfig, new)
+- One saved `Scale` per item; `sizeFactor` (s^1.85 / 19.6379*(s/5)^1.2),
+  `growthMultiplier`, labels by threshold (Normal <1.25, Big <2.5, Huge <5,
+  Giant <7.85, Titan <18.5, Colossal), carry compression
+  min(v, 2.6+sqrt(v-2.6)), 1%-per-iteration doubling under 150.
+- Band WEIGHTS are PROVISIONAL (`SIZE_ODDS_STATUS = BLOCKED_EXACT_SIZE_ODDS`):
+  they reproduce the pre-rebuild 60/24/10/4/1.5/0.5 label odds, tiny/small at
+  0, equal split inside multi-band labels. Replace the weight column when an
+  authoritative source exists.
+- `LootConfig.Normalization` now holds all 95 measured rows (visible boxes,
+  measured 2026-09-09); Pirate_CursedCoin has no art asset.
+
+### Income (EconomyService / RarityConfig.preBoostRate)
+- preBoostRate = max(round(base x sizeFactor x mutation x moneyPass), 1);
+  finalRate = round(pre x SERVER_EARNINGS_BOOST x TEMPORARY_EARNINGS_BOOST);
+  summed over displayed, un-robbed, MATURED items. Growth +10% and Index
+  percentages removed; Cash pass applied exactly once (inside the per-item
+  rate; `earn` for one-offs). Every award carries a source tag.
+- Maturation: `MaturationSeconds` = base growth time x g(Scale), snapshotted
+  at placement; credit 1/s by day, 30/s for the 10s Night (300 total).
+  `LootConfig.DEFAULT_GROWTH_SECONDS = 0` (BLOCKED_GROWTH_TIMES) so the
+  system is wired but inert until the catalog values are filled.
+- Sell: mutation-stripped rate x SELL_REFUND_SECONDS (60, PROVISIONAL).
+- Index: one-time discovery Cash = 100 x Scale-1 unmutated base; set claims
+  pay Speed only; `incomeMultiplier` returns 1.
+
+### Purchases
+- Treadmill tiers = reference factor/cost pairs x2 free ... x2000 / 1Q (ten
+  tiers; tier 10 reuses the Ascendant model, Cash-only). One-second tick:
+  gain = TRAINING_BASE_GAIN(4, BLOCKED_TRAINING_BASE) x factor x
+  (1 + (trail-1) + (pass-1)).
+- Base capacity = the twelve reference levels (7 ... 18 slots, 1K ... 500T).
+  `BaseService.unlockedSlots` clamps to the plot's physical pads (14 on the
+  baked map; MapConfig now lays 18 with 5 columns for a rebuild).
+- Offline: `OFFLINE_EFFICIENCY` (1, BLOCKED_OFFLINE_COEFFICIENT) x cap 6h.
+
+### Saves (DataService v10)
+- Legacy items: Scale = inverseSizeFactor(old word multiplier) so income is
+  preserved (Normal 1, Big 1.176, Huge 1.454, Giant 1.968, Titan 2.256,
+  Colossal 2.633); `LegacyVisualScale` keeps the old look; stamped
+  `EconomyScaleVersion`; idempotent (EconomyTests.migration).
+
+### Verification
+- `Invoke("economyTests")`: 201,608 checks, 0 failures (validate 1393, the
+  locked mutation snapshot + 200k seeded rolls, Night-never-modifies,
+  migration, funnel, Zone 9, formatting).
+- `Invoke("paritySim")`: 1,000,000 rolls x 11 zones in 37s; every observed
+  per-socket rate within sampling noise of its weight share; Zone 9 assertion
+  PASS.
+- Play: 60 sockets filled, duplicates present, steal -> place saves Scale /
+  Maturation / version and pays discovery Cash, refresh refills 60 with no
+  lean, treadmill tick = 4 x factor x bonus exactly.
+
+---
+
+## The mystery container and the hatch (schema v11)
+
+The zone loop changed shape. A zone no longer shows you what you are stealing:
+it shows a sealed container, and the reward inside it is not revealed until the
+container has been carried home, incubated on a pedestal and hatched.
+
+### The state machine
+
+`Spawned -> Carried -> Placed(sealed) -> Ready -> Hatched`, and the reward is
+rolled once, on the server, at spawn.
+
+- `LootService.spawn` rolls the item, the mutation and the Scale exactly as
+  before. Nothing about the roll moved; what changed is that the world model
+  built from it is a container, not the item.
+- `MysteryModel.build` produces that container from the zone's own model. It
+  carries four attributes and none of them name the reward: `ContainerScale`,
+  `ContainerDisplayScale`, `SizeAuraTier`, `Sealed`. The size aura and the
+  mutation VFX are dressed onto it deliberately - size and mutation are the two
+  things a player is meant to be able to see.
+- `PlacementService.place` writes `Hatched = false` and calls
+  `HatchService.beginIncubation`, which stamps `HatchEndsAt` ONCE. It is
+  idempotent, so storing a container and putting it back does not restart the
+  wait.
+- `HatchService.commit` is the only place a container becomes an item. It flips
+  `Hatched` FIRST and does every visible thing afterwards, so a failure in the
+  presentation half can never cost the reward. Discovery, the Index entry and
+  the discovery reward all happen HERE, not at placement: an item nobody has
+  seen must not appear in their collection.
+
+### What a client is allowed to know
+
+`HatchService.summarise` sends `{instanceId, slotIndex, endsAt, ready, scale}`
+and nothing else. No ItemId, no rarity, no mutation, no income. The pedestal
+shows a clock and a progress bar; the pad is painted a neutral colour rather
+than the rarity colour, which would have leaked the rarity as surely as a label.
+
+A sealed container also has NO rob prompt. `HeistService.dressPrompt` writes the
+item's name into the prompt's ObjectText and its rarity and Robux price into
+replicated attributes, so a prompt on an unhatched container announced the
+reward to everyone in range. `refreshPrompts` now skips sealed items and
+`HeistService.begin` re-checks it server-side.
+
+### Timings
+
+`HatchConfig.hatchSeconds(rarity, size, mutation)` = rarity base x size factor
+x mutation factor, rounded to whole seconds, clamped to 1s..12h.
+
+- Rarity base: 5s, 15s, 45s, 2m, 5m, 15m, 45m, 2h, 6h, 12h (Common..Divine).
+- Size: 1.00 / 1.08 / 1.20 / 1.35 / 1.60 / 2.00.
+- Mutation: 1.00 / 1.05 / 1.10 / 1.20 / 1.35, applied BY ORDER in
+  `RarityConfig.Mutations`, so aliases (Neon, Glitched) cost what their real
+  mutation costs.
+
+Everything is an absolute `os.time()` stamp, so the wait runs while the player
+is offline and a rejoin can neither skip it nor restart it.
+
+### The reveal
+
+`HatchController` plays a seven-phase scripted animation (wake, suspense,
+spinUp, freeze, pop, reveal, settle - the timings are `HatchConfig.Phases`) on
+a CLONE, with the authoritative model hidden by `LocalTransparencyModifier`.
+There is no AnimationId anywhere in it. The server has already committed before
+the first frame, so a player who disconnects mid-animation still owns the item.
+Fragment counts are halved on touch devices.
+
+### Sizes
+
+`ScaleConfig` rolls a VARIANT first (Normal 60, Big 20, Huge 10, Giant 4,
+Titan 1.5, Colossal 0.5 - relative weights that total 96 and are normalised, so
+a roll can never come back empty) and then a uniform Scale inside that variant's
+range. Zone band multipliers bias it: Early (1-3), Middle (4-6), Advanced (7-9),
+Endgame (10-12). Observed over 200,000 rolls a zone, Normal falls 74.5% -> 69.8%
+-> 62.5% -> 55.3% and Colossal climbs 0.014% -> 0.051% -> 0.521% -> 1.355%.
+
+The label thresholds are DERIVED from the midpoints between variant ranges, so a
+rolled Scale always reads back as its own variant. That is what lets one saved
+number carry both the income and the size word.
+
+---
+
+## Model pivots: the bug class behind three separate symptoms
+
+`Model:GetPivot()` is the PrimaryPart's frame, and `PivotTo(target)` re-seats a
+model by `target * pivot:Inverse()`. So whatever tilt the PrimaryPart carries is
+applied to the ART the moment anything places the model upright.
+
+Both pipelines were choosing the PrimaryPart with `FindFirstChildWhichIsA`,
+which returns whichever part happens to be first in the child list. Three
+symptoms, one cause:
+
+- The Vanilla Milkshake stood on its head on every pedestal. Its parts are all
+  built the right way up; one union carries a frame whose UpVector is (0, -1, 0)
+  and that was the part being picked.
+- Every zone container was laid on its back on its pad, for the same reason.
+- A `LootConfig.ModelOrientation` row could not fix either, because
+  `PivotTo(GetPivot() * R)` moves the parts AND the pivot together: the offsets
+  never change and the caller's next `PivotTo` discards the correction entirely.
+
+The fixes:
+
+- `LootModel.chooseAnchor` picks a part whose own frame is upright, largest
+  first. `LootModel.uprightAudit()` (`Invoke("upright")`) reports any item whose
+  anchor is still tilted; all 95 items with art pass.
+- `MysteryModel.ensureHitbox` now makes the axis-aligned hitbox the container's
+  PrimaryPart, and builds it unconditionally. It is a better carry anchor and
+  prompt host anyway: it sits at the middle of the container rather than at
+  whichever corner an imported mesh calls its origin.
+- `LootConfig.ModelOrientation` is empty, and that is the answer rather than an
+  omission. A row in it would now put the milkshake back on its head. It applies
+  to the geometry before the anchor is chosen, for art genuinely authored lying
+  down as a set.
+
+### Sockets on the floor
+
+Every zone carries an invisible, non-colliding `Bounds` volume about 39 studs
+tall spanning the whole zone. `MysterySpawnService.floorY` cast a plain downward
+ray, hit its LID, and put all 48 sockets - and every container on them - 39
+studs in the air. The ray now sets `RespectCanCollide = true` and refuses any
+surface more than `MAX_SURFACE_RISE` studs above the guardian's own footing.
+
+The socket's `Rim` is a CHILD part, and parts do not inherit a parent part's
+transform, so moving only the socket left every rim behind at the map's original
+layout. `layoutZone` now carries the children with it.
+
+---
+
+## The Scientist guardian, and every other one
+
+A guardian's chase speed was calibrated against an UNENCUMBERED player, but a
+chased player is always carrying, and the carry penalty (4% Big to 25% Colossal)
+was subtracted only from the thief. The designed margin therefore only ever
+existed for a Normal, and the bigger the prize the more certainly it was lost.
+
+`GuardianService.speedForChase` now takes the carry penalty and applies the same
+factor to the guardian. Measured at Zone 9 (recommended 700M, 2654-stud run):
+
+| Speed | Normal | Colossal |
+|-------|--------|----------|
+| 350M  | -82.6  | -62.0    |
+| 700M  | +0.5   | +0.4     |
+| 1B    | +5.5   | +4.1     |
+| 3B    | +20.9  | +15.7    |
+
+The gate still bites below the recommended stat, and above it every size escapes
+by the margin the design intended. The same shape holds in every zone; Zone 1 at
+the starting stat of 10 is +1.7 Normal to +1.3 Colossal, so the tutorial steal
+works with anything.
+
+---
+
+## Traps
+
+A trap is a recharging ability, not a consumable. `PvPConfig.TRAP_COOLDOWN` and
+`TRAP_LIFETIME` are both 300s and they are separate clocks:
+
+- The COOLDOWN is `profile.TrapReadyAt`, an absolute `os.time()` stamp, so it
+  keeps running while the player is offline and a rejoin cannot skip it.
+  `PvPService.trapCooldownRemaining` is its only reader.
+- The LIFETIME is `os.clock()` on the live trap, which is correct because an
+  unsprung trap does not survive a shutdown anyway.
+- `TrapCount` is no longer decremented.
+
+---
+
+## Verification (all in Play, all repeatable)
+
+| Command | What it proves |
+|---------|----------------|
+| `Invoke("economyTests")` | 202,280 checks, 0 failures |
+| `Invoke("paritySim", nil, 1000000)` | 11M rolls in 13s; Zone 9 assertion PASS |
+| `Invoke("sizeOdds", nil, 200000)` | 2.4M rolls; worst deviation 0.169pp; no roll ever returns no variant |
+| `Invoke("guardianAudit", nil, 9)` | chase margins by Speed and size |
+| `Invoke("upright")` | 95 items, 0 with a tilted anchor |
+| `Invoke("persistTest")` | encode/decode/migrate/reconcile leaves every hatch deadline identical |
+| `Invoke("spamHatch", nil, 25)` | 25 commits on one container: 1 accepted, 24 refused |
+| `Invoke("traps", "place"/"expire"/"reset")` | cooldown gate, 300s expiry, cooldown outliving the trap |
+| `Invoke("sealGrant", id, n, scale)` | sealed containers without running a steal per container |
+
+Zone 9's restated figures, four sockets and a 270-second cycle:
+
+| | Value |
+|---|---|
+| Per socket | 0.495856% |
+| At least once across the four nests | 1.96872% |
+| Occurrences per hour | 0.26445653 |
+
+The economy brief's 2.4548% and 0.2975136 assumed five sockets and twelve
+refreshes an hour. The per-socket probability has not moved; the fifth spawn was
+removed by the later brief and the live cycle refreshes 3600/270 times an hour.
+Both old figures are still asserted in `EconomyTests` as the record of what
+changed.
+
+---
+
+## The reveal polish (schema v12)
+
+Every player-facing word is REVEAL. Module and save-key names (`HatchService`,
+`HatchEndsAt`, `Hatched`) are unchanged on purpose: renaming them would have
+touched every existing save and every API for a cosmetic gain.
+
+### One prompt, one action per state
+
+The display slot has exactly one ProximityPrompt (`SlotPrompt`), retitled by
+`PlacementService.refreshPrompts` from the item's real state and dispatched on
+that state again at trigger time. The label is never the authority.
+
+| State | Prompt |
+|---|---|
+| Empty slot | Place |
+| Sealed, counting | Instant Reveal |
+| Sealed, ready | Reveal |
+| Revealing (animation) | none: `ServerEnabled = false` for LOCK_SECONDS |
+| Revealed item | Store |
+
+The client flips Instant Reveal to Reveal itself the second its clock hits
+zero (`RevealEndsAt` attribute on the prompt), and InteractController repaints
+its card when the current prompt retitles. `PlacementService.store` refuses a
+sealed or revealing container server-side ("Reveal it first!") whatever the
+client asked.
+
+### The swap, and why the container used to vanish
+
+`HatchService.commit` no longer rebuilds the pedestal at once. It flips the
+flag, starts the income, cues the owner's client, and rebuilds SWAP_AT seconds
+later - the start of the pop. The client animates a clone, hides the real
+container locally, conceals the arriving item the instant it replicates, and
+shows it on the pop frame as the clone dissolves. There is never a frame with
+nothing on the pedestal (verified: 215 frames watched, 0 empty).
+
+The old gap: the commit rebuilt the pedestal BEFORE cueing the client, so the
+client found the already-revealed item where it expected the container, hid
+it, animated a clone of the wrong thing, then waited two seconds for a "new"
+trophy that had already arrived and never would again.
+
+### The one sound
+
+`HatchConfig.POP_SOUND` plays once, on the client, on the pop frame. The server
+sends no cue for a reveal: the ready sweep is silent, discovery is silent, the
+HATCHED and NEW DISCOVERY toasts are gone (the discovery Cash is still paid).
+The doubled sound was `NewDiscovery` fired by both `StateService.sound` on the
+server and the client on its pop, with `TreadmillUnlock` doubled the same way
+between the ready sweep and the spin-up, and `UpgradePurchase` doubled by two
+"levelup" toasts landing in one frame.
+
+### Instant Reveal
+
+`MonetizationConfig.RevealProducts`: seven tiers priced by the time LEFT at
+the moment of the prompt (`revealProductFor(remaining)`), never by the
+original wait. `HatchService.promptInstantReveal` saves `profile.PendingReveal`
+before opening the dialog; `HatchService.fulfil` (installed as the "Reveal"
+receipt handler) resolves the exact container, marks it ready, commits it, and
+returns false to leave a receipt OPEN when there is nothing to deliver yet. A
+receipt for a container the player revealed by hand meanwhile is consumed
+against that same container, never a second one. Replays of a PurchaseId are
+granted again without a second reveal (`ProcessedReceipts`).
+
+### The opening popup
+
+One line, once in a lifetime: `TutorialIntroSeen` (durable, v12 migration
+marks anyone with progress as having seen it). TutorialService carries
+`showIntro` on its pushes for a 20-second window and pushes once a second
+inside it, because the join push alone can land before the client has wired
+its controllers and a fresh idle profile produces no other pushes. The
+client shows it once per window. Stage banners are gone; the world arrow is
+the whole presentation of a stage.
+
+### Tests
+
+`Invoke("instantReveal", slot)` delivers a synthetic receipt through the live
+`processReceipt`; `Invoke("instantReveal", slot, purchaseId)` replays one;
+`Invoke("instantReveal", slot, nil, productId)` sends a wrong tier.
+`Invoke("introReset")` re-opens the popup window.
+
+### Audit findings after the polish pass
+
+- **Wrong-size item after a reveal (latent).** DisplayFxController pops every
+  arriving Trophy in with its own 0.36s scale tween, and the reveal read the
+  item's rest scale while that tween was mid-flight, so its final ScaleTo could
+  settle the item at the wrong size. The reveal now stamps the arriving model
+  `RevealHold` (local attribute) the frame it replicates, DisplayFx skips its
+  pop-in for a held model, and the reveal takes the rest scale from the
+  `BuiltScale` attribute LootModel writes at build time. Verified: final scale
+  equals BuiltScale to 1e-3.
+- **A sealed container could be named through storage.** `PlacementService.
+  equip` toasted "PLACED <name> +income" for any item, and `sellStored` priced
+  any item, so a sealed container that reached storage under v11 (storing one
+  was allowed then) would leak its reward on the way back out. `equip` now
+  re-seats a sealed container silently and `sellStored` refuses it; the v12
+  migration reveals in place any sealed container already sitting in a v11
+  Studio save, because the raw Inventory list is what the storage panel
+  renders. No released save can contain one: v11 and v12 shipped together.
+
+---
+
+## Map visibility, crate motion and the storage panel
+
+- **Distant zones missing on join.** `default.project.json` turned on
+  `Workspace.StreamingEnabled` with a 1600-stud target radius, so anything
+  past that only replicated as the player approached. Streaming is now off in
+  the project file AND set off on the place itself (Rojo only re-applies
+  Workspace properties on a fresh sync, so the property was flipped in the
+  Edit data model as well; save the place). `ModelStreamingMode = Atomic` on
+  built models is harmless with streaming off and was left alone.
+- **Crates frozen at distance, snapping on approach.** Both animators skipped
+  anything beyond a cull radius and advanced a per-crate angle counter only
+  while near, so a far crate held its rest pose and then jumped to whatever
+  the counter said the moment it came into range. The angle is now derived
+  from the clock (`phase + rate x os.clock()`) for every crate, near or far,
+  and the phase is chosen at rest-pose capture so the first animated frame IS
+  the authored pose: no freeze, no jump, including a freshly spawned crate
+  (measured: settles 0.5s, then a maximum step of 0.010 rad). The pedestal
+  animator also moved from RenderStepped to Heartbeat, like the world crates,
+  so its rate survives a throttled renderer (it was updating on one sample in
+  four while the Studio viewport was unfocused). Cost: 48 world pivots and up
+  to 98 pedestal pivots a frame.
+- **Storage cards shifting.** Every rebuild popped each card in through a
+  UIScale tween (0.85 -> 1, Back-Out overshoot, staggered 30ms per card), and
+  UIListLayout positions children from their live AbsoluteSize - which a
+  UIScale changes - so every card below the one swelling slid and bounced.
+  The list was also torn down and re-cloned on any change. Each card now sits
+  in a fixed-size CanvasGroup slot the layout positions; the entrance is a
+  fade on the group; the Items tab diffs by InstanceId and keeps existing
+  card instances, adding or removing only what changed. Measured: 30 samples
+  over 3s with 0 moves or resizes; a store keeps every existing instance in
+  place and appends one; an equip removes exactly one.
+
+### Socket pads and reveal sound timing
+
+- The dark square pad under every zone crate was the socket part itself plus
+  its `Rim` child (server-built by the map, re-seated by
+  `MysterySpawnService.layoutZone`); the light circle was a client-only neon
+  `LootRing` that `WorldLootFxController` built under each crate. The pad and
+  rim are now fully transparent but still present - the crate is seated on
+  the socket, the prompt anchor and the socket layout are measured from it,
+  and the ready sweep reads it - so nothing moved: all 48 sockets at their
+  original height, seating gap unchanged, steal/escape/place verified. The
+  ring is removed outright (with the reward hidden it could only ever be one
+  colour anyway), along with its Legendary point light.
+- The reveal sound (`RevealPop`, asset 92415130454101) now starts on the
+  first frame of the reveal sequence rather than on the pop. Measured: 3ms
+  after the reveal cue, with the item swap 1.63s later; exactly one sound, and
+  the old `NewDiscovery` asset is not created anywhere.

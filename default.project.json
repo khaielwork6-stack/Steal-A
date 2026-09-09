@@ -22,8 +22,7 @@
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true,
-        "StreamingEnabled": true,
-        "StreamingTargetRadius": 1600
+        "StreamingEnabled": false
       }
     },
     "Lighting": {

@@ -240,9 +240,9 @@ local function resolveSwing(attacker: Player, weapon: PvPConfig.WeaponDef)
 			profile.Lifetime.PvPSteals += 1
 		end
 		notify(attacker, "success", `You knocked the {carried.name} loose!`)
-	else
-		notify(attacker, "info", if weapon.name == "Slap" then "SLAPPED!" else "Hit!")
 	end
+	-- No toast for a plain hit. The connect sound, the swing, the launch and
+	-- the ragdoll are the feedback; a "Hit!" card on top was noise.
 
 	RagdollService.launch(victim, origin, {
 		knockback = weapon.knockback,
@@ -431,6 +431,27 @@ local function buildTrapPart(position: Vector3, owner: Player): BasePart
 	return part
 end
 
+--- Seconds until this player's trap is usable again, 0 when it is ready.
+--- The ONE reader of the stamp: the placement gate, the HUD and the tests all
+--- come through here, so there is no second interpretation of the clock.
+function PvPService.trapCooldownRemaining(player: Player): number
+	local profile = DataService.get(player)
+	if not profile then
+		return 0
+	end
+	return math.max(0, (tonumber(profile.TrapReadyAt) or 0) - os.time())
+end
+
+--- True when the player may place a trap right now: off cooldown, and holding
+--- at least one in their saved inventory.
+function PvPService.canPlaceTrap(player: Player): boolean
+	local profile = DataService.get(player)
+	if not profile or profile.TrapCount <= 0 then
+		return false
+	end
+	return PvPService.trapCooldownRemaining(player) <= 0
+end
+
 function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	if not trapLimiter:consume(player) then
 		return
@@ -440,6 +461,15 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	if not profile then
 		return
 	end
+	-- THE COOLDOWN IS THE GATE. An absolute second on the profile, so it keeps
+	-- running while the player is offline and a rejoin can neither skip it nor
+	-- restart it. Checked before anything is consumed or built.
+	local waiting = PvPService.trapCooldownRemaining(player)
+	if waiting > 0 then
+		notify(player, "error", `Trap recharging - {math.ceil(waiting)}s`)
+		return
+	end
+
 	if profile.TrapCount <= 0 then
 		notify(player, "error", "You have no traps left.")
 		return
@@ -497,9 +527,12 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 		return
 	end
 
-	-- Consume first: the count is saved, so resetting or rejoining can never
-	-- hand a player free traps.
-	profile.TrapCount -= 1
+	-- START THE COOLDOWN, do not spend the trap. The trap is a recharging
+	-- ability: the charge comes back when this stamp passes, which is what
+	-- stops a placed trap being lost forever when its owner leaves or dies.
+	-- Stamped BEFORE the trap is built, so nothing between here and the world
+	-- object can hand out a second one.
+	profile.TrapReadyAt = os.time() + PvPConfig.TRAP_COOLDOWN
 
 	table.insert(traps, {
 		owner = player,
@@ -510,7 +543,7 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	})
 
 	StateService.pushNow(player)
-	notify(player, "success", `Trap placed. {profile.TrapCount} left.`)
+	notify(player, "success", `Trap placed. Recharges in {PvPConfig.TRAP_COOLDOWN // 60}m.`)
 end
 
 local function triggerTrap(trap: Trap, victim: Player)
@@ -978,6 +1011,10 @@ function PvPService.start()
 		trapLimiter:release(player)
 		weaponLimiter:release(player)
 		lastSwing[player] = nil
+		-- Their traps leave with them: a live trap belonging to nobody cannot
+		-- be triggered, credited or cleaned up later. This costs the player
+		-- nothing now that the trap RECHARGES rather than being spent - the
+		-- cooldown stamp on their profile is what they get back.
 		for index = #traps, 1, -1 do
 			if traps[index].owner == player then
 				traps[index].part:Destroy()
@@ -994,6 +1031,21 @@ end
 --- Debug helper.
 function PvPService.activeTrapCount(): number
 	return #traps
+end
+
+--- Debug helper. Back-dates every live trap so the 300-second expiry can be
+--- observed in a test without waiting five minutes. Studio only: it does
+--- nothing at all in a real server.
+function PvPService.debugAgeTraps(seconds: number): number
+	if not RunService:IsStudio() then
+		return 0
+	end
+	local aged = 0
+	for _, trap in traps do
+		trap.placedAt -= seconds
+		aged += 1
+	end
+	return aged
 end
 
 return PvPService

@@ -12,7 +12,7 @@
 
 	WHERE THEY STAND AND WHICH WAY THEY FACE
 	One per zone, on the LEFT of the entrance from the approaching player's
-	point of view, planted SIGN_LEAD studs BEFORE the zone's near edge and
+	point of view, planted SIGN_INSIDE studs INSIDE the zone's near edge and
 	turned SIGN_YAW degrees in toward the lane centre.
 	The face is drawn on the board's Front (its -Z side), which is the side an
 	approaching player sees: they come up the lane from -Z. The old signs sat
@@ -36,14 +36,19 @@ local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local ZoneSignService = {}
 
-local POST_HEIGHT = 24
-local BOARD_SIZE = Vector3.new(34, 14, 1)
---- Studs before the zone's near edge.
-local SIGN_LEAD = 16
+--- Smaller than the first pass (24-high post, 34 x 14 board): the sign is a
+--- corner marker inside the zone now, not a billboard over the lane.
+local POST_HEIGHT = 15
+local BOARD_SIZE = Vector3.new(22, 9, 1)
+--- Studs INSIDE the zone, past its near edge. The sign stands in the zone
+--- it names, in the corner by the left wall just past the entrance - not
+--- out in the lane ahead of it, where it sat in every player's eyeline.
+local SIGN_INSIDE = 18
 --- Degrees each board turns in toward the lane centre.
-local SIGN_YAW = 20
---- Distance in from the wall face: inside the gate pylon, clear of it.
-local SIGN_INSET = 30
+local SIGN_YAW = 24
+--- Board centre's distance in from the wall face. The board is 22 wide and
+--- yawed, so this keeps its outer end a couple of studs off the wall.
+local SIGN_INSET = 13
 
 local PANEL = Color3.fromRGB(18, 22, 36)
 local PANEL_EDGE = Color3.fromRGB(34, 40, 62)
@@ -69,10 +74,10 @@ local function label(parent: Instance, name: string, position: UDim2, size: UDim
 	return made
 end
 
-local function buildFace(board: BasePart, zone: ZoneConfig.ZoneDef, accent: Color3)
+local function buildFace(board: BasePart, zone: ZoneConfig.ZoneDef, accent: Color3, face: Enum.NormalId)
 	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Face"
-	gui.Face = Enum.NormalId.Front
+	gui.Name = if face == Enum.NormalId.Front then "Face" else "BackFace"
+	gui.Face = face
 	gui.LightInfluence = 0
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 24
@@ -128,7 +133,7 @@ end
 
 local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 	local startZ = MapConfig.zoneStartZ(zone.index)
-	local z = startZ - SIGN_LEAD
+	local z = startZ + SIGN_INSIDE
 
 	local model = Instance.new("Model")
 	model.Name = `Sign_{zone.id}`
@@ -136,7 +141,7 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 	-- Wear the colour of the best thing this zone can produce, read from the
 	-- rarity ladder rather than from a hand-written zone->rarity table that
 	-- would silently disagree with it the first time a band boundary moves.
-	local accent = RarityConfig.Colors[RarityConfig.jackpotRarityFor(zone.index)] or RarityConfig.Colors.Common
+	local accent = RarityConfig.Colors[RarityConfig.topRarityFor(zone.index)] or RarityConfig.Colors.Common
 
 	-- ONE sign per zone, on the LEFT of the entrance as the player approaches.
 	-- They come up the lane along +Z, and a character facing +Z has +X on
@@ -172,7 +177,10 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 		board.CastShadow = false
 		board.Transparency = 1
 		board.Parent = model
-		buildFace(board, zone, accent)
+		-- Both sides: the approach (Front, -Z) and the run home (Back, +Z),
+		-- so the sign reads whichever way the player is going.
+		buildFace(board, zone, accent, Enum.NormalId.Front)
+		buildFace(board, zone, accent, Enum.NormalId.Back)
 
 		-- A rarity-coloured cap so zones read as escalating from a distance.
 		local cap = Instance.new("Part")

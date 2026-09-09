@@ -1,9 +1,8 @@
 --!strict
 --[[
 	WorldLootFxController
-	Every piece of loot sitting in a zone socket is alive: a slow turn, a
-	gentle hover for the ordinary sizes, and a soft ring of its rarity colour on
-	the pad beneath it. Client-side and cosmetic, like the base displays
+	Every piece of loot sitting in a zone socket is alive: a slow turn and a
+	gentle hover for the ordinary sizes. Client-side and cosmetic, like the base displays
 	(DisplayFxController): forty-eight sockets animated here cost the server
 	nothing and replicate nothing.
 
@@ -20,11 +19,16 @@
 	           Colossal revolves with the weight it should have
 	    hover  0.22 studs at ~0.55 Hz, only up to the carry knee (2.6x); giants
 	           sit still and merely turn
-	    ring   a neon disc in the rarity colour, breathing slowly; Legendary and
-	           above also get a small point light
-	Only sockets within ANIMATE_DISTANCE of the camera move; the rest hold
-	their rest pose. Reduced Effects keeps the turn and drops the hover, the
-	breathing and the lights.
+	    (the neon ring that used to sit under each crate is gone: with the
+	    reward hidden it could only ever be one colour, and the pads it sat
+	    on are no longer drawn)
+	EVERY socket turns, always, and the angle is a function of the clock -
+	phase + rate x elapsed - rather than a counter that only advances while
+	the camera is close. That is what makes the motion continuous from any
+	distance: a crate seen from across the map is at exactly the angle it
+	would have reached had it been watched the whole time, so there is no
+	frozen pose and no jump when it is approached. Forty-eight pivots a frame
+	is nothing. Reduced Effects keeps the turn and drops the hover.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,8 +38,6 @@ local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 
 local WorldLootFxController = {}
 
-local ANIMATE_DISTANCE = 320
-local CULL_INTERVAL = 0.5
 --- Base turn rate (radians per second) for a 1x item.
 local TURN_RATE = 0.5
 --- Hover amplitude (studs) and angular frequency.
@@ -47,82 +49,29 @@ local HOVER_MAX_SCALE = RarityConfig.CARRY_SCALE_KNEE
 --- replicated hierarchy land so the rest pose captured is the true one.
 local SETTLE_SECONDS = 0.5
 
---- Ring transparency at rest by rarity rank; brighter as it gets rarer.
-local RING_TRANSPARENCY_COMMON = 0.72
-local RING_TRANSPARENCY_TOP = 0.3
-local RING_BREATHE = 0.1
 
 type Entry = {
 	model: Model,
 	socket: BasePart,
 	base: CFrame?,
 	readyAt: number,
-	angle: number,
+	--- The angle at t = 0 (os.clock zero). Chosen when the rest pose is
+	--- captured so that the FIRST animated frame is the authored pose itself:
+	--- the crate turns away from where it stands rather than jumping to a
+	--- random angle when its animation begins.
 	phase: number,
+	--- Same idea for the hover: aligned so the first frame sits at zero lift.
+	hoverPhase: number,
+	--- Radians per second. The angle at any moment is phase + turn x clock.
 	turn: number,
 	hover: number,
-	near: boolean,
-	ring: BasePart?,
-	light: PointLight?,
-	ringRest: number,
 }
 
 local entries: { [Model]: Entry } = {}
 local reducedEffects = false
-local lastCull = 0
 
 function WorldLootFxController.setReducedEffects(value: boolean)
 	reducedEffects = value
-	for _, entry in entries do
-		if entry.light then
-			entry.light.Enabled = not value
-		end
-		if entry.ring then
-			entry.ring.Transparency = entry.ringRest
-		end
-	end
-end
-
--- ==========================================================
--- THE RING
--- ==========================================================
-
-local function buildRing(entry: Entry)
-	local rarity = entry.model:GetAttribute("Rarity")
-	local color = RarityConfig.Colors[if type(rarity) == "string" then rarity else "Common"] or Color3.new(1, 1, 1)
-	local rank = RarityConfig.rank(if type(rarity) == "string" then rarity else "Common")
-	local top = RarityConfig.rank("Secret")
-	local alpha = math.clamp(rank / math.max(top, 1), 0, 1)
-	entry.ringRest = RING_TRANSPARENCY_COMMON + (RING_TRANSPARENCY_TOP - RING_TRANSPARENCY_COMMON) * alpha
-
-	local socket = entry.socket
-	local diameter = math.min(socket.Size.X, socket.Size.Z) * 0.8
-	local ring = Instance.new("Part")
-	ring.Name = "LootRing"
-	ring.Shape = Enum.PartType.Cylinder
-	ring.Size = Vector3.new(0.12, diameter, diameter)
-	ring.CFrame = CFrame.new(socket.Position + Vector3.new(0, socket.Size.Y / 2 + 0.08, 0)) * CFrame.Angles(0, 0, math.rad(90))
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CanQuery = false
-	ring.CanTouch = false
-	ring.CastShadow = false
-	ring.Material = Enum.Material.Neon
-	ring.Color = color
-	ring.Transparency = entry.ringRest
-	ring.Parent = socket
-	entry.ring = ring
-
-	if rank >= RarityConfig.rank("Legendary") then
-		local light = Instance.new("PointLight")
-		light.Color = color
-		light.Brightness = 0.9
-		light.Range = 14
-		light.Shadows = false
-		light.Enabled = not reducedEffects
-		light.Parent = ring
-		entry.light = light
-	end
 end
 
 -- ==========================================================
@@ -138,14 +87,7 @@ local function isSocket(instance: Instance?): boolean
 end
 
 local function unregister(model: Model)
-	local entry = entries[model]
-	if not entry then
-		return
-	end
 	entries[model] = nil
-	if entry.ring then
-		entry.ring:Destroy()
-	end
 end
 
 local function register(model: Model)
@@ -162,17 +104,12 @@ local function register(model: Model)
 		socket = socket,
 		base = nil,
 		readyAt = os.clock() + SETTLE_SECONDS,
-		angle = math.random() * math.pi * 2,
-		phase = math.random() * math.pi * 2,
+		phase = 0,
+		hoverPhase = 0,
 		turn = TURN_RATE / math.sqrt(math.max(scale, 1)),
 		hover = if scale <= HOVER_MAX_SCALE then HOVER_AMPLITUDE else 0,
-		near = false,
-		ring = nil,
-		light = nil,
-		ringRest = RING_TRANSPARENCY_COMMON,
 	}
 	entries[model] = entry
-	buildRing(entry)
 
 	-- The moment it leaves its socket (stolen, refreshed, destroyed) it is the
 	-- server's again.
@@ -187,20 +124,8 @@ end
 -- FRAME
 -- ==========================================================
 
-local function cull()
-	local camera = workspace.CurrentCamera
-	local eye = if camera then camera.CFrame.Position else Vector3.zero
-	for _, entry in entries do
-		entry.near = (entry.socket.Position - eye).Magnitude <= ANIMATE_DISTANCE
-	end
-end
-
-local function step(dt: number)
+local function step()
 	local now = os.clock()
-	if now - lastCull >= CULL_INTERVAL then
-		lastCull = now
-		cull()
-	end
 
 	for model, entry in entries do
 		if not model.Parent then
@@ -215,23 +140,20 @@ local function step(dt: number)
 				continue
 			end
 			entry.base = model:GetPivot()
+			-- Continuous from the very first frame: no offset now, so no jump.
+			entry.phase = -entry.turn * now
+			entry.hoverPhase = -now * HOVER_RATE - math.pi / 2
 		end
-		if not entry.near then
-			continue
-		end
-
-		entry.angle += entry.turn * dt
+		-- Clock-derived, never accumulated: the same frame at the same
+		-- moment whether this crate has been on screen for an hour or has
+		-- just come into view.
+		local angle = entry.phase + entry.turn * now
 		local lift = 0
 		if not reducedEffects and entry.hover > 0 then
-			lift = (math.sin(now * HOVER_RATE + entry.phase) + 1) * 0.5 * entry.hover
+			lift = (math.sin(now * HOVER_RATE + entry.hoverPhase) + 1) * 0.5 * entry.hover
 		end
 		local base = entry.base :: CFrame
-		model:PivotTo(base * CFrame.Angles(0, entry.angle, 0) + Vector3.new(0, lift, 0))
-
-		local ring = entry.ring
-		if ring and not reducedEffects then
-			ring.Transparency = entry.ringRest + math.sin(now * 1.6 + entry.phase) * RING_BREATHE
-		end
+		model:PivotTo(base * CFrame.Angles(0, angle, 0) + Vector3.new(0, lift, 0))
 	end
 end
 

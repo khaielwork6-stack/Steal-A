@@ -28,7 +28,16 @@ PvPConfig.KNOCKBACK_LIFT = 14
 PvPConfig.POST_RAGDOLL_IMMUNITY = 1.5 -- stops permanent stun chains
 
 -- Traps: consumable, saved, and never duplicated by resetting.
-PvPConfig.TRAP_LIFETIME = 30
+--- How long a placed trap stays armed in the world before it expires and is
+--- removed. Five minutes, the same span as the cooldown, so "one trap out at
+--- a time" and "one trap every five minutes" are the same sentence.
+PvPConfig.TRAP_LIFETIME = 300
+--- Seconds before a used trap is available again. THE TRAP IS A RECHARGING
+--- ABILITY, not a consumable that can be lost: using one starts this cooldown
+--- and the charge returns when it ends. Stored as an absolute Unix second on
+--- the profile (Profile.TrapReadyAt), so it runs while the player is offline,
+--- survives a rejoin, and cannot be shortened by reconnecting.
+PvPConfig.TRAP_COOLDOWN = 300
 PvPConfig.TRAP_ROOT_DURATION = 5
 PvPConfig.TRAP_TRIGGER_RADIUS = 5
 PvPConfig.TRAP_PLACE_RADIUS = 12 -- max distance in front of the player

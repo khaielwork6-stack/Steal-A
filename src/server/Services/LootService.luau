@@ -1,7 +1,14 @@
 --!strict
 --[[
 	LootService
-	Four active loot sockets per zone, weighted rolls, and the socket lifecycle.
+	Four sealed mystery containers per zone, weighted rolls, and the socket
+	lifecycle.
+
+	WHAT A ZONE SHOWS. Never the item: a closed container whose SIZE is the
+	hidden size variant and whose VFX is the hidden mutation. The identity,
+	rarity and income are rolled here, once, and stay on the server until the
+	player has escaped with it and hatched it (HatchService). Nothing about the
+	reward is written onto the world model or replicated to a client.
 
 	Authoritative state lives here and only here. Every concrete loot instance
 	carries a GUID and a state, and every transition checks both the current
@@ -36,13 +43,15 @@
 	    minutes for the thing you failed to steal)
 	  * an unclaimed PvP drop timing out
 
-	== JACKPOTS ==
+	== THE ROLL ==
 
-	The 8th item in every zone is its jackpot and is excluded from ordinary rolls
-	entirely. Once per global refresh the server makes ONE roll (never one per
-	socket) at GameConfig.JACKPOT_REFRESH_CHANCE; on success exactly one jackpot
-	is placed in one socket of one reachable zone and announced. Players still
-	have to go and steal it.
+	FOUR sockets per zone, standing around that zone's guardian. Every socket
+	rolls INDEPENDENTLY from ALL EIGHT of
+	its zone's items at each item's own zone weight (LootConfig.ZoneWeights):
+	no exclusion, no reroll, no jackpot slot, no Night lean, duplicates
+	allowed. Scale and mutation are rolled once per instance from their own
+	tables and saved. What the announcer calls out never feeds back into a
+	roll. See rollItem.
 ]]
 
 local HttpService = game:GetService("HttpService")
@@ -52,9 +61,11 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
-local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
-local SizeAura = require(ReplicatedStorage.Shared.Util.SizeAura)
+local MysteryConfig = require(ReplicatedStorage.Shared.Config.MysteryConfig)
+local MysteryModel = require(ReplicatedStorage.Shared.Util.MysteryModel)
+local MysterySpawnService = require(script.Parent.MysterySpawnService)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local LootService = {}
@@ -72,15 +83,27 @@ export type LootInstance = {
 	zoneIndex: number,
 	socketIndex: number,
 	rarity: string,
+	--- The six-word size LABEL, derived from `scale` (RarityConfig.sizeLabelFor).
 	size: string,
 	mutation: string,
 	baseIncome: number,
+	--- The pre-boost rate at moneyPass 1: what the card shows before an owner
+	--- exists. An owner's real rate is EconomyService's business.
 	finalIncome: number,
-	jackpot: boolean,
-	--- The exact visual scale rolled for this instance inside its size tier
-	--- (RarityConfig.rollVisualScale). Rolled once, saved onto the trophy,
-	--- never rerolled on render.
+	--- THE economy Scale: rolled once (ScaleConfig.rollScale), saved onto the
+	--- trophy, never rerolled. Income is a function of this and nothing else
+	--- about size.
+	scale: number,
+	--- The scale the MODEL is built at. Equal to `scale` for everything rolled
+	--- since the rebuild; a legacy item carries its old look here instead.
 	visualScale: number,
+	--- Unique per SPAWN, not per socket. Travels with the container through
+	--- the carry, the base and the hatch, so two clients racing the same
+	--- container - or a stale request after a return - can be told apart.
+	spawnToken: string,
+	--- True while the reward is still sealed. Set false only by a completed
+	--- hatch; the world container is always sealed.
+	sealed: boolean,
 	state: LootState,
 	carrier: Player?,
 	model: Model?,
@@ -175,12 +198,12 @@ LootService.setState = setState
 -- ROLLING
 -- ==========================================================
 
-local function weightedPick(entries: { { chance: number } }): number
+local function weightedPick(entries: { { chance: number } }, rng: Random?): number
 	local total = 0
 	for _, entry in entries do
 		total += entry.chance
 	end
-	local roll = math.random() * total
+	local roll = (if rng then rng:NextNumber() else math.random()) * total
 	local cursor = 0
 	for index, entry in entries do
 		cursor += entry.chance
@@ -191,214 +214,96 @@ local function weightedPick(entries: { { chance: number } }): number
 	return #entries
 end
 
---- ItemIds of the types currently active anywhere in a zone. A zone never shows
---- the same type twice at once.
-local function activeTypes(zoneIndex: number): { [string]: boolean }
-	local active = {}
-	for _, socket in sockets[zoneIndex] or {} do
-		if socket.loot then
-			active[socket.loot.itemId] = true
-		end
-	end
-	return active
-end
-
---- Rolls one item for a socket out of the zone's NORMAL pool.
+--- THE ITEM ROLL. One socket, one independent draw from ALL EIGHT of the
+--- zone's items, each at its own zone-specific weight (LootConfig.ZoneWeights).
 ---
---- Jackpots are not in that pool at all, so no amount of socket churn can
---- produce one. Everything else is weighted by its rarity's share of
---- RarityConfig.NormalWeights and then RENORMALISED across whatever is actually
---- eligible - which handles both a zone whose ladder omits a tier and a tier
---- whose item is already on show in another socket, without the old
---- roll-a-band-then-hunt-for-a-member fallback that quietly skewed the curve.
---- `exclude` defaults to the types already on show in the zone (a zone never
---- shows the same type twice at once). Tests pass an empty table to measure the
---- raw weight curve rather than the without-replacement one four live sockets
---- actually produce.
---- Temporary weight multipliers, installed by NightService for the duration
---- of ONE refresh and removed straight after. Multiplied in before the roller
---- renormalises, so a boosted 2% tier becomes 3% with everything else shrinking
---- to make room - never 150%. Nil means the plain tables.
-export type RollBoosts = {
-	rarity: ((rarity: string) -> number)?,
-	size: ((sizeId: string) -> number)?,
-}
-
-local rollBoosts: RollBoosts? = nil
-
-function LootService.setRollBoosts(boosts: RollBoosts?)
-	rollBoosts = boosts
-end
-
-local function rollItem(zoneIndex: number, exclude: { [string]: boolean }?): LootConfig.ItemDef?
-	local taken = exclude or activeTypes(zoneIndex)
-
-	local candidates: { LootConfig.ItemDef } = {}
-	local weights: { number } = {}
-	local total = 0
-
-	local rarityBoost = if rollBoosts then rollBoosts.rarity else nil
-	for _, item in LootConfig.normalPool(zoneIndex) do
-		if not taken[item.id] then
-			table.insert(candidates, item)
-			local weight = RarityConfig.NormalWeights[item.rarity] or 0
-			if rarityBoost and weight > 0 then
-				weight *= rarityBoost(item.rarity)
-			end
-			table.insert(weights, weight)
-			total += weight
-		end
-	end
-
-	if #candidates == 0 then
+--- Nothing is excluded, nothing is rerolled, nothing is leaned: a socket next
+--- to a socket already showing the Blue Crystal has exactly the same chance
+--- of the Blue Crystal as any other, so duplicates happen at the rate the
+--- weights say and a Secret is exactly as likely with its announcement on or
+--- off. `rng` is a Random for deterministic tests; nil uses the global one.
+local function rollItem(zoneIndex: number, rng: Random?): LootConfig.ItemDef?
+	local pool = LootConfig.pool(zoneIndex)
+	if #pool == 0 then
 		return nil
 	end
+	local total = LootConfig.ZoneWeightTotal[zoneIndex] or 0
 	if total <= 0 then
-		-- No eligible tier carries a normal weight. Should be impossible with a
-		-- sane ladder, but never leave a socket empty over a config typo.
-		return candidates[math.random(#candidates)]
+		return nil
 	end
-
-	local roll = math.random() * total
+	local roll = (if rng then rng:NextNumber() else math.random()) * total
 	local cursor = 0
-	for index, item in candidates do
-		cursor += weights[index]
+	for _, item in pool do
+		cursor += item.weight
 		if roll <= cursor then
 			return item
 		end
 	end
-	return candidates[#candidates]
+	return pool[#pool]
 end
 
 LootService.rollItem = rollItem
 
-local function rollVariant(list: { RarityConfig.Variant }, boost: ((string) -> number)?): RarityConfig.Variant
-	if not boost then
-		return list[weightedPick(list)]
-	end
-	-- Boosted: the same weighted pick over a temporary table, so the config
-	-- itself is never mutated and the lean vanishes with the boost.
-	local leaned = table.create(#list)
-	for index, variant in list do
-		leaned[index] = { chance = variant.chance * boost(variant.id) }
-	end
-	return list[weightedPick(leaned)]
+--- ONE weighted pick straight off the config table. No lean, no reroll, no
+--- fallback: the mutation odds are exactly the percentages written in
+--- RarityConfig, at every refresh and in every zone, day or Night.
+local function rollVariant(list: { RarityConfig.Variant }, rng: Random?): RarityConfig.Variant
+	return list[weightedPick(list, rng)]
 end
 
---- Every size / rarity roll, exposed so the debug bridge can simulate the
---- distribution with and without the Night lean.
-function LootService.rollSizeId(boost: ((string) -> number)?): string
-	return rollVariant(RarityConfig.Sizes, boost).id
+--- The mutation roll, exposed for the regression tests.
+function LootService.rollMutationId(rng: Random?): string
+	return rollVariant(RarityConfig.Mutations, rng).id
+end
+
+--- The Scale roll, exposed for the parity tool. ScaleConfig owns the bands,
+--- and the roll is zone-biased, so the zone is not optional.
+function LootService.rollScale(zoneIndex: number, rng: Random?): number
+	return ScaleConfig.rollScale(zoneIndex, rng)
 end
 
 -- ==========================================================
 -- WORLD MODEL
 -- ==========================================================
 
---- Real per-zone models are used when present; otherwise a rarity-tinted
---- placeholder keeps the whole loop testable without art. LootModel owns the
---- lookup, the wrapping of non-Model art and the scale normalisation, so this
---- and BaseService.buildTrophy cannot drift apart.
-local function buildModel(loot: LootInstance): Model
-	-- Size is a visual scale plus a movement multiplier, never physics mass.
-	-- The scale is the instance's OWN rolled value, so a Colossal that rolled
-	-- 17.4x is 17.4x every time it is built and nowhere else.
-	local model = LootModel.build({
-		itemId = loot.itemId,
-		rarity = loot.rarity,
-		targetHeight = GameConfig.LOOT_WORLD_HEIGHT,
-		sizeScale = loot.visualScale,
-		maxFootprint = LootModel.WORLD_MAX_FOOTPRINT,
-		placeholderSize = Vector3.new(6, 7, 6),
+--- THE SEALED CONTAINER. What a zone actually shows is never the item: it is
+--- that zone's mystery container, grown to the hidden size variant and dressed
+--- with the hidden mutation, and nothing else. The item's own model is built
+--- only after a hatch (BaseService.buildTrophy).
+---
+--- ONLY the attributes a player is allowed to read are set on it. `ItemId`,
+--- `Rarity`, the income and the mutation NAME stay on the server: a client
+--- that walks the workspace finds a size and a mutation dressing, which is
+--- exactly what it can already see with its eyes.
+local function buildModel(loot: LootInstance): Model?
+	local model = MysteryModel.build({
+		zoneIndex = loot.zoneIndex,
+		scale = loot.scale,
+		mutation = loot.mutation,
+		maxFootprint = MysteryConfig.WORLD_MAX_FOOTPRINT,
+		hitbox = true,
 	})
+	if not model then
+		return nil
+	end
 
 	model:SetAttribute("LootId", loot.id)
-	model:SetAttribute("ItemId", loot.itemId)
-	model:SetAttribute("Rarity", loot.rarity)
-	-- For the client's idle motion: how big this one is (a Colossal turns
-	-- slowly and does not bob) and what it is (mutation accents).
+	-- Presentation only: how big it is, so the client's idle turn and bob can
+	-- slow down for an enormous one. NOT the size WORD, which would name the
+	-- variant, and nothing about the item.
 	model:SetAttribute("VisualScale", loot.visualScale)
-	model:SetAttribute("Size", loot.size)
-	model:SetAttribute("Mutation", loot.mutation)
-
+	model:SetAttribute("Sealed", true)
 	return model
 end
 
---- Floating card: name, rarity, variants and live income.
-local function buildLabel(loot: LootInstance, model: Model)
-	local anchor = model.PrimaryPart
-	if not anchor then
-		return
-	end
+-- RETIRED: buildLabel. A sealed container carries NO overhead information -
+-- no name, no rarity, no income, no mutation word and no size word. The
+-- steal is offered through the bottom-centre interaction UI, and the item's
+-- own card appears only after the hatch reveal, from BaseService.
 
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "LootLabel"
-	gui.Size = UDim2.fromScale(11, 4)
-	-- +6 rather than +4. This label is 4 studs tall, so at +4 its lower edge sat
-	-- only two studs above the object - not enough room for the interact prompt,
-	-- which has to live between them and needs about three. The prompt is the
-	-- call to action and belongs nearest the object, so the label yields.
-	gui.StudsOffsetWorldSpace = Vector3.new(0, anchor.Size.Y / 2 + 6, 0)
-	gui.MaxDistance = 260
-	gui.Adornee = anchor
-	gui.Parent = anchor
-
-	local color = RarityConfig.Colors[loot.rarity] or Color3.new(1, 1, 1)
-
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.fromScale(1, 0.42)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextStrokeTransparency = 0.35
-	title.TextColor3 = color
-	title.Text = loot.name
-	title.Parent = gui
-
-	local variant = Instance.new("TextLabel")
-	variant.Size = UDim2.fromScale(1, 0.28)
-	variant.Position = UDim2.fromScale(0, 0.42)
-	variant.BackgroundTransparency = 1
-	variant.Font = Enum.Font.FredokaOne
-	variant.TextScaled = true
-	variant.TextStrokeTransparency = 0.4
-	variant.TextColor3 = Color3.fromRGB(240, 240, 248)
-	local tags = loot.rarity
-	if loot.size ~= "Normal" then
-		tags ..= " · " .. loot.size
-	end
-	if loot.mutation ~= "Normal" then
-		tags ..= " · " .. loot.mutation
-	end
-	variant.Text = tags
-	variant.Parent = gui
-
-	local income = Instance.new("TextLabel")
-	income.Size = UDim2.fromScale(1, 0.3)
-	income.Position = UDim2.fromScale(0, 0.7)
-	income.BackgroundTransparency = 1
-	income.Font = Enum.Font.FredokaOne
-	income.TextScaled = true
-	income.TextStrokeTransparency = 0.4
-	income.TextColor3 = Color3.fromRGB(126, 255, 148)
-	income.Text = NumberFormat.income(loot.finalIncome)
-	income.Parent = gui
-end
-
---- Mutations are asset-cheap: material, colour and particles only. Never a
---- separate mesh per variant.
---- Mutation dressing is one shared system (MutationVfx) driven by the artist's
---- assets, so a new mutation or a new item needs no code here. Materials are no
---- longer overridden: the imported models have their own, and replacing them
---- turned a stone meteorite into glass.
-local function applyMutation(loot: LootInstance, model: Model)
-	MutationVfx.apply(model, loot.mutation)
-	-- ...and the size aura, which is the same idea one axis over: the artist
-	-- authors one effect per tier and every item wears the right one. It lives
-	-- ON the model, so it follows the item into a carry, a drop and a base
-	-- display without any of those paths knowing about it.
-	SizeAura.apply(model, loot.size)
-end
+-- The mutation and size dressing now lives in MysteryModel.dress, because a
+-- sealed container wears exactly what the revealed item will wear (the same
+-- MutationVfx and SizeAura assets) and the two must not drift apart.
 
 -- ==========================================================
 -- SOCKET LIFECYCLE
@@ -411,11 +316,14 @@ local function despawn(loot: LootInstance)
 	end
 end
 
---- Places a rolled instance into its socket and makes it stealable.
-local function materialise(socket: Socket, loot: LootInstance)
+--- Places a rolled instance into its socket and makes it stealable. Returns
+--- false when the zone has no container model - the socket is then left EMPTY
+--- rather than showing some other zone's container.
+local function materialise(socket: Socket, loot: LootInstance): boolean
 	local model = buildModel(loot)
-	buildLabel(loot, model)
-	applyMutation(loot, model)
+	if not model then
+		return false
+	end
 
 	model.Parent = socket.part
 
@@ -424,20 +332,10 @@ local function materialise(socket: Socket, loot: LootInstance)
 	-- model's pivot is wherever the artist left it, and its PrimaryPart is often
 	-- a small piece, so the old guess buried statues and floated paintings.
 	model:PivotTo(socket.part.CFrame)
-	local lowest = math.huge
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			local half = descendant.Size / 2
-			for x = -1, 1, 2 do
-				for y = -1, 1, 2 do
-					for z = -1, 1, 2 do
-						local corner = (descendant.CFrame * CFrame.new(half.X * x, half.Y * y, half.Z * z)).Position
-						lowest = math.min(lowest, corner.Y)
-					end
-				end
-			end
-		end
-	end
+	-- The VISIBLE lowest point: an invisible helper hanging below the art
+	-- would otherwise float a Colossal a helper's height above its socket.
+	local lowestCorner = select(1, LootModel.visibleExtents(model))
+	local lowest = if lowestCorner then lowestCorner.Y else math.huge
 
 	local surface = socket.part.Position.Y + socket.part.Size.Y / 2
 	if lowest < math.huge then
@@ -448,8 +346,9 @@ local function materialise(socket: Socket, loot: LootInstance)
 	-- anchor is often not a direct child.
 	local anchor = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
 	if not anchor then
-		warn(`[LootService] {loot.itemId} has no part to host its prompt`)
-		return
+		warn(`[LootService] zone {loot.zoneIndex} container has no part to host its prompt`)
+		model:Destroy()
+		return false
 	end
 
 	-- WHERE THE PROMPT LIVES. A prompt is reachable within its activation
@@ -459,7 +358,7 @@ local function materialise(socket: Socket, loot: LootInstance)
 	-- edge fifty studs from its centre, so the prompt moves to a ground-level
 	-- anchor at the socket and the range grows with the footprint. The player
 	-- steals a giant from its feet, which is where they are standing anyway.
-	local minCorner, maxCorner = LootModel.worldExtents(model)
+	local minCorner, maxCorner = LootModel.visibleExtents(model)
 	local footprint = if minCorner and maxCorner then math.max(maxCorner.X - minCorner.X, maxCorner.Z - minCorner.Z) else 0
 	local height = if minCorner and maxCorner then maxCorner.Y - minCorner.Y else 0
 	-- WHERE THE PROMPT HANGS. Never on the art itself. A prompt parented to a
@@ -507,7 +406,8 @@ local function materialise(socket: Socket, loot: LootInstance)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = "Steal"
-	prompt.ObjectText = loot.name
+	-- NEVER the item name: a sealed container says only "Steal".
+	prompt.ObjectText = "Mystery"
 	prompt.HoldDuration = GameConfig.STEAL_HOLD_DURATION
 	prompt.MaxActivationDistance = loot.interactRange
 	-- Line of sight is what hides a prompt behind the item it belongs to.
@@ -521,6 +421,7 @@ local function materialise(socket: Socket, loot: LootInstance)
 
 	loot.model = model
 	socket.loot = loot
+	return true
 end
 
 --- Shuts (or reopens) every steal in the world. Idempotent.
@@ -539,18 +440,18 @@ function LootService.setClosed(value: boolean, reason: string?)
 	end
 end
 
---- Builds a concrete instance from a definition. `sizeId` / `mutationId` are
---- rolled when omitted - a jackpot injection deliberately takes the normal rolls
---- so it can still arrive Huge and Corrupted.
+--- Builds a concrete instance from a definition. `scale` / `mutationId` are
+--- rolled when omitted; the tutorial and the debug bridge pin them.
 local function makeInstance(
 	def: LootConfig.ItemDef,
 	zoneIndex: number,
 	socketIndex: number,
-	sizeId: string?,
+	scale: number?,
 	mutationId: string?
 ): LootInstance
-	local sizeBoost = if rollBoosts then rollBoosts.size else nil
-	local size = sizeId or rollVariant(RarityConfig.Sizes, sizeBoost).id
+	-- The Scale roll is ZONE-BIASED: early zones lean small, the last zones
+	-- lean large (ScaleConfig.ZoneBands). One roll, one variant, always.
+	local rolledScale = if scale then ScaleConfig.clampScale(scale) else ScaleConfig.rollScale(zoneIndex)
 	local mutation = mutationId or rollVariant(RarityConfig.Mutations).id
 
 	return {
@@ -560,14 +461,15 @@ local function makeInstance(
 		zoneIndex = zoneIndex,
 		socketIndex = socketIndex,
 		rarity = def.rarity,
-		size = size,
+		size = RarityConfig.sizeLabelFor(rolledScale),
 		mutation = mutation,
 		baseIncome = def.income,
-		finalIncome = RarityConfig.finalIncome(def.income, size, mutation),
-		jackpot = def.jackpot,
-		-- ONE roll inside the tier's visual range, kept for the instance's life
-		-- and written onto the trophy when it is placed.
-		visualScale = RarityConfig.rollVisualScale(size),
+		finalIncome = RarityConfig.finalIncome(def.income, rolledScale, mutation),
+		scale = rolledScale,
+		-- A fresh roll looks exactly its size: the model is built at Scale.
+		visualScale = rolledScale,
+		spawnToken = HttpService:GenerateGUID(false),
+		sealed = true,
 		state = "Spawned",
 		interactRange = GameConfig.STEAL_INTERACTION_RANGE,
 	}
@@ -579,14 +481,30 @@ function LootService.fillSocket(socket: Socket): LootInstance?
 		return socket.loot
 	end
 
+	-- The post-game zone spawns only while the extension is switched on. Its
+	-- sockets stand empty otherwise; nothing else about the zone changes.
+	if GameConfig.isPostgameZone(socket.zoneIndex) and not GameConfig.postgameSpawnsEnabled() then
+		return nil
+	end
+
+	-- A zone whose container model is missing spawns NOTHING. Reported by
+	-- name at start-up; never quietly given another zone container.
+	if MysterySpawnService.isZoneBlocked(socket.zoneIndex) then
+		return nil
+	end
+
 	local def = rollItem(socket.zoneIndex)
 	if not def then
 		return nil
 	end
 
 	local loot = makeInstance(def, socket.zoneIndex, socket.index)
+	if not materialise(socket, loot) then
+		-- No container model for this zone. The socket stays empty and the
+		-- roll is discarded rather than shown as another zone's container.
+		return nil
+	end
 	byId[loot.id] = loot
-	materialise(socket, loot)
 	return loot
 end
 
@@ -649,19 +567,19 @@ function LootService.fromDescendant(instance: Instance?): LootInstance?
 end
 
 --- Pins a specific item into a socket. Used for the tutorial's guaranteed
---- Ancient Vase and for jackpot injection. Refuses if the socket is mid-steal so
+--- Ancient Vase and by the debug bridge. Refuses if the socket is mid-steal so
 --- a player escaping with something can never have it swapped out from under
 --- them. Returns the instance now sitting in the socket, or nil if it could not
 --- be forced.
 ---
---- `sizeId` / `mutationId` are optional: omit them to take the normal variant
---- rolls (what a jackpot wants), pass them to pin an exact instance (what the
---- tutorial wants).
+--- `scale` / `mutationId` are optional: omit them to take the normal rolls,
+--- pass them to pin an exact instance (what the tutorial wants). Duplicates
+--- within a zone are ordinary now, so pinning touches no other socket.
 function LootService.forceSocket(
 	zoneIndex: number,
 	socketIndex: number,
 	itemId: string,
-	sizeId: string?,
+	scale: number?,
 	mutationId: string?
 ): LootInstance?
 	local socket = LootService.getSocket(zoneIndex, socketIndex)
@@ -681,7 +599,7 @@ function LootService.forceSocket(
 		end
 		if
 			current.itemId == itemId
-			and (sizeId == nil or current.size == sizeId)
+			and (scale == nil or math.abs(current.scale - scale) < 1e-6)
 			and (mutationId == nil or current.mutation == mutationId)
 		then
 			return current -- already correct
@@ -691,35 +609,11 @@ function LootService.forceSocket(
 		socket.loot = nil
 	end
 
-	-- A zone never shows the same type twice. Pinning bypasses the roller, so it
-	-- has to enforce that itself: an ordinary roll elsewhere in this zone may
-	-- already have produced the very item we are about to pin. Clear those
-	-- sockets first and refill them AFTER the pin lands, so the reroll sees the
-	-- pinned type as taken and cannot simply reproduce it.
-	--
-	-- This matters far more than it used to. Sockets no longer churn every 20
-	-- seconds, so a duplicate would sit there for a full refresh cycle - and the
-	-- tutorial pins the Ancient Vase, which means the very first thing a new
-	-- player sees would be two of them.
-	local toRefill: { Socket } = {}
-	for _, other in sockets[zoneIndex] or {} do
-		local occupant = other.loot
-		if other.index ~= socketIndex and occupant and occupant.itemId == itemId and occupant.state == "Spawned" then
-			despawn(occupant)
-			byId[occupant.id] = nil
-			other.loot = nil
-			table.insert(toRefill, other)
-		end
+	local loot = makeInstance(def, zoneIndex, socketIndex, scale, mutationId)
+	if not materialise(socket, loot) then
+		return nil
 	end
-
-	local loot = makeInstance(def, zoneIndex, socketIndex, sizeId, mutationId)
 	byId[loot.id] = loot
-	materialise(socket, loot)
-
-	for _, other in toRefill do
-		LootService.fillSocket(other)
-	end
-
 	return loot
 end
 
@@ -762,7 +656,11 @@ function LootService.returnToOrigin(loot: LootInstance, delay: number?)
 			-- gate) belong to the run that just ended, not to the instance.
 			loot.escapeNotice = nil
 			loot.deliveredNotice = nil
-			materialise(socket, loot)
+			-- THE SAME container, with the SAME hidden reward and the SAME
+			-- spawn token. Being caught never rerolls anything.
+			if not materialise(socket, loot) then
+				byId[loot.id] = nil
+			end
 		else
 			-- Origin was refilled while we were away; retire this instance.
 			byId[loot.id] = nil
@@ -790,81 +688,10 @@ export type RefreshReport = {
 	--- left alone. Carried loot does NOT appear here and does not need to: a steal
 	--- detaches it from its socket, so the refresh never sees it at all.
 	preservedInSocket: number,
-	jackpot: LootInstance?,
 }
 
---- Which zones a jackpot may be injected into.
----
---- Overridden by init.server so LootService stays free of player/profile
---- dependencies. The default is every zone, which is correct for an empty server
---- and for tests; the real implementation narrows it to what somebody online can
---- actually reach, because a jackpot nobody can walk to is not an event.
-function LootService.eligibleJackpotZones(): { number }
-	local all = {}
-	for index = 1, ZoneConfig.COUNT do
-		table.insert(all, index)
-	end
-	return all
-end
-
---- Fired when a jackpot is injected. Overridden by init.server to broadcast.
-function LootService.onJackpot(_loot: LootInstance) end
-
---- Puts one jackpot item into one socket of one eligible zone.
---- Returns the instance, or nil if nowhere would take it.
-function LootService.injectJackpot(): LootInstance?
-	local zones = LootService.eligibleJackpotZones()
-	if #zones == 0 then
-		return nil
-	end
-
-	-- Try zones in a random order so a blocked zone does not bias the choice.
-	for _ = 1, #zones do
-		local pick = math.random(#zones)
-		local zoneIndex = zones[pick]
-		table.remove(zones, pick)
-
-		local def = LootConfig.jackpotFor(zoneIndex)
-		local zoneSockets = sockets[zoneIndex]
-		if def and zoneSockets then
-			-- Prefer an empty socket, then any socket holding an ordinary item
-			-- that is not mid-steal. Never disturb a reserved or carried one.
-			local empty, replaceable = {}, {}
-			for _, socket in zoneSockets do
-				local current = socket.loot
-				if not current then
-					table.insert(empty, socket)
-				elseif current.state == "Spawned" and not current.jackpot then
-					table.insert(replaceable, socket)
-				end
-			end
-
-			local target = if #empty > 0
-				then empty[math.random(#empty)]
-				else (if #replaceable > 0 then replaceable[math.random(#replaceable)] else nil)
-
-			if target then
-				-- Size and Mutation are rolled normally on top: a jackpot can
-				-- still arrive Giant and Corrupted, which is the best moment the
-				-- game has to offer.
-				local loot = LootService.forceSocket(zoneIndex, target.index, def.id)
-				if loot then
-					return loot
-				end
-			end
-		end
-	end
-
-	return nil
-end
-
---- ONE server-level jackpot roll. Never called per socket.
-function LootService.rollJackpot(): LootInstance?
-	if math.random() >= GameConfig.JACKPOT_REFRESH_CHANCE then
-		return nil
-	end
-	return LootService.injectJackpot()
-end
+-- RETIRED: eligibleJackpotZones / onJackpot / injectJackpot / rollJackpot. Every
+-- item is an ordinary socket roll at its zone weight; nothing is injected.
 
 --- Every instance currently sitting in a socket, for the post-refresh
 --- spotlight: the announcer inspects what was ACTUALLY generated and never
@@ -891,17 +718,7 @@ end
 ---
 --- `boosts`, when given, lean the rolls for THIS refresh only (the Night
 --- refresh) and are removed before returning - even if a roll errors.
-function LootService.refreshAll(boosts: RollBoosts?): RefreshReport
-	LootService.setRollBoosts(boosts)
-	local ok, result = pcall(LootService.refreshAllUnboosted)
-	LootService.setRollBoosts(nil)
-	if not ok then
-		error(result)
-	end
-	return result
-end
-
-function LootService.refreshAllUnboosted(): RefreshReport
+function LootService.refreshAll(): RefreshReport
 	local report: RefreshReport = { rerolled = 0, filled = 0, preservedInSocket = 0 }
 
 	-- Drops on the ground belong to the world being replaced.
@@ -931,13 +748,6 @@ function LootService.refreshAllUnboosted(): RefreshReport
 		end
 	end
 
-	-- Exactly one world-level jackpot roll, AFTER the world is repopulated.
-	local jackpot = LootService.rollJackpot()
-	if jackpot then
-		report.jackpot = jackpot
-		LootService.onJackpot(jackpot)
-	end
-
 	return report
 end
 
@@ -949,7 +759,7 @@ function LootService.snapshot(): { [string]: any }
 		for _, socket in sockets[zoneIndex] or {} do
 			local loot = socket.loot
 			table.insert(rows, if loot
-				then `{loot.name} [{loot.rarity}] {loot.size}x{loot.visualScale}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state}){if loot.jackpot then " JACKPOT" else ""}`
+				then `{loot.name} [{loot.rarity}] {loot.size} s={loot.scale}/{loot.mutation} {NumberFormat.income(loot.finalIncome)} ({loot.state})`
 				else "<empty>")
 		end
 		out[ZoneConfig.Zones[zoneIndex].id] = rows
@@ -958,31 +768,39 @@ function LootService.snapshot(): { [string]: any }
 end
 
 --- Counts, for tests: how many sockets are occupied and how many stand empty.
-function LootService.occupancy(): { occupied: number, empty: number, jackpots: number }
-	local occupied, empty, jackpots = 0, 0, 0
+function LootService.occupancy(): { occupied: number, empty: number }
+	local occupied, empty = 0, 0
 	for zoneIndex = 1, ZoneConfig.COUNT do
 		for _, socket in sockets[zoneIndex] or {} do
 			if socket.loot then
 				occupied += 1
-				if socket.loot.jackpot then
-					jackpots += 1
-				end
 			else
 				empty += 1
 			end
 		end
 	end
-	return { occupied = occupied, empty = empty, jackpots = jackpots }
+	return { occupied = occupied, empty = empty }
 end
 
 -- ==========================================================
 -- START
 -- ==========================================================
 
+-- RETIRED: synthesiseSocket. MysterySpawnService lays out all four sockets
+-- around the guardian at start-up and clones any a baked map lacks, so there
+-- is exactly one place that can create a socket.
+
 function LootService.start()
 	local map = workspace:WaitForChild("Map", 20)
 	assert(map, "LootService: Workspace.Map missing - run MapBuilder.build() first")
 	local zonesFolder = map:WaitForChild("Zones", 10)
+
+	-- Validate the twelve container models FIRST, so a zone with a missing
+	-- model is known before anything tries to fill its sockets, and lay the
+	-- four sockets of every zone out around its guardian (this also destroys
+	-- the retired fifth spawn wherever a baked map still carries one).
+	MysterySpawnService.validateModels()
+	MysterySpawnService.layoutAll(map)
 
 	for zoneIndex, zoneDef in ZoneConfig.Zones do
 		local zone = zonesFolder:FindFirstChild(zoneDef.id)
@@ -993,8 +811,11 @@ function LootService.start()
 		assert(socketFolder, `LootService: {zoneDef.id} has no SpawnSockets`)
 
 		for socketIndex = 1, ZoneConfig.SOCKETS_PER_ZONE do
-			local part = socketFolder:FindFirstChild(string.format("Socket%02d", socketIndex))
-			assert(part and part:IsA("BasePart"), `LootService: {zoneDef.id} missing Socket{socketIndex}`)
+			local name = string.format("Socket%02d", socketIndex)
+			local part = socketFolder:FindFirstChild(name)
+			-- MysterySpawnService has already laid these out and cloned any the
+			-- baked map lacked, so a nil here is a genuine fault, not a gap.
+			assert(part and part:IsA("BasePart"), `LootService: {zoneDef.id} missing {name}`)
 
 			sockets[zoneIndex][socketIndex] = {
 				zoneIndex = zoneIndex,
@@ -1009,6 +830,12 @@ function LootService.start()
 	-- can clone them (ReplicatedStorage.LootPreviews) before anything opens.
 	local previews = LootModel.publishPreviews()
 	print(`[LootService] {previews} item previews published`)
+
+	-- Every asset must have an audited Normal-size row, measured from the art
+	-- that is actually in GameAssets.Loot. A missing or stale row is a
+	-- warning here, by name, before a single socket is filled.
+	local sizing = LootModel.checkNormalization()
+	print(`[LootService] size normalisation: {sizing.ok} audited, {sizing.missing} missing, {sizing.stale} stale, {sizing.noArt} without art`)
 
 	-- Fill everything on server start.
 	for zoneIndex = 1, ZoneConfig.COUNT do

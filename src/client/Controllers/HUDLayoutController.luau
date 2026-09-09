@@ -32,6 +32,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local HUDLayoutController = {}
@@ -373,6 +374,208 @@ local function buildStatCard(ui: ScreenGui)
 end
 
 -- ==========================================================
+-- SCROLLING PANELS
+-- ==========================================================
+
+--- Every panel in Frames scrolls VERTICALLY and only vertically. The pack
+--- shipped them XY with a canvas wider than the frame, so a touch drag
+--- wandered sideways and the content drifted off the left edge. Buttons and
+--- tabs inside a panel are unaffected: this is the canvas, not the content.
+local function lockVerticalScroll(ui: ScreenGui)
+	local frames = ui:FindFirstChild("Frames")
+	if not frames then
+		return
+	end
+	local function lock(list: Instance)
+		if not list:IsA("ScrollingFrame") then
+			return
+		end
+		list.ScrollingDirection = Enum.ScrollingDirection.Y
+		list.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
+		if list.CanvasSize.X.Scale ~= 0 or list.CanvasSize.X.Offset ~= 0 then
+			list.CanvasSize = UDim2.new(0, 0, list.CanvasSize.Y.Scale, list.CanvasSize.Y.Offset)
+		end
+	end
+	for _, panel in frames:GetChildren() do
+		for _, child in panel:GetChildren() do
+			lock(child)
+		end
+		panel.ChildAdded:Connect(lock)
+	end
+	-- Storage is built into Frames after this runs.
+	frames.ChildAdded:Connect(function(panel)
+		task.defer(function()
+			for _, child in panel:GetChildren() do
+				lock(child)
+			end
+			panel.ChildAdded:Connect(lock)
+		end)
+	end)
+end
+
+-- ==========================================================
+-- TOUCH LAYOUT
+-- ==========================================================
+--
+-- Phones and tablets get a different arrangement of the SAME elements: the
+-- four menu buttons in a compact two-by-two block, the stats in a small card
+-- at the top-left under Roblox's own buttons, the offer buttons pinned to the
+-- right edge above the hold button, and every panel opened much larger.
+-- Nothing is rebound or renamed; the pack's own handlers keep every button.
+
+--- Menu tile size on touch, in pixels (before the HUD's UIScale).
+local TOUCH_TILE = 60
+local TOUCH_TILE_GAP = 8
+--- Vertical gap between the two rows: room for the caption under each tile.
+local TOUCH_TILE_LABEL_GAP = 26
+--- Largest font any TextScaled label inside a panel may reach on touch, so a
+--- short label in a tall row does not balloon.
+local TOUCH_PANEL_MAX_TEXT = 26
+
+local function layoutTouchRail(buttons: GuiObject, left: GuiObject)
+	local width = TOUCH_TILE * 2 + TOUCH_TILE_GAP + RAIL_INSET.Offset
+	buttons.AnchorPoint = Vector2.new(0, 0.5)
+	buttons.Position = UDim2.new(0, 0, 0.56, 0)
+	buttons.Size = UDim2.fromOffset(width, TOUCH_TILE * 2 + TOUCH_TILE_LABEL_GAP)
+	left.Size = UDim2.fromScale(1, 1)
+	local grid = left:FindFirstChildOfClass("UIGridLayout")
+	if grid then
+		grid.CellSize = UDim2.fromOffset(TOUCH_TILE, TOUCH_TILE)
+		-- The row gap is the tile's own caption height: each tile's label
+		-- hangs below its plate, and at a tighter gap the bottom row drew over
+		-- the top row's words.
+		grid.CellPadding = UDim2.fromOffset(TOUCH_TILE_GAP, TOUCH_TILE_LABEL_GAP)
+		grid.FillDirection = Enum.FillDirection.Horizontal
+		grid.FillDirectionMaxCells = 2
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		grid.VerticalAlignment = Enum.VerticalAlignment.Center
+		grid.StartCorner = Enum.StartCorner.TopLeft
+	end
+	-- Belt and braces on the layering: the TOP row draws over the bottom row,
+	-- so a caption that still overhangs sits in front of the tile below it
+	-- rather than being clipped behind it. Siblings sort by ZIndex here.
+	local function layer(button: Instance)
+		if not button:IsA("GuiObject") then
+			return
+		end
+		local order = button.LayoutOrder
+		button.ZIndex = if order <= 2 then 4 else 2
+	end
+	for _, button in left:GetChildren() do
+		layer(button)
+	end
+	left.ChildAdded:Connect(function(child)
+		task.defer(layer, child)
+	end)
+end
+
+local function layoutTouchStats(ui: ScreenGui)
+	local cardHud = ui:FindFirstChild("StatHUD")
+	if not cardHud or not cardHud:IsA("GuiObject") then
+		return
+	end
+	-- Top-left, under Roblox's menu and chat buttons, above the menu block.
+	cardHud.AnchorPoint = Vector2.new(0, 0)
+	cardHud.Position = UDim2.fromOffset(12, 50)
+	cardHud.Size = UDim2.fromOffset(156, 70)
+	local limit = cardHud:FindFirstChildOfClass("UISizeConstraint")
+	if limit then
+		limit.MinSize = Vector2.new(140, 64)
+		limit.MaxSize = Vector2.new(170, 76)
+	end
+	for _, label in cardHud:GetDescendants() do
+		if label:IsA("TextLabel") then
+			local textLimit = label:FindFirstChildOfClass("UITextSizeConstraint")
+			if textLimit then
+				textLimit.MaxTextSize = 18
+			end
+		end
+	end
+end
+
+local function layoutTouchPanels(ui: ScreenGui)
+	local frames = ui:FindFirstChild("Frames")
+	if not frames or not frames:IsA("GuiObject") then
+		return
+	end
+	-- The container takes almost the whole viewport; each panel almost all of
+	-- the container. Their aspect constraints (FitWithinMaxSize) keep every
+	-- panel its authored shape, so this only ever grows them, never distorts.
+	frames.Size = UDim2.fromScale(0.96, 1)
+
+	local function grow(panel: Instance)
+		if not panel:IsA("GuiObject") then
+			return
+		end
+		panel.AnchorPoint = Vector2.new(0.5, 0.5)
+		panel.Position = UDim2.fromScale(0.5, 0.52)
+		panel.Size = UDim2.fromScale(0.94, 0.9)
+		-- Bounded text: everything in a panel scales, and a two-word label in
+		-- a big row would otherwise outgrow the button beside it.
+		for _, label in panel:GetDescendants() do
+			if label:IsA("TextLabel") or label:IsA("TextButton") then
+				if label.TextScaled and not label:FindFirstChildOfClass("UITextSizeConstraint") then
+					local limit = Instance.new("UITextSizeConstraint")
+					limit.MaxTextSize = TOUCH_PANEL_MAX_TEXT
+					limit.Parent = label
+				end
+			end
+		end
+	end
+	for _, panel in frames:GetChildren() do
+		grow(panel)
+	end
+	frames.ChildAdded:Connect(function(panel)
+		task.defer(grow, panel)
+	end)
+end
+
+--- The Guardian / Slap offer buttons: pinned to the right safe edge, two
+--- fixed-size tiles stacked under the top strip, clear of the hold button
+--- and the jump button below them.
+local function layoutTouchOffers(ui: ScreenGui)
+	local rail: Frame? = nil
+	for _, child in ui:GetChildren() do
+		if child:IsA("Frame") and child.Name:upper():find("UI FOR ANIMAL", 1, true) then
+			rail = child
+			break
+		end
+	end
+	if not rail then
+		return
+	end
+	local tile = 64
+	local gap = 8
+	local aspect = rail:FindFirstChildOfClass("UIAspectRatioConstraint")
+	if aspect then
+		aspect:Destroy()
+	end
+	rail.AnchorPoint = Vector2.new(1, 0)
+	rail.Position = UDim2.new(1, -10, 0, 74)
+	rail.Size = UDim2.fromOffset(tile, tile * 2 + gap)
+	local grid = rail:FindFirstChildOfClass("UIGridLayout")
+	if grid then
+		grid.CellSize = UDim2.fromOffset(tile, tile)
+		grid.CellPadding = UDim2.fromOffset(gap, gap)
+		grid.FillDirection = Enum.FillDirection.Vertical
+		grid.FillDirectionMaxCells = 2
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		grid.VerticalAlignment = Enum.VerticalAlignment.Top
+	end
+end
+
+local function applyTouchLayout(ui: ScreenGui)
+	local buttons = ui:FindFirstChild("Buttons")
+	local left = buttons and buttons:FindFirstChild("Left")
+	if buttons and buttons:IsA("GuiObject") and left and left:IsA("GuiObject") then
+		layoutTouchRail(buttons, left)
+	end
+	layoutTouchStats(ui)
+	layoutTouchPanels(ui)
+	layoutTouchOffers(ui)
+end
+
+-- ==========================================================
 -- START
 -- ==========================================================
 
@@ -393,6 +596,11 @@ function HUDLayoutController.start()
 	end
 
 	buildStatCard(ui)
+	lockVerticalScroll(ui)
+
+	if Device.isTouch() then
+		applyTouchLayout(ui)
+	end
 
 	-- The gear pops in with the rest of the HUD rather than appearing.
 	local gear = ui:FindFirstChild("SettingsGear", true)

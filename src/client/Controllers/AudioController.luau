@@ -33,6 +33,7 @@ local TweenService = game:GetService("TweenService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local AudioController = {}
@@ -41,6 +42,7 @@ local player = Players.LocalPlayer
 
 local lastHoverAt = 0
 local musicSound: Sound? = nil
+--- True behind the red line (lobby bed), false out in the zones (zone bed).
 local musicWanted = false
 --- Lets an event-specific cue cancel the generic notification beep queued for
 --- the same moment. See the SoundCue handler in start().
@@ -64,14 +66,19 @@ local function hookButton(button: GuiButton)
 	end
 	button:SetAttribute("_AudioHooked", true)
 
-	button.MouseEnter:Connect(function()
-		local now = os.clock()
-		if now - lastHoverAt < AudioConfig.HOVER_COOLDOWN then
-			return
-		end
-		lastHoverAt = now
-		Audio.play("UiHover")
-	end)
+	-- NO HOVER SOUND ON TOUCH. A phone has no hover: MouseEnter fires as a
+	-- thumb drags across a button, so a thumbstick nudged upward through the
+	-- menu block machine-gunned the hover tick. Touch keeps the click.
+	if not Device.isTouch() then
+		button.MouseEnter:Connect(function()
+			local now = os.clock()
+			if now - lastHoverAt < AudioConfig.HOVER_COOLDOWN then
+				return
+			end
+			lastHoverAt = now
+			Audio.play("UiHover")
+		end)
+	end
 
 	button.Activated:Connect(function()
 		Audio.play("UiClick")
@@ -136,38 +143,56 @@ end
 -- MUSIC
 -- ==========================================================
 
-local function ensureMusic(): Sound?
-	if musicSound and musicSound.Parent then
-		return musicSound
+-- TWO BEDS, ONE PLAYING. The LOBBY bed behind the red line, the ZONE bed out
+-- in the zones - and neither while a chase is on, because ChaseAudioController
+-- owns that moment with the chase loop. Both beds stay alive and looped at
+-- volume 0 rather than being stopped and restarted, so a fade in resumes
+-- where the track was instead of snapping back to its first bar.
+
+--- The bed for a cue, created once and kept.
+local zoneSound: Sound? = nil
+
+local function ensureBed(cue: string, current: Sound?): Sound?
+	if current and current.Parent then
+		return current
 	end
-	local sound = Audio.create("LobbyMusic")
+	local sound = Audio.create(cue)
 	if not sound then
 		return nil
 	end
+	sound.Looped = true
 	sound.Volume = 0
 	sound.Parent = SoundService
 	sound:Play()
-	musicSound = sound
 	return sound
 end
 
---- While a chase is on, the bed drops to this fraction of its level so the
---- chase loop owns the moment; it comes back up when the chase ends.
-local DUCKED_LEVEL = 0.2
+--- While a chase is on, both beds go SILENT: the chase loop replaces them
+--- rather than layering over a quiet bed underneath.
 local ducked = false
 
-local function applyMusicVolume()
-	local cue = AudioConfig.get("LobbyMusic")
-	local sound = ensureMusic()
+local function fadeTo(sound: Sound?, cueName: string, target: number)
+	local cue = AudioConfig.get(cueName)
 	if not sound or not cue then
 		return
 	end
-	-- Always a fade. Cutting the bed the instant a player steps over the line is
+	-- Always a fade. Cutting a bed the instant a player steps over the line is
 	-- exactly the jarring transition this is meant to avoid.
-	local target = if musicWanted then cue.volume * (if ducked then DUCKED_LEVEL else 1) else 0
 	TweenService:Create(sound, TweenInfo.new(cue.fade or 1, Enum.EasingStyle.Sine), { Volume = target }):Play()
 end
 
+local function applyMusicVolume()
+	musicSound = ensureBed("LobbyMusic", musicSound)
+	zoneSound = ensureBed("ZoneMusic", zoneSound)
+	local lobbyCue = AudioConfig.get("LobbyMusic")
+	local zoneCue = AudioConfig.get("ZoneMusic")
+	local lobbyTarget = if musicWanted and not ducked and lobbyCue then lobbyCue.volume else 0
+	local zoneTarget = if not musicWanted and not ducked and zoneCue then zoneCue.volume else 0
+	fadeTo(musicSound, "LobbyMusic", lobbyTarget)
+	fadeTo(zoneSound, "ZoneMusic", zoneTarget)
+end
+
+--- `on` = in the lobby (safe zone). Off = out in the zones.
 local function setMusic(on: boolean)
 	if on == musicWanted then
 		return
@@ -176,8 +201,8 @@ local function setMusic(on: boolean)
 	applyMusicVolume()
 end
 
---- ChaseAudioController ducks the bed for the length of a chase, so the two
---- loops never fight if a chase ever overlaps the lobby side of the margin.
+--- ChaseAudioController silences the beds for the length of a chase, so the
+--- chase loop is the only music until it ends however it ends.
 function AudioController.setDucked(value: boolean)
 	if ducked == value then
 		return
@@ -211,12 +236,40 @@ end
 -- START
 -- ==========================================================
 
+--- Warms the gameplay cues that must land on their first play - the guardian
+--- catch sounds and the event stings - so the first hit of a session is not
+--- silent while the asset streams in. Background; nothing waits on it.
+local function preloadCues()
+	local ContentProvider = game:GetService("ContentProvider")
+	local sounds: { Instance } = {}
+	local wanted = { "Notification", "PlaceItem", "StoredItem", "NightSpawn", "Escape", "BossHit", "NpcCatch", "BatHit" }
+	for zoneIndex in AudioConfig.GuardianHits do
+		table.insert(wanted, `GuardianHit_{zoneIndex}`)
+	end
+	for _, name in wanted do
+		local sound = Audio.create(name)
+		if sound then
+			sound.Parent = SoundService
+			table.insert(sounds, sound)
+		end
+	end
+	task.spawn(function()
+		pcall(function()
+			ContentProvider:PreloadAsync(sounds)
+		end)
+		for _, sound in sounds do
+			sound:Destroy()
+		end
+	end)
+end
+
 function AudioController.start()
 	local playerGui = player:WaitForChild("PlayerGui")
 	local ui = playerGui:WaitForChild("MainUI", 20)
 	if ui then
 		hookInterface(ui)
 	end
+	preloadCues()
 
 	-- The server names a cue; it never sends an asset id.
 	--
@@ -267,7 +320,7 @@ function AudioController.start()
 			-- A refused action should sound wrong, not merely informative.
 			Audio.play("UiDenied")
 		else
-			-- Deferred so an event-specific cue (Escape, Sell, NewDiscovery)
+			-- Deferred so an event-specific cue (Escape, Sell, the reveal pop)
 			-- arriving in the same server frame can claim the moment instead.
 			pendingGenericToken += 1
 			local token = pendingGenericToken

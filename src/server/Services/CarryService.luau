@@ -299,7 +299,7 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 	-- pedestal comment in BaseService is about the same trap) reports its
 	-- height on the wrong axis. One world-space measurement afterwards costs
 	-- nothing and is the only number that is always true.
-	local worldMin, worldMax = LootModel.worldExtents(model)
+	local worldMin, worldMax = LootModel.visibleExtents(model)
 	if worldMin and worldMax then
 		local floor = root.Position.Y - CARRY_FEET_DROP + CARRY_GROUND_CLEARANCE
 		local wanted = if overhead then root.Position.Y + CARRY_OVERHEAD_CLEARANCE else floor
@@ -308,7 +308,7 @@ local function attach(player: Player, loot: LootService.LootInstance): boolean
 			model:PivotTo(model:GetPivot() + Vector3.new(0, shift, 0))
 		end
 		if DEBUG_CARRY then
-			local m2 = select(1, LootModel.worldExtents(model))
+			local m2 = select(1, LootModel.visibleExtents(model))
 			print(string.format("[CarryService] %s overhead=%s up=%.2f fwd=%.2f box=%.1fx%.1fx%.1f rootY=%.2f bottom %.2f -> %.2f (want %.2f)",
 				model.Name, tostring(overhead), up, forward, boxSize.X, boxSize.Y, boxSize.Z, root.Position.Y, worldMin.Y, m2 and m2.Y or -99, wanted))
 		end
@@ -525,7 +525,7 @@ local function dropLoose(loot: LootService.LootInstance, position: Vector3?, flo
 		model:PivotTo(CFrame.new(position + Vector3.new(0, 2, 0)))
 		-- Feet on the floor, whatever its pivot: a dropped Colossal must not be
 		-- left half underground or hanging in the air.
-		local minCorner = select(1, LootModel.worldExtents(model))
+		local minCorner = select(1, LootModel.visibleExtents(model))
 		if minCorner and floorY then
 			model:PivotTo(model:GetPivot() + Vector3.new(0, floorY - minCorner.Y, 0))
 		end
@@ -684,6 +684,32 @@ function CarryService.consumeCarry(player: Player)
 	detach(loot)
 	clearCarry(player)
 	loot.carrier = nil
+end
+
+--- THE NIGHT CANCELS EVERY STEAL. Whatever the carrier was doing - mid-lane,
+--- mid-chase, standing in the safe zone about to place - the item comes
+--- out of their hands and goes STRAIGHT back to its socket (a base steal
+--- goes back to its owner through onLost). Nothing is left on the floor
+--- for the refresh to find, and nothing rides home with the player.
+--- Returns true when something was taken away.
+function CarryService.cancelForNight(player: Player): boolean
+	local loot = carrying[player]
+	if not loot then
+		return false
+	end
+	detach(loot)
+	clearCarry(player)
+	loot.carrier = nil
+	loot.droppedAt = nil
+	if loot.heist then
+		if loot.onLost then
+			loot.onLost("night")
+		end
+	else
+		LootService.returnToOrigin(loot)
+	end
+	notify(player, "error", "NIGHT FELL - the item went back!")
+	return true
 end
 
 --- Death, reset, disconnect or any invalidation must always release the item.

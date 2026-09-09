@@ -58,6 +58,7 @@ local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationC
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local SizeAura = require(ReplicatedStorage.Shared.Util.SizeAura)
 
 local BaseGuardianService = require(script.Parent.BaseGuardianService)
@@ -228,7 +229,14 @@ function HeistService.refreshPrompts(owner: Player)
 		end
 		local index = slot:GetAttribute("SlotIndex")
 		local item = if type(index) == "number" then occupied[index] else nil
-		local product = if item and not item.RobbedBy then productFor(item) else nil
+		-- A SEALED CONTAINER IS NOT ROBBABLE, and gets no prompt. This is a
+		-- privacy rule before it is a gameplay one: dressPrompt writes the
+		-- item's name into ObjectText and its rarity and Robux price into
+		-- replicated attributes, so a prompt on an unhatched container would
+		-- announce the reward to every client in range - including the
+		-- owner's, defeating the whole point of the hatch.
+		local sealed = item ~= nil and item.Hatched == false
+		local product = if item and not item.RobbedBy and not sealed then productFor(item) else nil
 		local existing = slot:FindFirstChild(PROMPT_NAME)
 
 		if item and product then
@@ -353,6 +361,12 @@ function HeistService.begin(player: Player, slot: BasePart)
 		notify(player, "error", "Someone is already stealing that!")
 		return
 	end
+	-- The prompt above is presentation and a client decides nothing, so the
+	-- sealed rule is re-checked on the authoritative side too.
+	if target.Hatched == false then
+		notify(player, "error", "That one has not been revealed yet!")
+		return
+	end
 	local protectedUntil = tonumber(target.ProtectedUntil) or 0
 	if protectedUntil > os.time() then
 		notify(player, "error", `That item is protected for {formatRemaining(protectedUntil - os.time())}!`)
@@ -469,7 +483,10 @@ end
 --- saved scale, mutation and size aura - everything the trophy showed, so
 --- what the thief runs off with is visibly the thing that was on the pad.
 local function buildLoot(pending: Pending, item: DataService.DisplayItem): LootService.LootInstance
-	local visual = RarityConfig.clampVisualScale(item.Size, item.VisualScale)
+	-- The item's DISPLAY scale (its legacy look if it has one, else its
+	-- Scale): the thief carries exactly what stood on the pad.
+	local visual = BaseService.displayScale(item)
+	local scale = ScaleConfig.clampScale(item.Scale)
 	local model = LootModel.build({
 		itemId = item.ItemId,
 		rarity = item.Rarity,
@@ -484,6 +501,7 @@ local function buildLoot(pending: Pending, item: DataService.DisplayItem): LootS
 	model:SetAttribute("ItemId", item.ItemId)
 	model:SetAttribute("Rarity", item.Rarity)
 	model:SetAttribute("VisualScale", visual)
+	model:SetAttribute("Scale", scale)
 	model:SetAttribute("Size", item.Size)
 	model:SetAttribute("Mutation", item.Mutation)
 	model.Parent = workspace
@@ -499,7 +517,7 @@ local function buildLoot(pending: Pending, item: DataService.DisplayItem): LootS
 		mutation = item.Mutation,
 		baseIncome = item.BaseIncome,
 		finalIncome = item.FinalIncome,
-		jackpot = false,
+		scale = scale,
 		visualScale = visual,
 		state = "Spawned",
 		interactRange = GameConfig.STEAL_INTERACTION_RANGE,

@@ -121,7 +121,13 @@ function SlapDisplayController.start()
 			return
 		end
 		local now = os.clock()
-		local frame = base * CFrame.new(0, math.sin(now * 1.5) * BOB, 0) * CFrame.Angles(0, now * TURN_SPEED, 0)
+		-- Turn and bob in WORLD axes. `base` is the import's own frame, whose
+		-- local Y is not up (the hand is authored on its side), so spinning
+		-- about local Y rolled the hand under the disc. A world-Y yaw about
+		-- the item's position keeps it standing and turning a full 360.
+		local frame = CFrame.new(base.Position + Vector3.new(0, math.sin(now * 1.5) * BOB, 0))
+			* CFrame.Angles(0, now * TURN_SPEED, 0)
+			* base.Rotation
 		for _, entry in parts do
 			if entry.part.Parent then
 				entry.part.CFrame = frame * entry.offset

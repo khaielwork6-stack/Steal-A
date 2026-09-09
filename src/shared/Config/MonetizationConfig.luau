@@ -192,12 +192,44 @@ export type ProductDef = {
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
 	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
 	--- item of the matching rarity (HeistService) and carries no amount.
-	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal",
+	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal",
 	amount: number,
 	label: string,
 	--- Steal products only: the rarity this product pays for.
 	rarity: string?,
+	--- Reveal products only: the longest remaining wait, in seconds, this
+	--- tier covers. The cheapest tier that covers the wait is the one offered.
+	maxRemainingSeconds: number?,
 }
+
+--- INSTANT REVEAL, priced by how long is LEFT on the container - never by the
+--- original wait. The server recomputes the remaining time at the moment of
+--- the prompt and picks the cheapest tier whose ceiling covers it.
+MonetizationConfig.RevealProducts = {
+	{ key = "Reveal1m", productId = 3712073462, robux = 3, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 60 },
+	{ key = "Reveal5m", productId = 3712073493, robux = 9, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 5 * 60 },
+	{ key = "Reveal15m", productId = 3712073520, robux = 19, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 15 * 60 },
+	{ key = "Reveal45m", productId = 3712073551, robux = 39, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 45 * 60 },
+	{ key = "Reveal2h", productId = 3712073612, robux = 79, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 2 * 3600 },
+	{ key = "Reveal6h", productId = 3712073649, robux = 149, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 6 * 3600 },
+	{ key = "Reveal12h", productId = 3712073670, robux = 249, kind = "Reveal", amount = 0, label = "Instant Reveal", maxRemainingSeconds = 12 * 3600 },
+} :: { ProductDef }
+
+--- The cheapest Instant Reveal tier that covers `remainingSeconds`, or nil
+--- when nothing is left to buy (the container is already ready).
+function MonetizationConfig.revealProductFor(remainingSeconds: number): ProductDef?
+	if remainingSeconds <= 0 then
+		return nil
+	end
+	for _, product in MonetizationConfig.RevealProducts do
+		if remainingSeconds <= (product.maxRemainingSeconds or 0) then
+			return product
+		end
+	end
+	-- Past the last ceiling (a clock skew, a corrupt stamp): the top tier
+	-- still covers it rather than leaving the player with no way to reveal.
+	return MonetizationConfig.RevealProducts[#MonetizationConfig.RevealProducts]
+end
 
 --- Player-to-player base stealing, one product per rarity. The server picks
 --- the row from the REAL item's rarity in the victim's profile; a client can
@@ -280,7 +312,7 @@ MonetizationConfig.BOSS_OFFER_COOLDOWN = 0
 MonetizationConfig.ProductByKey = {} :: { [string]: ProductDef }
 MonetizationConfig.ProductById = {} :: { [number]: ProductDef }
 
-for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts } do
+for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts } do
 	for _, product in list do
 		MonetizationConfig.ProductByKey[product.key] = product
 		MonetizationConfig.ProductById[product.productId] = product

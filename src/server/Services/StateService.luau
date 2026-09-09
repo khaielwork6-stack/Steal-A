@@ -91,6 +91,9 @@ export type ClientState = {
 	slotsUsed: number,
 	slotsNextCost: number?,
 	trapCount: number,
+	--- Unix second the next trap is available (0 = ready). Absolute, so the
+	--- client renders the countdown itself and no counter has to be ticked.
+	trapReadyAt: number,
 	tutorialStage: number,
 	highestZone: number,
 	indexCount: number,
@@ -136,10 +139,11 @@ local function build(player: Player): ClientState?
 		treadmillLevel = profile.TreadmillLevel,
 		treadmillNextCost = if nextTreadmill then nextTreadmill.cost else nil,
 		capacityTier = profile.BaseCapacityTier,
-		slotsUnlocked = BaseConfig.slotsForTier(profile.BaseCapacityTier),
+		slotsUnlocked = BaseService.unlockedSlots(player), -- the level clamped to the plot's physical pads
 		slotsUsed = #profile.DisplayItems,
 		slotsNextCost = if nextCapacity then nextCapacity.cost else nil,
 		trapCount = profile.TrapCount,
+		trapReadyAt = profile.TrapReadyAt or 0,
 		tutorialStage = profile.TutorialStage,
 		highestZone = profile.HighestZoneReached,
 		indexCount = discovered,

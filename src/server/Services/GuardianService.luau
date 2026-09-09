@@ -36,6 +36,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
@@ -98,7 +99,7 @@ type Guardian = {
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
 -- never enough to clear an 80-stud containment wall.
-local WAKE_DELAY = 0.55 -- shocked beat before the chase actually starts
+local WAKE_DELAY = GameConfig.GUARDIAN_WAKE_DELAY -- shocked beat before the chase; shared with the speed calibration
 
 -- Run-cycle tuning. Deliberately over the top: this is the first chase a new
 -- player ever sees and it should read as comedy, not as a walk.
@@ -271,6 +272,15 @@ end
 --- cannot push the guardian around or jam it in a doorway - which is exactly
 --- the failure the old rename-and-destroy approach was guarding against.
 local SHELL_COLLISION_GROUP = "GuardianShell"
+--- The invisible physics body every guardian (zone boss or base animal)
+--- walks on. It collides with the world so the guardian stays on the floor
+--- and corners like a character, and NOT with players: a thief runs straight
+--- through a guardian instead of being body-blocked by it. The catch is the
+--- server's distance test (stepChase), never a physical contact.
+local BODY_COLLISION_GROUP = "GuardianBody"
+--- Every player character part goes here, so the two rules above can be
+--- expressed as groups rather than per-part CanCollide games.
+local PLAYER_COLLISION_GROUP = "Players"
 local shellGroupReady = false
 
 local function ensureShellCollisionGroup()
@@ -280,14 +290,44 @@ local function ensureShellCollisionGroup()
 	shellGroupReady = true
 	-- Registering an existing group is harmless, but a place could in theory
 	-- ship the name already; never let that stop the guardians being built.
-	pcall(function()
-		PhysicsService:RegisterCollisionGroup(SHELL_COLLISION_GROUP)
-	end)
+	for _, name in { SHELL_COLLISION_GROUP, BODY_COLLISION_GROUP, PLAYER_COLLISION_GROUP } do
+		pcall(function()
+			PhysicsService:RegisterCollisionGroup(name)
+		end)
+	end
 	pcall(function()
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, "Default", false)
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, SHELL_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, PLAYER_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, BODY_COLLISION_GROUP, false)
+		-- Bodies: world yes, players no, each other no (two guardians never
+		-- meet, but a Night reset can pass them through one another).
+		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, "Default", true)
+		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, PLAYER_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, BODY_COLLISION_GROUP, false)
+		-- Players keep colliding with everything they always did.
+		PhysicsService:CollisionGroupSetCollidable(PLAYER_COLLISION_GROUP, "Default", true)
+		PhysicsService:CollisionGroupSetCollidable(PLAYER_COLLISION_GROUP, PLAYER_COLLISION_GROUP, true)
 	end)
 end
+
+--- Files every part of a character under the player group, now and as the
+--- character adds parts (accessories, tools, the carry weld's loot is not a
+--- child of the character so it is unaffected).
+local function assignPlayerCollision(character: Model)
+	ensureShellCollisionGroup()
+	local function file(instance: Instance)
+		if instance:IsA("BasePart") then
+			instance.CollisionGroup = PLAYER_COLLISION_GROUP
+		end
+	end
+	for _, descendant in character:GetDescendants() do
+		file(descendant)
+	end
+	character.DescendantAdded:Connect(file)
+end
+
+GuardianService.assignPlayerCollision = assignPlayerCollision
 
 --- The part names a standard skeleton must have for Roblox's own walk cycle to
 --- find its joints. An animation's poses are matched by PART name, so a rig
@@ -493,6 +533,9 @@ local function buildRigFrom(source: Instance?, targetHeight: number, growth: num
 	root.TopSurface = Enum.SurfaceType.Smooth
 	root.BottomSurface = Enum.SurfaceType.Smooth
 	root.CanCollide = true
+	-- World yes, players no: see BODY_COLLISION_GROUP.
+	ensureShellCollisionGroup()
+	root.CollisionGroup = BODY_COLLISION_GROUP
 	root.Parent = model
 
 	local humanoid = Instance.new("Humanoid")
@@ -596,11 +639,16 @@ end
 --- Baseline: exactly GUARDIAN_GATE_MARGIN studs/s slower than a player who meets
 --- the zone's recommendation, through the SAME conversion that player's own
 --- Speed goes through. That is what makes the number on the sign a threshold.
+---
+--- CALIBRATED, NOT RETUNED. The player curve changed (GameConfig.MOVEMENT)
+--- and the guardians were left exactly as they felt: each keeps the ratio to
+--- an at-gate player it had under the old curve, with the head start a faster
+--- player now gets during WAKE_DELAY folded back in over this zone's actual
+--- run to the red line. See GameConfig.guardianGateWalkSpeed.
 local function guardianSpeed(zoneIndex: number): number
 	local zone = ZoneConfig.Zones[zoneIndex]
-	local recommended = math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER)
-	local atGate = GameConfig.walkSpeedFromPower(recommended)
-	return math.max(atGate - ZoneConfig.GUARDIAN_GATE_MARGIN, GameConfig.WALKSPEED_MIN * 0.5)
+	local run = MapConfig.zoneCenterZ(zoneIndex)
+	return GameConfig.guardianGateWalkSpeed(zone.recommendedSpeed, ZoneConfig.GUARDIAN_GATE_MARGIN, run)
 end
 
 GuardianService.speedForZone = guardianSpeed
@@ -616,7 +664,37 @@ GuardianService.speedForZone = guardianSpeed
 --- fix alone left a 127K thief only 1.5 studs/s slower than a 170K guardian,
 --- which over 894 studs of lane is not enough to overturn a head start - the
 --- thief still escaped. Both halves are needed.
-function GuardianService.speedForChase(zoneIndex: number, thiefPower: number): number
+--- THE CARRY CORRECTION, and why the recommendations were lying.
+---
+--- `guardianSpeed` calibrates a zone's guardian against a player who is AT the
+--- recommendation and running FREE - at zone 9 that is 210.29 studs/s for the
+--- player against 209.79 for the guardian, the intended half-a-stud escape.
+--- But a chased player is never running free: they are carrying, and the size
+--- penalty (RarityConfig.Sizes.movePenalty, 4% to 25%) comes off THEIR speed
+--- and nothing came off the guardian's. Measured at the Secret Lab:
+---
+---     power   free      carrying Huge   carrying Giant   carrying Colossal
+---     700M    +0.50       -20.5           -37.4            -52.1
+---     1B      +5.50       -16.0           -33.3            -48.3
+---     3B     +20.89        -2.2           -20.6            -36.8
+---
+--- That is the whole "1B, 2B and even 3B still lose" report: the sign on the
+--- Scientist says 700M, and a 3B thief carrying a Titan is thirty studs/s
+--- slower than it. It was never the Scientist's number - the number is right
+--- and the comparison was wrong, which is why every zone shares the fault and
+--- why the fix belongs in this shared formula rather than in one zone's data.
+---
+--- So the guardian carries the same handicap the thief does. At the gate the
+--- margin is the designed half-stud again for EVERY size, and above the gate
+--- the thief pulls away as the sign promises:
+---
+---     700M + Colossal  ->  157.7 thief vs 157.3 guardian  (+0.4, narrow)
+---     1B   + Colossal  ->  161.5 thief vs 157.3 guardian  (+4.2, escapes)
+---     3B   + Colossal  ->  173.0 thief vs 157.3 guardian  (+15.7, clear)
+---
+--- Below the gate the deficit multiplier still runs them down, so a thief who
+--- has not earned the zone is caught exactly as before.
+function GuardianService.speedForChase(zoneIndex: number, thiefPower: number, carryPenalty: number?): number
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local recommended = math.max(zone.recommendedSpeed, GameConfig.STARTING_SPEED_POWER)
 	local base = guardianSpeed(zoneIndex)
@@ -624,7 +702,25 @@ function GuardianService.speedForChase(zoneIndex: number, thiefPower: number): n
 	-- 0 when the thief meets or beats the recommendation, approaching 1 the
 	-- further under it they are.
 	local deficit = math.clamp(1 - (math.max(thiefPower, 0) / recommended), 0, 1)
-	return base * (1 + ZoneConfig.GUARDIAN_DEFICIT_CATCHUP * deficit)
+	local chase = base * (1 + ZoneConfig.GUARDIAN_DEFICIT_CATCHUP * deficit)
+
+	-- The thief's own load, applied to the chaser. Clamped so a future size
+	-- with an extreme penalty can never stall a guardian outright.
+	local penalty = math.clamp(carryPenalty or 0, 0, 0.5)
+	return chase * (1 - penalty)
+end
+
+--- The movement penalty a thief is paying for what they are carrying. Read
+--- off the loot instance the chase is already holding, from the SAME table
+--- CarryService applies (RarityConfig.Sizes.movePenalty), so the two can
+--- never disagree about what a size costs - and without this service having
+--- to require CarryService back.
+function GuardianService.carryPenaltyOf(loot: LootService.LootInstance?): number
+	if not loot then
+		return 0
+	end
+	local size = RarityConfig.SizeById[loot.size]
+	return if size and size.movePenalty then size.movePenalty else 0
 end
 
 -- ==========================================================
@@ -940,7 +1036,11 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 	-- server's own profile, never from anything the client can influence.
 	local profile = DataService.get(carrier.player)
 	local power = if profile then profile.SpeedPower else GameConfig.STARTING_SPEED_POWER
-	guardian.baseSpeed = GuardianService.speedForChase(guardian.zoneIndex, power)
+	guardian.baseSpeed = GuardianService.speedForChase(
+		guardian.zoneIndex,
+		power,
+		GuardianService.carryPenaltyOf(carrier.loot)
+	)
 	guardian.nextScanAt = os.clock() + SCAN_INTERVAL
 
 	if fromSleep then
@@ -1024,7 +1124,7 @@ local function attachEscort(guardian: Guardian, loot: LootService.LootInstance):
 	model.Parent = holder
 	model:PivotTo(root.CFrame)
 	local height = tonumber(rig:GetAttribute("Height")) or root.Size.Y
-	local minCorner = select(1, LootModel.worldExtents(model))
+	local minCorner = select(1, LootModel.visibleExtents(model))
 	local rootBottom = root.Position.Y - root.Size.Y / 2
 	local lift = if minCorner then (rootBottom + height + 0.5) - minCorner.Y else height
 	model:PivotTo(root.CFrame * CFrame.new(0, lift, 0))
@@ -1562,6 +1662,20 @@ end
 function GuardianService.start()
 	local map = workspace:WaitForChild("Map", 20)
 	local zonesFolder = map:WaitForChild("Zones", 10)
+
+	-- Every character into the player collision group, so guardians (and
+	-- their costumes) are walk-through for players while still standing on
+	-- the world. See BODY_COLLISION_GROUP.
+	local function onPlayer(player: Player)
+		if player.Character then
+			assignPlayerCollision(player.Character)
+		end
+		player.CharacterAdded:Connect(assignPlayerCollision)
+	end
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
+	Players.PlayerAdded:Connect(onPlayer)
 
 	local line = map:FindFirstChild("SafeZone") and map.SafeZone:FindFirstChild("BoundaryLine")
 	safeLineZ = if line and line:IsA("BasePart") then line.Position.Z else 0

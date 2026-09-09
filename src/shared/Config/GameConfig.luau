@@ -14,86 +14,226 @@ GameConfig.STARTING_CASH = 0
 GameConfig.STARTING_SPEED_POWER = 10
 GameConfig.STARTING_TRAPS = 3
 GameConfig.STARTING_DISPLAY_SLOTS = 7
-GameConfig.MAX_DISPLAY_SLOTS = 14
+GameConfig.MAX_DISPLAY_SLOTS = 18
+
+-- ==========================================================
+-- POST-GAME EXTENSION
+-- ==========================================================
+--
+-- The reference progression has eleven comparable zones; the Airport is this
+-- game's own twelfth. It keeps its assets, items and every save, but it is
+-- fenced: it is excluded from every parity table, test and simulation, its
+-- loot weights are provisional, and it can be switched off here without
+-- touching a zone table. `enabled = false` leaves the zone standing with
+-- empty sockets (nothing spawns, nothing is announced); owned Airport items
+-- keep earning and stay in the Index either way.
+GameConfig.POSTGAME_EXTENSION = {
+	enabled = true,
+	zones = { 12 },
+}
+
+--- True when zone `index` is post-game content.
+function GameConfig.isPostgameZone(index: number): boolean
+	for _, zone in GameConfig.POSTGAME_EXTENSION.zones do
+		if zone == index then
+			return true
+		end
+	end
+	return false
+end
+
+--- True when a post-game zone should spawn loot right now.
+function GameConfig.postgameSpawnsEnabled(): boolean
+	return GameConfig.POSTGAME_EXTENSION.enabled == true
+end
 
 -- ==========================================================
 -- MOVEMENT
 -- ==========================================================
 --
--- SpeedPower spans 10 to twenty BILLION, so it cannot drive WalkSpeed directly.
--- It is compressed logarithmically, then a PROGRESSION BOOST is layered on top.
+-- SpeedPower spans 10 to hundreds of BILLIONS, so it cannot drive WalkSpeed
+-- directly. It is compressed in two stages:
 --
--- WHY THE BOOST EXISTS
--- Log compression alone is too flat at the top. A player at 20B Speed was moving
--- 85 studs/s against a beginner's 18 - technically five times faster, but the
--- last few orders of magnitude of progression bought almost nothing, because
--- each 10x of Speed only ever adds a fixed 7.5 studs/s. The late game did not
--- FEEL like the numbers said it should.
+--   1. LOG COMPRESSION. The excess over the starting Speed is squeezed with a
+--      log base 1.15 into an internal "progression" domain of 10..300.
+--   2. LINEAR REMAP. That domain is mapped straight onto the physical range
+--      BASE_WALK_SPEED..MAX_WALK_SPEED (16..300).
 --
--- The boost scales that same log measure into a multiplier that starts at
--- exactly 1.0 (so a new player is untouched and does not spawn zooming) and
--- rises smoothly to MAX_BOOST at the top of the progression. It is linear in log
--- space, which means it has no breakpoints - 999K and 1M are imperceptibly
--- different, exactly as they should be.
+-- So a brand new player moves at exactly Roblox's default (16), the curve has
+-- no breakpoints, and it never exceeds 300 - the point past which the physics
+-- engine stops keeping a character on the ground.
 --
--- Roughly what it produces, against the old curve:
---     Speed 10     18.3  ->  18.3   (x1.00, unchanged)
---     Speed 900    30.7  ->  33.5   (x1.09)
---     Speed 10K    38.5  ->  44.3   (x1.15)
---     Speed 170K   47.7  ->  58.1   (x1.22)
---     Speed 18M    62.9  ->  83.7   (x1.33)
---     Speed 2.5B   79.0  -> 114.5   (x1.45)
---     Speed 20B    85.8  -> 128.6   (x1.50)
+-- What it produces:
+--     Speed 10      16.0
+--     Speed 1K      28.8
+--     Speed 10K     54.8
+--     Speed 100K    86.3
+--     Speed 1M     118.5
+--     Speed 170M   190.5
+--     Speed 225M   194.4
+--     Speed ~427B  300 (cap)
 --
 -- THIS DOES NOT CHANGE THE DISPLAYED STAT. A player with 127K Speed still reads
--- 127K everywhere; only how far that carries them per second changes.
+-- 127K everywhere; only how far that carries them per second changes. Saved
+-- SpeedPower is never migrated, divided or rescaled for this curve.
 
 GameConfig.WALKSPEED_BASE = 16
-GameConfig.WALKSPEED_COEFFICIENT = 7.5
-GameConfig.WALKSPEED_MIN = 18
---- Raised from 90 to clear the top of the boosted curve (~129 at the Airport
---- gate). Still a hard bound, so a runaway Speed value cannot produce a
---- character the physics engine cannot keep on the ground.
-GameConfig.WALKSPEED_MAX = 140
+GameConfig.WALKSPEED_MIN = 16
+--- The hard physical ceiling. Also the top of the internal progression domain.
+GameConfig.WALKSPEED_MAX = 300
+--- Log base of the compression. 1.15 is what puts 225M Speed at ~194 WalkSpeed.
+GameConfig.WALKSPEED_LOG_BASE = 1.15
+--- How much raw Speed excess feeds one unit of the log argument.
+GameConfig.WALKSPEED_RAW_SCALE = 0.0015
+--- Progression-domain units gained per unit of the log measure.
+GameConfig.WALKSPEED_PROGRESSION_STEP = 2
 
---- Multiplier at the very top of progression. 1.0 would be the old curve.
-GameConfig.SPEED_BOOST_MAX = 1.5
-
---- The log-space window the boost ramps across: from a brand new player to the
---- last zone's recommended Speed. Both ends are derived, not typed, so moving
---- the starting Speed or the final gate re-fits the curve automatically.
-GameConfig.SPEED_BOOST_FLOOR_POWER = 10 -- STARTING_SPEED_POWER
-GameConfig.SPEED_BOOST_CEILING_POWER = 20e9 -- the Airport gate
-
---- The compressed log measure everything below is built from.
-local function logMeasure(power: number): number
-	return math.log10(1 + math.max(power, 0) / 10)
+--- The internal progression speed (10..300) for a Speed value. Exposed because
+--- the treadmill's own award-cadence and the run animation both want the
+--- compressed measure rather than the raw stat.
+function GameConfig.progressionSpeedFromPower(power: number): number
+	local base = GameConfig.STARTING_SPEED_POWER
+	local raw = math.max((tonumber(power) or 0) - base, 0)
+	if raw <= 0 then
+		return base
+	end
+	local measure = math.log(1 + GameConfig.WALKSPEED_RAW_SCALE * raw) / math.log(GameConfig.WALKSPEED_LOG_BASE)
+	return math.clamp(base + GameConfig.WALKSPEED_PROGRESSION_STEP * measure, base, GameConfig.WALKSPEED_MAX)
 end
 
---- How far through the progression a Speed value sits, 0 to 1, in log space.
---- Exposed so the guardians and any UI can reason about it the same way.
+--- 0 at the starting Speed, 1 at the physical cap. The same fraction the
+--- remap below uses, so anything that wants "how far along" (the treadmill
+--- run cycle, a UI bar) reads the curve the movement actually uses.
 function GameConfig.progressionAlpha(power: number): number
-	local floor = logMeasure(GameConfig.SPEED_BOOST_FLOOR_POWER)
-	local ceiling = logMeasure(GameConfig.SPEED_BOOST_CEILING_POWER)
-	if ceiling <= floor then
+	local base = GameConfig.STARTING_SPEED_POWER
+	local span = GameConfig.WALKSPEED_MAX - base
+	if span <= 0 then
 		return 0
 	end
-	return math.clamp((logMeasure(power) - floor) / (ceiling - floor), 0, 1)
+	return math.clamp((GameConfig.progressionSpeedFromPower(power) - base) / span, 0, 1)
 end
 
---- WalkSpeed for a SpeedPower value. The single conversion in the game: the
+--- WalkSpeed for a SpeedPower value. THE single conversion in the game: the
 --- player, the guardians and every recommendation all go through this, which is
 --- what makes a displayed "Recommended Speed" mean something in the chase.
 function GameConfig.walkSpeedFromPower(power: number): number
-	local compressed = GameConfig.WALKSPEED_BASE + GameConfig.WALKSPEED_COEFFICIENT * logMeasure(power)
-	local boost = 1 + (GameConfig.SPEED_BOOST_MAX - 1) * GameConfig.progressionAlpha(power)
-	return math.clamp(compressed * boost, GameConfig.WALKSPEED_MIN, GameConfig.WALKSPEED_MAX)
+	local t = GameConfig.progressionAlpha(power)
+	local speed = GameConfig.WALKSPEED_BASE + t * (GameConfig.WALKSPEED_MAX - GameConfig.WALKSPEED_BASE)
+	return math.clamp(speed, GameConfig.WALKSPEED_MIN, GameConfig.WALKSPEED_MAX)
+end
+
+-- ==========================================================
+-- THE PREVIOUS CURVE, KEPT FOR CALIBRATION ONLY
+-- ==========================================================
+--
+-- The guardians were tuned against this curve and the chase felt right. When
+-- the player curve above replaced it, the guardians were NOT retuned by hand:
+-- each zone's guardian keeps the same RATIO to a player at that zone's
+-- recommended Speed that it had under this curve (see guardianGateWalkSpeed).
+-- Nothing else reads this. Do not use it for movement.
+
+local LEGACY_BASE = 16
+local LEGACY_COEFFICIENT = 7.5
+local LEGACY_MIN = 18
+local LEGACY_MAX = 140
+local LEGACY_BOOST_MAX = 1.5
+local LEGACY_FLOOR_POWER = 10
+local LEGACY_CEILING_POWER = 20e9
+
+local function legacyLogMeasure(power: number): number
+	return math.log10(1 + math.max(power, 0) / 10)
+end
+
+function GameConfig.legacyWalkSpeedFromPower(power: number): number
+	local floor = legacyLogMeasure(LEGACY_FLOOR_POWER)
+	local ceiling = legacyLogMeasure(LEGACY_CEILING_POWER)
+	local alpha = if ceiling > floor then math.clamp((legacyLogMeasure(power) - floor) / (ceiling - floor), 0, 1) else 0
+	local compressed = LEGACY_BASE + LEGACY_COEFFICIENT * legacyLogMeasure(power)
+	local boost = 1 + (LEGACY_BOOST_MAX - 1) * alpha
+	return math.clamp(compressed * boost, LEGACY_MIN, LEGACY_MAX)
+end
+
+-- ==========================================================
+-- GUARDIAN CALIBRATION
+-- ==========================================================
+--
+-- A guardian's baseline pace is derived from the zone's recommended Speed so
+-- the number on the sign is a real threshold. Under the old curve that was
+-- "the at-gate player's WalkSpeed minus ZoneConfig.GUARDIAN_GATE_MARGIN".
+--
+-- The new curve moves a late-game player several times faster in studs, so
+-- carrying a fixed 1.5 studs/s margin across would have turned a tense chase
+-- into a stroll. Instead the OLD guardian/player ratio is preserved:
+--
+--     oldRatio          = oldGuardian / oldPlayerAtGate
+--     newGuardian       = newPlayerAtGate * oldRatio
+--
+-- ...corrected for the head start. The guardian spends GUARDIAN_WAKE_DELAY
+-- standing still after a steal, and a faster player covers more ground in
+-- that beat. Over a run of `runDistance` studs that extra head start is worth
+-- (newPlayer - oldPlayer) * wake / runDistance in ratio terms, so it is added
+-- back to keep the separation at the line approximately what it was in studs.
+--
+-- The correction is CAPPED so a player who meets the recommendation is still
+-- fractionally faster than the guardian - the sign must stay honest and the
+-- "at the bar you escape, narrowly" rule must survive every zone.
+
+--- The shocked beat between a steal and the chase (GuardianService.WAKE_DELAY).
+GameConfig.GUARDIAN_WAKE_DELAY = 0.55
+--- The least a guardian may trail an at-gate player by, in studs/s.
+GameConfig.GUARDIAN_MIN_GATE_MARGIN = 0.5
+
+function GameConfig.guardianGateWalkSpeed(recommended: number, gateMargin: number, runDistance: number?): number
+	local power = math.max(recommended, GameConfig.STARTING_SPEED_POWER)
+	local newPlayer = GameConfig.walkSpeedFromPower(power)
+	local oldPlayer = GameConfig.legacyWalkSpeedFromPower(power)
+	local oldGuardian = math.max(oldPlayer - gateMargin, LEGACY_MIN * 0.5)
+	local ratio = oldGuardian / oldPlayer
+
+	local guardian = newPlayer * ratio
+	local distance = runDistance or 0
+	if distance > 1 then
+		guardian += newPlayer * (newPlayer - oldPlayer) * GameConfig.GUARDIAN_WAKE_DELAY / distance
+	end
+
+	return math.clamp(guardian, GameConfig.WALKSPEED_MIN * 0.5, newPlayer - GameConfig.GUARDIAN_MIN_GATE_MARGIN)
 end
 
 -- Economy cadence.
 GameConfig.INCOME_TICK = 1 -- seconds between aggregate Cash grants
 GameConfig.AUTOSAVE_INTERVAL = 60
-GameConfig.SELL_REFUND_SECONDS = 60 -- selling pays this many seconds of income
+
+-- ==========================================================
+-- THE INCOME FUNNEL
+-- ==========================================================
+--
+--   preBoostRate = max(round(base x sizeFactor(Scale) x mutation x moneyPass), 1)   per item
+--   finalRate    = round(preBoostRate x SERVER_EARNINGS_BOOST x TEMPORARY_EARNINGS_BOOST)
+--
+-- The two boosts are the reference funnel's server-wide and timed factors.
+-- This game has no live boost event yet, so both are 1: the hooks exist so a
+-- future event multiplies in exactly one place and never in two.
+GameConfig.SERVER_EARNINGS_BOOST = 1
+GameConfig.TEMPORARY_EARNINGS_BOOST = 1
+
+-- SELLING. Paid from Storage as SELL_REFUND_SECONDS of the item's rate. The
+-- reference game prices a sale from the item WITH ITS MUTATIONS STRIPPED
+-- (verified); the function it prices from and the 0.8 it applies were not
+-- reachable from this project, so the seconds figure below is this game's
+-- own and is NOT a parity value. SELL_STATUS says so at runtime.
+GameConfig.SELL_REFUND_SECONDS = 60
+GameConfig.SELL_STRIPS_MUTATION = true
+GameConfig.SELL_STATUS = "PROVISIONAL_SELL_FORMULA"
+
+-- TRAINING. One standard tick per second. Speed gained per tick is
+-- TRAINING_BASE_GAIN x the treadmill's factor x (1 + trail bonus + Speed-pass
+-- bonus), where the trail and the pass ADD above their base factor and the
+-- treadmill factor applies separately (TreadmillConfig.gainPerSecond).
+-- The reference game's base gain behind its x2 / x5 / x12 ... factors was
+-- not reachable from this project; 4 is chosen so the free x2 treadmill
+-- keeps this game's existing 8 Speed/s. NOT a parity value.
+GameConfig.TRAINING_BASE_GAIN = 4
+GameConfig.TRAINING_STATUS = "BLOCKED_TRAINING_BASE"
 
 -- Interaction.
 GameConfig.STEAL_HOLD_DURATION = 1.0
@@ -202,14 +342,13 @@ GameConfig.DROPPED_ORPHAN_TIMEOUT = 75
 --- The world reroll cadence IS the Night cycle now (NightConfig.CYCLE_SECONDS
 --- owns it; NightService drives it). Mirrored here for anything that still
 --- reads the old name; validate asserts the two agree.
-GameConfig.GLOBAL_REFRESH_INTERVAL = 240
+GameConfig.GLOBAL_REFRESH_INTERVAL = 270
 GameConfig.GLOBAL_REFRESH_WARNING = 10 -- retired: the Night countdown replaced it
 
---- Chance that ONE jackpot item is injected somewhere in the world at a global
---- refresh. This is a single SERVER-LEVEL roll per refresh, never one roll per
---- socket: 40+ independent rolls at any sane percentage would print the top item
---- constantly, which is exactly what this economy exists to stop.
-GameConfig.JACKPOT_REFRESH_CHANCE = 0.10
+-- RETIRED: the separate position-eight jackpot and JACKPOT_REFRESH_CHANCE.
+-- Every item, Secret through Divine included, is an ordinary socket roll at
+-- its own zone weight (LootConfig.ZoneWeights). There is no world-level
+-- injection and no eligibility rule; validate asserts the constant is gone.
 
 -- ==========================================================
 -- TUTORIAL
@@ -256,7 +395,25 @@ GameConfig.RATE_LIMITS = {
 	SettingsRequest = 4,
 	GuardianRequest = 3,
 	WeaponRequest = 3,
+	OfflineClaimRequest = 2,
 }
+
+-- ==========================================================
+-- OFFLINE EARNINGS
+-- ==========================================================
+
+--- The longest absence that pays. Exactly six hours, never more.
+GameConfig.OFFLINE_EARNINGS_MAX_SECONDS = 6 * 60 * 60
+--- The share of the live $/s paid per offline second (1 = the full online
+--- rate). The reference game pays substantially less than its online rate
+--- while away, but its exact coefficient was not reachable from this project
+--- and is NOT guessed here: the field exists, the multiplication is wired
+--- (OfflineService.settle), and parity is NOT claimed for offline income
+--- until a traced value replaces this. OFFLINE_STATUS says so at runtime.
+GameConfig.OFFLINE_EFFICIENCY = 1
+GameConfig.OFFLINE_STATUS = "BLOCKED_OFFLINE_COEFFICIENT"
+--- Below this the reward is not worth a modal; it is still paid, silently.
+GameConfig.OFFLINE_EARNINGS_MIN_TO_SHOW = 1
 
 -- ==========================================================
 -- EVENTS
@@ -265,6 +422,17 @@ GameConfig.RATE_LIMITS = {
 --- The Creator Hub event the lobby stand asks players to follow (the "Next
 --- Update" notification). A string: event ids are 64-bit and may become
 --- UUIDs, and SocialService takes them as strings either way.
+---
+--- ROBLOX ONLY PROMPTS FOR AN EVENT THAT HAS NOT STARTED. Once this event's
+--- start time passes, PromptRsvpToEventAsync refuses with "Event has
+--- already started" and the stand can only report the standing answer.
+--- Schedule the next event on the Creator Hub and paste its id here.
 GameConfig.NEXT_UPDATE_EVENT_ID = "4257917435077853831"
+
+--- The picture on the Next Update board's face: an IMAGE asset id (a decal
+--- or image upload), or nil to draw the built-in "NEXT UPDATE" face. An
+--- event id is not an image and cannot be shown here - Roblox exposes no
+--- event thumbnail to a running game.
+GameConfig.NEXT_UPDATE_IMAGE = 115680004637965 :: number?
 
 return GameConfig

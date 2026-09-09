@@ -108,7 +108,9 @@ function SlapDisplayService.start()
 	gui.Adornee = signAnchor
 	gui.Parent = signAnchor
 
-	local slam = label(gui, "Slam", 0, 0.5, Color3.fromRGB(255, 255, 255), 72, "SLAM!")
+	-- Still NAMED "Slam" - SlapDisplayController finds the rainbow gradient by
+	-- that name - but the word on the sign is the product's.
+	local slam = label(gui, "Slam", 0, 0.5, Color3.fromRGB(255, 255, 255), 72, "SLAP!")
 	-- Swept by the client; white underneath so the rainbow reads clean.
 	local gradient = Instance.new("UIGradient")
 	gradient.Name = "Rainbow"

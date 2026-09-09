@@ -40,6 +40,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local TrailCardPng = require(ReplicatedStorage.Shared.Util.TrailCardPng)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 
 local UIStateController = require(script.Parent.UIStateController)
 
@@ -202,6 +203,24 @@ local function build(): boolean
 		clone.AnchorPoint = pristineShop.AnchorPoint
 		clone.Size = pristineShop.Size
 		clone.BackgroundTransparency = pristineShop.BackgroundTransparency
+	end
+
+	-- TOUCH: the same growth every panel in `Frames` gets from
+	-- HUDLayoutController (this clone lives outside `Frames`, so that pass
+	-- never reached it and the booth stayed a half-size box with buttons too
+	-- small to tap). The layer already mirrors the enlarged container; the
+	-- panel fills it, and the clone's aspect constraint keeps its shape.
+	if Device.isTouch() then
+		clone.AnchorPoint = Vector2.new(0.5, 0.5)
+		clone.Position = UDim2.fromScale(0.5, 0.52)
+		clone.Size = UDim2.fromScale(0.94, 0.9)
+		for _, label in clone:GetDescendants() do
+			if (label:IsA("TextLabel") or label:IsA("TextButton")) and label.TextScaled and not label:FindFirstChildOfClass("UITextSizeConstraint") then
+				local limit = Instance.new("UITextSizeConstraint")
+				limit.MaxTextSize = 26
+				limit.Parent = label
+			end
+		end
 	end
 
 	-- Parented OUTSIDE `Frames`. The pack opens whichever frame in `Frames`

@@ -58,9 +58,13 @@ local player = Players.LocalPlayer
 -- ==========================================================
 
 --- Bottom-right, the slot the Displays counter used to occupy.
-local PILL_POSITION = UDim2.new(1, -16, 1, -12)
-local PILL_ANCHOR = Vector2.new(1, 1)
-local PILL_SIZE = UDim2.fromOffset(222, 38)
+--- Bottom-right on desktop. On touch that corner belongs to Jump and the
+--- shift lock, so the pill moves to the top strip, left of the settings
+--- gear and offer tiles, where nothing else lives.
+local TOUCH = require(ReplicatedStorage.Shared.Util.Device).isTouch()
+local PILL_POSITION = if TOUCH then UDim2.new(1, -190, 0, 16) else UDim2.new(1, -16, 1, -12)
+local PILL_ANCHOR = if TOUCH then Vector2.new(1, 0) else Vector2.new(1, 1)
+local PILL_SIZE = if TOUCH then UDim2.fromOffset(176, 32) else UDim2.fromOffset(222, 38)
 
 local COLOR_CALM = Color3.fromRGB(226, 232, 244)
 local COLOR_WARN = Color3.fromRGB(255, 196, 92)

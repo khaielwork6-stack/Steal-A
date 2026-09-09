@@ -21,6 +21,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
@@ -48,6 +49,215 @@ end
 ---   Invoke("clearDisplays")                 empty the base
 local COMMANDS: { [string]: (Player, ...any) -> any } = {
 
+	--- THE PARITY TOOL. Rolls the live roller with a seeded Random and reports
+	--- per-socket odds, at-least-once-in-five, occurrences/hour, income
+	--- percentiles, time-to-cash / time-to-Speed by cohort, every Cash source
+	--- and every BLOCKED value. Prints a summary and returns the full table.
+	---   paritySim()                    1,000,000 rolls per parity zone
+	---   paritySim(200000)              fewer rolls
+	---   paritySim(200000, true)        include the post-game zone (flagged)
+	paritySim = function(_player, rolls: number?, includePostgame: boolean?)
+		local ParitySim = require(script.Parent.ParitySim)
+		local result = ParitySim.run({ rolls = tonumber(rolls), includePostgame = includePostgame == true })
+		ParitySim.print(result)
+		return result
+	end,
+
+	--- THE REGRESSION SUITE: config validation, the locked mutation snapshot,
+	--- Night-never-modifies, the save migration, the income funnel and the
+	--- number formatter. Prints every failure and returns the report.
+	economyTests = function()
+		local EconomyTests = require(script.Parent.EconomyTests)
+		return EconomyTests.run()
+	end,
+
+	-- ==========================================================
+	-- MYSTERY / HATCH TEST BRIDGE
+	-- ==========================================================
+
+	--- Every sealed container on this player's base, with the SECRET the
+	--- client is never told, so a test can prove the reward survived the
+	--- steal, the escape and the wait unchanged.
+	---   sealed()
+	sealed = function(player)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local rows = {}
+		for _, item in profile.DisplayItems do
+			if item.Hatched == false then
+				table.insert(rows, string.format(
+					"slot%d %s [%s] %s s=%.4f/%s  ready in %s  income-if-hatched %s  token=%s",
+					item.SlotIndex, item.ItemId, item.Rarity, item.Size, item.Scale, item.Mutation,
+					HatchService.formatRemaining(HatchService.remaining(item)),
+					NumberFormat.income(item.FinalIncome),
+					tostring(item.SpawnToken and string.sub(item.SpawnToken, 1, 8))
+				))
+			end
+		end
+		return { sealed = rows, income = EconomyService.getIncome(player) }
+	end,
+
+	--- Fast-forwards one sealed container so a long hatch can be tested
+	--- without waiting hours:   ripen()  /  ripen(slotIndex)
+	ripen = function(player, slotIndex: number?)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local touched = {}
+		for _, item in profile.DisplayItems do
+			if item.Hatched == false and (slotIndex == nil or item.SlotIndex == slotIndex) then
+				item.HatchEndsAt = os.time() - 1
+				table.insert(touched, item.SlotIndex)
+			end
+		end
+		BaseService.rebuildDisplays(player)
+		StateService.pushNow(player)
+		return { ripened = touched }
+	end,
+
+	--- Runs the real hatch commit, exactly as the remote does:
+	---   hatch()             the first ready container
+	---   hatch(slotIndex)    that slot
+	hatch = function(player, slotIndex: number?)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local target = nil
+		for _, item in profile.DisplayItems do
+			if item.Hatched == false and (slotIndex == nil or item.SlotIndex == slotIndex) then
+				target = item
+				break
+			end
+		end
+		if not target then
+			return { error = "no sealed container" }
+		end
+		local before = EconomyService.getIncome(player)
+		local ok, reason = HatchService.commit(player, target.InstanceId)
+		-- Fire it a SECOND time to prove a replay pays nothing.
+		local okAgain, reasonAgain = HatchService.commit(player, target.InstanceId)
+		return {
+			hatched = ok,
+			reason = reason,
+			replayAccepted = okAgain,
+			replayReason = reasonAgain,
+			item = target.ItemId,
+			rarity = target.Rarity,
+			size = target.Size,
+			mutation = target.Mutation,
+			incomeBefore = before,
+			incomeAfter = EconomyService.getIncome(player),
+			itemIncome = target.FinalIncome,
+			indexed = profile.Index[target.ItemId] == true,
+		}
+	end,
+
+	--- The container-size roll, per zone, against its configured odds. Proves
+	--- every roll returns exactly one variant, that no variant is impossible,
+	--- and that the early zones really are stingier than the endgame ones.
+	---   sizeOdds()          all twelve zones, 200k rolls each
+	---   sizeOdds(nil, n)    n rolls each
+	sizeOdds = function(_player, trials: number?)
+		local n = math.clamp(tonumber(trials) or 200000, 1000, 1000000)
+		local rng = Random.new(20260909)
+		local rows = {}
+		local worst = 0
+		for zoneIndex = 1, ZoneConfig.COUNT do
+			local counts: { [string]: number } = {}
+			local invalid = 0
+			for _ = 1, n do
+				local scale = ScaleConfig.rollScale(zoneIndex, rng)
+				local label = RarityConfig.sizeLabelFor(scale)
+				if not RarityConfig.SizeById[label] then
+					invalid += 1
+				end
+				counts[label] = (counts[label] or 0) + 1
+			end
+			local odds = ScaleConfig.variantOdds(zoneIndex)
+			local parts = {}
+			local rolled = 0
+			for _, variant in ScaleConfig.Variants do
+				local observed = (counts[variant.id] or 0) / n * 100
+				local expected = (odds[variant.id] or 0) * 100
+				worst = math.max(worst, math.abs(observed - expected))
+				rolled += counts[variant.id] or 0
+				table.insert(parts, string.format("%s %.3f/%.3f", string.sub(variant.id, 1, 4), observed, expected))
+			end
+			table.insert(rows, string.format("Z%02d %-8s %s  invalid=%d missing=%d",
+				zoneIndex, ScaleConfig.bandFor(zoneIndex).id, table.concat(parts, "  "), invalid, n - rolled))
+		end
+		return { trials = n, worstDeltaPercentagePoints = worst, zones = rows }
+	end,
+
+	--- The trap cooldown, end to end:  traps()  reports; traps("place")
+	--- places one;  traps("reset")  clears the cooldown.
+	traps = function(player, mode: string?)
+		local PvPService = require(script.Parent.PvPService)
+		local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		if mode == "place" then
+			PvPService.tryPlaceTrap(player, nil)
+		elseif mode == "reset" then
+			profile.TrapReadyAt = 0
+		elseif mode == "expire" then
+			-- Back-dates the live traps past TRAP_LIFETIME and lets one sweep
+			-- run, so the expiry is observed rather than assumed.
+			PvPService.debugAgeTraps(PvPConfig.TRAP_LIFETIME + 1)
+			task.wait(0.5)
+		end
+		return {
+			trapCount = profile.TrapCount,
+			trapReadyAt = profile.TrapReadyAt,
+			cooldownRemaining = PvPService.trapCooldownRemaining(player),
+			canPlace = PvPService.canPlaceTrap(player),
+			activeInWorld = PvPService.activeTrapCount(),
+			configuredCooldown = PvPConfig.TRAP_COOLDOWN,
+			configuredLifetime = PvPConfig.TRAP_LIFETIME,
+		}
+	end,
+
+	--- The Scientist (and every other guardian) against a carrying thief.
+	--- Reports the real chase speed beside the thief's real WalkSpeed for a
+	--- range of Speed stats and carried sizes, so the sign can be checked
+	---   guardianAudit()  /  guardianAudit(nil, zoneIndex)
+	guardianAudit = function(_player, zoneIndex: number?)
+		local GuardianService = require(script.Parent.GuardianService)
+		local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
+		local zone = math.floor(zoneIndex or 9)
+		local def = ZoneConfig.Zones[zone]
+		local rows = {}
+		local sizes = { "Normal", "Big", "Huge", "Giant", "Titan", "Colossal" }
+		local powers = { def.recommendedSpeed * 0.5, def.recommendedSpeed * 0.75, def.recommendedSpeed, def.recommendedSpeed * 1.43, def.recommendedSpeed * 2.86, def.recommendedSpeed * 4.29 }
+		for _, power in powers do
+			local parts = {}
+			for _, sizeId in sizes do
+				local size = RarityConfig.SizeById[sizeId]
+				local penalty = if size and size.movePenalty then size.movePenalty else 0
+				local thief = GameConfig.walkSpeedFromPower(power) * (1 - penalty)
+				local guard = GuardianService.speedForChase(zone, power, penalty)
+				table.insert(parts, string.format("%s %+.1f", string.sub(sizeId, 1, 4), thief - guard))
+			end
+			table.insert(rows, string.format("%14s  %s", NumberFormat.short(power), table.concat(parts, "  ")))
+		end
+		return {
+			zone = zone,
+			name = def.name,
+			recommended = NumberFormat.short(def.recommendedSpeed),
+			runDistance = math.floor(MapConfig.zoneCenterZ(zone)),
+			note = "margin = thief WalkSpeed minus guardian chase speed; positive escapes",
+			rows = rows,
+		}
+	end,
+
 	snapshot = function(player)
 		local profile = DataService.get(player)
 		if not profile then
@@ -70,6 +280,247 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- THE REJOIN, without one. Serialises this player's live profile exactly
+	--- as a DataStore would, reads it back, and runs the real migrate and
+	--- reconcile over it - so a hatch deadline that would not survive a save,
+	--- a shutdown or a rejoin fails here instead of on a live server.
+	---   persistTest()
+	persistTest = function(player)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+
+		local before = {}
+		for _, item in profile.DisplayItems do
+			before[item.InstanceId] = {
+				hatched = item.Hatched,
+				endsAt = item.HatchEndsAt,
+				remaining = HatchService.remaining(item),
+				token = item.SpawnToken,
+				scale = item.Scale,
+				income = item.FinalIncome,
+			}
+		end
+		local trapBefore = profile.TrapReadyAt
+
+		-- The round trip a DataStore really performs: encode, decode, migrate,
+		-- reconcile. JSON is where a nil, a NaN or an infinity would be lost.
+		local encoded = HttpService:JSONEncode(profile)
+		local decoded = HttpService:JSONDecode(encoded)
+		local restored = DataService.migrate(decoded)
+		DataService.reconcile(restored)
+
+		local rows = {}
+		local mismatches = {}
+		for _, item in restored.DisplayItems do
+			local was = before[item.InstanceId]
+			if not was then
+				table.insert(mismatches, `{item.InstanceId} appeared from nowhere`)
+				continue
+			end
+			if item.Hatched ~= was.hatched then
+				table.insert(mismatches, `{item.InstanceId} hatch flag {tostring(was.hatched)} -> {tostring(item.Hatched)}`)
+			end
+			if item.HatchEndsAt ~= was.endsAt then
+				table.insert(mismatches, `{item.InstanceId} deadline {tostring(was.endsAt)} -> {tostring(item.HatchEndsAt)}`)
+			end
+			if item.SpawnToken ~= was.token then
+				table.insert(mismatches, `{item.InstanceId} token changed`)
+			end
+			if item.Scale ~= was.scale or item.FinalIncome ~= was.income then
+				table.insert(mismatches, `{item.InstanceId} reward changed`)
+			end
+			before[item.InstanceId] = nil
+			table.insert(rows, string.format(
+				"slot%d %s hatched=%s ready in %s (was %s)",
+				item.SlotIndex, item.ItemId, tostring(item.Hatched),
+				HatchService.formatRemaining(HatchService.remaining(item)),
+				HatchService.formatRemaining(was.remaining)
+			))
+		end
+		for id in before do
+			table.insert(mismatches, `{id} was lost in the save`)
+		end
+		if restored.TrapReadyAt ~= trapBefore then
+			table.insert(mismatches, `trap cooldown {tostring(trapBefore)} -> {tostring(restored.TrapReadyAt)}`)
+		end
+
+		return {
+			bytes = #encoded,
+			schemaVersion = restored.SchemaVersion,
+			survived = #mismatches == 0,
+			mismatches = mismatches,
+			items = rows,
+			trapReadyAt = restored.TrapReadyAt,
+		}
+	end,
+
+	--- INSTANT REVEAL through the real receipt path. Selects the container on
+	--- slotIndex, saves the pending purchase the way the prompt would (the
+	--- Studio dialog cannot complete a purchase), then delivers a synthetic
+	--- receipt through the live MonetizationService.processReceipt - which
+	--- calls HatchService.fulfil, marks the container ready and commits it.
+	---   instantReveal(slotIndex)                the tier for its remaining time
+	---   instantReveal(slotIndex, purchaseId)    replay a specific receipt id
+	---   instantReveal(slotIndex, nil, productId) deliver a wrong-tier receipt
+	instantReveal = function(player, slotIndex: number, purchaseId: string?, forcedProductId: number?)
+		local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
+		local MonetizationService = require(script.Parent.MonetizationService)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local target = nil
+		for _, item in profile.DisplayItems do
+			if item.SlotIndex == slotIndex then
+				target = item
+				break
+			end
+		end
+		if not target then
+			return { error = "nothing on that slot" }
+		end
+		local remaining = HatchService.remaining(target)
+		local product = MonetizationConfig.revealProductFor(remaining)
+		local productId = forcedProductId or (product and product.productId) or 0
+		if not forcedProductId and product then
+			profile.PendingReveal = { instanceId = target.InstanceId, productId = product.productId }
+		end
+		local id = purchaseId or ("test-reveal-" .. HttpService:GenerateGUID(false))
+		local decision = MonetizationService.processReceipt({
+			PlayerId = player.UserId,
+			ProductId = productId,
+			PurchaseId = id,
+			CurrencySpent = product and product.robux or 0,
+			CurrencyType = Enum.CurrencyType.Robux,
+			PlaceIdWherePurchased = game.PlaceId,
+		})
+		return {
+			remainingBefore = remaining,
+			tier = product and product.key,
+			productId = productId,
+			purchaseId = id,
+			decision = tostring(decision),
+			hatched = target.Hatched,
+			pendingCleared = profile.PendingReveal == nil,
+			income = EconomyService.getIncome(player),
+		}
+	end,
+
+	--- Lets the opening popup be observed again:   introReset()
+	introReset = function(player)
+		local TutorialService = require(script.Parent.TutorialService)
+		TutorialService.resetIntro(player)
+		return { reset = true }
+	end,
+
+	--- Puts SEALED containers on the base the way PlacementService does, so the
+	--- incubation, the base rebuild and the hatch can be tested without running
+	--- a steal per container:
+	---   sealGrant(itemId, count?, scale?, mutation?)
+	sealGrant = function(player, itemId: string, count: number?, scale: number?, mutation: string?)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local def = LootConfig.ById[itemId]
+		if not def then
+			return { error = `unknown ItemId "{itemId}"` }
+		end
+		local wanted = math.clamp(math.floor(tonumber(count) or 1), 1, 24)
+		local rolled = ScaleConfig.clampScale(tonumber(scale) or ScaleConfig.rollScale(LootConfig.ZoneOf[def.id]))
+		local mutationId = mutation or "Normal"
+		local placed = {}
+		for _ = 1, wanted do
+			local free = BaseService.freeSlots(player)
+			if #free == 0 then
+				break
+			end
+			local item = {
+				InstanceId = HttpService:GenerateGUID(false),
+				ItemId = def.id,
+				ZoneId = LootConfig.ZoneOf[def.id],
+				Rarity = def.rarity,
+				Size = RarityConfig.sizeLabelFor(rolled),
+				Mutation = mutationId,
+				BaseIncome = def.income,
+				FinalIncome = RarityConfig.finalIncome(def.income, rolled, mutationId),
+				SlotIndex = free[1],
+				Scale = rolled,
+				VisualScale = rolled,
+				SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION,
+				EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION,
+				MaturationSeconds = ScaleConfig.maturationSeconds(def.growthSeconds, rolled),
+				GrowthSeconds = 0,
+				Hatched = false,
+				SpawnToken = HttpService:GenerateGUID(false),
+			}
+			table.insert(profile.DisplayItems, item)
+			HatchService.beginIncubation(player, item)
+			table.insert(placed, { slot = item.SlotIndex, id = item.InstanceId, endsAt = item.HatchEndsAt })
+		end
+		BaseService.rebuildDisplays(player)
+		EconomyService.recalculate(player)
+		StateService.pushNow(player)
+		return {
+			sealed = #placed,
+			slots = placed,
+			size = RarityConfig.sizeLabelFor(rolled),
+			scale = rolled,
+			income = EconomyService.getIncome(player),
+			freeSlotsLeft = #BaseService.freeSlots(player),
+		}
+	end,
+
+	--- Fires the REAL HatchRequest handler `times` in a burst, from the server,
+	--- to prove the rate limiter and the commit guard together let exactly one
+	--- reward through:   spamHatch(instanceId?, times?)
+	spamHatch = function(player, instanceId: string?, times: number?)
+		local HatchService = require(script.Parent.HatchService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local target = instanceId
+		if not target then
+			for _, item in profile.DisplayItems do
+				if item.Hatched == false then
+					target = item.InstanceId
+					break
+				end
+			end
+		end
+		if not target then
+			return { error = "no sealed container" }
+		end
+		local burst = math.clamp(math.floor(tonumber(times) or 20), 1, 200)
+		local accepted, refused = 0, 0
+		local reasons: { [string]: number } = {}
+		-- Same frame, no yields: this is the two-players-one-container race and
+		-- the button-masher, in the shape the server actually sees them.
+		for _ = 1, burst do
+			local ok, reason = HatchService.commit(player, target :: string)
+			if ok then
+				accepted += 1
+			else
+				refused += 1
+				local key = reason or "(silent)"
+				reasons[key] = (reasons[key] or 0) + 1
+			end
+		end
+		return {
+			burst = burst,
+			accepted = accepted,
+			refused = refused,
+			reasons = reasons,
+			income = EconomyService.getIncome(player),
+		}
+	end,
+
 	--- grant(itemId, size?, mutation?, visualScale?) - an exact scale inside the
 	--- tier's range may be pinned (a 20x Colossal for a screenshot); otherwise
 	--- one is rolled exactly as a real spawn would.
@@ -87,25 +538,32 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			return { error = "base full" }
 		end
 
-		local sizeId = size or "Normal"
+		-- `size` is the economy SCALE (a number); a size word is accepted and
+		-- mapped to the low edge of its label for convenience.
+		local labelToScale = { Normal = 1, Big = 1.5, Huge = 3, Giant = 6, Titan = 10, Colossal = 20 }
+		local scale = ScaleConfig.clampScale(tonumber(size) or (if type(size) == "string" then labelToScale[size] else nil) or visualScale or 1)
 		local mutationId = mutation or "Normal"
-		local final = RarityConfig.finalIncome(def.income, sizeId, mutationId)
-		local scale = if visualScale
-			then RarityConfig.clampVisualScale(sizeId, visualScale)
-			else RarityConfig.rollVisualScale(sizeId)
+		local final = RarityConfig.finalIncome(def.income, scale, mutationId)
 
 		table.insert(profile.DisplayItems, {
 			InstanceId = HttpService:GenerateGUID(false),
 			ItemId = def.id,
 			ZoneId = LootConfig.ZoneOf[def.id],
 			Rarity = def.rarity,
-			Size = sizeId,
+			Size = RarityConfig.sizeLabelFor(scale),
 			Mutation = mutationId,
 			BaseIncome = def.income,
 			FinalIncome = final,
 			SlotIndex = free[1],
+			Scale = scale,
 			VisualScale = scale,
+			SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION,
+			EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION,
+			MaturationSeconds = ScaleConfig.maturationSeconds(def.growthSeconds, scale),
 			GrowthSeconds = 0,
+			-- A granted trophy is a REVEALED one. Stated rather than left nil,
+			-- so a debug grant and a real hatch produce the same record.
+			Hatched = true,
 		})
 		local firstTime = not profile.Index[def.id]
 		profile.Index[def.id] = true
@@ -123,23 +581,23 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return { placed = def.name, slot = free[1], finalIncome = final, totalIncome = income, visualScale = scale }
 	end,
 
-	--- Pins an instance of an exact SIZE into a world socket, through the real
-	--- forceSocket path, so Titan and Colossal can be met without waiting for a
-	--- 0.1% roll:   spawnSize(zone, socket, sizeId, itemId?)
-	spawnSize = function(_player, zoneIndex: number, socketIndex: number, sizeId: string?, itemId: string?)
+	--- Pins an instance of an exact SCALE into a world socket, through the real
+	--- forceSocket path, so a Titan or Colossal can be met without waiting for
+	--- the roll:   spawnSize(zone, socket, scale, itemId?)   (scale defaults to 20)
+	spawnSize = function(_player, zoneIndex: number, socketIndex: number, scale: number?, itemId: string?)
 		local socket = LootService.getSocket(zoneIndex, socketIndex)
 		if not socket then
 			return { error = "no such socket" }
 		end
-		local id = itemId or (socket.loot and socket.loot.itemId) or LootConfig.normalPool(zoneIndex)[1].id
-		local loot = LootService.forceSocket(zoneIndex, socketIndex, id, sizeId or "Colossal", nil)
+		local id = itemId or (socket.loot and socket.loot.itemId) or LootConfig.pool(zoneIndex)[1].id
+		local loot = LootService.forceSocket(zoneIndex, socketIndex, id, tonumber(scale) or 20, nil)
 		if not loot then
 			return { error = "socket refused (mid-steal?)" }
 		end
 		local model = loot.model
 		local minCorner: Vector3?, maxCorner: Vector3? = nil, nil
 		if model then
-			minCorner, maxCorner = LootModel.worldExtents(model)
+			minCorner, maxCorner = LootModel.visibleExtents(model)
 		end
 		local extent = if minCorner and maxCorner then maxCorner - minCorner else Vector3.zero
 		local reach = LootService.interactionPart(loot)
@@ -158,25 +616,57 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
-	--- Rolls `trials` sizes with and without the Night lean and reports the
-	--- shares, so the table can be checked against its own percentages.
-	sizeSim = function(_player, trials: number?)
-		local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
-		local n = math.clamp(tonumber(trials) or 100000, 1000, 1000000)
-		local function run(boost)
-			local counts: { [string]: number } = {}
-			for _ = 1, n do
-				local id = LootService.rollSizeId(boost)
-				counts[id] = (counts[id] or 0) + 1
-			end
-			local shares = {}
-			for _, size in RarityConfig.Sizes do
-				shares[size.id] = string.format("%.3f%% (config %.3f%%)", (counts[size.id] or 0) / n * 100, size.chance)
-			end
-			return shares
+	--- THE LOOT SIZE AUDIT. Measures every registered item's authored asset
+	--- (visible parts only), reports its original box, the Normal multiplier
+	--- and the resulting Normal size, and prints the LootConfig.Normalization
+	--- table ready to paste:   lootAudit()   /   lootAudit("rows")
+	lootAudit = function(_player, mode: string?)
+		local rows = LootModel.audit()
+		local source = LootModel.auditTableSource(rows)
+		print(source)
+		local out = {}
+		local counts: { [string]: number } = {}
+		for _, row in rows do
+			counts[row.status] = (counts[row.status] or 0) + 1
+			local s = row.source
+			local n = row.normal
+			table.insert(out, string.format(
+				"%-30s z%02d p%d %-8s src %6.2f x %6.2f x %6.2f  x%-7s  normal %6.2f x %6.2f x %6.2f",
+				row.itemId, row.zone, row.position, row.status,
+				if s then s.X else 0, if s then s.Y else 0, if s then s.Z else 0,
+				if row.listed then string.format("%.4f", row.listed) elseif row.computed then string.format("%.4f*", row.computed) else "-",
+				if n then n.X else 0, if n then n.Y else 0, if n then n.Z else 0
+			))
 		end
-		return { trials = n, normal = run(nil), night = run(NightConfig.sizeBoost) }
+		return { items = #rows, counts = counts, rows = if mode == "rows" then out else nil, note = "* = computed on the fly (no row yet); the paste-ready table was printed to the output" }
 	end,
+
+	--- THE UPRIGHT AUDIT. Names every item whose pivot frame is not upright,
+	--- which is the shape of the Vanilla Milkshake bug:  upright()
+	upright = function(_player, mode: string?)
+		local rows = LootModel.uprightAudit()
+		local bad, out = {}, {}
+		for _, row in rows do
+			local line = string.format("%-30s anchor=%-22s up=%+.2f sideways=%d/%d %s",
+				row.itemId, row.anchor, row.anchorUp, row.sidewaysParts, row.totalParts, row.ok and "" or "  <-- NOT UPRIGHT")
+			table.insert(out, line)
+			if not row.ok then
+				table.insert(bad, line)
+			end
+		end
+		return {
+			items = #rows,
+			notUpright = #bad,
+			offenders = bad,
+			all = if mode == "all" then out else nil,
+		}
+	end,
+
+	-- RETIRED: scaleSim. It reported against ScaleConfig.Bands, totalWeight()
+	-- and SIZE_ODDS_STATUS, none of which survived the move to the label-first
+	-- zone-biased roll, and it called rollScale with the Random in the zone
+	-- slot. Its job is done by sizeOdds above, which checks the same rolls
+	-- against the per-zone odds they are actually drawn from.
 
 	--- The Night cycle.
 	---   night()                 status
@@ -208,14 +698,14 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 				BaseService.rebuildDisplays(player)
 				local income = EconomyService.recalculate(player)
 				StateService.pushNow(player)
-				return { item = item.ItemId, growthSeconds = item.GrowthSeconds, growthScale = BaseService.growthScale(item), totalIncome = income }
+				return { item = item.ItemId, growthSeconds = item.GrowthSeconds, maturationSeconds = item.MaturationSeconds, matured = EconomyService.isMatured(item), totalIncome = income }
 			end
 		end
 		return { error = `slot {slotIndex} is empty` }
 	end,
 
 	cash = function(player, amount: number)
-		EconomyService.award(player, amount)
+		EconomyService.award(player, amount, "debug")
 		StateService.pushNow(player)
 		return { cash = EconomyService.getCash(player) }
 	end,
@@ -388,8 +878,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return {
 			savedStage = profile and profile.TutorialStage,
 			derivedStage = TutorialService.deriveStage(player),
-			objective = state and state.objective,
-			hint = state and state.hint,
+			introSeen = profile and profile.TutorialIntroSeen,
 			hasTarget = state ~= nil and state.target ~= nil,
 		}
 	end,
@@ -668,7 +1157,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			return { receiptsStored = profile and #profile.ProcessedReceipts }
 		elseif mode == "setlevel" then
 			if profile then
-				profile.TreadmillLevel = math.clamp(tonumber(a) or 1, 0, 9)
+				profile.TreadmillLevel = math.clamp(tonumber(a) or 1, 0, TreadmillConfig.MAX_LEVEL)
 			end
 			return { treadmillLevel = profile and profile.TreadmillLevel }
 		elseif mode == "deliver" then
@@ -802,9 +1291,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			rerolled = report.rerolled,
 			filled = report.filled,
 			preservedInSocket = report.preservedInSocket,
-			jackpot = if report.jackpot
-				then `{report.jackpot.name} [{report.jackpot.rarity}] zone {report.jackpot.zoneIndex} socket {report.jackpot.socketIndex}`
-				else nil,
 		}
 	end,
 
@@ -812,113 +1298,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	--- test - steal something, wait, and confirm this does not go back up.
 	occupancy = function()
 		return LootService.occupancy()
-	end,
-
-	--- Forces a jackpot injection regardless of the 10% roll, to exercise the
-	--- placement and announcement path without waiting for luck.
-	forceJackpot = function()
-		local loot = LootService.injectJackpot()
-		if not loot then
-			return { error = "no eligible zone/socket" }
-		end
-		LootService.onJackpot(loot)
-		return {
-			item = loot.name,
-			rarity = loot.rarity,
-			zone = loot.zoneIndex,
-			socket = loot.socketIndex,
-			size = loot.size,
-			mutation = loot.mutation,
-			income = loot.finalIncome,
-		}
-	end,
-
-	--- Statistical check on the WORLD-LEVEL jackpot roll. Counts how many of
-	--- `trials` refreshes would inject a jackpot, WITHOUT touching the world.
-	---   Invoke("jackpotSim", nil, 20000)
-	jackpotSim = function(_player, trials: number?)
-		local n = math.floor(trials or 20000)
-		local hits = 0
-		for _ = 1, n do
-			if math.random() < GameConfig.JACKPOT_REFRESH_CHANCE then
-				hits += 1
-			end
-		end
-		return {
-			trials = n,
-			hits = hits,
-			observed = hits / n,
-			configured = GameConfig.JACKPOT_REFRESH_CHANCE,
-			note = "one roll per WORLD refresh, never one per socket",
-		}
-	end,
-
-	--- Statistical check on the normal per-socket roller, run against the LIVE
-	--- rollItem with nothing excluded - so what comes out is the raw weight curve
-	--- rather than the without-replacement one four occupied sockets produce.
-	---
-	--- "expected" is the weight table renormalised over the tiers this zone's
-	--- normal pool actually contains. Zones 5-12 map one item to each of the
-	--- seven tiers and should land on 35/27/18/11/6/2.5/0.5 exactly. Zones 1-4
-	--- top out at Cosmic (their Cosmic item IS the jackpot and is excluded), so
-	--- that 0.5% has nowhere to go and is redistributed - and those zones carry
-	--- two Common items sharing the 35%.
-	---   Invoke("raritySim", nil, 5, 200000)
-	raritySim = function(_player, zoneIndex: number?, trials: number?)
-		local zone = math.floor(zoneIndex or 5)
-		local n = math.floor(trials or 200000)
-
-		local pool = LootConfig.normalPool(zone)
-		local weightTotal = 0
-		local expectedByRarity: { [string]: number } = {}
-		for _, item in pool do
-			local weight = RarityConfig.NormalWeights[item.rarity] or 0
-			weightTotal += weight
-			expectedByRarity[item.rarity] = (expectedByRarity[item.rarity] or 0) + weight
-		end
-
-		local counts: { [string]: number } = {}
-		local jackpotHits = 0
-		local jackpot = LootConfig.jackpotFor(zone)
-		local jackpotId = if jackpot then jackpot.id else nil
-
-		-- Empty exclusion set: measure the roller, not the live socket state.
-		local none: { [string]: boolean } = {}
-		for _ = 1, n do
-			local def = LootService.rollItem(zone, none)
-			if def then
-				counts[def.rarity] = (counts[def.rarity] or 0) + 1
-				if def.id == jackpotId then
-					jackpotHits += 1
-				end
-			end
-		end
-
-		local rows = {}
-		local worstDelta = 0
-		for _, rarity in RarityConfig.Order do
-			local expected = 100 * (expectedByRarity[rarity] or 0) / weightTotal
-			local observed = 100 * (counts[rarity] or 0) / n
-			if expected > 0 or observed > 0 then
-				worstDelta = math.max(worstDelta, math.abs(observed - expected))
-				table.insert(rows, string.format(
-					"%-10s observed %6.3f%%  expected %6.3f%%  delta %+.3f",
-					rarity,
-					observed,
-					expected,
-					observed - expected
-				))
-			end
-		end
-
-		return {
-			zone = zone,
-			trials = n,
-			distribution = rows,
-			worstDeltaPercentagePoints = worstDelta,
-			jackpotsFromNormalRolls = jackpotHits,
-			note = "jackpotsFromNormalRolls MUST be 0",
-		}
 	end,
 
 	--- Dumps the resolved economy for one zone, or the anchors for all twelve.
@@ -929,12 +1308,14 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			local rows = {}
 			for _, item in LootConfig.Items[math.floor(zoneIndex)] or {} do
 				table.insert(rows, string.format(
-					"%d. %-22s %-10s %12s%s",
+					"%d. %-22s %-10s %12s  weight %9.6f (%6.3f%%)%s",
 					item.position,
 					item.name,
 					item.rarity,
 					NumberFormat.income(item.income),
-					if item.jackpot then "  JACKPOT" else ""
+					item.weight,
+					LootConfig.weightShare(item.id) * 100,
+					if item.postgame then "  POSTGAME" else ""
 				))
 			end
 			return rows
@@ -943,14 +1324,16 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		local rows = {}
 		for index = 1, ZoneConfig.COUNT do
 			local pool = LootConfig.Items[index]
-			local jackpot = LootConfig.jackpotFor(index)
+			local top = pool[#pool]
 			table.insert(rows, string.format(
-				"Zone %2d %-18s worst %12s   jackpot %-10s %14s",
+				"Zone %2d %-18s worst %12s   top %-10s %14s at %6.3f%%%s",
 				index,
 				ZoneConfig.Zones[index].name,
 				NumberFormat.income(pool[1].income),
-				jackpot.rarity,
-				NumberFormat.income(jackpot.income)
+				top.rarity,
+				NumberFormat.income(top.income),
+				LootConfig.weightShare(top.id) * 100,
+				if ZoneConfig.isParityZone(index) then "" else "  POSTGAME"
 			))
 		end
 		return rows
@@ -998,7 +1381,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 
 		local def = LootConfig.ById["Museum_AncientVase"]
-		local expectedFinal = RarityConfig.finalIncome(def.income, "Normal", "Flaming")
+		local expectedFinal = RarityConfig.finalIncome(def.income, 1, "Flaming")
 
 		return {
 			firstPassChanged = firstChanged,
@@ -1013,180 +1396,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 				and stale.Rarity == def.rarity
 				and stale.Mutation == "Flaming"
 				and stale.ZoneId == 1,
-		}
-	end,
-
-	--- Progression model. Answers the question the Cash rebalance actually has to
-	--- answer: with the new incomes, does the treadmill ladder still get paid for?
-	---
-	--- For each zone it computes the EXPECTED income of one ordinary socket roll
-	--- (rarity weights renormalised over that zone's normal pool, times the mean
-	--- Size and Mutation multipliers), scales it to a full display base, and then
-	--- reports how long that base takes to pay for each treadmill tier and how
-	--- long that tier takes to walk to each zone's Speed gate.
-	---
-	--- Jackpots are deliberately EXCLUDED from this model: it is the floor, not
-	--- the expected experience. A single Cursed Coin beats this entire table.
-	progressionSim = function(_player, slots: number?)
-		local displaySlots = math.floor(slots or GameConfig.STARTING_DISPLAY_SLOTS)
-
-		local meanSize = 0
-		for _, v in RarityConfig.Sizes do
-			meanSize += (v.chance / 100) * v.multiplier
-		end
-		local meanMutation = 0
-		for _, v in RarityConfig.Mutations do
-			meanMutation += (v.chance / 100) * v.multiplier
-		end
-		local variantFactor = meanSize * meanMutation
-
-		local zoneRows = {}
-		local perSlot: { number } = {}
-		for zoneIndex = 1, ZoneConfig.COUNT do
-			local pool = LootConfig.normalPool(zoneIndex)
-			local total, expected = 0, 0
-			for _, item in pool do
-				total += RarityConfig.NormalWeights[item.rarity] or 0
-			end
-			for _, item in pool do
-				local weight = RarityConfig.NormalWeights[item.rarity] or 0
-				expected += (weight / total) * item.income
-			end
-			expected *= variantFactor
-			perSlot[zoneIndex] = expected
-
-			local jackpot = LootConfig.jackpotFor(zoneIndex)
-			table.insert(zoneRows, string.format(
-				"Zone %2d %-18s  ordinary roll %12s   full base %12s   jackpot x%.0f",
-				zoneIndex,
-				ZoneConfig.Zones[zoneIndex].name,
-				NumberFormat.income(expected),
-				NumberFormat.income(expected * displaySlots),
-				jackpot.income / math.max(expected / variantFactor, 1)
-			))
-		end
-
-		--- Seconds to bank `cost` on a full base of zone-N loot.
-		local function secondsFor(cost: number, zoneIndex: number): number
-			local rate = perSlot[zoneIndex] * displaySlots
-			return if rate > 0 then cost / rate else math.huge
-		end
-
-		local function pretty(seconds: number): string
-			if seconds ~= seconds or seconds == math.huge then
-				return "never"
-			elseif seconds < 90 then
-				return string.format("%.0fs", seconds)
-			elseif seconds < 5400 then
-				return string.format("%.1f min", seconds / 60)
-			elseif seconds < 86400 * 2 then
-				return string.format("%.1f h", seconds / 3600)
-			end
-			return string.format("%.1f days", seconds / 86400)
-		end
-
-		-- Which zone a player is plausibly looting when they buy each tier: the
-		-- highest zone whose Speed gate they have already cleared.
-		local treadmillRows = {}
-		local speed = GameConfig.STARTING_SPEED_POWER
-		for level = 2, TreadmillConfig.MAX_LEVEL do
-			local tier = TreadmillConfig.Tiers[level]
-			local lootZone = 1
-			for _, zone in ZoneConfig.Zones do
-				if speed >= zone.recommendedSpeed then
-					lootZone = zone.index
-				end
-			end
-			table.insert(treadmillRows, string.format(
-				"Lvl %d %-10s %12s   earned in %-10s on zone %2d loot   then +%s Speed/s",
-				level,
-				tier.name,
-				NumberFormat.cash(tier.cost),
-				pretty(secondsFor(tier.cost, lootZone)),
-				lootZone,
-				NumberFormat.short(TreadmillConfig.gainPerSecond(level))
-			))
-			-- Assume they then train to the next gate they can reach.
-			for _, zone in ZoneConfig.Zones do
-				if zone.recommendedSpeed > speed then
-					speed = zone.recommendedSpeed
-					break
-				end
-			end
-		end
-
-		-- Pure training time to each gate, at the tier a player is likely to hold.
-		local gateRows = {}
-		local from = GameConfig.STARTING_SPEED_POWER
-		for _, zone in ZoneConfig.Zones do
-			if zone.recommendedSpeed <= 0 then
-				continue
-			end
-			local level = math.min(zone.index, TreadmillConfig.MAX_LEVEL)
-			local rate = TreadmillConfig.gainPerSecond(level)
-			table.insert(gateRows, string.format(
-				"Gate %-18s %10s Speed   %-10s at Lvl %d (+%s/s)",
-				zone.name,
-				NumberFormat.short(zone.recommendedSpeed),
-				pretty((zone.recommendedSpeed - from) / math.max(rate, 1)),
-				level,
-				NumberFormat.short(rate)
-			))
-			from = zone.recommendedSpeed
-		end
-
-		return {
-			displaySlots = displaySlots,
-			meanSizeMultiplier = meanSize,
-			meanMutationMultiplier = meanMutation,
-			zones = zoneRows,
-			treadmills = treadmillRows,
-			speedGates = gateRows,
-			note = "ordinary loot only - jackpots are excluded, they are the upside",
-		}
-	end,
-
-	--- Audits the Index rewards against the CURRENT economy, which is the check
-	--- the rebalance needs: the rewards are ratios, so they should have scaled
-	--- down with it rather than becoming a billion-dollar bypass.
-	indexAudit = function()
-		local IndexConfig = require(ReplicatedStorage.Shared.Config.IndexConfig)
-		local rows = {}
-		local firstTreadmill = TreadmillConfig.Tiers[2].cost
-
-		for index = 1, ZoneConfig.COUNT do
-			local reward = IndexConfig.zoneReward(index)
-			local setIncome = 0
-			for _, item in LootConfig.Items[index] do
-				setIncome += item.income
-			end
-			table.insert(rows, string.format(
-				"Zone %2d  set %12s   claim %12s (= %.0fs of the set, %.1fx the $15K upgrade)   +%s Speed",
-				index,
-				NumberFormat.income(setIncome),
-				NumberFormat.cash(reward.cash),
-				if setIncome > 0 then reward.cash / setIncome else 0,
-				reward.cash / firstTreadmill,
-				NumberFormat.short(reward.speed)
-			))
-		end
-
-		local completionist = IndexConfig.completionistReward()
-		return {
-			cashSeconds = IndexConfig.CASH_SECONDS,
-			speedFraction = IndexConfig.SPEED_FRACTION,
-			zones = rows,
-			completionistCash = NumberFormat.cash(completionist.cash),
-			completionistSpeed = NumberFormat.short(completionist.speed),
-			topTreadmillCost = NumberFormat.cash(TreadmillConfig.Tiers[TreadmillConfig.MAX_LEVEL].cost),
-			maxIncomeMultiplier = IndexConfig.incomeMultiplier((function()
-				local all = {}
-				for index = 1, ZoneConfig.COUNT do
-					all[IndexConfig.zoneKey(index)] = true
-				end
-				all[IndexConfig.ALL_ZONES_KEY] = true
-				return all
-			end)()),
 		}
 	end,
 
@@ -1443,7 +1652,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return {
 			gateMargin = ZoneConfig.GUARDIAN_GATE_MARGIN,
 			deficitCatchup = ZoneConfig.GUARDIAN_DEFICIT_CATCHUP,
-			boostMax = GameConfig.SPEED_BOOST_MAX,
+			wakeDelay = GameConfig.GUARDIAN_WAKE_DELAY,
 			rows = rows,
 			rule = "75% must be CAUGHT, 100% must escape (narrowly), 150% must escape clearly",
 		}
@@ -1455,8 +1664,8 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		local rows = {}
 		local samples = { 10, 100, 900, 10e3, 40e3, 127e3, 170e3, 700e3, 2.5e6, 18e6, 700e6, 2.5e9, 7e9, 20e9, 100e9 }
 		for _, power in samples do
-			-- What the old formula produced, for comparison.
-			local old = math.clamp(16 + 7.5 * math.log10(1 + power / 10), 18, 90)
+			-- What the previous (boosted) curve produced, for comparison.
+			local old = GameConfig.legacyWalkSpeedFromPower(power)
 			local new = GameConfig.walkSpeedFromPower(power)
 			table.insert(rows, string.format(
 				"Speed %10s | was %6.2f | now %6.2f | x%.3f | progression %3.0f%%",
@@ -1468,6 +1677,44 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	--- Sets SpeedPower directly, so the "a player below the gate gets caught, a
 	--- player at the gate escapes" acceptance test can be run without grinding a
 	--- treadmill for it. Server-side only, exactly like every other grant.
+	--- The Night, on demand: `night begin` / `night end`, else the status.
+	night = function(_player, action: string?)
+		local NightService = require(script.Parent.NightService)
+		if action == "begin" then
+			NightService.forceNight()
+		elseif action == "end" then
+			NightService.forceDay()
+		end
+		return NightService.status()
+	end,
+
+	--- Offline earnings without the wait. `simulate <secondsAway> <rate>`
+	--- stamps a fake departure and settles it (negative seconds = never
+	--- left); `claim` asks OfflineService to pay exactly as the remote does;
+	--- `state` reads the three profile fields.
+	offline = function(player, action: string?, secondsAway: number?, rate: number?)
+		local OfflineService = require(script.Parent.OfflineService)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		if action == "simulate" then
+			local pending = OfflineService.debugSimulate(player, secondsAway or 0, rate or 0)
+			return { pending = pending, cash = profile.Cash }
+		elseif action == "claim" then
+			local before = profile.Cash
+			local ok, reason = OfflineService.claim(player)
+			return { claimed = ok, reason = reason, paid = profile.Cash - before, pending = profile.PendingOfflineCash }
+		end
+		return {
+			lastLeave = profile.LastLeaveTimestamp,
+			rate = profile.OfflineCashRate,
+			pending = profile.PendingOfflineCash,
+			cash = profile.Cash,
+			now = os.time(),
+		}
+	end,
+
 	setSpeed = function(player, power: number)
 		local profile = DataService.get(player)
 		if not profile then

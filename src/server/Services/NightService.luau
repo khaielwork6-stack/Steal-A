@@ -23,17 +23,19 @@
 	returning is left alone. A failed generation is logged and the world still
 	reopens with whatever it has.
 
-	THE LEAN
-	The Night refresh rolls with NightConfig.refreshBoosts(): a modest multiplier
-	on high rarities and on Huge-or-larger sizes, renormalised, applied for that
-	one generation and removed before this function returns. The independence of
-	rarity, mutation and size is untouched.
+	NO LEAN
+	The Night refresh is LootService.refreshAll() with nothing passed in: the
+	same weights, the same Scale bands and the same mutation table a server
+	start uses. There is no rarity boost, no size boost, no mutation boost,
+	no pity, no reroll and no jackpot. The regression tests assert it.
 
 	GROWTH
-	Owned trophies mature: seconds of effective growth accrue on each displayed
-	item (five times faster during Night), capped, saved on the item, and turned
-	into a small income and size bonus by EconomyService / BaseService. Because
-	it is stored as seconds it can never be applied twice to the same model.
+	A placed item MATURES before it earns: growth credit accrues on each
+	displayed item - one second per real second by day, thirty per second
+	during the ten-second Night (300 in total) - and the item starts paying
+	once its credit reaches its MaturationSeconds. Growth decides WHEN an item
+	earns, never how much. Because it is stored as seconds it can never be
+	applied twice to the same model.
 ]]
 
 local Players = game:GetService("Players")
@@ -44,6 +46,7 @@ local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local BaseService = require(script.Parent.BaseService)
+local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local GuardianService = require(script.Parent.GuardianService)
@@ -151,10 +154,10 @@ local function score(loot: LootService.LootInstance): number
 		+ RarityConfig.mutationRank(RarityConfig.normaliseMutation(loot.mutation)) * 2
 end
 
+--- ANNOUNCEMENT ONLY. This reads what the roller produced; nothing here can
+--- change a roll, and a Secret rolls at exactly its zone weight whether or
+--- not it is called out.
 local function qualifies(loot: LootService.LootInstance): boolean
-	if loot.jackpot then
-		return false -- already announced, loudly, by LootService.onJackpot
-	end
 	return RarityConfig.rank(loot.rarity) >= RarityConfig.rank(NightConfig.SPOTLIGHT_MIN_RARITY)
 		or RarityConfig.sizeRank(loot.size) >= RarityConfig.sizeRank(NightConfig.SPOTLIGHT_MIN_SIZE)
 end
@@ -228,7 +231,8 @@ local function runRefresh()
 	end
 	refreshedCycle = cycleNumber
 
-	local ok, result = pcall(LootService.refreshAll, NightConfig.refreshBoosts())
+	-- No arguments, no lean: the Night refresh IS the ordinary roll.
+	local ok, result = pcall(LootService.refreshAll)
 	if not ok then
 		-- The world still reopens with whatever it has. Never leave it closed
 		-- or empty over a bad roll.
@@ -275,7 +279,7 @@ local function flushSpotlights()
 			if index > 1 then
 				task.wait(gap)
 			end
-			StateService.announce("success", spotlight.text, spotlight.style, "NewDiscovery")
+			StateService.announce("success", spotlight.text, spotlight.style, "NightSpawn")
 		end
 	end)
 end
@@ -292,9 +296,14 @@ local function beginNight()
 	publish()
 
 	-- Close first, so nothing can be started in the frames between here and
-	-- the teleport. Then every chase ends and every guardian is back on its
-	-- post before anyone is moved.
+	-- the teleport. Then every steal in progress is cancelled - the item goes
+	-- straight back to its socket, nobody carries anything into the lobby -
+	-- every chase ends and every guardian is back on its post, and only
+	-- then is anyone moved.
 	LootService.setClosed(true)
+	for _, player in Players:GetPlayers() do
+		CarryService.cancelForNight(player)
+	end
 	GuardianService.resetAll()
 	returnEveryone()
 
@@ -356,35 +365,35 @@ end
 -- GROWTH
 -- ==========================================================
 
-local function growthBucket(seconds: number): number
-	return math.floor(math.clamp(seconds / NightConfig.GROWTH_FULL_SECONDS, 0, 1) * NightConfig.GROWTH_STEPS)
-end
-
+--- Advances every displayed item's growth credit. By day one second of
+--- credit per real second; during the Night NIGHT_GROWTH_CREDIT_SECONDS are
+--- spread over its NIGHT_SECONDS (thirty per second). Credit stops at the
+--- item's own MaturationSeconds - there is nothing past "matured" - and the
+--- owner's income is re-derived only in the tick an item crosses that line,
+--- so the loop stays cheap.
 local function tickGrowth(dt: number)
-	local rate = if phase == "Night" then NightConfig.GROWTH_NIGHT_MULTIPLIER else 1
-	local gain = dt * rate
+	local gain = dt * NightConfig.growthCreditPerSecond(phase == "Night")
 	for _, player in Players:GetPlayers() do
 		local profile = DataService.get(player)
 		if not profile then
 			continue
 		end
-		local changed = false
+		local matured = false
 		for _, item in profile.DisplayItems do
+			local needed = tonumber(item.MaturationSeconds) or 0
 			local before = tonumber(item.GrowthSeconds) or 0
-			if before >= NightConfig.GROWTH_FULL_SECONDS then
+			if needed <= 0 or before >= needed then
 				continue
 			end
-			local after = math.min(NightConfig.GROWTH_FULL_SECONDS, before + gain)
+			local after = math.min(needed, before + gain)
 			item.GrowthSeconds = after
-			if growthBucket(after) ~= growthBucket(before) then
-				changed = true
+			if after >= needed then
+				matured = true
 			end
 		end
-		-- Income and the visual are only re-derived when an item crosses a
-		-- growth step, so the loop stays cheap and the trophies do not jitter.
-		if changed then
+		if matured then
 			EconomyService.recalculate(player)
-			BaseService.applyGrowth(player)
+			BaseService.rebuildDisplays(player)
 			StateService.markDirty(player)
 		end
 	end

@@ -29,6 +29,9 @@ export type ZoneDef = {
 	--- The zone's own colour: the entry pop-up's title gradient runs from
 	--- white into this, so every zone announces itself in its own voice.
 	color: Color3,
+	--- True for a zone with no reference-game equivalent. Lives behind
+	--- GameConfig.POSTGAME_EXTENSION and outside every parity claim.
+	postgame: boolean?,
 }
 
 ZoneConfig.Zones = {
@@ -43,11 +46,24 @@ ZoneConfig.Zones = {
 	{ index = 9, id = "Zone09_SecretLab", name = "Secret Lab", guardian = "MadScientist", recommendedSpeed = 700e6, isBoss = true, emoji = "🧪", color = Color3.fromRGB(120, 255, 240) },
 	{ index = 10, id = "Zone10_Grandma", name = "Grandma's House", guardian = "Grandma", recommendedSpeed = 2.5e9, isBoss = true, emoji = "👵", color = Color3.fromRGB(255, 190, 150) },
 	{ index = 11, id = "Zone11_Construction", name = "Construction Site", guardian = "Foreman", recommendedSpeed = 7e9, isBoss = true, emoji = "🚧", color = Color3.fromRGB(255, 165, 60) },
-	{ index = 12, id = "Zone12_Airport", name = "Airport", guardian = "AirportSecurity", recommendedSpeed = 20e9, isBoss = true, emoji = "✈️", color = Color3.fromRGB(150, 200, 255) },
+	-- POST-GAME: no reference equivalent. See GameConfig.POSTGAME_EXTENSION.
+	{ index = 12, id = "Zone12_Airport", name = "Airport", guardian = "AirportSecurity", recommendedSpeed = 20e9, isBoss = true, emoji = "✈️", color = Color3.fromRGB(150, 200, 255), postgame = true },
 } :: { ZoneDef }
 
 ZoneConfig.COUNT = #ZoneConfig.Zones
+--- Zones that take part in the parity baseline: 1-11. Zone 12 is post-game.
+ZoneConfig.PARITY_COUNT = 11
+--- FOUR mystery containers per zone, standing around that zone's guardian
+--- (MysteryConfig.SocketOffsets). Each rolls independently from all eight of
+--- the zone's items. The retired fifth spawn is destroyed on sight at
+--- start-up by MysterySpawnService and cannot come back.
 ZoneConfig.SOCKETS_PER_ZONE = 4
+
+--- True for a zone inside the parity baseline.
+function ZoneConfig.isParityZone(zoneIndex: number): boolean
+	local zone = ZoneConfig.Zones[zoneIndex]
+	return zone ~= nil and not zone.postgame
+end
 
 ZoneConfig.ById = {} :: { [string]: ZoneDef }
 for _, zone in ZoneConfig.Zones do

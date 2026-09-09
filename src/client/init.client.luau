@@ -40,6 +40,11 @@ local GuardianShopController = require(script.Controllers.GuardianShopController
 local RobPromptController = require(script.Controllers.RobPromptController)
 local PortalController = require(script.Controllers.PortalController)
 local SlapDisplayController = require(script.Controllers.SlapDisplayController)
+local ShiftLockController = require(script.Controllers.ShiftLockController)
+local OfflineEarningsController = require(script.Controllers.OfflineEarningsController)
+local CarryUIController = require(script.Controllers.CarryUIController)
+local TreadmillSpectateController = require(script.Controllers.TreadmillSpectateController)
+local HatchController = require(script.Controllers.HatchController)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
@@ -89,5 +94,18 @@ RobPromptController.start()
 PortalController.start()
 SlapDisplayController.start()
 SettingsController.start()
+-- Touch only: forces landscape and adds the shift-lock button. A no-op on
+-- desktop.
+ShiftLockController.start()
+-- Listens to StatePush for a pending offline payout; shows nothing otherwise.
+OfflineEarningsController.start()
+-- Mirrors "carrying" into the one HUD claim that leaves only DROP on screen.
+CarryUIController.start()
+-- Plays the run cycle on OTHER players' characters while the server says
+-- they are training, so a treadmill session is visible from across the plot.
+TreadmillSpectateController.start()
+-- The pedestal countdowns, the HATCH! prompt and the scripted reveal. Draws
+-- only; the server has already committed before any of it plays.
+HatchController.start()
 
 print("[Client] controllers started")

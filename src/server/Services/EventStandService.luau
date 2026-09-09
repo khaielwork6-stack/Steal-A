@@ -39,6 +39,11 @@ local function faceToward(): Vector3
 	return LobbyLayout.position("Spawn", MapConfig.HUB.spawn)
 end
 local BOARD_LIFT = 3.4
+--- Gap between the wall face and the board's back, along the wall's normal.
+--- Two studs forward of the wall: clear of the wall's own trim, readable
+--- from the spawn circle, and the Notify prompt reachable without pressing
+--- the character into the wall.
+local WALL_STANDOFF = 4.0
 local POST_COLOR = Color3.fromRGB(46, 50, 68)
 
 local PROMPT_RANGE = 14
@@ -107,42 +112,96 @@ local function tameShine(emitter: ParticleEmitter)
 	emitter.Size = NumberSequence.new(keys)
 end
 
-local function addShine(board: BasePart)
-	local assets = ReplicatedStorage:FindFirstChild("GameAssets")
-	local mutations = assets and assets:FindFirstChild("Mutations")
-	local shiny = mutations and mutations:FindFirstChild("Shiny")
-	if not shiny then
+--- The board's picture. The pack's SurfaceGui ships an advert for the UI
+--- pack itself ("DM ... TO BUY"), which is not this game's sign. With
+--- GameConfig.NEXT_UPDATE_IMAGE set, that image goes on the face; without
+--- one, a drawn "NEXT UPDATE" face in the HUD's own kit replaces it.
+local function dressFace(gui: SurfaceGui)
+	local frame = gui:FindFirstChildWhichIsA("Frame")
+	local picture = frame and frame:FindFirstChildWhichIsA("ImageLabel")
+	local image = GameConfig.NEXT_UPDATE_IMAGE
+	if picture and type(image) == "number" and image > 0 then
+		picture.Image = `rbxassetid://{image}`
 		return
 	end
-	-- Where the authored effect lives: a part inside the container, or the
-	-- container itself (the same rule MutationVfx uses).
-	local source: Instance = shiny
-	local part = shiny:FindFirstChildWhichIsA("BasePart")
-	if part then
-		for _, child in part:GetChildren() do
-			if child:IsA("ParticleEmitter") or child:IsA("Attachment") then
-				source = part
-				break
-			end
+	if picture then
+		picture:Destroy()
+	end
+	local host: Instance = frame or gui
+	if frame then
+		frame.BackgroundTransparency = 0
+		frame.BackgroundColor3 = Color3.fromRGB(16, 22, 44)
+		frame.BorderSizePixel = 0
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 18)
+		corner.Parent = frame
+		local gradient = Instance.new("UIGradient")
+		gradient.Rotation = 90
+		gradient.Color = ColorSequence.new(Color3.fromRGB(44, 58, 104), Color3.fromRGB(18, 24, 48))
+		gradient.Parent = frame
+		local studs = Instance.new("ImageLabel")
+		studs.Name = "Studs"
+		studs.BackgroundTransparency = 1
+		studs.Image = "rbxassetid://76728843491214"
+		studs.ImageTransparency = 0.86
+		studs.ScaleType = Enum.ScaleType.Tile
+		studs.TileSize = UDim2.fromOffset(40, 40)
+		studs.Size = UDim2.fromScale(1, 1)
+		studs.ZIndex = 1
+		studs.Parent = frame
+	end
+	local function text(name: string, value: string, y: number, h: number, color: Color3, size: number)
+		local label = Instance.new("TextLabel")
+		label.Name = name
+		label.BackgroundTransparency = 1
+		label.AnchorPoint = Vector2.new(0.5, 0.5)
+		label.Position = UDim2.fromScale(0.5, y)
+		label.Size = UDim2.fromScale(0.92, h)
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.Text = value
+		label.TextColor3 = color
+		label.TextStrokeTransparency = 0
+		label.TextStrokeColor3 = Color3.fromRGB(12, 16, 32)
+		label.ZIndex = 3
+		label.Parent = host
+		local limit = Instance.new("UITextSizeConstraint")
+		limit.MaxTextSize = size
+		limit.Parent = label
+	end
+	text("Bell", "🔔", 0.2, 0.26, Color3.fromRGB(255, 226, 120), 110)
+	text("Headline", "NEXT UPDATE!", 0.5, 0.3, Color3.fromRGB(255, 255, 255), 120)
+	text("Sub", "Notify me when it drops", 0.78, 0.18, Color3.fromRGB(126, 236, 255), 70)
+end
+
+--- One additive sparkle off the board's face. The Shiny mutation's emitters
+--- were borrowed here before; one of their textures fails to stream on some
+--- clients and a failed particle texture draws as a BLACK square, which is
+--- the flashing black flake the stand kept showing. This is the engine's own
+--- sparkle texture (the one the treadmill streaks and the gift chest use)
+--- at full LightEmission, so it can only ever add light.
+local function addShine(board: BasePart)
+	for _, child in board:GetChildren() do
+		if child:GetAttribute("StandShine") then
+			child:Destroy()
 		end
 	end
-	for _, child in source:GetChildren() do
-		if child:IsA("ParticleEmitter") then
-			local copy = child:Clone()
-			tameShine(copy)
-			copy:SetAttribute("StandShine", true)
-			copy.Parent = board
-		elseif child:IsA("Attachment") then
-			local copy = child:Clone()
-			copy:SetAttribute("StandShine", true)
-			for _, nested in copy:GetDescendants() do
-				if nested:IsA("ParticleEmitter") then
-					tameShine(nested)
-				end
-			end
-			copy.Parent = board
-		end
-	end
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "StandShine"
+	emitter:SetAttribute("StandShine", true)
+	emitter.Texture = "rbxassetid://241594419"
+	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 240, 170), Color3.fromRGB(255, 255, 255))
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(0.5, 0.6), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Lifetime = NumberRange.new(1.2, 2)
+	emitter.Rate = SHINE_RATE_CAP
+	emitter.Speed = NumberRange.new(0.6, 1.4)
+	emitter.SpreadAngle = Vector2.new(25, 25)
+	emitter.EmissionDirection = Enum.NormalId.Front
+	emitter.Enabled = true
+	emitter.Parent = board
 end
 
 local function post(parent: Instance, at: CFrame, height: number)
@@ -207,7 +266,9 @@ function EventStandService.start()
 		if normal.Magnitude > 0.01 then
 			facing = normal.Unit
 		end
-		centre = hit.Position + facing * (board.Size.Z / 2 + 0.15)
+		-- A clear half stud off the wall face. At 0.15 the board's back face
+		-- and the studded wall fought for the same pixels and shimmered.
+		centre = hit.Position + facing * (board.Size.Z / 2 + WALL_STANDOFF)
 		centre = Vector3.new(centre.X, BOARD_LIFT + height / 2, centre.Z)
 	end
 	board.CFrame = CFrame.lookAt(centre, centre + facing)
@@ -233,6 +294,7 @@ function EventStandService.start()
 		clone.Adornee = nil
 		clone.Enabled = true
 		clone.LightInfluence = 0
+		dressFace(clone)
 		clone.Parent = board
 	end
 

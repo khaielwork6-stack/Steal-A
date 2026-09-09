@@ -54,15 +54,23 @@ AudioConfig.Cues = {
 	Snoring = { id = asset(97721920245356), volume = 0.55, category = "world", looped = true, rollOff = 70 },
 
 	-- ---------- event: personal gameplay moments ----------
-	--- Crossing the red line with loot: the sting, then Escape half a second
-	--- later (ChaseAudioController sequences the two).
-	EscapeSting = { id = asset(138891370077088), volume = 1.0, category = "event" },
-	--- The safe-zone confirmation: after the sting on an escape, or alone on a
-	--- delivery that had no chase behind it.
-	Escape = { id = asset(78351077296798), volume = 1.0, category = "event" },
-	Notification = { id = asset(131661992591924), volume = 0.7, category = "event" },
+	--- Crossing the red line with loot, and a chase-free delivery: the ONE
+	--- escape sound. The old sting that used to precede it is retired - not
+	--- muted, not layered - so an escape is exactly one sound.
+	Escape = { id = asset(114542988141330), volume = 1.0, category = "event" },
+	--- The ordinary notification beep. Deferred a frame by AudioController so a
+	--- more specific cue for the same moment replaces it instead of layering.
+	Notification = { id = asset(78340041384722), volume = 0.7, category = "event" },
+	--- An owned item landing on one of the player's display slots.
+	PlaceItem = { id = asset(139670424345585), volume = 0.9, category = "event" },
+	--- An item entering Storage (taken off display, or a robbery's fallback).
+	StoredItem = { id = asset(101163709235612), volume = 0.85, category = "event" },
+	--- The Nightfall spotlight: something special has spawned in the refresh.
+	NightSpawn = { id = asset(87846239038276), volume = 1.0, category = "event" },
 	--- A genuinely NEW item entering the Index. Never on a repeat pickup.
-	NewDiscovery = { id = asset(136182414783063), volume = 1.0, category = "event" },
+	-- THE REVEAL POP. The one sound of a reveal, played by the owner's client on
+	-- the pop frame and nowhere else (HatchConfig.POP_SOUND).
+	RevealPop = { id = asset(92415130454101), volume = 1.0, category = "event" },
 	Sell = { id = asset(138979515680965), volume = 0.85, category = "event" },
 	TreadmillUnlock = { id = asset(93360393539898), volume = 0.95, category = "event" },
 	UpgradePurchase = { id = asset(80736831159506), volume = 0.9, category = "event" },
@@ -78,7 +86,14 @@ AudioConfig.Cues = {
 
 	-- ---------- music ----------
 	--- Plays only while the player is behind the red line. Faded, never cut.
-	LobbyMusic = { id = asset(1848354536), volume = 0.28, category = "music", looped = true, fade = 1.2 },
+	LobbyMusic = { id = asset(1848354536), volume = 0.28, category = "music", looped = true, fade = 1.6 },
+	--- Plays while the player is out in the zones and NOT being chased: the
+	--- chase loop replaces it the moment a guardian wakes, and the lobby bed
+	--- replaces it the moment they are back behind the line. Looped.
+	--- Kept SUBTLE - a bed under the zone, never over it - with a long fade
+	--- both ways so the handoffs to the chase loop and the lobby bed are
+	--- never heard as a cut.
+	ZoneMusic = { id = asset(134553946879697), volume = 0.16, category = "music", looped = true, fade = 1.8 },
 	--- Loops for the CHASED player only, from 0.4s after the alert until the
 	--- chase ends however it ends. Client-owned; see ChaseAudioController.
 	ChaseMusic = { id = asset(113688019858504), volume = 0.45, category = "music", looped = true, fade = 0.35 },
