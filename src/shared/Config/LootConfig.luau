@@ -151,7 +151,7 @@ local Seeds: { { ItemSeed } } = {
 	-- Zone 05 NORTH POLE
 	{
 		{ id = "NorthPole_SantasHat", name = "Santa's Hat", income = 140 },
-		{ id = "NorthPole_NiceList", name = "Nice List", income = 600 },
+		{ id = "NorthPole_NiceList", name = "Toy Train", income = 600 },
 		{ id = "NorthPole_GoldenBell", name = "Golden Bell", income = 7e3 },
 		{ id = "NorthPole_ToyBlueprint", name = "Toy Blueprint", income = 35e3 },
 		{ id = "NorthPole_GoldenPresent", name = "Golden Present", income = 42e3 },
@@ -170,7 +170,7 @@ local Seeds: { { ItemSeed } } = {
 	--
 	-- Zone 06 ANCIENT EGYPT
 	{
-		{ id = "Egypt_CanopicJar", name = "Canopic Jar", income = 180 },
+		{ id = "Egypt_CanopicJar", name = "Pharaoh's Golden Scepter", income = 180 },
 		{ id = "Egypt_Shawarma", name = "Shawarma", income = 850 },
 		{ id = "Egypt_AncientMau", name = "Ancient Mau", income = 9500 },
 		{ id = "Egypt_AncientScroll", name = "Ancient Scroll", income = 11e3 },
@@ -182,7 +182,7 @@ local Seeds: { { ItemSeed } } = {
 	-- Zone 07 GYM
 	{
 		{ id = "Gym_Water", name = "Water", income = 220 },
-		{ id = "Gym_Creatine", name = "Creatine", income = 1100 },
+		{ id = "Gym_Creatine", name = "Boxing Gloves", income = 1100 },
 		{ id = "Gym_CoachsWhistle", name = "Gym Whistle", income = 15e3 },
 		{ id = "Gym_VanillaMilkshake", name = "Vanilla Milkshake", income = 80e3 },
 		{ id = "Gym_Airpods", name = "Airpods", income = 700e3 },
@@ -194,7 +194,7 @@ local Seeds: { { ItemSeed } } = {
 	-- The $32M -> $25M step at positions 6/7 is INTENTIONAL. Do not sort.
 	{
 		{ id = "Bank_MoneyStack", name = "Money Stack", income = 280 },
-		{ id = "Bank_CashBag", name = "Cash Briefcase", income = 22e3 },
+		{ id = "Bank_CashBag", name = "Money Print Machine", income = 22e3 },
 		{ id = "Bank_VaultKey", name = "Master Key", income = 120e3 },
 		{ id = "Bank_RareCoin", name = "Shiny Coin", income = 1.2e6 },
 		{ id = "Bank_GoldBar", name = "Gold Bar", income = 1.5e6 },
@@ -204,7 +204,7 @@ local Seeds: { { ItemSeed } } = {
 	},
 	-- Zone 09 SECRET LAB
 	{
-		{ id = "SecretLab_SecretFormula", name = "Chemical Flask", income = 1500 },
+		{ id = "SecretLab_SecretFormula", name = "Mutant Specimen", income = 1500 },
 		{ id = "SecretLab_ChemicalCylinder", name = "Chemical Cylinder", income = 30e3 },
 		{ id = "SecretLab_ContainmentTank", name = "Containment Tank", income = 180e3 },
 		{ id = "SecretLab_RobotSpider", name = "Robot Spider", income = 2.2e6 },
@@ -215,7 +215,7 @@ local Seeds: { { ItemSeed } } = {
 	},
 	-- Zone 10 GRANDMA'S HOUSE
 	{
-		{ id = "Grandma_CandyBowl", name = "Colorful Bowl", income = 4e3 },
+		{ id = "Grandma_CandyBowl", name = "Grandmas Cookies", income = 4e3 },
 		{ id = "Grandma_KnittedSweater", name = "Red Shirt", income = 74e3 },
 		{ id = "Grandma_WalkingCane", name = "Walking Cane", income = 450e3 },
 		{ id = "Grandma_GoldenTeapot", name = "Golden Teapot", income = 7.5e6 },
@@ -244,8 +244,8 @@ local Seeds: { { ItemSeed } } = {
 	-- No reference equivalent. Numbers untouched by the parity rebuild; the
 	-- zone is excluded from every parity table, test and simulation.
 	{
-		{ id = "Airport_FirstClassTicket", name = "First-Class Ticket", income = 387e6 },
-		{ id = "Airport_VIPPassport", name = "VIP Passport", income = 484e6 },
+		{ id = "Airport_FirstClassTicket", name = "Golden Pilot Badge", income = 387e6 },
+		{ id = "Airport_VIPPassport", name = "Airplane", income = 484e6 },
 		{ id = "Airport_PilotsHat", name = "Pilot's Hat", income = 928e6 },
 		{ id = "Airport_LostBriefcase", name = "Lost Briefcase", income = 1.16e9 },
 		{ id = "Airport_UnknownBriefcase", name = "Unknown Briefcase", income = 2.32e9 },
@@ -349,7 +349,6 @@ LootConfig.Normalization = {
 	Museum_AncientVase = { 0.8800, 1.865, 5.682, 1.865 }, -- Ancient Vase: 1.87 x 5.68 x 1.87 -> 1.64 x 5.00 x 1.64
 	Museum_RarePainting = { 1.0000, 5.000, 5.000, 0.200 }, -- Rare Painting: 5.00 x 5.00 x 0.20 -> 5.00 x 5.00 x 0.20
 	Museum_GoldenStatue = { 1.1924, 4.016, 4.193, 2.771 }, -- Golden Statue: 4.02 x 4.19 x 2.77 -> 4.79 x 5.00 x 3.30
-	Museum_PharaohMask = { 2.0000, 2.717, 2.500, 2.696 }, -- Pharaoh Mask: 2.72 x 2.50 x 2.70 -> 5.43 x 5.00 x 5.39
 	Museum_Ruby = { 1.6583, 3.132, 3.015, 3.308 }, -- Ruby: 3.13 x 3.02 x 3.31 -> 5.19 x 5.00 x 5.49
 	Museum_GoldenCrown = { 7.8257, 1.248, 0.511, 1.249 }, -- Golden Crown: 1.25 x 0.51 x 1.25 -> 9.76 x 4.00 x 9.77
 	Museum_Meteorite = { 0.8333, 5.635, 6.000, 4.902 }, -- Meteorite: 5.64 x 6.00 x 4.90 -> 4.70 x 5.00 x 4.08
@@ -369,7 +368,6 @@ LootConfig.Normalization = {
 	Castle_RoyalScepter = { 0.3687, 10.337, 13.562, 2.033 }, -- Royal Scepter: 10.34 x 13.56 x 2.03 -> 3.81 x 5.00 x 0.75
 	Castle_RoyalTreasureChest = { 1.2117, 3.503, 4.126, 5.383 }, -- Royal Treasure Chest: 3.50 x 4.13 x 5.38 -> 4.24 x 5.00 x 6.52
 	Castle_KingsCrown = { 1.0083, 5.841, 4.959, 5.662 }, -- King's Crown: 5.84 x 4.96 x 5.66 -> 5.89 x 5.00 x 5.71
-	Area51_TopSecretFiles = { 0.8621, 6.731, 5.800, 6.701 }, -- Top Secret Files: 6.73 x 5.80 x 6.70 -> 5.80 x 5.00 x 5.78
 	Area51_MeteorFragment = { 0.5690, 12.044, 8.787, 11.873 }, -- Meteor Fragment: 12.04 x 8.79 x 11.87 -> 6.85 x 5.00 x 6.76
 	Area51_AlienHelmet = { 0.7596, 7.381, 6.582, 7.377 }, -- Alien Helmet: 7.38 x 6.58 x 7.38 -> 5.61 x 5.00 x 5.60
 	Area51_AlienRayDevice = { 0.7179, 2.528, 6.185, 10.448 }, -- Alien Ray Device: 2.53 x 6.18 x 10.45 -> 1.81 x 4.44 x 7.50
@@ -378,14 +376,12 @@ LootConfig.Normalization = {
 	Area51_UFOCore = { 0.1957, 51.503, 20.434, 45.276 }, -- UFO Core: 51.50 x 20.43 x 45.28 -> 10.08 x 4.00 x 8.86
 	Area51_AlienArtifact = { 0.1357, 55.253, 29.662, 24.997 }, -- Alien Artifact: 55.25 x 29.66 x 25.00 -> 7.50 x 4.03 x 3.39
 	NorthPole_SantasHat = { 0.9615, 5.200, 5.200, 5.200 }, -- Santa's Hat: 5.20 x 5.20 x 5.20 -> 5.00 x 5.00 x 5.00
-	NorthPole_NiceList = { 1.5625, 2.340, 3.200, 0.050 }, -- Nice List: 2.34 x 3.20 x 0.05 -> 3.66 x 5.00 x 0.08
 	NorthPole_GoldenBell = { 1.8614, 1.306, 2.686, 2.575 }, -- Golden Bell: 1.31 x 2.69 x 2.57 -> 2.43 x 5.00 x 4.79
 	NorthPole_ToyBlueprint = { 1.5000, 4.260, 3.000, 5.000 }, -- Toy Blueprint: 4.26 x 3.00 x 5.00 -> 6.39 x 4.50 x 7.50
 	NorthPole_GoldenPresent = { 0.2105, 21.793, 23.752, 22.540 }, -- Golden Present: 21.79 x 23.75 x 22.54 -> 4.59 x 5.00 x 4.74
 	NorthPole_MagicSnowGlobe = { 0.5788, 10.284, 8.639, 10.310 }, -- Magic Snow Globe: 10.28 x 8.64 x 10.31 -> 5.95 x 5.00 x 5.97
 	NorthPole_SantasGiftSack = { 0.5431, 9.663, 9.206, 9.665 }, -- Santa's Gift Sack: 9.66 x 9.21 x 9.67 -> 5.25 x 5.00 x 5.25
 	NorthPole_ChristmasStar = { 0.1088, 29.577, 45.935, 29.577 }, -- Christmas Star: 29.58 x 45.94 x 29.58 -> 3.22 x 5.00 x 3.22
-	Egypt_CanopicJar = { 0.8929, 3.500, 5.600, 3.500 }, -- Canopic Jar: 3.50 x 5.60 x 3.50 -> 3.13 x 5.00 x 3.13
 	Egypt_Shawarma = { 1.0910, 6.874, 3.925, 4.577 }, -- Shawarma: 6.87 x 3.92 x 4.58 -> 7.50 x 4.28 x 4.99
 	Egypt_AncientMau = { 0.2778, 4.485, 18.000, 5.437 }, -- Ancient Mau: 4.49 x 18.00 x 5.44 -> 1.25 x 5.00 x 1.51
 	Egypt_AncientScroll = { 1.1466, 6.541, 3.537, 3.233 }, -- Ancient Scroll: 6.54 x 3.54 x 3.23 -> 7.50 x 4.06 x 3.71
@@ -394,7 +390,6 @@ LootConfig.Normalization = {
 	Egypt_NemesMask = { 0.7143, 7.000, 7.000, 7.000 }, -- Nemes Mask: 7.00 x 7.00 x 7.00 -> 5.00 x 5.00 x 5.00
 	Egypt_EgyptianPyramid = { 0.0781, 84.000, 52.000, 96.000 }, -- Egyptian Pyramid: 84.00 x 52.00 x 96.00 -> 6.56 x 4.06 x 7.50
 	Gym_Water = { 0.8581, 3.410, 5.827, 3.468 }, -- Water: 3.41 x 5.83 x 3.47 -> 2.93 x 5.00 x 2.98
-	Gym_Creatine = { 0.5300, 8.967, 9.435, 8.730 }, -- Creatine: 8.97 x 9.43 x 8.73 -> 4.75 x 5.00 x 4.63
 	Gym_CoachsWhistle = { 0.5349, 9.313, 9.347, 7.634 }, -- Gym Whistle: 9.31 x 9.35 x 7.63 -> 4.98 x 5.00 x 4.08
 	Gym_VanillaMilkshake = { 0.4797, 3.253, 10.424, 3.386 }, -- Vanilla Milkshake: 3.25 x 10.42 x 3.39 -> 1.56 x 5.00 x 1.62
 	Gym_Airpods = { 0.5747, 8.583, 8.700, 4.297 }, -- Airpods: 8.58 x 8.70 x 4.30 -> 4.93 x 5.00 x 2.47
@@ -402,7 +397,6 @@ LootConfig.Normalization = {
 	Gym_Trophy = { 0.4577, 2.408, 10.925, 3.772 }, -- Trophy: 2.41 x 10.93 x 3.77 -> 1.10 x 5.00 x 1.73
 	Gym_GoldenBarbell = { 0.2817, 35.297, 14.200, 14.200 }, -- Golden Barbell: 35.30 x 14.20 x 14.20 -> 9.94 x 4.00 x 4.00
 	Bank_MoneyStack = { 1.8523, 9.407, 2.159, 5.847 }, -- Money Stack: 9.41 x 2.16 x 5.85 -> 17.42 x 4.00 x 10.83
-	Bank_CashBag = { 0.9092, 1.737, 5.499, 6.561 }, -- Cash Briefcase: 1.74 x 5.50 x 6.56 -> 1.58 x 5.00 x 5.97
 	Bank_VaultKey = { 0.5523, 3.461, 9.052, 2.139 }, -- Master Key: 3.46 x 9.05 x 2.14 -> 1.91 x 5.00 x 1.18
 	Bank_RareCoin = { 1.0104, 3.974, 4.949, 3.439 }, -- Shiny Coin: 3.97 x 4.95 x 3.44 -> 4.02 x 5.00 x 3.47
 	Bank_GoldBar = { 1.3454, 9.539, 2.973, 3.664 }, -- Gold Bar: 9.54 x 2.97 x 3.66 -> 12.83 x 4.00 x 4.93
@@ -412,7 +406,6 @@ LootConfig.Normalization = {
 	-- RE-MEASURED after the art swap. The old row was audited against the
 	-- previous Secret Formula model and left the flask 1.79 studs tall on a
 	-- pedestal built for 5.00; lootAudit reported it "stale" by name.
-	SecretLab_SecretFormula = { 1.4706, 1.417, 3.400, 1.417 }, -- Chemical Flask: 1.42 x 3.40 x 1.42 -> 2.08 x 5.00 x 2.08
 	SecretLab_ChemicalCylinder = { 0.5928, 5.166, 8.435, 5.166 }, -- Chemical Cylinder: 5.17 x 8.43 x 5.17 -> 3.06 x 5.00 x 3.06
 	SecretLab_ContainmentTank = { 0.8922, 4.588, 5.604, 3.929 }, -- Containment Tank: 4.59 x 5.60 x 3.93 -> 4.09 x 5.00 x 3.51
 	SecretLab_RobotSpider = { 0.4810, 9.756, 10.396, 12.285 }, -- Robot Spider: 9.76 x 10.40 x 12.29 -> 4.69 x 5.00 x 5.91
@@ -420,7 +413,6 @@ LootConfig.Normalization = {
 	SecretLab_CyanPlasma = { 0.5337, 9.228, 9.369, 5.600 }, -- Cyan Plasma: 9.23 x 9.37 x 5.60 -> 4.93 x 5.00 x 2.99
 	SecretLab_EnergyCore = { 0.7139, 9.130, 7.004, 7.029 }, -- Energy Canister: 9.13 x 7.00 x 7.03 -> 6.52 x 5.00 x 5.02
 	SecretLab_RadiationChamber = { 0.2214, 12.610, 22.586, 12.817 }, -- Radiation Chamber: 12.61 x 22.59 x 12.82 -> 2.79 x 5.00 x 2.84
-	Grandma_CandyBowl = { 1.4839, 6.201, 2.696, 6.201 }, -- Colorful Bowl: 6.20 x 2.70 x 6.20 -> 9.20 x 4.00 x 9.20
 	Grandma_KnittedSweater = { 0.5139, 12.434, 9.729, 1.565 }, -- Red Shirt: 12.43 x 9.73 x 1.57 -> 6.39 x 5.00 x 0.80
 	Grandma_WalkingCane = { 0.3710, 2.925, 13.476, 1.121 }, -- Walking Cane: 2.92 x 13.48 x 1.12 -> 1.09 x 5.00 x 0.42
 	Grandma_GoldenTeapot = { 0.7143, 7.520, 7.000, 7.520 }, -- Golden Teapot: 7.52 x 7.00 x 7.52 -> 5.37 x 5.00 x 5.37
@@ -436,8 +428,6 @@ LootConfig.Normalization = {
 	Construction_GoldenDrill = { 0.2293, 22.809, 21.810, 7.431 }, -- Golden Drill: 22.81 x 21.81 x 7.43 -> 5.23 x 5.00 x 1.70
 	Construction_BossLadder = { 0.5324, 9.396, 9.392, 3.400 }, -- Boss Ladder: 9.40 x 9.39 x 3.40 -> 5.00 x 5.00 x 1.81
 	Construction_DiamondHammer = { 0.4345, 5.613, 11.507, 7.600 }, -- Diamond Hammer: 5.61 x 11.51 x 7.60 -> 2.44 x 5.00 x 3.30
-	Airport_FirstClassTicket = { 0.6429, 11.666, 7.001, 1.176 }, -- First-Class Ticket: 11.67 x 7.00 x 1.18 -> 7.50 x 4.50 x 0.76
-	Airport_VIPPassport = { 0.9091, 11.000, 4.400, 11.000 }, -- VIP Passport: 11.00 x 4.40 x 11.00 -> 10.00 x 4.00 x 10.00
 	Airport_PilotsHat = { 1.6136, 7.175, 2.479, 7.625 }, -- Pilot's Hat: 7.17 x 2.48 x 7.62 -> 11.58 x 4.00 x 12.30
 	Airport_LostBriefcase = { 0.6440, 2.865, 7.245, 11.646 }, -- Lost Briefcase: 2.86 x 7.24 x 11.65 -> 1.85 x 4.67 x 7.50
 	Airport_UnknownBriefcase = { 0.6906, 9.302, 7.240, 9.344 }, -- Unknown Briefcase: 9.30 x 7.24 x 9.34 -> 6.42 x 5.00 x 6.45
@@ -456,11 +446,33 @@ LootConfig.Normalization = {
 -- the item: the ItemId stays the save key it has always been, and only the
 -- picture changes.
 
+-- The 2026-09-09 art replacement pass. Ten items were re-arted; each keeps its
+-- ItemId (the save key), its rarity, income, weight, zone, growth time and
+-- every mutation and size-variant behaviour. Only the display `name` above and
+-- the asset named here changed. The right-hand string must match the model's
+-- name in ServerStorage.GameAssets.Loot EXACTLY, including apostrophes.
 LootConfig.ModelOverrides = {
-	-- The Chemical Flask now uses the supplied "Chemical Flask" model rather
-	-- than the old SecretLab_SecretFormula art. Same item, same id, same
-	-- rarity, same income, same saves - a new picture.
-	SecretLab_SecretFormula = "Chemical Flask",
+	-- Zone 01: a better Pharaoh Mask model. Display name unchanged.
+	Museum_PharaohMask = "Pharaohs Mask (New)",
+	-- Zone 04: same item, same name, better art.
+	Area51_TopSecretFiles = "Top Secret Files",
+	-- Zone 05: Nice List -> Toy Train.
+	NorthPole_NiceList = "Toy Train",
+	-- Zone 06: Canopic Jar -> Pharaoh's Golden Scepter.
+	Egypt_CanopicJar = "Pharaoh's Golden Scepter",
+	-- Zone 07: Creatine -> Boxing Gloves.
+	Gym_Creatine = "Boxing Gloves",
+	-- Zone 08: Cash Briefcase -> Money Print Machine.
+	Bank_CashBag = "Money Print Machine",
+	-- Zone 09: Chemical Flask -> Mutant Specimen. (Was overridden to
+	-- "Chemical Flask"; that art is superseded.)
+	SecretLab_SecretFormula = "Mutant Specimen",
+	-- Zone 10: Colorful Bowl -> Grandmas Cookies.
+	Grandma_CandyBowl = "Grandmas Cookies",
+	-- Zone 12: First-Class Ticket -> Golden Pilot Badge.
+	Airport_FirstClassTicket = "Golden Pilot Badge",
+	-- Zone 12: VIP Passport -> Airplane.
+	Airport_VIPPassport = "Airplane",
 } :: { [string]: string }
 
 --- The asset name to look for, which is the item's own id unless overridden.
