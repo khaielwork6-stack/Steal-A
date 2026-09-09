@@ -3936,3 +3936,102 @@ the whole presentation of a stage.
   first frame of the reveal sequence rather than on the pop. Measured: 3ms
   after the reveal cue, with the item swap 1.63s later; exactly one sound, and
   the old `NewDiscovery` asset is not created anywhere.
+
+## 40. The ten replaced models — audited, seated, and two pivot/preview bugs found
+
+Commits `2ec750a` and `09fab36` did the code half of a ten-item art swap with
+no Studio access: display names, `ModelOverrides`, and the ten stale
+`Normalization` rows deleted on purpose. This section is the Studio half.
+
+### The art was never in `GameAssets.Loot`
+
+All ten new models were sitting in `Workspace["NEW MODELS "]` (note the
+trailing space). Nothing resolved. They were moved into
+`ServerStorage.GameAssets.Loot` and the empty folder removed — the same
+place-file step already documented for the Chemical Flask. **This lives only
+in the saved place, not in git.**
+
+Four of the ten `ModelOverrides` names had been guessed wrong and are
+corrected in `LootConfig`:
+
+| was | is |
+| --- | --- |
+| `Pharaohs Mask (New)` | `Pharaohs Mask` |
+| `Pharaoh's Golden Scepter` (ASCII `'`) | `Pharaoh’s Golden Scepter` (U+2019) |
+| `Grandmas Cookies` | `Grandmas Cookie` |
+| `Golden Pilot Badge` | `Pilots Badge` |
+
+The scepter's curly apostrophe is the trap: a straight quote there silently
+misses and the item falls back to a placeholder.
+
+### Bug 1: `GetPivot()` is not `PrimaryPart.CFrame`
+
+Five of the ten (Pharaohs Mask, Toy Train, Mutant Specimen, Grandmas Cookie,
+Pilots Badge) came out of `build` with their height and depth swapped — face
+down on every socket and pedestal. `uprightAudit` flagged all five, and each
+reported *every* part sideways.
+
+The parts are not sideways. Each part's `CFrame` is upright and the model
+looks correct in ServerStorage. What every part carries is a `PivotOffset`
+rotated 90° about X — an importer artifact. `Model:GetPivot()` is
+`PrimaryPart.CFrame * PrimaryPart.PivotOffset`, not the bare `CFrame`, so the
+moment `LootModel` set `PrimaryPart` the model's pivot tipped and the next
+`PivotTo` laid the item on its face. The Vanilla Milkshake bug wearing a
+different hat — and one `chooseAnchor` could not dodge, because with all
+parts affected there was no upright candidate left to prefer.
+
+`ModelOrientation` is the wrong tool here: it rotates the *geometry*, which
+would tip correct art to compensate for a broken pivot. `LootModel.build` now
+drops the rotation from the chosen anchor's `PivotOffset` (keeping its
+position), so the pivot really is the frame `chooseAnchor` vetted.
+`ModelOrientation` stays empty.
+
+### Bug 2: superseded art was still painting every thumbnail
+
+`09fab36` made `publishPreviews` publish under the item id rather than the
+asset name. But the old assets are still in the Loot folder under their
+original id-shaped names, so both the old asset (keeping its own name) and
+the new one (renamed onto that id) landed in the preview folder under the
+same name — and `FindFirstChild` returned whichever came first, which was the
+old one. The world showed the new model while every storage card, Index card
+and reveal showed the old one. Symptom: preview part counts that did not
+match the asset (a 30-part mask previewing as 3 parts).
+
+`publishPreviews` now skips an asset that is named after an item id whose
+item points somewhere else. The claim wins; the loser is not published and
+not touched — the old art stays in ServerStorage until deleted deliberately.
+Preview count went 106 → 96.
+
+### Verified in Play
+
+- `Invoke("lootAudit", nil, "rows")` — 95 ok, 0 missing, 0 stale. The ten new
+  rows are in `LootConfig.Normalization`, measured, not guessed.
+- `Invoke("upright")` — 0 not upright, across all 95.
+- All ten built and seated on a common plane: visible bottom lands exactly on
+  it, heights on the 5.00 / 4.00 targets, previews now part-for-part equal to
+  their assets, no duplicate preview names.
+- Seal → ripen → hatch for six of them: all upright on the base pedestals at
+  an identical seat height, correct names and rarities.
+- `[Config] validation PASSED - 1523 checks`, `[EconomyTests] PASSED -
+  202280 checks`.
+
+Nothing was rebalanced: no income, weight, rarity, growth or size-variant
+value was touched, and no ItemId was renamed.
+
+### Two judgement calls left alone
+
+- **Grandmas Cookie stands on its edge**, because the asset is authored as a
+  4.6 x 4.6 x 0.9 disc with its flat face vertical. That is faithful to the
+  art and consistent with the Rare Painting, but a cookie lying flat may read
+  better. Now that the pivot path is correct, a `ModelOrientation` row of
+  `Vector3.new(90, 0, 0)` would do it.
+- **Pilots Badge normalises to 9.60 studs wide**, the widest of the ten,
+  because it is short and wide and the rule scales to a 4.00 height. That is
+  the same treatment Pilot's Hat already gets (11.58 wide) in the same zone,
+  so it was left consistent rather than special-cased.
+
+### Still open
+
+- `Pirate_CursedCoin` has no art (pre-existing, unchanged).
+- `Museum_PharaohMask` still displays as "Pharaoh Mask" — only its art was
+  replaced. Renaming it is a question for the owner.

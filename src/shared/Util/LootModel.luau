@@ -398,7 +398,8 @@ local UPRIGHT_DOT = 0.9
 
 --- WHICH PART DEFINES THE MODEL'S PIVOT, and it is not a cosmetic choice.
 ---
---- `Model:GetPivot()` returns `PrimaryPart.CFrame`, and every later
+--- `Model:GetPivot()` returns `PrimaryPart.CFrame * PrimaryPart.PivotOffset`
+--- (`build` zeroes that offset rotation, see there), and every later
 --- `PivotTo(target)` re-seats the whole assembly by `target * pivot:Inverse()`.
 --- So if the chosen part's own frame is upside down, the assembly is rotated
 --- upside down the moment anything places it upright - which is exactly what
@@ -541,6 +542,17 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 		applyOrientation(built, options.itemId)
 		local anchor = LootModel.chooseAnchor(built)
 		if anchor then
+			-- GetPivot() is PrimaryPart.CFrame * PrimaryPart.PivotOffset, not the
+			-- bare CFrame. Five imported assets (Pharaohs Mask, Toy Train, Mutant
+			-- Specimen, Grandmas Cookie, Pilots Badge) carry a PivotOffset rotated
+			-- 90 degrees about X on EVERY part. That is an importer artifact, not
+			-- authoring - the part frames themselves are upright, and the models
+			-- look correct in ServerStorage. Left alone it tips the whole assembly
+			-- onto its face on the first PivotTo: the Vanilla Milkshake bug in a
+			-- different hat, and one chooseAnchor cannot dodge, because there is
+			-- no unaffected part left for it to prefer. Keep the offset position,
+			-- drop its rotation, so the pivot really is the anchor frame we vetted.
+			anchor.PivotOffset = CFrame.new(anchor.PivotOffset.Position)
 			built.PrimaryPart = anchor
 		end
 	end
@@ -820,8 +832,26 @@ function LootModel.publishPreviews(): number
 		idForAsset[LootConfig.modelNameFor(itemId)] = itemId
 	end
 
+	-- Two assets can want the SAME published name. An item that adopts new art
+	-- through ModelOverrides leaves its original asset in the folder still named
+	-- after the item id, and the adopted asset then renames onto that same id.
+	-- Both land in the folder and FindFirstChild returns whichever came first,
+	-- which is how superseded art went on painting the thumbnails while the
+	-- world showed the new model. The claim wins: an asset an item actually
+	-- names beats one that merely happens to share the id. The loser is not
+	-- published and not touched - it stays in ServerStorage until someone
+	-- deletes it deliberately.
+	local function superseded(assetName: string): boolean
+		return idForAsset[assetName] == nil
+			and LootConfig.ById[assetName] ~= nil
+			and LootConfig.modelNameFor(assetName) ~= assetName
+	end
+
 	local count = 0
 	for _, item in source:GetChildren() do
+		if superseded(item.Name) then
+			continue
+		end
 		local model = adopt(item)
 		if not model then
 			continue
