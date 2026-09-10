@@ -657,6 +657,12 @@ return function(): Report
 	-- THE BEGINNER CHECKLIST
 	-- ==========================================================
 	do
+		-- A BOOLEAN, not a truthy string. `ENABLED = "false"` reads as true in
+		-- Lua and would turn the checklist back on without anyone noticing.
+		check(
+			type(StarterTaskConfig.ENABLED) == "boolean",
+			`StarterTaskConfig.ENABLED must be a boolean, is a {type(StarterTaskConfig.ENABLED)}`
+		)
 		check(#StarterTaskConfig.Tasks == 3, `the starter checklist must have 3 rows, has {#StarterTaskConfig.Tasks}`)
 		local seen: { [string]: boolean } = {}
 		for _, task in StarterTaskConfig.Tasks do

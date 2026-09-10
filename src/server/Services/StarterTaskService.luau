@@ -50,6 +50,12 @@ local closing: { [Player]: boolean } = {}
 --- Completes one row and pays it. Safe to call from anywhere, as often as the
 --- gameplay path happens to fire: everything after the first time is a no-op.
 function StarterTaskService.complete(player: Player, key: string)
+	-- SWITCHED OFF: nothing is granted AND nothing is flagged. Returning before
+	-- the write is what makes the pause free - a row is not silently spent
+	-- while the checklist is not there to show it being earned.
+	if not StarterTaskConfig.ENABLED then
+		return
+	end
 	local task_ = StarterTaskConfig.ByKey[key]
 	if not task_ then
 		return
@@ -117,6 +123,12 @@ end
 --- Returns nil once the checklist is finished and gone, which is what tells
 --- the client to remove it - and, on a later session, never to build it.
 function StarterTaskService.summarise(player: Player): { [string]: any }?
+	-- Nil is already the client's "this checklist is gone" answer, so the
+	-- switch needs no client change at all: a panel that is up is torn down on
+	-- the next push and one that never existed is never built.
+	if not StarterTaskConfig.ENABLED then
+		return nil
+	end
 	local profile = DataService.get(player)
 	if not profile or profile.StarterTasksClosed then
 		return nil
@@ -135,7 +147,11 @@ function StarterTaskService.start()
 		closing[player] = nil
 	end)
 
-	print(`[StarterTaskService] {#StarterTaskConfig.Tasks} beginner tasks online`)
+	if StarterTaskConfig.ENABLED then
+		print(`[StarterTaskService] {#StarterTaskConfig.Tasks} beginner tasks online`)
+	else
+		print("[StarterTaskService] beginner tasks DISABLED (StarterTaskConfig.ENABLED = false)")
+	end
 end
 
 --- Debug only: puts the checklist back so it can be walked through again.

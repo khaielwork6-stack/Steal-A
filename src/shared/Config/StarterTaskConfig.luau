@@ -15,6 +15,20 @@
 
 local StarterTaskConfig = {}
 
+--- THE SWITCH. Set this back to true to bring the checklist back.
+---
+--- While it is false the feature is inert rather than removed: no panel is
+--- built, no row is completed and NO REWARD IS GRANTED. That last part is the
+--- point - nothing is quietly consumed while it is off, so a player who had
+--- ticked one row before it was disabled still has exactly that row ticked
+--- when it comes back, and a player who joined during the pause starts with
+--- all three still to earn. Turning it off and on again costs nobody a reward.
+---
+--- Everything below stays as it is: the rows, the wording, the amounts, the
+--- profile fields and the three gameplay hooks in init.server. This is the
+--- only line that decides whether any of it runs.
+StarterTaskConfig.ENABLED = false
+
 export type Kind = "cash" | "speed"
 
 export type Task = {
