@@ -1761,6 +1761,31 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	end,
 
 	--- The rotation clock: what is on sale now and at the next three boundaries.
+	--- The two Guardian sale slots as the LIVE services see them: what each
+	--- pedestal is showing, and whether the purchase path will honour a key.
+	--- Run through the bridge, never a fresh require - a command-bar require
+	--- gets an empty copy of the service and reports no slots at all.
+	guardianSlots = function(player, probeKey: string?)
+		local GuardianShopService = require(script.Parent.GuardianShopService)
+		local MonetizationService = require(script.Parent.MonetizationService)
+		local onSale = GuardianShopService.onSaleKeys()
+		local out = { onSale = onSale, slots = {} }
+		for _, m in workspace.Map:GetChildren() do
+			if m:IsA("Model") and string.match(m.Name, "^GuardianShop") then
+				table.insert(out.slots, string.format("%s slot=%s key=%s price=%s",
+					m.Name, tostring(m:GetAttribute("SlotIndex")),
+					tostring(m:GetAttribute("RotationKey")), tostring(m:GetAttribute("Price"))))
+			end
+		end
+		-- The refusal path: a key that is not on a pedestal must never open a
+		-- dialog, whoever asks and however it is spelled.
+		if probeKey and player then
+			local ok, reason = MonetizationService.promptGuardianPass(player, probeKey)
+			out.probe = { key = probeKey, opened = ok, reason = reason }
+		end
+		return out
+	end,
+
 	rotation = function()
 		local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 		local now = workspace:GetServerTimeNow()

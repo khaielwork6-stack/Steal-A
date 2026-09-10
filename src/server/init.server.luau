@@ -194,6 +194,9 @@ end
 -- A Steal receipt is delivered by HeistService against the exact reserved
 -- item; a closed steal dialog frees the reservation and grants nothing; a
 -- base guardian's hit on a thief carrying its owner's item sends it home.
+-- The guardian pedestals own what is on sale; the purchase path checks a key
+-- against them before opening any dialog.
+MonetizationService.setGuardianSaleProvider(GuardianShopService.onSaleKeys)
 MonetizationService.setStealHandler(HeistService.fulfil)
 MonetizationService.setRevealHandler(HatchService.fulfil)
 HatchService.onLockLifted = PlacementService.refreshPrompts

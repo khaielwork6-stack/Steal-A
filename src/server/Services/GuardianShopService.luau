@@ -41,13 +41,24 @@ local RING_DIAMETER = 18
 local PROMPT_HOLD = 0.35
 local PROMPT_RANGE = 16
 
-local shop: Model? = nil
-local frame: CFrame = CFrame.new()
-local pedestalTop = 0
-local currentKey = ""
-local ring: BasePart? = nil
-local prompt: ProximityPrompt? = nil
-local labels: { [string]: TextLabel } = {}
+--- ONE SALE SLOT. Everything that used to be a module-level singleton lives
+--- here instead, so the shop can be built more than once without the second
+--- pedestal overwriting the first one's prompt, sign or displayed animal.
+type Slot = {
+	index: number,
+	frame: CFrame,
+	model: Model?,
+	pedestalTop: number,
+	key: string,
+	ring: BasePart?,
+	prompt: ProximityPrompt?,
+	labels: { [string]: TextLabel },
+}
+
+local slots: { Slot } = {}
+--- Which prompt belongs to which slot, so a trigger resolves its own slot
+--- rather than guessing from a shared "current" key.
+local slotByPrompt: { [ProximityPrompt]: Slot } = {}
 
 local function priceText(key: string): string
 	local def = BaseGuardianConfig.ByKey[key]
@@ -102,7 +113,7 @@ local function label(
 end
 
 --- The imported pedestal, scaled to the shop's size and stood on the floor.
-local function buildPedestal(parent: Instance): number
+local function buildPedestal(parent: Instance, frame: CFrame): number
 	local assets = ServerStorage:FindFirstChild("GameAssets")
 	local template = assets and assets:FindFirstChild("Pedestal")
 	local floorY = frame.Position.Y
@@ -156,9 +167,13 @@ local function buildPedestal(parent: Instance): number
 	return top
 end
 
-local function buildStatic(map: Instance): Model
+local function buildStatic(map: Instance, slot: Slot): Model
+	local frame = slot.frame
 	local model = Instance.new("Model")
-	model.Name = MODEL_NAME
+	-- Slot 1 keeps the historic name so anything that looked the shop up by
+	-- it still finds a shop; the second is suffixed.
+	model.Name = if slot.index == 1 then MODEL_NAME else MODEL_NAME .. tostring(slot.index)
+	model:SetAttribute("SlotIndex", slot.index)
 
 	-- The glowing ring on the floor, coloured per animal.
 	local disc = Instance.new("Part")
@@ -174,9 +189,9 @@ local function buildStatic(map: Instance): Model
 	disc.Material = Enum.Material.Neon
 	disc.Transparency = 0.45
 	disc.Parent = model
-	ring = disc
+	slot.ring = disc
 
-	pedestalTop = buildPedestal(model)
+	slot.pedestalTop = buildPedestal(model, frame)
 
 	-- The prompt stands in front of the pedestal, where a customer stops.
 	local anchor = Instance.new("Part")
@@ -199,7 +214,8 @@ local function buildStatic(map: Instance): Model
 	p.RequiresLineOfSight = false
 	p.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
 	p.Parent = anchor
-	prompt = p
+	slot.prompt = p
+	slotByPrompt[p] = slot
 
 	-- THE SALE SIGN. Rebuilt for hierarchy: the old one gave the name, the
 	-- LIMITED TIME! banner and the price near-equal weight, so from any
@@ -226,7 +242,7 @@ local function buildStatic(map: Instance): Model
 	signAnchor.CanCollide = false
 	signAnchor.CanQuery = false
 	signAnchor.CanTouch = false
-	signAnchor.CFrame = CFrame.new(frame.Position + Vector3.new(0, pedestalTop + BaseGuardianConfig.HEIGHT + 5.2, 0))
+	signAnchor.CFrame = CFrame.new(frame.Position + Vector3.new(0, slot.pedestalTop + BaseGuardianConfig.HEIGHT + 5.2, 0))
 	signAnchor.Parent = model
 
 	local gui = Instance.new("BillboardGui")
@@ -243,12 +259,12 @@ local function buildStatic(map: Instance): Model
 	-- got. The heading says FOR SALE rather than LIMITED TIME because the
 	-- countdown underneath already carries the urgency, and "for sale" is the
 	-- part a player crossing the apron needs to read first.
-	labels.Limited = label(gui, "Limited", 0, 0.155, Color3.fromRGB(255, 226, 90), 34, 3)
-	labels.Limited.Text = "GUARDIAN FOR SALE!"
-	labels.Name = label(gui, "Name", 0.155, 0.30, Color3.fromRGB(255, 255, 255), 68, 4)
-	labels.Price = label(gui, "Price", 0.455, 0.20, Color3.fromRGB(126, 255, 148), 50, 3)
-	labels.Timer = label(gui, "Timer", 0.655, 0.155, Color3.fromRGB(230, 236, 250), 32, 3)
-	labels.Timer.Text = "Changes In: --:--:--"
+	slot.labels.Limited = label(gui, "Limited", 0, 0.155, Color3.fromRGB(255, 226, 90), 34, 3)
+	slot.labels.Limited.Text = "GUARDIAN FOR SALE!"
+	slot.labels.Name = label(gui, "Name", 0.155, 0.30, Color3.fromRGB(255, 255, 255), 68, 4)
+	slot.labels.Price = label(gui, "Price", 0.455, 0.20, Color3.fromRGB(126, 255, 148), 50, 3)
+	slot.labels.Timer = label(gui, "Timer", 0.655, 0.155, Color3.fromRGB(230, 236, 250), 32, 3)
+	slot.labels.Timer.Text = "Changes In: --:--:--"
 
 	local arrow = Instance.new("TextLabel")
 	arrow.Name = "Arrow"
@@ -273,14 +289,15 @@ local function buildStatic(map: Instance): Model
 	return model
 end
 
---- Puts the current animal on the pedestal. Rebuilt at every rotation.
-local function refreshDisplay(key: string)
-	local model = shop
+--- Puts an animal on one slot's pedestal. Rebuilt at every rotation.
+local function refreshDisplay(slot: Slot, key: string)
+	local model = slot.model
+	local frame = slot.frame
 	local def = BaseGuardianConfig.ByKey[key]
 	if not model or not def then
 		return
 	end
-	currentKey = key
+	slot.key = key
 
 	local old = model:FindFirstChild("Display")
 	if old then
@@ -310,7 +327,7 @@ local function refreshDisplay(key: string)
 				end
 			end
 			root.Anchored = true
-			local position = Vector3.new(frame.Position.X, pedestalTop + root.Size.Y / 2 + 0.1, frame.Position.Z)
+			local position = Vector3.new(frame.Position.X, slot.pedestalTop + root.Size.Y / 2 + 0.1, frame.Position.Z)
 			rig:PivotTo(CFrame.lookAt(position, position + frame.LookVector))
 			-- Tasteful, not a bonfire: a quarter of the kit's rate, particles
 			-- at two thirds size, so the animal reads through its own aura.
@@ -322,14 +339,14 @@ local function refreshDisplay(key: string)
 		warn(`[GuardianShopService] no model for {key}`)
 	end
 
-	if ring then
-		ring.Color = def.color
+	if slot.ring then
+		slot.ring.Color = def.color
 	end
-	labels.Name.Text = `{string.upper(def.name)} GUARDIAN`
-	labels.Name.TextColor3 = def.color
-	labels.Price.Text = priceText(key)
-	if prompt then
-		prompt.ObjectText = `{def.name} Guardian  ·  {priceText(key)}`
+	slot.labels.Name.Text = `{string.upper(def.name)} GUARDIAN`
+	slot.labels.Name.TextColor3 = def.color
+	slot.labels.Price.Text = priceText(key)
+	if slot.prompt then
+		slot.prompt.ObjectText = `{def.name} Guardian  ·  {priceText(key)}`
 	end
 
 	local _, _, endsAt = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
@@ -339,22 +356,39 @@ local function refreshDisplay(key: string)
 	model:SetAttribute("Price", MonetizationService.livePassPrice(def.gamePassId) or 0)
 end
 
+--- THE KEYS ON SALE RIGHT NOW, one per slot. This is the ONLY list the
+--- purchase path will honour: a prompt hands its own slot's key to
+--- MonetizationService, which checks it against this before opening any
+--- Robux dialog, so a slot can never sell something that is not standing on
+--- it and nothing a client says reaches the decision at all.
+function GuardianShopService.onSaleKeys(): { string }
+	local keys = {}
+	for _, slot in slots do
+		if slot.key ~= "" then
+			table.insert(keys, slot.key)
+		end
+	end
+	return keys
+end
+
 --- Live prices landed or changed.
 function GuardianShopService.retext()
-	if currentKey ~= "" then
-		labels.Price.Text = priceText(currentKey)
-		local def = BaseGuardianConfig.ByKey[currentKey]
-		if prompt and def then
-			prompt.ObjectText = `{def.name} Guardian  ·  {priceText(currentKey)}`
-		end
-		if shop and def then
-			shop:SetAttribute("Price", MonetizationService.livePassPrice(def.gamePassId) or 0)
+	for _, slot in slots do
+		local def = if slot.key ~= "" then BaseGuardianConfig.ByKey[slot.key] else nil
+		if def then
+			slot.labels.Price.Text = priceText(slot.key)
+			if slot.prompt then
+				slot.prompt.ObjectText = `{def.name} Guardian  ·  {priceText(slot.key)}`
+			end
+			if slot.model then
+				slot.model:SetAttribute("Price", MonetizationService.livePassPrice(def.gamePassId) or 0)
+			end
 		end
 	end
 end
 
-local function onPrompt(player: Player)
-	local key = currentKey
+local function onPrompt(player: Player, slot: Slot)
+	local key = slot.key
 	if key == "" then
 		return
 	end
@@ -371,10 +405,28 @@ local function onPrompt(player: Player)
 		end
 		return
 	end
-	local ok, reason = MonetizationService.promptGuardianPass(player)
+	-- The key comes from the pedestal the player physically walked up to, not
+	-- from anything the client sent, and the server checks it against the
+	-- on-sale list before it opens a dialog.
+	local ok, reason = MonetizationService.promptGuardianPass(player, key)
 	if not ok and reason then
 		StateService.notify(player, "error", reason)
 	end
+end
+
+--- WHICH ANIMAL EACH SLOT SHOWS, for a moment in time.
+---
+--- Slot 1 is the rotation as it has always been, so a player who knew what
+--- was on sale yesterday still sees it where they expect. Slot 2 shows the
+--- NEXT animal in the same order - today's preview of tomorrow - which means
+--- the two slots are never the same guardian, roll over together on the one
+--- boundary, and need no rotation state of their own. With four animals in
+--- ROTATION_ORDER the pair walks the whole roster in half the time.
+local function keysForNow(): (string, number)
+	local key, index, endsAt = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
+	local order = BaseGuardianConfig.ROTATION_ORDER
+	local nextKey = order[(index % #order) + 1]
+	return key .. "\1" .. nextKey, endsAt
 end
 
 function GuardianShopService.start()
@@ -382,35 +434,79 @@ function GuardianShopService.start()
 	if not map then
 		return
 	end
-	local existing = map:FindFirstChild(MODEL_NAME)
-	if existing then
-		existing:Destroy()
-	end
-	frame = LobbyLayout.frame("GuardianShop", MapConfig.HUB.guardianShop)
-	-- Flat on the floor, whatever the marker's height.
-	frame = CFrame.new(frame.Position.X, 0, frame.Position.Z) * frame.Rotation
 
-	shop = buildStatic(map)
-	if prompt then
-		prompt.Triggered:Connect(onPrompt)
+	-- Both pedestals, mirrored across the apron. The second marker is the
+	-- first reflected in X, so the pair reads as a matching pair from the
+	-- spawn circle rather than as one shop and an afterthought.
+	local markers = {
+		LobbyLayout.frame("GuardianShop", MapConfig.HUB.guardianShop),
+		LobbyLayout.frame("GuardianShopB", MapConfig.HUB.guardianShopB),
+	}
+
+	table.clear(slots)
+	table.clear(slotByPrompt)
+	for index, marker in markers do
+		local stale = map:FindFirstChild(if index == 1 then MODEL_NAME else MODEL_NAME .. tostring(index))
+		if stale then
+			stale:Destroy()
+		end
+		local slot: Slot = {
+			index = index,
+			-- Flat on the floor, whatever the marker's height.
+			frame = CFrame.new(marker.Position.X, 0, marker.Position.Z) * marker.Rotation,
+			model = nil,
+			pedestalTop = 0,
+			key = "",
+			ring = nil,
+			prompt = nil,
+			labels = {},
+		}
+		slot.model = buildStatic(map, slot)
+		if slot.prompt then
+			local owner = slot
+			slot.prompt.Triggered:Connect(function(player)
+				onPrompt(player, owner)
+			end)
+		end
+		table.insert(slots, slot)
 	end
 
-	local key = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
-	refreshDisplay(key)
+	local function apply(pair: string)
+		local first, second = string.match(pair, "^(.-)\1(.*)$")
+		local keys = { first, second }
+		for index, slot in slots do
+			local key = keys[index]
+			if key and key ~= slot.key then
+				refreshDisplay(slot, key)
+			end
+		end
+	end
+
+	local pair = keysForNow()
+	apply(pair)
 
 	-- Once a second is all the boundary needs; the countdown is the client's.
 	task.spawn(function()
-		while shop and shop.Parent do
+		while slots[1] and slots[1].model and (slots[1].model :: Model).Parent do
 			task.wait(1)
-			local now = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
-			if now ~= currentKey then
-				refreshDisplay(now)
-				StateService.announce("info", `NEW GUARDIAN IN THE SHOP: {string.upper(BaseGuardianConfig.ByKey[now].name)}!`, "refresh")
+			local now = keysForNow()
+			if now ~= pair then
+				pair = now
+				apply(now)
+				local lead = slots[1] and slots[1].key
+				local def = if lead then BaseGuardianConfig.ByKey[lead] else nil
+				if def then
+					StateService.announce("info", `NEW GUARDIAN IN THE SHOP: {string.upper(def.name)}!`, "refresh")
+				end
 			end
 		end
 	end)
 
-	print(`[GuardianShopService] shop at {frame.Position} showing {key}`)
+	local shown = {}
+	for _, slot in slots do
+		table.insert(shown, `{slot.key} at {slot.frame.Position}`)
+	end
+	print(`[GuardianShopService] {#slots} sale slots - {table.concat(shown, ", ")}`)
 end
 
 return GuardianShopService

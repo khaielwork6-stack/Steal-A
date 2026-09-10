@@ -279,6 +279,11 @@ MapConfig.HUB = {
 	-- The rotating Guardian shop: the pedestal in the +X wing between the lane
 	-- mouth and the Next Update board, turned to face the spawn circle.
 	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -24), Vector3.new(0, 0, -34)),
+	-- The SECOND sale pedestal, the first reflected in X so the pair frames
+	-- the spawn circle. Clear of the Slap cage (near X = -94, Z = -8) by
+	-- eighteen studs and of the gift chest (X = -119) by fifteen, which the
+	-- ring's nine-stud radius needs at both ends.
+	guardianShopB = CFrame.lookAt(Vector3.new(-104, 0, -24), Vector3.new(0, 0, -34)),
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 

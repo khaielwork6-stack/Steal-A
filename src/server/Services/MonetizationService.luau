@@ -605,9 +605,37 @@ end
 
 --- The guardian ON SALE RIGHT NOW, and only that one: the server derives it
 --- from the rotation clock, so a client cannot ask for a different animal.
-function MonetizationService.promptGuardianPass(player: Player): (boolean, string?)
-	local key = BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
-	local pass = MonetizationConfig.GuardianPassByKey[key]
+--- WHICH GUARDIANS ARE ACTUALLY ON SALE. Injected by init from
+--- GuardianShopService, which owns the pedestals; nil until it starts, and
+--- the rotation is the fallback so the shop UI path keeps working either way.
+local onSaleKeys: (() -> { string })? = nil
+
+function MonetizationService.setGuardianSaleProvider(fn: () -> { string })
+	onSaleKeys = fn
+end
+
+--- Opens the Robux dialog for a guardian on sale.
+---
+--- `key` comes from the PEDESTAL a player walked up to (a server-side
+--- ProximityPrompt trigger), never from a client, and is checked against the
+--- live on-sale list regardless - so an unlisted or stale key cannot open a
+--- dialog even if some future caller passes one in. Omitting it keeps the
+--- old behaviour of selling whatever the rotation says.
+function MonetizationService.promptGuardianPass(player: Player, key: string?): (boolean, string?)
+	local wanted = key or BaseGuardianConfig.rotation(workspace:GetServerTimeNow())
+	if key and onSaleKeys then
+		local allowed = false
+		for _, onSale in onSaleKeys() do
+			if onSale == key then
+				allowed = true
+				break
+			end
+		end
+		if not allowed then
+			return false, "That Guardian is not on sale right now."
+		end
+	end
+	local pass = MonetizationConfig.GuardianPassByKey[wanted]
 	if not pass or pass.gamePassId <= 0 then
 		return false, "That Guardian is not available yet."
 	end
