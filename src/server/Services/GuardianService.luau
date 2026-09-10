@@ -909,20 +909,23 @@ local ARRIVE_STALL_REACH = 2.5
 
 --- Has this guardian arrived at the goal it is steering to?
 ---
---- A PLAIN DISTANCE TEST IS NOT ENOUGH, and this is the bug it hid: a humanoid
---- running at speed toward a point it cannot physically reach - because its own
---- body, the item welded in front of it, the socket's own pedestal or a prop is
---- in the way - does not stop. It ORBITS, at whatever radius its momentum
---- allows, until the sixty-second job timeout gives up. A zone guardian doing
---- that is a zone with NO guardian in it, and it ignores fresh steals the whole
---- time, which is exactly how it was found: circling the socket while the thief
---- helped themselves to the rest of the zone.
+--- A PLAIN DISTANCE TEST IS NOT ENOUGH: a humanoid running at speed toward a
+--- point it cannot physically reach - because its own body, a pedestal or a
+--- prop is in the way - does not stop. It ORBITS, at whatever radius its
+--- momentum allows, until something else interrupts it.
 ---
 --- So arrival is also "I have stopped getting closer, and I am already near".
---- Stopping early costs nothing at either call site: `sleepPose` snaps the
---- guardian onto its post, and `finishEscort` puts the item back in its own
---- socket wherever the guardian happens to be standing. The only thing an
---- early finish gives up is the orbit.
+---
+--- IT IS NOT ENOUGH ON ITS OWN, EITHER, and it is worth knowing why: how close
+--- a guardian can physically get depends on how big it is, and Zone 12's Pilot
+--- is forty studs tall. It orbited at a radius no stall window tuned for the
+--- small zones would ever call an arrival, and widening it until the Pilot fit
+--- would have every other zone stop a long way short. That is why the escort
+--- walk was retired outright rather than tuned again - see THE ESCORT IS
+--- RETIRED. This remains the arrival test for the two walks that are LEFT (the
+--- walk home, and reaching a dropped item), where stopping early costs
+--- nothing: `sleepPose` snaps the guardian onto its post, and a fetched item
+--- is returned by LootService wherever the guardian is standing.
 local function arrived(guardian: Guardian, distance: number, reach: number, now: number): boolean
 	if distance <= reach then
 		return true
@@ -1140,83 +1143,41 @@ local function beginRecovery(guardian: Guardian, loot: LootService.LootInstance)
 	publishState(guardian)
 end
 
---- Welds an item to the guardian, hoisted over its head, at the same
---- compressed presentation scale a player carry uses.
-local function attachEscort(guardian: Guardian, loot: LootService.LootInstance): boolean
-	local model = loot.model
-	local root = guardian.root
-	local rig = guardian.model
-	if not model or not model.PrimaryPart or not root or not rig then
-		return false
-	end
+-- RETIRED: attachEscort. It welded the item over the guardian's head for the
+-- walk home; there is no walk home any more.
 
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BasePart") then
-			descendant.Anchored = false
-			descendant.CanCollide = false
-			descendant.CanQuery = false
-			descendant.CanTouch = false
-			descendant.Massless = true
-		end
-	end
-	local prompt = LootService.promptOf(loot)
-	if prompt then
-		prompt.Enabled = false
-	end
+-- ==========================================================
+-- THE ESCORT IS RETIRED
+-- ==========================================================
+--
+-- A guardian used to weld the item it had just taken to itself and physically
+-- walk it back to its socket (state ReturningLoot). That is where the guardian
+-- ran in circles, and it survived being "fixed" by making the arrival test
+-- smarter, twice:
+--
+--   * A humanoid steering at a point does not brake. It orbits whatever it
+--     cannot quite reach.
+--   * WHAT it cannot reach depends on the guardian. Zone 12's Pilot is a
+--     forty-stud boss whose own body holds its ROOT further from the socket
+--     than any sensible reach, so it orbited at a radius no stall detector
+--     tuned for the small zones would ever call an arrival. Raising the
+--     radius until the Pilot fits would make every other zone drop its item
+--     halfway across the floor.
+--   * While it orbited it ignored fresh steals, so the zone stood undefended
+--     for the full sixty-second job timeout. The bug was also the exploit.
+--
+-- So the walk is gone. The item is returned by LootService the moment it is
+-- taken - on the catch, and on reaching a dropped one - and the guardian goes
+-- straight to its next job. The SAME instance goes back into the SAME socket
+-- with its own rolled values, so nothing about the reward changed; there is
+-- simply no journey left to get stuck in.
+--
+-- ReturningLoot and `escortLootId` stay in the type so a stale attribute
+-- cannot crash `step`, but nothing enters that state any more. `stepEscort`
+-- below is the net that gets a guardian which somehow does back out of it.
 
-	local shown = RarityConfig.carryVisualScale(loot.visualScale)
-	local factor = if loot.visualScale > 0 then shown / loot.visualScale else 1
-	if math.abs(factor - 1) > 0.001 then
-		model:ScaleTo(model:GetScale() * factor)
-		loot.carryScale = factor
-	end
-
-	-- IN THE WORLD, WELDED - not inside the rig. A Humanoid reads the parts of
-	-- the model it lives in as its own body, and a stolen throne parked inside
-	-- a guardian collapses it into FallingDown exactly the way it collapsed
-	-- players (see the note in CarryService.attach). The escort weld below is
-	-- what carries it.
-	local map = workspace:FindFirstChild("Map") or workspace
-	local holder = map:FindFirstChild("CarriedLoot")
-	if not holder then
-		holder = Instance.new("Folder")
-		holder.Name = "CarriedLoot"
-		holder.Parent = map
-	end
-	model.Parent = holder
-	model:PivotTo(root.CFrame)
-	local height = tonumber(rig:GetAttribute("Height")) or root.Size.Y
-	local minCorner = select(1, LootModel.visibleExtents(model))
-	local rootBottom = root.Position.Y - root.Size.Y / 2
-	local lift = if minCorner then (rootBottom + height + 0.5) - minCorner.Y else height
-	model:PivotTo(root.CFrame * CFrame.new(0, lift, 0))
-
-	local weld = Instance.new("WeldConstraint")
-	weld.Name = "EscortWeld"
-	weld.Part0 = root
-	weld.Part1 = model.PrimaryPart
-	weld.Parent = model.PrimaryPart
-	return true
-end
-
---- Carries an Escorted item back to its socket.
-local function beginEscort(guardian: Guardian, loot: LootService.LootInstance): boolean
-	if loot.state ~= "Escorted" or not attachEscort(guardian, loot) then
-		return false
-	end
-	releaseTarget(guardian)
-	guardian.state = "ReturningLoot"
-	guardian.escortLootId = loot.id
-	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
-	guardian.jobStartedAt = os.clock()
-	resetSteering(guardian)
-	publishState(guardian)
-	return true
-end
-
---- Puts the carried item back. The SAME instance goes into the SAME socket
---- (LootService.returnToOrigin rebuilds it there from its own rolled values);
---- if the socket was refilled meanwhile the instance retires.
+--- Nothing should be in ReturningLoot. If something is, put whatever it is
+--- holding back rather than leaving it stuck holding it.
 local function finishEscort(guardian: Guardian)
 	local lootId = guardian.escortLootId
 	guardian.escortLootId = nil
@@ -1569,14 +1530,12 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 		Audio.playAt(AudioConfig.guardianHitCue(guardian.zoneIndex), root)
 
 		ragdollAndLaunch(target, root.Position)
-		-- The catch handler takes the item off the thief and hands it over
-		-- (loot.state becomes Escorted); the guardian then carries it home.
+		-- The catch handler takes the item off the thief AND sends it back to
+		-- its socket. The guardian's only remaining job is to decide what to do
+		-- next - it never carries anything. See "THE ESCORT IS RETIRED".
 		onCatch(loot)
 		releaseTarget(guardian)
-		if not beginEscort(guardian, loot) then
-			-- Nothing to carry (no model, or the handler sent it home itself).
-			nextJob(guardian)
-		end
+		nextJob(guardian)
 		return
 	end
 
@@ -1612,12 +1571,11 @@ local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePa
 	-- Same arrival test as the walk home and the escort: an item wedged
 	-- against a wall or a prop is one a guardian can circle forever otherwise.
 	if arrived(guardian, distance, guardian.catchRadius + PICKUP_REACH, now) then
+		-- PICKED UP IS PUT BACK. The guardian reaches the dropped item and the
+		-- item goes home on that frame; it is never welded on and walked back.
 		guardian.lootId = nil
-		LootService.setState(loot, "Escorted")
-		if not beginEscort(guardian, loot) then
-			LootService.returnToOrigin(loot)
-			nextJob(guardian)
-		end
+		LootService.returnToOrigin(loot)
+		nextJob(guardian)
 		return
 	end
 
@@ -1625,31 +1583,16 @@ local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePa
 	steer(guardian, humanoid, root, position, now, dt)
 end
 
---- Carrying an item back to its socket.
-local function stepEscort(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
-	local loot = if guardian.escortLootId then LootService.get(guardian.escortLootId) else nil
-	if not loot or loot.state ~= "Escorted" then
-		guardian.escortLootId = nil
-		nextJob(guardian)
-		return
-	end
-
-	local socket = LootService.getSocket(loot.zoneIndex, loot.socketIndex)
-	if not socket then
-		finishEscort(guardian)
-		nextJob(guardian)
-		return
-	end
-
-	local distance = flatDistance(root.Position, socket.part.Position)
-	if arrived(guardian, distance, ESCORT_REACH, now) or now - guardian.jobStartedAt > JOB_TIMEOUT then
-		finishEscort(guardian)
-		nextJob(guardian)
-		return
-	end
-
-	driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
-	steer(guardian, humanoid, root, socket.part.Position, now, dt)
+--- THE NET UNDER A STATE NOTHING ENTERS ANY MORE.
+---
+--- Nothing sets ReturningLoot since the escort was retired, so reaching here
+--- means a guardian was left in it by an older build, a saved place or a hand
+--- edit. It does NOT try to finish the walk - that walk is the bug - it puts
+--- whatever is being held straight back and gets the guardian working again on
+--- the very next frame.
+local function stepEscort(guardian: Guardian, _humanoid: Humanoid, _root: BasePart, _now: number, _dt: number)
+	finishEscort(guardian)
+	nextJob(guardian)
 end
 
 local function step(dt: number)

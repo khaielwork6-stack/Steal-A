@@ -487,10 +487,14 @@ end
 -- LOSS PATHS
 -- ==========================================================
 
---- Guardian catch: the carrier loses the item and the GUARDIAN takes it. The
---- model is handed over in place (state Escorted) for GuardianService to weld
---- to itself and carry back to the socket it came from. Only if there is
---- nothing to carry does it go home the instant way.
+--- Guardian catch: the carrier loses the item and it GOES STRAIGHT HOME.
+---
+--- It used to be handed to the guardian (state Escorted) to physically carry
+--- back to its socket. That walk is retired - see GuardianService, "THE ESCORT
+--- IS RETIRED" - and the item is returned here on the same frame it is taken.
+--- `LootService.returnToOrigin` puts the SAME instance back in the SAME socket
+--- with its own rolled values, so nothing about the reward changes; only the
+--- journey is gone.
 function CarryService.reclaim(loot: LootService.LootInstance)
 	local player = loot.carrier
 	if loot.heist then
@@ -513,13 +517,9 @@ function CarryService.reclaim(loot: LootService.LootInstance)
 	loot.carrier = nil
 	loot.droppedAt = nil
 
-	local model = loot.model
-	if model and model.PrimaryPart then
-		model.Parent = workspace
-		LootService.setState(loot, "Escorted")
-	else
-		LootService.returnToOrigin(loot, GameConfig.GUARDIAN_RETURN_DELAY)
-	end
+	-- Home, now. A short delay so the catch reads as the guardian taking it
+	-- rather than the item blinking out of existence mid-ragdoll.
+	LootService.returnToOrigin(loot, GameConfig.GUARDIAN_RETURN_DELAY)
 end
 
 --- Whether a dropped item goes STRAIGHT HOME instead of lying where it fell.

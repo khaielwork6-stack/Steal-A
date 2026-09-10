@@ -135,6 +135,29 @@ local function zoneAt(position: Vector3): number?
 	return nil
 end
 
+--- The zone the banner is currently showing, so `sample` can take it away the
+--- moment the player is somewhere else.
+local showing: number? = nil
+
+--- Off, now, with no tween to wait on. Every path out of the banner ends here,
+--- which is the point: the old code hid it ONLY from inside a tween's
+--- Completed callback, so anything that stopped that tween from finishing left
+--- the zone name on screen for the rest of the session.
+local function hide()
+	showing = nil
+	showToken += 1
+	local text, uiScale = label, scale
+	if not text then
+		return
+	end
+	text.Visible = false
+	text.TextTransparency = 0
+	text.TextStrokeTransparency = 0
+	if uiScale then
+		uiScale.Scale = 1
+	end
+end
+
 local function announce(index: number)
 	local zone = ZoneConfig.Zones[index]
 	local text, grad, uiScale = label, gradient, scale
@@ -143,13 +166,17 @@ local function announce(index: number)
 	end
 	showToken += 1
 	local token = showToken
+	showing = index
 
 	text.Text = `{zone.name} {zone.emoji}`
-	-- White into the zone's colour, so the emoji reads and the word carries
-	-- the theme.
+	-- THE WORD CARRIES THE ZONE'S COLOUR, with a white sheen across the top.
+	-- It used to be white for the first 45% and only tinted at the very bottom
+	-- of the glyphs, which on a warm zone like the Bank read as plain white
+	-- text - the colour was there and simply could not be seen.
+	local sheen = zone.color:Lerp(Color3.new(1, 1, 1), 0.55)
 	grad.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
-		ColorSequenceKeypoint.new(0.45, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(0.32, sheen),
 		ColorSequenceKeypoint.new(1, zone.color),
 	})
 	text.TextTransparency = 0
@@ -160,16 +187,18 @@ local function announce(index: number)
 
 	task.delay(HOLD_SECONDS, function()
 		if showToken ~= token then
-			return -- replaced by a newer zone
+			return -- replaced by a newer zone, or already taken away
 		end
-		local out = TweenService:Create(text, POP_OUT, { TextTransparency = 1, TextStrokeTransparency = 1 })
+		TweenService:Create(text, POP_OUT, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
 		TweenService:Create(uiScale, POP_OUT, { Scale = 0.85 }):Play()
-		out.Completed:Once(function()
+		-- A PLAIN DEADLINE, not the tween's own Completed. The tween is the
+		-- fade; this is what guarantees the label is gone whatever the tween
+		-- does, and it is the whole fix for a zone name that never left.
+		task.delay(POP_OUT.Time + 0.05, function()
 			if showToken == token then
-				text.Visible = false
+				hide()
 			end
 		end)
-		out:Play()
 	end)
 end
 
@@ -187,6 +216,15 @@ local function sample()
 
 	local now = os.clock()
 	local here = zoneAt(root.Position)
+
+	-- LEFT THE ZONE, LOST THE BANNER. The pop-up names where the player IS; it
+	-- has no business still saying "North Pole" once they are back at their
+	-- base. This runs every sample, so it takes the label away on the way out
+	-- whatever state the fade happens to be in.
+	if showing ~= nil and here ~= showing then
+		hide()
+	end
+
 	if here ~= candidate then
 		candidate = here
 		candidateSince = now
@@ -220,6 +258,9 @@ function ZonePopupController.start()
 		-- its own: the first sample only sets the candidate.
 		candidate = nil
 		highWater = 0
+		-- Being caught and respawning at base is one of the ways the banner used
+		-- to be left behind: the character it was announced for no longer exists.
+		hide()
 	end)
 	RunService.Heartbeat:Connect(function(dt)
 		accumulator += dt

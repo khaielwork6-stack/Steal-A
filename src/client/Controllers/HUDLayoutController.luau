@@ -423,8 +423,12 @@ end
 -- right edge above the hold button, and every panel opened much larger.
 -- Nothing is rebound or renamed; the pack's own handlers keep every button.
 
---- Menu tile size on touch, in pixels (before the HUD's UIScale).
+--- Menu tile size on touch, in pixels (before the HUD's UIScale). The ceiling;
+--- `touchTile` shrinks it toward TOUCH_TILE_MIN on a short screen.
 local TOUCH_TILE = 60
+--- Never smaller than this, whatever the screen: it is a finger target, and
+--- below about this it stops being reliably hittable.
+local TOUCH_TILE_MIN = 44
 local TOUCH_TILE_GAP = 8
 --- Vertical gap between the two rows: room for the caption under each tile.
 local TOUCH_TILE_LABEL_GAP = 26
@@ -432,21 +436,127 @@ local TOUCH_TILE_LABEL_GAP = 26
 --- short label in a tall row does not balloon.
 local TOUCH_PANEL_MAX_TEXT = 26
 
-local function layoutTouchRail(buttons: GuiObject, left: GuiObject)
-	local width = TOUCH_TILE * 2 + TOUCH_TILE_GAP + RAIL_INSET.Offset
-	buttons.AnchorPoint = Vector2.new(0, 0.5)
-	buttons.Position = UDim2.new(0, 0, 0.56, 0)
-	buttons.Size = UDim2.fromOffset(width, TOUCH_TILE * 2 + TOUCH_TILE_LABEL_GAP)
+-- ==========================================================
+-- THE BAND ROBLOX OWNS
+-- ==========================================================
+--
+-- The bottom of a touch screen is not ours. Roblox draws the movement
+-- thumbstick in the bottom-LEFT and the jump button in the bottom-RIGHT, both
+-- in CoreGui, both unmovable and both invisible to any measurement we can
+-- make from here. Anything of OURS that is a BUTTON must stay out of that
+-- band, or a player reaching for the thumbstick opens the Shop instead.
+--
+-- The layout used to place the menu tiles at a flat 56% of the screen height.
+-- That is fine on a tall phone and wrong on a short one: at 360 tall the block
+-- ran from y=108 to y=254 in a 324-pixel-high GUI, straight through both the
+-- stat card above it and the thumbstick below.
+--
+-- So the band is derived from the screen and everything is packed around it.
+
+--- The shift lock button's size, owned here rather than in ShiftLockController
+--- so the offer rail above it and the button itself agree about how much room
+--- it takes.
+local SHIFT_LOCK_SIZE = 52
+HUDLayoutController.SHIFT_LOCK_SIZE = SHIFT_LOCK_SIZE
+
+--- How far up from the bottom Roblox's own controls reach.
+---
+--- TAKES THE CAMERA'S VIEWPORT HEIGHT, always - never a ScreenGui's own
+--- AbsoluteSize. The two differ by the topbar inset depending on
+--- IgnoreGuiInset, and the shift lock's ScreenGui sets it while the HUD's does
+--- not; feeding each its own height gave two different bands and put the
+--- offer rail back on top of the shift lock. One input, one answer.
+--- Roblox parks the dynamic thumbstick's home at about three quarters of the
+--- way down with a ~45px ring, so the bottom ~40% is its territory; the floor
+--- is what a very short screen still has to give it.
+local function controlBand(viewportHeight: number): number
+	return math.clamp(viewportHeight * 0.42, 120, 156)
+end
+HUDLayoutController.controlBand = controlBand
+
+--- The camera's viewport height, or a sane guess before there is a camera.
+local function viewportHeight(): number
+	local camera = workspace.CurrentCamera
+	local height = if camera then camera.ViewportSize.Y else 0
+	return if height > 0 then height else 360
+end
+HUDLayoutController.viewportHeight = viewportHeight
+
+-- ==========================================================
+-- THE SHORT-SCREEN SHRINK
+-- ==========================================================
+--
+-- Below a certain height this HUD does not fit, and no arrangement of it does.
+-- A 320-tall landscape phone has about thirty usable pixels between the stat
+-- card and the band Roblox's thumbstick owns; four 44-pixel finger targets do
+-- not go into thirty pixels, and 44 is already the floor.
+--
+-- So on a short screen everything shrinks together, which is what every mobile
+-- game does and the only honest answer: a slightly small HUD that fits beats a
+-- correctly-sized one that overlaps the walk control.
+--
+-- THE REFERENCE IS 390 TALL - an iPhone 14, the commonest phone this will run
+-- on. At that height and above the scale is exactly 1 and NOTHING below this
+-- line changes, so the layout that was measured as correct on modern phones
+-- stays byte-for-byte what it was. Only smaller screens are touched.
+local DESIGN_HEIGHT = 390
+local MIN_SCALE = 0.8
+
+--- How much to shrink the whole HUD on this screen. 1 on anything modern.
+local function touchScale(): number
+	return math.clamp(viewportHeight() / DESIGN_HEIGHT, MIN_SCALE, 1)
+end
+HUDLayoutController.touchScale = touchScale
+
+local function applyScale(ui: GuiObject | ScreenGui, scale: number)
+	local existing = ui:FindFirstChildOfClass("UIScale")
+	if not existing then
+		if scale >= 0.999 then
+			return -- nothing to correct, and no need to add an instance
+		end
+		local made = Instance.new("UIScale")
+		made.Parent = ui
+		existing = made
+	end
+	;(existing :: UIScale).Scale = scale
+end
+HUDLayoutController.applyScale = applyScale
+
+--- How the four menu tiles are arranged on THIS screen: two rows of two when
+--- there is height for it, one row of four when there is not.
+---
+--- The row of four is not a compromise, it is the only thing that fits. Two
+--- rows need 2 x 44 + 26 = 114 pixels of vertical room; a 320-tall phone has
+--- about 86 between the stat card and the band Roblox's thumbstick owns. The
+--- block used to simply spill into that band and put the Shop button under the
+--- player's walking thumb.
+local function tileLayout(available: number): (number, number, number)
+	local twoRows = math.clamp(math.floor((available - TOUCH_TILE_LABEL_GAP) / 2), TOUCH_TILE_MIN, TOUCH_TILE)
+	if twoRows * 2 + TOUCH_TILE_LABEL_GAP <= available then
+		return twoRows, 2, twoRows * 2 + TOUCH_TILE_LABEL_GAP
+	end
+	local oneRow = math.clamp(math.floor(available - TOUCH_TILE_LABEL_GAP), TOUCH_TILE_MIN, TOUCH_TILE)
+	return oneRow, 4, oneRow + TOUCH_TILE_LABEL_GAP
+end
+
+local function layoutTouchRail(buttons: GuiObject, left: GuiObject, tile: number, columns: number, blockHeight: number, top: number)
+	local width = tile * columns + TOUCH_TILE_GAP * (columns - 1) + RAIL_INSET.Offset
+	-- TOP-anchored, from a measured y, rather than centred on a fraction of the
+	-- screen: the block has to sit between two things, and the only way to be
+	-- between them is to be placed from one of them.
+	buttons.AnchorPoint = Vector2.new(0, 0)
+	buttons.Position = UDim2.fromOffset(0, top)
+	buttons.Size = UDim2.fromOffset(width, blockHeight)
 	left.Size = UDim2.fromScale(1, 1)
 	local grid = left:FindFirstChildOfClass("UIGridLayout")
 	if grid then
-		grid.CellSize = UDim2.fromOffset(TOUCH_TILE, TOUCH_TILE)
+		grid.CellSize = UDim2.fromOffset(tile, tile)
 		-- The row gap is the tile's own caption height: each tile's label
 		-- hangs below its plate, and at a tighter gap the bottom row drew over
 		-- the top row's words.
 		grid.CellPadding = UDim2.fromOffset(TOUCH_TILE_GAP, TOUCH_TILE_LABEL_GAP)
 		grid.FillDirection = Enum.FillDirection.Horizontal
-		grid.FillDirectionMaxCells = 2
+		grid.FillDirectionMaxCells = columns
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		grid.VerticalAlignment = Enum.VerticalAlignment.Center
 		grid.StartCorner = Enum.StartCorner.TopLeft
@@ -469,28 +579,41 @@ local function layoutTouchRail(buttons: GuiObject, left: GuiObject)
 	end)
 end
 
-local function layoutTouchStats(ui: ScreenGui)
+--- The stat card. Returns the y its bottom edge lands on, which is where the
+--- menu tiles start measuring from.
+local function layoutTouchStats(ui: ScreenGui, height: number): number
 	local cardHud = ui:FindFirstChild("StatHUD")
 	if not cardHud or not cardHud:IsA("GuiObject") then
-		return
+		return 50
 	end
 	-- Top-left, under Roblox's menu and chat buttons, above the menu block.
+	-- Sized from the screen: a fixed 70 is a fifth of a short phone's height
+	-- and was landing on top of the tiles below it.
+	-- Tight under Roblox's own top row, and a smaller share of a short screen:
+	-- every pixel this gives back is a pixel the menu tiles can use to stay out
+	-- of the thumbstick's band.
+	local top = 40
+	local cardHeight = math.clamp(math.floor(height * 0.18), 48, 70)
+	local cardWidth = math.clamp(math.floor(cardHeight * 2.25), 132, 168)
 	cardHud.AnchorPoint = Vector2.new(0, 0)
-	cardHud.Position = UDim2.fromOffset(12, 50)
-	cardHud.Size = UDim2.fromOffset(156, 70)
+	cardHud.Position = UDim2.fromOffset(12, top)
+	cardHud.Size = UDim2.fromOffset(cardWidth, cardHeight)
 	local limit = cardHud:FindFirstChildOfClass("UISizeConstraint")
 	if limit then
-		limit.MinSize = Vector2.new(140, 64)
-		limit.MaxSize = Vector2.new(170, 76)
+		-- The explicit size above is what should win; the constraint is only a
+		-- guard, so it must not clamp the value we just computed.
+		limit.MinSize = Vector2.new(cardWidth, cardHeight)
+		limit.MaxSize = Vector2.new(cardWidth, cardHeight)
 	end
 	for _, label in cardHud:GetDescendants() do
 		if label:IsA("TextLabel") then
 			local textLimit = label:FindFirstChildOfClass("UITextSizeConstraint")
 			if textLimit then
-				textLimit.MaxTextSize = 18
+				textLimit.MaxTextSize = if cardHeight < 60 then 15 else 18
 			end
 		end
 	end
+	return top + cardHeight
 end
 
 local function layoutTouchPanels(ui: ScreenGui)
@@ -530,10 +653,16 @@ local function layoutTouchPanels(ui: ScreenGui)
 	end)
 end
 
---- The Guardian / Slap offer buttons: pinned to the right safe edge, two
---- fixed-size tiles stacked under the top strip, clear of the hold button
---- and the jump button below them.
-local function layoutTouchOffers(ui: ScreenGui)
+--- The Guardian / Slap offer buttons: pinned to the right safe edge under the
+--- top strip, and - like the menu tiles - kept out of the band Roblox's jump
+--- button and the shift lock own.
+---
+--- STACKED WHEN THERE IS ROOM, SIDE BY SIDE WHEN THERE IS NOT. Two 64-pixel
+--- tiles stacked need 136 pixels of right edge; a 360-tall phone has about 90
+--- between the top strip and the shift lock, so the pair used to run straight
+--- through it. Turning the pair on its side costs nothing - they are two
+--- square icons - and fits every screen.
+local function layoutTouchOffers(ui: ScreenGui, height: number, band: number)
 	local rail: Frame? = nil
 	for _, child in ui:GetChildren() do
 		if child:IsA("Frame") and child.Name:upper():find("UI FOR ANIMAL", 1, true) then
@@ -544,20 +673,29 @@ local function layoutTouchOffers(ui: ScreenGui)
 	if not rail then
 		return
 	end
-	local tile = 64
-	local gap = 8
 	local aspect = rail:FindFirstChildOfClass("UIAspectRatioConstraint")
 	if aspect then
 		aspect:Destroy()
 	end
+
+	local top = 68
+	local gap = 8
+	-- Everything between the top strip and the top of the shift lock button,
+	-- which sits just above the control band.
+	local room = height - band - SHIFT_LOCK_SIZE - 16 - top
+	local stacked = room >= 64 * 2 + gap
+	local tile = if stacked then 64 else math.clamp(math.floor(room), TOUCH_TILE_MIN, 64)
+
 	rail.AnchorPoint = Vector2.new(1, 0)
-	rail.Position = UDim2.new(1, -10, 0, 74)
-	rail.Size = UDim2.fromOffset(tile, tile * 2 + gap)
+	rail.Position = UDim2.new(1, -10, 0, top)
+	rail.Size = if stacked
+		then UDim2.fromOffset(tile, tile * 2 + gap)
+		else UDim2.fromOffset(tile * 2 + gap, tile)
 	local grid = rail:FindFirstChildOfClass("UIGridLayout")
 	if grid then
 		grid.CellSize = UDim2.fromOffset(tile, tile)
 		grid.CellPadding = UDim2.fromOffset(gap, gap)
-		grid.FillDirection = Enum.FillDirection.Vertical
+		grid.FillDirection = if stacked then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
 		grid.FillDirectionMaxCells = 2
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Right
 		grid.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -565,14 +703,40 @@ local function layoutTouchOffers(ui: ScreenGui)
 end
 
 local function applyTouchLayout(ui: ScreenGui)
+	-- EVERYTHING BELOW IS IN DESIGN PIXELS, not screen pixels. The whole HUD
+	-- is scaled by `scale`, so the space it has to lay itself out in is the
+	-- real space DIVIDED by that - and Roblox's own controls, which live in
+	-- CoreGui and are not scaled by us, have to be converted the same way or
+	-- the band would be measured in one unit and avoided in another.
+	local scale = touchScale()
+	applyScale(ui, scale)
+
+	-- The ScreenGui's own rect, not the camera viewport: everything is
+	-- positioned inside it, and it is shorter than the viewport by the topbar
+	-- inset. Measuring the wrong one is wrong by 36 pixels everywhere.
+	local real = ui.AbsoluteSize.Y
+	if real <= 0 then
+		real = viewportHeight() - 36
+	end
+	local height = real / scale
+	local band = controlBand(viewportHeight()) / scale
+
+	local statBottom = layoutTouchStats(ui, height)
+
 	local buttons = ui:FindFirstChild("Buttons")
 	local left = buttons and buttons:FindFirstChild("Left")
 	if buttons and buttons:IsA("GuiObject") and left and left:IsA("GuiObject") then
-		layoutTouchRail(buttons, left)
+		-- Between the stat card and the band Roblox owns, centred in whatever
+		-- is left over.
+		local top = statBottom + 8
+		local floor = height - band - 8
+		local available = math.max(floor - top, TOUCH_TILE_MIN + TOUCH_TILE_LABEL_GAP)
+		local tile, columns, blockHeight = tileLayout(available)
+		layoutTouchRail(buttons, left, tile, columns, blockHeight, top + math.max(0, (available - blockHeight) / 2))
 	end
-	layoutTouchStats(ui)
+
 	layoutTouchPanels(ui)
-	layoutTouchOffers(ui)
+	layoutTouchOffers(ui, height, band)
 end
 
 -- ==========================================================
@@ -600,6 +764,14 @@ function HUDLayoutController.start()
 
 	if Device.isTouch() then
 		applyTouchLayout(ui)
+		-- AbsoluteSize is zero on the frame the HUD binds, and the whole touch
+		-- layout is derived from it - so the first pass above is a guess and
+		-- this is the real one. It also catches a rotation or a resize, both of
+		-- which move the band every button is placed against.
+		task.defer(applyTouchLayout, ui)
+		ui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			applyTouchLayout(ui)
+		end)
 	end
 
 	-- The gear pops in with the rest of the HUD rather than appearing.

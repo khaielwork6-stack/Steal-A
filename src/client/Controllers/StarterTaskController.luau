@@ -31,6 +31,10 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
+--- For the short-screen shrink, so this panel and the menu tiles above it are
+--- scaled by the same factor rather than each picking their own.
+local HUDLayoutController = require(script.Parent.HUDLayoutController)
+
 local StarterTaskController = {}
 
 local player = Players.LocalPlayer
@@ -50,7 +54,7 @@ local TICK = Color3.fromRGB(126, 255, 160)
 --- `corner` is the part that is measured rather than chosen. See WHERE THIS
 --- GOES below.
 type Metrics = {
-	corner: "bottom-right" | "top-left",
+	corner: "bottom-right" | "bottom-left",
 	width: number,
 	heading: number,
 	rowHeight: number,
@@ -58,6 +62,11 @@ type Metrics = {
 	marker: number,
 	taskText: number,
 	rewardText: number,
+	--- FIXED PIXELS, not a share of the row. The reward used to take 42% of
+	--- the block's width, which on a narrow phone left it stranded halfway
+	--- across the screen from the task it belongs to. A column sized to the
+	--- longest reward keeps the two together at any block width.
+	rewardWidth: number,
 	margin: number,
 	touchFloor: number,
 }
@@ -71,6 +80,7 @@ local DESKTOP: Metrics = {
 	marker = 17,
 	taskText = 16,
 	rewardText = 15,
+	rewardWidth = 80,
 	margin = 16,
 	touchFloor = 0,
 }
@@ -94,41 +104,38 @@ local DESKTOP: Metrics = {
 -- offer tiles and the shift lock. Nothing legible fits in it, and "shift
 -- upward" runs into the offer tiles.
 --
--- The bottom-LEFT is worse, not better: that is where Roblox puts the
--- movement thumbstick.
---
--- So a phone gets the one genuinely empty band on the screen - the top strip
--- between the stat card (which ends at x=168) and the right-aligned gear and
--- GIFT buttons. It is still out of the way, still never over gameplay, and it
--- is somewhere the player can actually read it.
+-- So touch gets the BOTTOM-LEFT, under the menu tiles. The thing that first
+-- ruled that corner out was Roblox's movement thumbstick - and it does live
+-- there, but it does not matter: nothing in this panel is a button, the frame
+-- and every label are transparent-backgrounded TextLabels, so a finger drags
+-- the thumbstick straight through them. `clearance` measures the menu tile
+-- block and sits under it, so the two never touch.
 local PHONE: Metrics = {
-	corner = "top-left",
-	width = 200,
-	heading = 14,
-	rowHeight = 23,
+	corner = "bottom-left",
+	width = 186,
+	heading = 13,
+	rowHeight = 21,
 	rowGap = 2,
-	marker = 14,
-	taskText = 13,
-	rewardText = 12,
-	-- Clear of the stat card's 12 + 156, with room to breathe.
-	margin = 176,
+	marker = 13,
+	taskText = 12,
+	rewardText = 11,
+	rewardWidth = 62,
+	margin = 10,
 	touchFloor = 0,
 }
 
 local TABLET: Metrics = {
-	corner = "bottom-right",
-	width = 224,
+	corner = "bottom-left",
+	width = 214,
 	heading = 15,
-	rowHeight = 25,
+	rowHeight = 24,
 	rowGap = 3,
 	marker = 15,
 	taskText = 14,
 	rewardText = 13,
+	rewardWidth = 72,
 	margin = 12,
-	-- Roblox's jump button and the shift lock own the bottom of this corner and
-	-- neither can be measured from here (CoreGui, and a separate ScreenGui that
-	-- may not exist yet). This is the floor they need.
-	touchFloor = 176,
+	touchFloor = 0,
 }
 
 local function metrics(): Metrics
@@ -169,16 +176,32 @@ local finishing = false
 -- LAYOUT
 -- ==========================================================
 
---- Things that share the bottom-right corner and that we can actually see
---- from here. Named rather than searched by class so a future sibling does
---- not silently start pushing the checklist around.
-local function obstacles(): { GuiObject }
+--- Things that share the checklist's own corner and that we can actually see
+--- from here. Named rather than searched by class so a future sibling does not
+--- silently start pushing the checklist around.
+---
+--- The two corners have different neighbours, so the list depends on which one
+--- we are in: the Nightfall pill and the shift lock own the bottom-RIGHT, and
+--- the menu tile block owns the LEFT.
+local function obstacles(corner: string): { GuiObject }
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
 	if not playerGui then
 		return {}
 	end
 	local found: { GuiObject } = {}
 	local mainUi = playerGui:FindFirstChild("MainUI")
+
+	if corner == "bottom-left" then
+		-- Shop / Upgrades / Index / Storage. On touch they are a 2x2 block
+		-- centred at 56% of the screen height, so where they END is a real
+		-- measurement and not something to hard-code.
+		local buttons = mainUi and mainUi:FindFirstChild("Buttons")
+		if buttons and buttons:IsA("GuiObject") and buttons.Visible then
+			table.insert(found, buttons)
+		end
+		return found
+	end
+
 	local night = mainUi and mainUi:FindFirstChild("NightTimer")
 	if night and night:IsA("GuiObject") and night.Visible then
 		table.insert(found, night)
@@ -198,15 +221,24 @@ end
 --- thing being avoided lives in a ScreenGui with a different IgnoreGuiInset -
 --- the shift lock does. Using the camera's viewport instead looks right and
 --- is quietly wrong by the height of the topbar inset.
+--- BOTTOM-LEFT IS THE FLOOR AND NOTHING PUSHES IT UP. The only thing above
+--- this corner is the menu tile block, and "lifting to clear it" would move
+--- the checklist INTO it - up is the wrong direction when the obstacle is
+--- overhead. Keeping the tiles clear of the bottom of the screen is
+--- HUDLayoutController's job, and it reserves the band for exactly this.
 local function clearance(screen: ScreenGui, size: Metrics): number
+	if size.corner == "bottom-left" then
+		return size.margin
+	end
+
 	local floor = screen.AbsolutePosition.Y
 	local height = screen.AbsoluteSize.Y
 	local bottom = floor + height
 	local lowest = size.margin
 	if height > 0 then
-		for _, thing in obstacles() do
+		for _, thing in obstacles(size.corner) do
 			local top = thing.AbsolutePosition.Y
-			-- Only what is genuinely low on the screen: the Nightfall pill moves
+			-- Only what is genuinely low on the screen. The Nightfall pill moves
 			-- to the TOP strip on touch, and something up there must not push
 			-- the checklist DOWN into the corner it is trying to avoid.
 			if top + thing.AbsoluteSize.Y > floor + height * 0.55 then
@@ -224,10 +256,12 @@ local function reposition()
 		return
 	end
 	local size = metrics()
-	if size.corner == "top-left" then
-		-- The phone band: beside the stat card, under the top inset.
-		frame.AnchorPoint = Vector2.new(0, 0)
-		frame.Position = UDim2.fromOffset(size.margin, 12)
+	if size.corner == "bottom-left" then
+		-- Shrunk by the same factor as the rest of the HUD on a short screen,
+		-- so the checklist and the menu tiles above it stay in proportion.
+		HUDLayoutController.applyScale(screen, HUDLayoutController.touchScale())
+		frame.AnchorPoint = Vector2.new(0, 1)
+		frame.Position = UDim2.new(0, size.margin, 1, -clearance(screen, size))
 		return
 	end
 	frame.AnchorPoint = Vector2.new(1, 1)
@@ -287,11 +321,15 @@ local function buildRow(parent: Frame, task_: StarterTaskConfig.Task, order: num
 	check.Text = "✓"
 	check.Parent = marker
 
+	-- THE REWARD COLUMN IS FIXED PIXELS, right-aligned against the block's own
+	-- right edge. As a percentage it drifted away from the task it belongs to
+	-- the moment the block changed width - on a phone it ended up stranded
+	-- halfway across the screen with nothing between the two.
 	local reward = Instance.new("TextLabel")
 	reward.Name = "Reward"
 	reward.AnchorPoint = Vector2.new(1, 0.5)
 	reward.Position = UDim2.new(1, 0, 0.5, 0)
-	reward.Size = UDim2.new(0.42, 0, 1, 0)
+	reward.Size = UDim2.new(0, size.rewardWidth, 1, 0)
 	reward.BackgroundTransparency = 1
 	reward.Font = Enum.Font.FredokaOne
 	reward.TextSize = size.rewardText
@@ -305,14 +343,15 @@ local function buildRow(parent: Frame, task_: StarterTaskConfig.Task, order: num
 	text.Name = "Task"
 	text.AnchorPoint = Vector2.new(0, 0.5)
 	text.Position = UDim2.new(0, size.marker + 8, 0.5, 0)
-	-- The reward column above owns the right 42% of the row; the task text
-	-- takes the rest, less the marker it sits beside. In SCALE, so the two
-	-- columns keep their proportions at any block width.
-	text.Size = UDim2.new(0.56, -(size.marker + 8), 1, 0)
+	-- Everything the reward column and the marker do not use, less a small gap
+	-- so the two never touch.
+	text.Size = UDim2.new(1, -(size.marker + 8) - size.rewardWidth - 6, 1, 0)
 	text.BackgroundTransparency = 1
 	text.Font = Enum.Font.FredokaOne
 	text.TextSize = size.taskText
 	text.TextXAlignment = Enum.TextXAlignment.Left
+	-- Rather than run under the reward if a future task is ever wordier.
+	text.TextTruncate = Enum.TextTruncate.AtEnd
 	text.TextColor3 = TEXT
 	text.Text = task_.text
 	text.Parent = frame
@@ -349,6 +388,12 @@ local function build()
 	-- the first paint.
 	frame.AnchorPoint = Vector2.new(1, 1)
 	frame.BackgroundTransparency = 1
+	-- NOTHING HERE EATS INPUT. Not a detail: on a phone this sits in the
+	-- bottom-left, which is where Roblox draws the movement thumbstick, and a
+	-- panel that swallowed touches there would make the player unable to walk.
+	-- Active is false on every Frame and TextLabel by default; it is set
+	-- explicitly so nobody "tidies" it into a button later.
+	frame.Active = false
 	frame.Size = UDim2.fromOffset(
 		size.width,
 		size.heading + 8 + #StarterTaskConfig.Tasks * (size.rowHeight + size.rowGap)
