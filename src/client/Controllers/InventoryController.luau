@@ -30,6 +30,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
@@ -1388,6 +1389,15 @@ local function buildOpener(ui: ScreenGui)
 	ensureOpenerWorks(opener)
 end
 
+--- Opens or closes the panel. Public so a keybind (and anything added later)
+--- has one way in that matches what the button does.
+function InventoryController.toggle()
+	if not panel then
+		return
+	end
+	fallbackSetOpen(not panel.Visible)
+end
+
 function InventoryController.start()
 	local playerGui = player:WaitForChild("PlayerGui")
 	local ui = playerGui:WaitForChild("MainUI", 20)
@@ -1406,6 +1416,21 @@ function InventoryController.start()
 	-- is registered, so the frame has to exist before the opener appears.
 	buildPanel(ui, template)
 	buildOpener(ui)
+
+	-- BACKTICK TOGGLES STORAGE. `gameProcessedEvent` is the whole safety
+	-- story: Roblox sets it when the keystroke has already been consumed by
+	-- something with focus - the chat bar, a TextBox, a menu - so typing a
+	-- backquote into chat never opens the panel behind it. Touch devices
+	-- never send a keyboard InputBegan at all, so the on-screen button
+	-- remains the only path there and nothing about mobile changes.
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Backquote then
+			InventoryController.toggle()
+		end
+	end)
 
 	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
 		local previous = latestState and latestState.storageUsed

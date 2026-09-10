@@ -15,6 +15,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
@@ -297,9 +298,22 @@ HatchService.onHatched = function(player, item)
 	local plot = BaseService.getPlot(player)
 	local slots = plot and plot:FindFirstChild("DisplaySlots")
 	local slot = slots and slots:FindFirstChild(string.format("DisplaySlot%02d", item.SlotIndex))
+	-- WHAT THE PRIZE IS, sent only now. This fires from HatchService.commit,
+	-- AFTER the flag is flipped and the income has started, so the reward is
+	-- already the player's and already banked: the client is being told what
+	-- it won so it can draw it, not being asked what it should win. The
+	-- silhouette roulette reads its last frame from itemId and cannot reach
+	-- anything that decides a reward.
+	local def = LootConfig.ById[item.ItemId]
 	Remotes.get("HatchReveal"):FireClient(player, {
 		slot = slot,
 		instanceId = item.InstanceId,
+		itemId = item.ItemId,
+		itemName = if def then def.name else item.ItemId,
+		rarity = item.Rarity,
+		zoneIndex = item.ZoneId,
+		size = item.Size,
+		mutation = RarityConfig.normaliseMutation(item.Mutation),
 		rarityColor = RarityConfig.Colors[item.Rarity] or Color3.new(1, 1, 1),
 		mutationColor = RarityConfig.MutationColors[RarityConfig.normaliseMutation(item.Mutation)]
 			or Color3.fromRGB(226, 236, 255),

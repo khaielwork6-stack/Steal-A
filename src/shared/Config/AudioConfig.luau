@@ -71,6 +71,11 @@ AudioConfig.Cues = {
 	-- THE REVEAL POP. The one sound of a reveal, played by the owner's client on
 	-- the pop frame and nowhere else (HatchConfig.POP_SOUND).
 	RevealPop = { id = asset(92415130454101), volume = 1.0, category = "event" },
+	--- THE SILHOUETTE TICK. One shot per silhouette change during the reveal
+	--- roulette, played BY the change rather than on a timer of its own, so
+	--- picture and sound cannot drift apart. Its PlaybackSpeed is set per
+	--- shot by HatchController: bright and fast early, heavy on the last.
+	RevealCycle = { id = asset(107511012621133), volume = 0.75, category = "event" },
 	Sell = { id = asset(138979515680965), volume = 0.85, category = "event" },
 	TreadmillUnlock = { id = asset(93360393539898), volume = 0.95, category = "event" },
 	UpgradePurchase = { id = asset(80736831159506), volume = 0.9, category = "event" },

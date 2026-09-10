@@ -84,6 +84,13 @@ type Guardian = {
 	currentSpeed: number,
 	--- The instance welded to this guardian while it carries loot home.
 	escortLootId: string?,
+	--- ESCORT PROGRESS. The closest this guardian has got to the socket on the
+	--- current escort, and when it last got closer. Together they are how a
+	--- return finishes when the walk cannot: a guardian that has stopped
+	--- making progress inside its home area has arrived, whatever the
+	--- pathing thinks.
+	escortBest: number?,
+	escortBestAt: number,
 	--- Next time (os.clock) the chase re-evaluates who the best target is.
 	nextScanAt: number,
 	--- When the current recovery / escort began, for the give-up timeouts.
@@ -861,7 +868,24 @@ local SWITCH_MIN_GAIN = 12
 --- Distance to a dropped item at which the guardian picks it up, on top of
 --- its catch radius, and distance to the socket at which it puts loot back.
 local PICKUP_REACH = 4
-local ESCORT_REACH = 7
+--- THE RETURN RADIUS, not a placement coordinate. A socket pad is sixteen
+--- studs across, so anywhere on or beside it counts as home: the item is
+--- restored to its exact authoritative socket by LootService, and the
+--- guardian never has to path onto a specific point to make that happen.
+--- It used to be seven, which put the finish line inside the pad and left a
+--- guardian that could not quite reach it steering back and forth across
+--- the middle - the circling.
+local ESCORT_REACH = 14
+--- How near the socket counts as "in the home area" for the stall check
+--- below. Outside this the guardian keeps walking and only JOB_TIMEOUT can
+--- end the job, so a guardian jammed halfway across a zone never teleports
+--- an item home from a distance.
+local ESCORT_HOME_RADIUS = 34
+--- No closer than this in this many seconds, while inside the home radius,
+--- means the walk is not going to finish. Complete the return rather than
+--- circle. The epsilon stops ordinary jitter from counting as progress.
+local ESCORT_STALL_SECONDS = 2.5
+local ESCORT_PROGRESS_EPSILON = 0.75
 --- A recovery or escort that has not finished in this long (jammed on
 --- geometry, item somewhere unreachable) falls back to the instant return.
 local JOB_TIMEOUT = 60
@@ -1156,6 +1180,8 @@ local function beginEscort(guardian: Guardian, loot: LootService.LootInstance): 
 	guardian.escortLootId = loot.id
 	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
 	guardian.jobStartedAt = os.clock()
+	guardian.escortBest = nil
+	guardian.escortBestAt = guardian.jobStartedAt
 	resetSteering(guardian)
 	publishState(guardian)
 	return true
@@ -1587,7 +1613,23 @@ local function stepEscort(guardian: Guardian, humanoid: Humanoid, root: BasePart
 	end
 
 	local distance = flatDistance(root.Position, socket.part.Position)
-	if distance <= ESCORT_REACH or now - guardian.jobStartedAt > JOB_TIMEOUT then
+
+	-- PROGRESS, not position. Every frame that gets meaningfully closer resets
+	-- the stall clock; a guardian orbiting the pad at a constant radius never
+	-- resets it and finishes on the timer below instead of circling forever.
+	local best = guardian.escortBest
+	if best == nil or distance < best - ESCORT_PROGRESS_EPSILON then
+		guardian.escortBest = distance
+		guardian.escortBestAt = now
+	end
+	local stalled = distance <= ESCORT_HOME_RADIUS
+		and now - guardian.escortBestAt >= ESCORT_STALL_SECONDS
+
+	if distance <= ESCORT_REACH or stalled or now - guardian.jobStartedAt > JOB_TIMEOUT then
+		-- The item goes back to its EXACT authoritative socket regardless of
+		-- where the guardian is standing: LootService.returnToOrigin rebuilds
+		-- it there from its own rolled values, so an approximate arrival can
+		-- never put an item in an approximate place.
 		finishEscort(guardian)
 		nextJob(guardian)
 		return
@@ -1723,6 +1765,7 @@ function GuardianService.start()
 			currentSpeed = guardianSpeed(zoneIndex),
 			nextScanAt = 0,
 			jobStartedAt = 0,
+			escortBestAt = 0,
 			stuckFor = 0,
 			sidestepUntil = 0,
 			sidestepSign = 1,

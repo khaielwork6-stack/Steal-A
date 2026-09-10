@@ -235,7 +235,9 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	committing[instanceId] = nil
 	-- And LOCK the slot for the animation: no prompt, no store, no second
 	-- reveal until the item has landed.
-	revealingUntil[instanceId] = os.clock() + HatchConfig.LOCK_SECONDS
+	-- Rarity-aware: the silhouette roulette runs longer for a better prize,
+	-- so the lock has to cover the sequence this particular item will play.
+	revealingUntil[instanceId] = os.clock() + HatchConfig.lockSeconds(item.Rarity)
 
 	-- The income starts NOW - exactly once, because recalculate reads Hatched
 	-- and this is the only flip. The prompt on the slot is disabled by the
@@ -263,12 +265,12 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	-- THE SWAP, on the pop frame. The pedestal keeps showing the container
 	-- until then; the rebuild replaces it with the item and its label in one
 	-- pass, and the client reveals exactly what it finds on that frame.
-	task.delay(HatchConfig.SWAP_AT, function()
+	task.delay(HatchConfig.swapAt(item.Rarity), function()
 		if player.Parent then
 			BaseService.rebuildDisplays(player)
 		end
 	end)
-	task.delay(HatchConfig.LOCK_SECONDS, function()
+	task.delay(HatchConfig.lockSeconds(item.Rarity), function()
 		revealingUntil[instanceId] = nil
 		if player.Parent then
 			HatchService.onLockLifted(player)

@@ -36,6 +36,7 @@ local WorldLootFxController = require(script.Parent.WorldLootFxController)
 local EscapeFlashController = require(script.Parent.EscapeFlashController)
 local BaseEarningsController = require(script.Parent.BaseEarningsController)
 local AttractionSignController = require(script.Parent.AttractionSignController)
+local HatchController = require(script.Parent.HatchController)
 
 local SettingsController = {}
 
@@ -79,6 +80,7 @@ local function applyReduced(reduced: boolean)
 	EscapeFlashController.setReducedEffects(reduced)
 	BaseEarningsController.setReducedEffects(reduced)
 	AttractionSignController.setReducedEffects(reduced)
+	HatchController.setReducedEffects(reduced)
 end
 
 local function applyAll()
