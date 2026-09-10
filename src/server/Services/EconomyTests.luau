@@ -427,10 +427,13 @@ function EconomyTests.run(): Report
 		sealedItem.HatchEndsAt = os.time() - 1
 		check(EconomyService.itemRate(nil :: any, sealedItem) == 0, "a READY but unopened container must still pay nothing")
 
-		-- TRAPS: 300 seconds each way, and the cooldown is a separate clock
-		-- from the lifetime so neither can be read as the other.
-		check(PvPConfig.TRAP_COOLDOWN == 300, "the trap cooldown must be 300s")
+		-- TRAPS: a clip of three, refilled as a set two minutes after the last
+		-- one is spent. The refill and the lifetime are separate clocks so
+		-- neither can be read as the other.
+		check(PvPConfig.TRAP_CAPACITY == 3, "a player must hold 3 traps")
+		check(PvPConfig.TRAP_REFILL == 120, "the trap clip must refill after 120s")
 		check(PvPConfig.TRAP_LIFETIME == 300, "an unsprung trap must expire after 300s")
+		check(PvPConfig.TRAP_LIFETIME ~= PvPConfig.TRAP_REFILL, "the refill and the lifetime must be different clocks")
 	end
 
 	-- ==========================================================

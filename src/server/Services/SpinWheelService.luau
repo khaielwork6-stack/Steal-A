@@ -397,6 +397,28 @@ local function prepare(model: Model): Wheel?
 	anchor.CFrame = CFrame.new(disc.Position + disc.CFrame.RightVector * 6.5 - Vector3.new(0, 0.6, 0))
 	anchor.Parent = model
 
+	-- A STILL POINT FOR THE COUNTDOWN. The disc SPINS, and a BillboardGui's
+	-- StudsOffsetWorldSpace turns with its adornee - so a sign offset straight
+	-- up off the disc sat above the wheel only while the wheel happened to be
+	-- at rest, and swung out to the side for every angle it landed on. This
+	-- anchor is a separate part that nothing rotates; the client adorns to it
+	-- with no offset at all, so there is nothing left to turn.
+	local stale = model:FindFirstChild(SpinWheelConfig.SIGN_ANCHOR_NAME)
+	if stale then
+		stale:Destroy()
+	end
+	local signAnchor = Instance.new("Part")
+	signAnchor.Name = SpinWheelConfig.SIGN_ANCHOR_NAME
+	signAnchor.Size = Vector3.new(1, 1, 1)
+	signAnchor.Transparency = 1
+	signAnchor.Anchored = true
+	signAnchor.CanCollide = false
+	signAnchor.CanQuery = false
+	signAnchor.CanTouch = false
+	signAnchor.CastShadow = false
+	signAnchor.CFrame = CFrame.new(disc.Position + Vector3.new(0, math.max(disc.Size.Y, disc.Size.Z) / 2 + 3, 0))
+	signAnchor.Parent = model
+
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "SpinPrompt"
 	prompt.ActionText = SpinWheelConfig.PROMPT_ACTION

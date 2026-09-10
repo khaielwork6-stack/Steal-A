@@ -53,6 +53,9 @@ SpinWheelConfig.WHEEL_IMAGE = "rbxassetid://89920250248309"
 --- The model the owner placed on every plot, and the spinning disc inside it.
 SpinWheelConfig.MODEL_NAME = "Spin Wheel System"
 SpinWheelConfig.WHEEL_PART_NAME = "Wheel"
+--- The non-rotating part the countdown sign hangs from. The disc itself spins,
+--- and a billboard adorned to it swings out of place with every landing angle.
+SpinWheelConfig.SIGN_ANCHOR_NAME = "SignAnchor"
 
 --- Sharper than the import's 50: the disc is ~13 studs across and the segment
 --- text has to stay legible from where the prompt appears.

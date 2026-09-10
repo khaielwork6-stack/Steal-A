@@ -29,10 +29,6 @@ local UserGameSettings = UserSettings():GetService("UserGameSettings")
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
---- For the one number every bottom-right control has to agree on: how far up
---- Roblox's own jump button reaches. See HUDLayoutController.controlBand.
-local HUDLayoutController = require(script.Parent.HUDLayoutController)
-
 local ShiftLockController = {}
 
 local player = Players.LocalPlayer
@@ -99,36 +95,14 @@ local function build()
 	gui.DisplayOrder = 8
 	gui.Parent = playerGui
 
-	-- The far bottom-right, stacked ABOVE the band Roblox's own jump button
-	-- owns: the corner is Jump's, this sits over it, and the Night timer moved
-	-- to the top strip so nothing shares the corner with either.
-	--
-	-- The clearance is MEASURED from the screen rather than a flat 108 pixels.
-	-- A fixed offset is right on a tall phone and wrong on a short one, where
-	-- the jump button is proportionally much closer to the middle - and this
-	-- button was landing on it. The same `controlBand` the menu tiles and the
-	-- offer rail keep out of, so all three agree.
-	local size = HUDLayoutController.SHIFT_LOCK_SIZE
+	-- The far bottom-right, stacked ABOVE the Jump button on the same right
+	-- inset: the corner is Jump's, this sits over it, and the Night timer
+	-- moved to the top strip so nothing shares the corner with either.
 	local made = Instance.new("ImageButton")
 	made.Name = "ShiftLock"
 	made.AnchorPoint = Vector2.new(1, 1)
-	made.Size = UDim2.fromOffset(size, size)
-
-	--- Re-measured whenever the screen changes shape: a rotation or a resize
-	--- moves the band, and a button parked from a stale measurement is a button
-	--- sitting on the jump control.
-	local function place()
-		-- The SAME scale and the SAME band the rest of the HUD uses, so this
-		-- button and the offer rail above it cannot disagree about where
-		-- Roblox's jump control starts.
-		local scale = HUDLayoutController.touchScale()
-		HUDLayoutController.applyScale(gui, scale)
-		made.Position = UDim2.new(1, -22, 1, -(HUDLayoutController.controlBand(HUDLayoutController.viewportHeight()) / scale + 8))
-	end
-	place()
-	-- AbsoluteSize is still zero on the frame the ScreenGui is created.
-	task.defer(place)
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	made.Position = UDim2.new(1, -30, 1, -108)
+	made.Size = UDim2.fromOffset(52, 52)
 	made.BackgroundTransparency = 1
 	made.Image = ""
 	made.AutoButtonColor = false

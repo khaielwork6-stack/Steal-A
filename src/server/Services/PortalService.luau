@@ -56,19 +56,38 @@ local function makeTouchable(part: BasePart)
 end
 
 local function sign(part: BasePart, title: string, sub: string, titleColor: Color3, subColor: Color3, lift: number, name: string)
-	local existing = part:FindFirstChild(name)
-	if existing then
-		existing:Destroy()
+	for _, stale in { part:FindFirstChild(name), part:FindFirstChild(name .. "Anchor") } do
+		if stale then
+			stale:Destroy()
+		end
 	end
+
+	-- A STILL POINT TO HANG FROM. The ring under this sign is SPUN every frame
+	-- (PortalController), and a BillboardGui's StudsOffsetWorldSpace turns with
+	-- its adornee - so a sign offset straight up off the ring did not sit above
+	-- the portal, it ORBITED it. The anchor is a separate part that nothing
+	-- rotates, and the offset is zero, so there is nothing left to turn.
+	local anchor = Instance.new("Part")
+	anchor.Name = name .. "Anchor"
+	anchor.Size = Vector3.new(1, 1, 1)
+	anchor.Transparency = 1
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.CastShadow = false
+	anchor.CFrame = CFrame.new(part.Position + Vector3.new(0, lift, 0))
+	anchor.Parent = part
+
 	local gui = Instance.new("BillboardGui")
 	gui.Name = name
 	gui.Size = UDim2.fromScale(20, 8)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, lift, 0)
+	gui.StudsOffsetWorldSpace = Vector3.zero
 	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
 	gui.MaxDistance = 240
-	gui.Adornee = part
-	gui.Parent = part
+	gui.Adornee = anchor
+	gui.Parent = anchor
 
 	local top = Instance.new("TextLabel")
 	top.Name = "Title"

@@ -53,7 +53,11 @@ local portals: { Portal } = {}
 local fade: Frame? = nil
 
 local function adopt(part: BasePart, signName: string, spin: boolean)
-	local sign = part:FindFirstChild(signName)
+	-- Recursive: the sign hangs off its own non-rotating anchor part now, so it
+	-- is a grandchild of the portal rather than a child. See PortalService -
+	-- a billboard adorned to the SPINNING ring orbited it instead of sitting
+	-- over it.
+	local sign = part:FindFirstChild(signName, true)
 	local title = sign and sign:FindFirstChild("Title")
 	local gradient = title and title:FindFirstChild("Rainbow")
 	if gradient and gradient:IsA("UIGradient") then
@@ -80,8 +84,11 @@ local function watchPortal(name: string, signName: string, spin: boolean)
 		if not part or not part:IsA("BasePart") then
 			return
 		end
-		if not part:FindFirstChild(signName) then
-			part:WaitForChild(signName, 60)
+		-- The sign is nested under its anchor, so WaitForChild cannot see it.
+		-- Poll briefly instead; the server dresses the portal at start-up.
+		local deadline = os.clock() + 60
+		while not part:FindFirstChild(signName, true) and os.clock() < deadline do
+			task.wait(0.25)
 		end
 		adopt(part, signName, spin)
 	end)

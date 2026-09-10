@@ -31,10 +31,6 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
---- For the short-screen shrink, so this panel and the menu tiles above it are
---- scaled by the same factor rather than each picking their own.
-local HUDLayoutController = require(script.Parent.HUDLayoutController)
-
 local StarterTaskController = {}
 
 local player = Players.LocalPlayer
@@ -104,36 +100,40 @@ local DESKTOP: Metrics = {
 -- offer tiles and the shift lock. Nothing legible fits in it, and "shift
 -- upward" runs into the offer tiles.
 --
--- So touch gets the BOTTOM-LEFT, under the menu tiles. The thing that first
--- ruled that corner out was Roblox's movement thumbstick - and it does live
--- there, but it does not matter: nothing in this panel is a button, the frame
--- and every label are transparent-backgrounded TextLabels, so a finger drags
--- the thumbstick straight through them. `clearance` measures the menu tile
--- block and sits under it, so the two never touch.
+-- So touch gets the BOTTOM-LEFT, which is what the owner asked for. The thing
+-- that first ruled that corner out was Roblox's movement thumbstick - and it
+-- does live there, but it does not matter: nothing in this panel is a button,
+-- the frame and every label are transparent-backgrounded and Active is false,
+-- so a finger drags the thumbstick straight through them.
+--
+-- Nothing measures anything on this side. The bottom-left IS the answer, and
+-- an earlier version that tried to "lift clear of the menu tiles" was moving
+-- the panel UP into the very thing it was avoiding - up is the wrong direction
+-- when the obstacle is overhead.
 local PHONE: Metrics = {
 	corner = "bottom-left",
-	width = 186,
-	heading = 13,
-	rowHeight = 21,
+	width = 200,
+	heading = 14,
+	rowHeight = 23,
 	rowGap = 2,
-	marker = 13,
-	taskText = 12,
-	rewardText = 11,
-	rewardWidth = 62,
+	marker = 14,
+	taskText = 13,
+	rewardText = 12,
+	rewardWidth = 80,
 	margin = 10,
 	touchFloor = 0,
 }
 
 local TABLET: Metrics = {
 	corner = "bottom-left",
-	width = 214,
+	width = 224,
 	heading = 15,
-	rowHeight = 24,
+	rowHeight = 25,
 	rowGap = 3,
 	marker = 15,
 	taskText = 14,
 	rewardText = 13,
-	rewardWidth = 72,
+	rewardWidth = 88,
 	margin = 12,
 	touchFloor = 0,
 }
@@ -176,31 +176,19 @@ local finishing = false
 -- LAYOUT
 -- ==========================================================
 
---- Things that share the checklist's own corner and that we can actually see
---- from here. Named rather than searched by class so a future sibling does not
---- silently start pushing the checklist around.
+--- Things that share the checklist's bottom-RIGHT corner and that we can
+--- actually see from here. Named rather than searched by class so a future
+--- sibling does not silently start pushing the checklist around.
 ---
---- The two corners have different neighbours, so the list depends on which one
---- we are in: the Nightfall pill and the shift lock own the bottom-RIGHT, and
---- the menu tile block owns the LEFT.
-local function obstacles(corner: string): { GuiObject }
+--- Only the desktop corner needs this. The touch corner is the bottom-left,
+--- where the answer is simply "the bottom-left" - see `clearance`.
+local function obstacles(): { GuiObject }
 	local playerGui = player:FindFirstChildOfClass("PlayerGui")
 	if not playerGui then
 		return {}
 	end
 	local found: { GuiObject } = {}
 	local mainUi = playerGui:FindFirstChild("MainUI")
-
-	if corner == "bottom-left" then
-		-- Shop / Upgrades / Index / Storage. On touch they are a 2x2 block
-		-- centred at 56% of the screen height, so where they END is a real
-		-- measurement and not something to hard-code.
-		local buttons = mainUi and mainUi:FindFirstChild("Buttons")
-		if buttons and buttons:IsA("GuiObject") and buttons.Visible then
-			table.insert(found, buttons)
-		end
-		return found
-	end
 
 	local night = mainUi and mainUi:FindFirstChild("NightTimer")
 	if night and night:IsA("GuiObject") and night.Visible then
@@ -236,7 +224,7 @@ local function clearance(screen: ScreenGui, size: Metrics): number
 	local bottom = floor + height
 	local lowest = size.margin
 	if height > 0 then
-		for _, thing in obstacles(size.corner) do
+		for _, thing in obstacles() do
 			local top = thing.AbsolutePosition.Y
 			-- Only what is genuinely low on the screen. The Nightfall pill moves
 			-- to the TOP strip on touch, and something up there must not push
@@ -257,9 +245,6 @@ local function reposition()
 	end
 	local size = metrics()
 	if size.corner == "bottom-left" then
-		-- Shrunk by the same factor as the rest of the HUD on a short screen,
-		-- so the checklist and the menu tiles above it stay in proportion.
-		HUDLayoutController.applyScale(screen, HUDLayoutController.touchScale())
 		frame.AnchorPoint = Vector2.new(0, 1)
 		frame.Position = UDim2.new(0, size.margin, 1, -clearance(screen, size))
 		return
@@ -279,6 +264,22 @@ local function outline(target: Instance, thickness: number): UIStroke
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
 	stroke.Parent = target
 	return stroke
+end
+
+--- EVERY LINE IS SIZED BY ITS OWN BOX, then capped.
+---
+--- A flat TextSize is a promise about pixels that a phone does not keep: the
+--- same 13 that fits a row on one device overflowed it on another, and the
+--- result was a heading twice the height of its own line and task text running
+--- underneath the reward beside it. TextScaled makes the row's height the
+--- authority - the text can never be taller than the box it is in - and the
+--- constraint stops a short word ballooning to fill a wide one.
+local function fitText(label: TextLabel, maxSize: number)
+	label.TextScaled = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MinTextSize = 8
+	limit.MaxTextSize = maxSize
+	limit.Parent = label
 end
 
 local function buildRow(parent: Frame, task_: StarterTaskConfig.Task, order: number, size: Metrics): Row
@@ -332,11 +333,11 @@ local function buildRow(parent: Frame, task_: StarterTaskConfig.Task, order: num
 	reward.Size = UDim2.new(0, size.rewardWidth, 1, 0)
 	reward.BackgroundTransparency = 1
 	reward.Font = Enum.Font.FredokaOne
-	reward.TextSize = size.rewardText
 	reward.TextXAlignment = Enum.TextXAlignment.Right
 	reward.TextColor3 = if task_.kind == "cash" then CASH else SPEED
 	reward.Text = task_.reward
 	reward.Parent = frame
+	fitText(reward, size.rewardText)
 	outline(reward, 2)
 
 	local text = Instance.new("TextLabel")
@@ -348,13 +349,13 @@ local function buildRow(parent: Frame, task_: StarterTaskConfig.Task, order: num
 	text.Size = UDim2.new(1, -(size.marker + 8) - size.rewardWidth - 6, 1, 0)
 	text.BackgroundTransparency = 1
 	text.Font = Enum.Font.FredokaOne
-	text.TextSize = size.taskText
 	text.TextXAlignment = Enum.TextXAlignment.Left
-	-- Rather than run under the reward if a future task is ever wordier.
-	text.TextTruncate = Enum.TextTruncate.AtEnd
 	text.TextColor3 = TEXT
 	text.Text = task_.text
 	text.Parent = frame
+	-- Scaled to its own column rather than truncated to it: "Steal 1 Item" is
+	-- the whole point of the row, and "Steal 1..." tells the player nothing.
+	fitText(text, size.taskText)
 	outline(text, 2)
 
 	return {
@@ -414,11 +415,11 @@ local function build()
 	title.Size = UDim2.new(1, 0, 0, size.heading + 8)
 	title.LayoutOrder = 0
 	title.Font = Enum.Font.FredokaOne
-	title.TextSize = size.heading
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextColor3 = GOLD
 	title.Text = StarterTaskConfig.HEADING
 	title.Parent = frame
+	fitText(title, size.heading)
 	outline(title, 2)
 
 	table.clear(rows)
@@ -497,14 +498,18 @@ local function markDone(row: Row, animate: boolean)
 	end
 	UIAnim.punch(row.frame, 0.06)
 
+	-- COLOUR ONLY. The reward's size is TextScaled from its row now, so tweening
+	-- TextSize would do nothing at all; the swell comes from a UIScale instead.
 	local flash = row.reward
-	local restingSize = flash.TextSize
 	flash.TextColor3 = TICK
-	flash.TextSize = restingSize + 2
 	TweenService:Create(flash, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		TextColor3 = TEXT_DONE,
-		TextSize = restingSize,
 	}):Play()
+	local rewardScale = UIAnim.scaleOf(flash)
+	if rewardScale then
+		rewardScale.Scale = 1.18
+		TweenService:Create(rewardScale, UIAnim.SPRING, { Scale = 1 }):Play()
+	end
 end
 
 --- All three are ticked: one short flourish, and then the panel bows out.

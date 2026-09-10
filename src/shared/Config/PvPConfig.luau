@@ -27,17 +27,37 @@ PvPConfig.KNOCKBACK_SPEED = 46
 PvPConfig.KNOCKBACK_LIFT = 14
 PvPConfig.POST_RAGDOLL_IMMUNITY = 1.5 -- stops permanent stun chains
 
--- Traps: consumable, saved, and never duplicated by resetting.
+-- ==========================================================
+-- TRAPS
+-- ==========================================================
+--
+-- A CLIP OF THREE, REFILLED AS A SET, AND SESSION-ONLY.
+--
+--   * Every player starts every session with TRAP_CAPACITY traps. The count is
+--     NOT durable - joining a server is a clean slate. It used to be saved,
+--     was never actually decremented by placing one, and so the only way a
+--     profile could carry a count was to have been left at zero by an older
+--     build - which is exactly what happened: players joined to "You have no
+--     traps left" having never placed one.
+--   * Placing one SPENDS one.
+--   * Emptying the clip starts TRAP_REFILL, after which all three come back
+--     together. There is no per-placement cooldown: three in a row then a
+--     wait is a far better feel than one every few minutes, and it is what
+--     the counter under the hotbar has always implied.
+--   * A trap that catches somebody is gone (triggerTrap destroys it). It does
+--     not come back early; it comes back with the clip.
+
 --- How long a placed trap stays armed in the world before it expires and is
---- removed. Five minutes, the same span as the cooldown, so "one trap out at
---- a time" and "one trap every five minutes" are the same sentence.
+--- removed.
 PvPConfig.TRAP_LIFETIME = 300
---- Seconds before a used trap is available again. THE TRAP IS A RECHARGING
---- ABILITY, not a consumable that can be lost: using one starts this cooldown
---- and the charge returns when it ends. Stored as an absolute Unix second on
---- the profile (Profile.TrapReadyAt), so it runs while the player is offline,
---- survives a rejoin, and cannot be shortened by reconnecting.
-PvPConfig.TRAP_COOLDOWN = 300
+--- How many a player holds at once, and gets back on every refill.
+PvPConfig.TRAP_CAPACITY = 3
+--- Seconds to get the whole clip back once it is empty. Session state, so this
+--- is measured from the moment the last one is placed and nothing about it
+--- survives a rejoin - a fresh server hands over a full clip immediately.
+PvPConfig.TRAP_REFILL = 120
+--- Kept as the old name so nothing that reads it breaks; it is the refill.
+PvPConfig.TRAP_COOLDOWN = PvPConfig.TRAP_REFILL
 PvPConfig.TRAP_ROOT_DURATION = 5
 PvPConfig.TRAP_TRIGGER_RADIUS = 5
 PvPConfig.TRAP_PLACE_RADIUS = 12 -- max distance in front of the player

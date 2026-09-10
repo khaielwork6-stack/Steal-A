@@ -464,7 +464,16 @@ return function(): Report
 	-- ==========================================================
 	-- TRAPS
 	-- ==========================================================
-	check(PvPConfig.TRAP_COOLDOWN == 300, `the trap cooldown must be 300s, got {PvPConfig.TRAP_COOLDOWN}`)
+	-- THE TRAP CLIP. Three at a time, spent one per placement, and the whole
+	-- set comes back two minutes after the last one is used - never one at a
+	-- time, and never a cooldown between placements.
+	check(PvPConfig.TRAP_CAPACITY == 3, `a player must hold 3 traps, got {PvPConfig.TRAP_CAPACITY}`)
+	check(PvPConfig.TRAP_REFILL == 120, `the trap refill must be 120s, got {PvPConfig.TRAP_REFILL}`)
+	check(PvPConfig.TRAP_COOLDOWN == PvPConfig.TRAP_REFILL, "the retired cooldown name must still be the refill")
+	check(
+		PvPConfig.TRAP_MAX_ACTIVE_PER_PLAYER >= PvPConfig.TRAP_CAPACITY,
+		"a player must be able to have every trap they hold out at once"
+	)
 	check(PvPConfig.TRAP_LIFETIME == 300, `a placed trap must expire after 300s, got {PvPConfig.TRAP_LIFETIME}`)
 
 	-- ==========================================================

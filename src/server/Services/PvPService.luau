@@ -431,25 +431,49 @@ local function buildTrapPart(position: Vector3, owner: Player): BasePart
 	return part
 end
 
---- Seconds until this player's trap is usable again, 0 when it is ready.
---- The ONE reader of the stamp: the placement gate, the HUD and the tests all
---- come through here, so there is no second interpretation of the clock.
+--- Hands the whole clip back once the refill has elapsed. The ONE writer of
+--- that transition, called by everything that reads the count, so there is no
+--- state where the clock has passed and the traps have not come back.
+---
+--- Returns true when it actually refilled, so the caller can push.
+local function refillTraps(profile: DataService.Profile): boolean
+	if profile.TrapCount > 0 then
+		return false
+	end
+	local due = tonumber(profile.TrapReadyAt) or 0
+	if due <= 0 or os.time() < due then
+		return false
+	end
+	profile.TrapCount = PvPConfig.TRAP_CAPACITY
+	profile.TrapReadyAt = 0
+	return true
+end
+
+--- Seconds until this player's traps come back, 0 when they have some. The ONE
+--- reader of the stamp: the placement gate, the HUD and the tests all come
+--- through here, so there is no second interpretation of the clock.
 function PvPService.trapCooldownRemaining(player: Player): number
 	local profile = DataService.get(player)
 	if not profile then
 		return 0
 	end
+	refillTraps(profile)
+	-- A player holding traps is not waiting for anything, whatever the stamp
+	-- happens to say.
+	if profile.TrapCount > 0 then
+		return 0
+	end
 	return math.max(0, (tonumber(profile.TrapReadyAt) or 0) - os.time())
 end
 
---- True when the player may place a trap right now: off cooldown, and holding
---- at least one in their saved inventory.
+--- True when the player may place a trap right now: simply, that they have one.
 function PvPService.canPlaceTrap(player: Player): boolean
 	local profile = DataService.get(player)
-	if not profile or profile.TrapCount <= 0 then
+	if not profile then
 		return false
 	end
-	return PvPService.trapCooldownRemaining(player) <= 0
+	refillTraps(profile)
+	return profile.TrapCount > 0
 end
 
 function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
@@ -461,17 +485,12 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	if not profile then
 		return
 	end
-	-- THE COOLDOWN IS THE GATE. An absolute second on the profile, so it keeps
-	-- running while the player is offline and a rejoin can neither skip it nor
-	-- restart it. Checked before anything is consumed or built.
+	-- THE CLIP IS THE GATE. Holding one is the whole condition; the refill
+	-- clock only matters once the clip is empty, and `trapCooldownRemaining`
+	-- hands the traps back itself the moment it has elapsed.
 	local waiting = PvPService.trapCooldownRemaining(player)
-	if waiting > 0 then
-		notify(player, "error", `Trap recharging - {math.ceil(waiting)}s`)
-		return
-	end
-
 	if profile.TrapCount <= 0 then
-		notify(player, "error", "You have no traps left.")
+		notify(player, "error", `Out of traps - back in {math.ceil(waiting)}s`)
 		return
 	end
 	if not isAlive(player) then
@@ -527,12 +546,14 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 		return
 	end
 
-	-- START THE COOLDOWN, do not spend the trap. The trap is a recharging
-	-- ability: the charge comes back when this stamp passes, which is what
-	-- stops a placed trap being lost forever when its owner leaves or dies.
-	-- Stamped BEFORE the trap is built, so nothing between here and the world
-	-- object can hand out a second one.
-	profile.TrapReadyAt = os.time() + PvPConfig.TRAP_COOLDOWN
+	-- SPEND ONE, and start the refill only if that was the last. Both happen
+	-- BEFORE the trap is built, so nothing between here and the world object
+	-- can spend the same charge twice.
+	profile.TrapCount -= 1
+	local emptied = profile.TrapCount <= 0
+	if emptied then
+		profile.TrapReadyAt = os.time() + PvPConfig.TRAP_REFILL
+	end
 
 	table.insert(traps, {
 		owner = player,
@@ -543,7 +564,11 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	})
 
 	StateService.pushNow(player)
-	notify(player, "success", `Trap placed. Recharges in {PvPConfig.TRAP_COOLDOWN // 60}m.`)
+	if emptied then
+		notify(player, "success", `Trap placed - last one. All {PvPConfig.TRAP_CAPACITY} back in {PvPConfig.TRAP_REFILL // 60}m.`)
+	else
+		notify(player, "success", `Trap placed. {profile.TrapCount} left.`)
+	end
 end
 
 local function triggerTrap(trap: Trap, victim: Player)
@@ -963,6 +988,21 @@ function PvPService.start()
 	if not slapArt() then
 		warn("[PvPService] no Slap art (workspace.Slap.Item or ReplicatedStorage.GameAssets.Weapons.Slap) - the Slap cannot be built.")
 	end
+
+	-- THE REFILL, once a second. `refillTraps` is idempotent and every reader
+	-- calls it anyway, so this exists purely so the counter under the hotbar
+	-- comes back on its own rather than at the next unrelated push.
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			for _, player in Players:GetPlayers() do
+				local profile = DataService.get(player)
+				if profile and refillTraps(profile) then
+					StateService.markDirty(player)
+				end
+			end
+		end
+	end)
 
 	-- One remote for every swing; the weapon is read from the hand.
 	Remotes.get("BatSwingRequest").OnServerEvent:Connect(function(player)

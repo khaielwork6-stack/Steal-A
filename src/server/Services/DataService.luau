@@ -181,10 +181,10 @@ export type Profile = {
 	LastLeaveTimestamp: number,
 	OfflineCashRate: number,
 	PendingOfflineCash: number,
-	-- v11. Unix second the next trap becomes available (0 = ready now). The
-	-- trap recharges rather than being spent: placing one stamps this, and
-	-- because it is an ABSOLUTE second the cooldown keeps running while the
-	-- player is away and cannot be reset by leaving, dying or rejoining.
+	-- SESSION ONLY, despite living here. Unix second the empty trap clip
+	-- refills (0 = traps available now). `reconcile` forces this to 0 and
+	-- TrapCount to full on every load, so a rejoin is always a clean clip -
+	-- see the TRAPS block there for why it stopped being durable.
 	TrapReadyAt: number,
 	-- v13. Seconds of ACTUAL PLAY accrued toward the next free spin, 0 to
 	-- SpinWheelConfig.PLAY_SECONDS.
@@ -693,17 +693,21 @@ local function reconcile(profile: Profile): Profile
 
 	profile.Cash = math.max(0, tonumber(profile.Cash) or 0)
 	profile.SpeedPower = math.max(GameConfig.STARTING_SPEED_POWER, tonumber(profile.SpeedPower) or 0)
-	profile.TrapCount = math.max(0, math.floor(tonumber(profile.TrapCount) or 0))
-	-- The trap cooldown stamp. A corrupt or absurd value resolves to READY
-	-- rather than to a wait nobody can serve: the failure mode of a broken
-	-- timestamp must never be "this player can never use their trap again".
-	local trapReady = tonumber(profile.TrapReadyAt) or 0
-	if trapReady ~= trapReady or trapReady == math.huge or trapReady < 0 then
-		trapReady = 0
-	end
-	-- More than one full cooldown in the future means the clock moved under
-	-- it (a DataStore restore, a machine with a bad clock); clamp it back.
-	profile.TrapReadyAt = math.min(trapReady, os.time() + PvPConfig.TRAP_COOLDOWN)
+
+	-- TRAPS ARE SESSION STATE. Both fields are forced on EVERY load, whatever
+	-- the save says: joining a server hands over a full clip and a clear
+	-- refill clock, exactly like a robbery is never carried across a session.
+	--
+	-- They used to be durable, and that was the bug. Placing a trap never
+	-- decremented the count, so the only way a profile could hold a number was
+	-- to have been left at one by an older build - and a zero left there was
+	-- permanent. Players joined to "You have no traps left" having never
+	-- placed one, with nothing that could ever give them back.
+	--
+	-- The fields stay in the schema so old saves load cleanly and so the value
+	-- has somewhere to live during a session; nothing reads them off the disk.
+	profile.TrapCount = PvPConfig.TRAP_CAPACITY
+	profile.TrapReadyAt = 0
 	profile.HighestZoneReached = math.clamp(math.floor(tonumber(profile.HighestZoneReached) or 1), 1, 12)
 
 	if type(profile.DisplayItems) ~= "table" then

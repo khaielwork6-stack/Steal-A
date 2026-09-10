@@ -919,9 +919,11 @@ end
 
 local OWNER_SIGN_NAME = "OwnerSign" -- the retired board; destroyed on sight
 local OWNER_DISPLAY_NAME = "OwnerDisplay"
---- Studs above the porch. High enough to clear a Colossal on the front pads,
---- low enough to read as belonging to this plot and not the sky.
-local OWNER_DISPLAY_LIFT = 15
+--- Studs above the porch. It has to clear a Colossal standing on the front
+--- pads AND stay out of the owner's own eyeline while they are working on
+--- their base - at 15 it sat right where the player looks, over the pedestals
+--- they were placing on. High enough now to read as a banner over the plot.
+local OWNER_DISPLAY_LIFT = 30
 --- Capacity tier from which the crown shows (roughly the halfway mark).
 local CROWN_TIER = 4
 

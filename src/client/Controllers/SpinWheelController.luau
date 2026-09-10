@@ -622,11 +622,23 @@ local function adoptOwned(wheel: Wheel?)
 		gui.Adornee = nil
 		return
 	end
-	-- Adorned to the disc and offset in WORLD space, so the sign hangs above
-	-- the wheel and stays put while the disc turns underneath it.
-	local radius = math.max(wheel.disc.Size.Y, wheel.disc.Size.Z) / 2
-	gui.Adornee = wheel.disc
-	gui.StudsOffsetWorldSpace = Vector3.new(0, radius + 3, 0)
+	-- ADORNED TO THE STILL ANCHOR, NOT THE DISC. A BillboardGui's
+	-- StudsOffsetWorldSpace turns with its adornee, so hanging this off the
+	-- spinning disc put the countdown above the wheel only while the wheel was
+	-- at rest and swung it out to the side for every angle it landed on. The
+	-- anchor is a separate part nothing rotates, so the offset is zero and
+	-- there is nothing left to turn.
+	local anchor = wheel.model:FindFirstChild(SpinWheelConfig.SIGN_ANCHOR_NAME)
+	if anchor and anchor:IsA("BasePart") then
+		gui.Adornee = anchor
+		gui.StudsOffsetWorldSpace = Vector3.zero
+	else
+		-- The server builds the anchor at start-up; a client that beat it there
+		-- falls back to the disc rather than showing nothing.
+		local radius = math.max(wheel.disc.Size.Y, wheel.disc.Size.Z) / 2
+		gui.Adornee = wheel.disc
+		gui.StudsOffsetWorldSpace = Vector3.new(0, radius + 3, 0)
+	end
 	gui.Enabled = true
 end
 
@@ -709,6 +721,15 @@ function SpinWheelController.start()
 				wheel.prompt = thing
 				-- A prompt that arrives after the hide pass has to be hidden too.
 				thing.Enabled = not wheel.hidden
+			end
+		elseif thing:IsA("BasePart") and thing.Name == SpinWheelConfig.SIGN_ANCHOR_NAME then
+			-- The anchor replicating in after the sign was adorned: re-adopt so
+			-- the countdown moves off the spinning disc and onto it.
+			local model = thing:FindFirstAncestorOfClass("Model")
+			if model and owned and owned.model == model then
+				local mine = owned
+				owned = nil
+				adoptOwned(mine)
 			end
 		end
 	end)

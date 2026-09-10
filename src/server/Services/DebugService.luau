@@ -208,6 +208,11 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 			PvPService.tryPlaceTrap(player, nil)
 		elseif mode == "reset" then
 			profile.TrapReadyAt = 0
+		elseif mode == "refill" then
+			-- Back-dates the refill stamp so the clip comes back on the next
+			-- sweep, rather than making the tester wait two minutes for it.
+			profile.TrapReadyAt = os.time() - 1
+			task.wait(1.2)
 		elseif mode == "expire" then
 			-- Back-dates the live traps past TRAP_LIFETIME and lets one sweep
 			-- run, so the expiry is observed rather than assumed.
