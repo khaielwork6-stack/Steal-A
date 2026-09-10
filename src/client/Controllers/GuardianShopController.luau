@@ -116,17 +116,32 @@ local function attach(model: Model)
 	model:GetAttributeChangedSignal("RotationKey"):Connect(paintPrompt)
 	pulseLimited()
 
-	-- Once a second: the countdown. Never negative; the server swaps the
-	-- display within the same second the clock reaches zero.
-	task.spawn(function()
-		while model.Parent do
-			local label = timerLabel()
-			local endsAt = tonumber(model:GetAttribute("RotationEndsAt"))
-			if label and endsAt then
-				local remaining = math.max(0, endsAt - workspace:GetServerTimeNow())
-				label.Text = `New Guardian In: {BaseGuardianConfig.formatCountdown(remaining)}`
-			end
-			task.wait(1)
+	-- THE COUNTDOWN. Driven off Heartbeat and re-texted only when the SECOND
+	-- it would display actually changes, rather than from a `task.wait(1)`
+	-- loop.
+	--
+	-- `task.wait(1)` does not sleep for one second, it sleeps for at least one
+	-- second, so the old loop drifted a little further behind the clock on
+	-- every pass and the sign would visibly hold a value for two beats and
+	-- then skip one. Sampling the real clock every frame and writing only on a
+	-- change costs one comparison a frame, never drifts, and cannot skip:
+	-- whatever the frame rate does, the number on the sign is the number the
+	-- server time says.
+	local shownSecond = -1
+	RunService.Heartbeat:Connect(function()
+		if not model.Parent then
+			return
+		end
+		local label = timerLabel()
+		local endsAt = tonumber(model:GetAttribute("RotationEndsAt"))
+		if not label or not endsAt then
+			return
+		end
+		local remaining = math.max(0, endsAt - workspace:GetServerTimeNow())
+		local whole = math.floor(remaining)
+		if whole ~= shownSecond then
+			shownSecond = whole
+			label.Text = `New Guardian In: {BaseGuardianConfig.formatCountdown(remaining)}`
 		end
 	end)
 end

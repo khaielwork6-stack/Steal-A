@@ -16,6 +16,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
+local AttractionSign = require(ReplicatedStorage.Shared.Util.AttractionSign)
 
 local MonetizationService = require(script.Parent.MonetizationService)
 local StateService = require(script.Parent.StateService)
@@ -101,7 +102,9 @@ function SlapDisplayService.start()
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Sign"
-	gui.Size = UDim2.fromScale(16, 8)
+	-- Taller than it was: the arrow hangs below the price line and needs its
+	-- own band, and the extra height is what lets the title stay large.
+	gui.Size = UDim2.fromScale(16, 9.6)
 	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
 	gui.MaxDistance = 220
@@ -117,6 +120,32 @@ function SlapDisplayService.start()
 	gradient.Parent = slam
 	label(gui, "Sub", 0.5, 0.24, Color3.fromRGB(255, 226, 90), 40, "SLAP PLAYERS AWAY!")
 	priceLabel = label(gui, "Price", 0.75, 0.25, Color3.fromRGB(126, 255, 148), 42, priceText())
+
+	-- THE ARROW, added to the sign this display already has rather than as a
+	-- second billboard over the top of it. The cage sign is the one attraction
+	-- whose stack was already right - name, hook, price, in that order - and
+	-- SlapDisplayController finds the "Slam" label and its rainbow by name, so
+	-- rebuilding it through AttractionSign would break the sweep for nothing.
+	-- It only lacked the pointer that says which thing on the apron the sign
+	-- belongs to.
+	local arrow = Instance.new("TextLabel")
+	arrow.Name = "Arrow"
+	arrow.AnchorPoint = Vector2.new(0.5, 0)
+	arrow.Size = UDim2.fromScale(0.3, 0.2)
+	arrow.Position = UDim2.fromScale(0.5, 1)
+	arrow.BackgroundTransparency = 1
+	arrow.Font = Enum.Font.FredokaOne
+	arrow.TextScaled = true
+	arrow.TextColor3 = Color3.fromRGB(255, 255, 255)
+	arrow.TextStrokeColor3 = Color3.fromRGB(12, 14, 28)
+	arrow.TextStrokeTransparency = 0
+	arrow.Text = "\226\150\188"
+	arrow:SetAttribute(AttractionSign.ARROW_TAG, true)
+	arrow:SetAttribute("RestY", arrow.Position.Y.Scale)
+	arrow.Parent = gui
+	local arrowCap = Instance.new("UITextSizeConstraint")
+	arrowCap.MaxTextSize = 46
+	arrowCap.Parent = arrow
 
 	-- The prompt: in front of the cage, on the side the spawn circle is.
 	local toward = Vector3.new(0, 0, -34) - cf.Position

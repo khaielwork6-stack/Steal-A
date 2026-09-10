@@ -83,6 +83,20 @@ function EconomyService.maturationRemaining(item: DataService.DisplayItem): numb
 	return math.max(0, needed - (tonumber(item.GrowthSeconds) or 0))
 end
 
+--- What this item pays per second ONCE IT IS EARNING, ignoring the maturation
+--- gate below. This is the real paid rate - boosts and the money pass folded
+--- in - and so is NOT `item.FinalIncome`, which is the card rate at moneyPass
+--- 1 and understates what actually lands in the player's Cash.
+---
+--- Split out so the base can label a trophy with the figure it is about to
+--- start paying while it is still growing, without the caller having to
+--- reassemble the same multiplier chain and drift from it.
+function EconomyService.maturedRate(player: Player, item: DataService.DisplayItem): number
+	local scale = ScaleConfig.clampScale(item.Scale)
+	local pre = RarityConfig.preBoostRate(item.BaseIncome, scale, item.Mutation, EconomyService.cashMultiplierFor(player))
+	return math.round(pre * GameConfig.SERVER_EARNINGS_BOOST * GameConfig.TEMPORARY_EARNINGS_BOOST)
+end
+
 --- The item's rate for THIS owner, boosts included: what it adds to the
 --- total while active. Zero while maturing or being robbed.
 function EconomyService.itemRate(player: Player, item: DataService.DisplayItem): number
@@ -96,9 +110,7 @@ function EconomyService.itemRate(player: Player, item: DataService.DisplayItem):
 	if item.RobbedBy or not EconomyService.isMatured(item) then
 		return 0
 	end
-	local scale = ScaleConfig.clampScale(item.Scale)
-	local pre = RarityConfig.preBoostRate(item.BaseIncome, scale, item.Mutation, EconomyService.cashMultiplierFor(player))
-	return math.round(pre * GameConfig.SERVER_EARNINGS_BOOST * GameConfig.TEMPORARY_EARNINGS_BOOST)
+	return EconomyService.maturedRate(player, item)
 end
 
 --- Recomputes the player's $/s from their placed trophies. Call after any

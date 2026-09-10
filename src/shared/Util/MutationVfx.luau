@@ -133,6 +133,13 @@ function MutationVfx.apply(model: Model, mutationId: string?): boolean
 	if tint then
 		local highlight = Instance.new("Highlight")
 		highlight.Name = "MutationGlow"
+		-- OCCLUDED, NOT THROUGH THE WALL. A Highlight defaults to
+		-- DepthMode.AlwaysOnTop, which drew this glow straight through the
+		-- zone walls: a sealed container lit up from outside the building and
+		-- told a player exactly where the loot was (and, from its colour, that
+		-- it was mutated) before they could see it. Occluded keeps the glow
+		-- exactly as it looks in the open and hides it behind geometry.
+		highlight.DepthMode = Enum.HighlightDepthMode.Occluded
 		highlight.FillColor = tint
 		highlight.OutlineColor = tint
 		-- Escalate with the ladder: Shiny is a sheen, Corrupted is lurid.

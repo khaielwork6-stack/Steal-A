@@ -866,6 +866,16 @@ function BaseService.rebuildDisplays(player: Player)
 
 		local trophy = buildTrophy(item)
 		trophy.Name = "Trophy"
+		-- WHAT THIS ITEM ACTUALLY PAYS, for the floating "+$1,512" the client
+		-- pops over it once a second (BaseEarningsController). Deliberately the
+		-- MATURED rate rather than itemRate: a growing trophy is stamped with
+		-- the figure it is about to start paying, and the client starts popping
+		-- numbers the moment its own MaturationRemaining countdown reaches zero
+		-- - so a trophy that matures does not sit silent until the next rebuild.
+		--
+		-- Not item.FinalIncome: that is the card rate at moneyPass 1 and would
+		-- show the player a smaller number than the one hitting their Cash.
+		trophy:SetAttribute("IncomeRate", EconomyService.maturedRate(player, item))
 		trophy.Parent = slot
 		seatTrophy(trophy, slot, surfaceY)
 

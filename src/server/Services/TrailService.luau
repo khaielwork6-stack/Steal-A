@@ -41,6 +41,7 @@ local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
+local AttractionSign = require(ReplicatedStorage.Shared.Util.AttractionSign)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local DataService = require(script.Parent.DataService)
@@ -425,6 +426,31 @@ local function buildKeeper()
 	title.TextStrokeColor3 = Color3.fromRGB(24, 8, 44)
 	title.Text = "TRAILS SHOP"
 	title.Parent = gui
+
+	-- THE FLOATING MARKER. The board above the counter is the stall's own
+	-- signage and reads at the counter; it is a SurfaceGui on a flat face, so
+	-- from the spawn circle it is edge-on and effectively invisible. This is
+	-- the part that has to carry across the apron: one shared component so the
+	-- booth, the chest, the cage and the Guardian pedestal all announce
+	-- themselves the same way (AttractionSign).
+	local signAnchor = Instance.new("Part")
+	signAnchor.Name = "SignAnchor"
+	signAnchor.Size = Vector3.new(1, 1, 1)
+	signAnchor.Transparency = 1
+	signAnchor.Anchored = true
+	signAnchor.CanCollide = false
+	signAnchor.CanQuery = false
+	signAnchor.CanTouch = false
+	signAnchor.CFrame = base * CFrame.new(0, postHeight, 0)
+	signAnchor.Parent = model
+	AttractionSign.build(signAnchor, {
+		title = "Trail Shop",
+		subtitle = "EQUIP A TRAIL",
+		accent = Color3.fromRGB(255, 226, 70),
+		-- Clear of the awning, which overhangs the front of the stall.
+		height = 5.2,
+		width = 17,
+	})
 
 	-- A ribbon of every tier's colour along the counter front: the stall
 	-- advertises what it sells without a single piece of authored art.

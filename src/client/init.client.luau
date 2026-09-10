@@ -45,6 +45,9 @@ local OfflineEarningsController = require(script.Controllers.OfflineEarningsCont
 local CarryUIController = require(script.Controllers.CarryUIController)
 local TreadmillSpectateController = require(script.Controllers.TreadmillSpectateController)
 local HatchController = require(script.Controllers.HatchController)
+local EscapeFlashController = require(script.Controllers.EscapeFlashController)
+local BaseEarningsController = require(script.Controllers.BaseEarningsController)
+local AttractionSignController = require(script.Controllers.AttractionSignController)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
@@ -107,5 +110,13 @@ TreadmillSpectateController.start()
 -- The pedestal countdowns, the HATCH! prompt and the scripted reveal. Draws
 -- only; the server has already committed before any of it plays.
 HatchController.start()
+-- The light-yellow screen flash on a successful escape. Hangs off the same
+-- "Escape" sound cue the chase music stops on, so the two always agree.
+EscapeFlashController.start()
+-- The per-item "+$1,512" over your own base, on the income tick that pays it.
+BaseEarningsController.start()
+-- The bob on every safe-zone attraction arrow. The signs themselves are built
+-- server-side; only the motion is local.
+AttractionSignController.start()
 
 print("[Client] controllers started")

@@ -448,6 +448,57 @@ end
 -- TARGETING
 -- ==========================================================
 
+--- Is there a clear line from the camera to `part`?
+---
+-- WHY THIS EXISTS AT ALL
+-- The card is AlwaysOnTop, and a loot prompt deliberately runs with
+-- RequiresLineOfSight = false so that it is NOT hidden by the very item it
+-- belongs to. Together those two meant a "Steal / Mystery" card floated
+-- through the zone walls: standing outside a building you could read off
+-- exactly which sockets were loaded without ever seeing them.
+---
+-- The cast ignores the player and the prompt part's own model, so the item
+-- still cannot occlude its own prompt - the behaviour RequiresLineOfSight
+-- was turned off for - while a wall between the two hides the card as it
+-- should. Cast from the CAMERA, not the character: what matters is whether
+-- the player can SEE it, and at a base a pedestal often stands between the
+-- torso and the prompt while the card is plainly in view.
+local function hasLineOfSight(part: BasePart): boolean
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return true
+	end
+
+	local ignore: { Instance } = {}
+	local character = player.Character
+	if character then
+		table.insert(ignore, character)
+	end
+	-- The prompt part's whole model: loot sits on an anchor welded inside the
+	-- item, and a base slot's prompt lives on the pad under the pedestal.
+	local owner: Instance = part
+	local model = part:FindFirstAncestorWhichIsA("Model")
+	if model and model ~= workspace then
+		owner = model
+	end
+	table.insert(ignore, owner)
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	params.IgnoreWater = true
+
+	local origin = camera.CFrame.Position
+	local delta = part.Position - origin
+	if delta.Magnitude < 0.1 then
+		return true
+	end
+	local hit = workspace:Raycast(origin, delta, params)
+	-- Decor is already non-collidable (MapBuilder makes 3598 parts hollow), so
+	-- a hedge or a lamp post does not blank the card; walls and floors do.
+	return hit == nil or hit.Instance.CanCollide == false
+end
+
 --- Nearest currently-shown prompt, so walking past a row of slots highlights
 --- only the one the player actually means.
 ---
@@ -467,7 +518,7 @@ local function pickNearest(): ProximityPrompt?
 		local part = prompt.Parent
 		if prompt.Enabled and part and part:IsA("BasePart") and prompt:IsDescendantOf(workspace) then
 			local distance = (part.Position - origin.Position).Magnitude
-			if distance < bestDistance then
+			if distance < bestDistance and hasLineOfSight(part) then
 				best, bestDistance = prompt, distance
 			end
 		else

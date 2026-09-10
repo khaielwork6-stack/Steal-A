@@ -120,11 +120,20 @@ local WALK_RATE_MIN = 0.45
 local WALK_RATE_MAX = 2.2
 local WALK_LEAN = math.rad(-7) -- a slight forward lean while pursuing
 -- Tuned by measurement, not by feel: 110/72 threw the player 156 studs, which
--- launched them clean across the safe line and into the base plaza. These land
--- around 80-90 studs - clearly dramatic, still comfortably inside the lane.
-local CATCH_KNOCKBACK = 72
+-- launched them clean across the safe line and into the base plaza. 72 landed
+-- around 80-90 studs. The catch is now deliberately three times that push, by
+-- request - a caught thief is thrown a long way back down the lane, which is
+-- the point of being caught.
+--
+-- The stun is no longer a flat timer from the launch. At this knockback the
+-- arc alone can outlast a 1.6s timer, so a thief used to stand up mid-flight.
+-- CATCH_STUN is now only the minimum airborne time, and CATCH_GROUND_STUN is
+-- the two seconds they stay down AFTER touching the ground; immunity is
+-- extended from the landing rather than fixed here.
+local CATCH_KNOCKBACK = 216
 local CATCH_LIFT = 62
-local CATCH_STUN = 1.6
+local CATCH_STUN = 0.35
+local CATCH_GROUND_STUN = 2
 local CATCH_IMMUNITY = 2.5
 local SAFE_LINE_MARGIN = 6 -- studs the guardian keeps on the danger side
 
@@ -1282,6 +1291,7 @@ local function ragdollAndLaunch(player: Player, fromPosition: Vector3)
 		knockback = CATCH_KNOCKBACK,
 		lift = CATCH_LIFT,
 		stun = CATCH_STUN,
+		groundStun = CATCH_GROUND_STUN,
 		immunity = CATCH_IMMUNITY,
 	})
 end

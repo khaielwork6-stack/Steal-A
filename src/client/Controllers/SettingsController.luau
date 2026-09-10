@@ -33,6 +33,9 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local DisplayFxController = require(script.Parent.DisplayFxController)
 local NightController = require(script.Parent.NightController)
 local WorldLootFxController = require(script.Parent.WorldLootFxController)
+local EscapeFlashController = require(script.Parent.EscapeFlashController)
+local BaseEarningsController = require(script.Parent.BaseEarningsController)
+local AttractionSignController = require(script.Parent.AttractionSignController)
 
 local SettingsController = {}
 
@@ -73,6 +76,9 @@ local function applyReduced(reduced: boolean)
 	NightController.setReducedEffects(reduced)
 	DisplayFxController.setReducedEffects(reduced)
 	WorldLootFxController.setReducedEffects(reduced)
+	EscapeFlashController.setReducedEffects(reduced)
+	BaseEarningsController.setReducedEffects(reduced)
+	AttractionSignController.setReducedEffects(reduced)
 end
 
 local function applyAll()

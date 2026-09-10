@@ -29,6 +29,7 @@ local TweenService = game:GetService("TweenService")
 local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local AttractionSign = require(ReplicatedStorage.Shared.Util.AttractionSign)
 
 local GiftChestService = {}
 
@@ -121,6 +122,34 @@ function GiftChestService.start()
 	light.Range = 16
 	light.Shadows = false
 	light.Parent = chest
+
+
+	-- THE FLOATING MARKER, above the FREE! line rather than replacing it. The
+	-- two do different jobs and the hierarchy is the point: the title says what
+	-- this is and carries across the apron, the line under it says whether
+	-- there is anything to collect (GroupGiftController flips that label to
+	-- CLAIMED and sweeps its rainbow, so it is left exactly as it is).
+	local signAnchor = Instance.new("Part")
+	signAnchor.Name = "SignAnchor"
+	signAnchor.Size = Vector3.new(1, 1, 1)
+	signAnchor.Transparency = 1
+	signAnchor.Anchored = true
+	signAnchor.CanCollide = false
+	signAnchor.CanQuery = false
+	signAnchor.CanTouch = false
+	signAnchor.CFrame = CFrame.new(spot.X, restY + chest.Size.Y / 2, spot.Z)
+	signAnchor.Parent = model
+	AttractionSign.build(signAnchor, {
+		title = "Gift Chest",
+		-- No subtitle: FREE! is already the hook, one line below this.
+		accent = FREE_COLOR,
+		-- Clear of the FREE! sign, and MEASURED rather than estimated: the chest
+		-- mesh is scaled at run time, so FREE! ends up at Y 14.88 and a 7.4 lift
+		-- put this band at 14.71 - the arrow landed directly on top of the word
+		-- it is supposed to be pointing past. This clears it by a full stud.
+		height = 9.6,
+		width = 15,
+	})
 
 	-- FREE! over the top, sized in studs so it is the same on every screen.
 	local sign = Instance.new("BillboardGui")

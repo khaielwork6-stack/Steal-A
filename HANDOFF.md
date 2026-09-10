@@ -4035,3 +4035,178 @@ value was touched, and no ItemId was renamed.
 - `Pirate_CursedCoin` has no art (pre-existing, unchanged).
 - `Museum_PharaohMask` still displays as "Pharaoh Mask" — only its art was
   replaced. Renaming it is a question for the owner.
+
+## 41. Feedback and safe-zone polish — escape flash, catch weight, floating earnings, attraction signage
+
+Seven presentation changes. Nothing about the economy, the odds, the loot
+tables or the save format moved.
+
+### The escape flash
+
+`EscapeFlashController` — a light-yellow full-screen flash on a successful
+escape: a 0.05s rise, then a brighter core and a warm wash falling away over
+0.16s and 0.34s. It hangs off the **"Escape" sound cue** rather than a new
+remote, so it fires on all three paths that already count as getting away with
+something (crossing the safe line, the quiet "SAFE!" delivery with no chase, a
+base heist) and can never drift out of step with the sting or the chase-music
+cut, which listen to the same cue.
+
+It is input-inert for its whole life — plain Frames, `Active = false`,
+`Interactable = false`, no GuiButton — because on touch it covers the
+thumbstick and the jump button. No image asset: a radial bloom would look
+better, but this experience already has one asset that fails to load at
+runtime and a full-screen flash is the wrong place to risk a second.
+
+Measured live: peaks at exactly the configured 0.62 / 0.42 and disables itself
+on the way out.
+
+### The catch: three times the push, and a stun measured from the LANDING
+
+`CATCH_KNOCKBACK` 72 → **216**, by request. Measured on flat ground that is
+123 → 172 studs thrown; distance is very sub-linear in the force, because the
+tumble and slide after landing dominate. Tripling the *distance* instead was
+considered and rejected: at ~370 studs a caught thief lands outside the lane,
+and the existing tuning note already records a 156-stud throw putting players
+across the safe line into the base plaza.
+
+The bigger change is that the ragdoll no longer ends on a fixed timer from the
+launch. At this knockback the arc alone outlasts the old 1.6s, so a thief
+stood up mid-flight. `RagdollService.LaunchOptions` gained **`groundStun`**:
+when it is set, `stun` becomes only a minimum airborne time and recovery is
+measured from the moment the player actually lands.
+
+Landing is polled — a downward raycast plus a vertical-speed test — because
+`PlatformStand` holds the humanoid in `Physics` for the whole flight, so
+`Landed` never fires and `FloorMaterial` stays `Air` the entire time.
+Immunity is extended from the landing rather than fixed at launch, so a long
+arc cannot leave a player hittable while still tumbling, and an 8-second
+timeout stands up anyone who lands somewhere the raycast cannot resolve.
+
+The guardian is the only caller that passes `groundStun`; the bat and the Slap
+keep the flat `stun` they have always had. Measured: landed 1.16s after the
+hit, stood at 3.21s, **ground ragdoll 2.05s** against a 2.00 target, and
+walkable immediately after.
+
+### The opening popup is gone
+
+`TutorialController` no longer draws the first-start popup ("STEAL MYSTERY
+LOOT, ESCAPE THE GUARD, THEN REVEAL IT AT YOUR BASE!"). The server still sends
+the `showIntro` flag and it is simply ignored here, so nothing on the save or
+tutorial side had to change. The objective arrow is untouched.
+
+### Loot no longer reads through walls
+
+Two separate causes, both fixed:
+
+- **`MutationVfx`** built its `Highlight` without setting `DepthMode`, and the
+  default is `AlwaysOnTop`. Every mutated sealed container was glowing through
+  the zone walls — and its colour named the mutation before the player could
+  even see the crate. Now `Occluded`. Audited live: 6 of 6 glows occluded, and
+  no non-occluded Highlight left anywhere in the workspace.
+- **The interact card** is `AlwaysOnTop`, and a loot prompt deliberately runs
+  with `RequiresLineOfSight = false` so the item cannot hide its own prompt.
+  Between them a "Steal / Mystery" card floated through walls, so from outside
+  a building you could read off exactly which sockets were loaded.
+  `InteractController.pickNearest` now casts from the CAMERA to the prompt
+  part, ignoring the player and the prompt's own model — so the item still
+  cannot occlude its own prompt, which is what that flag was turned off for,
+  while a wall between the two hides the card. Non-collidable decor is ignored
+  (MapBuilder makes 3598 parts hollow), so a hedge or a lamp post does not
+  blank it.
+
+  Verified: wall between → hidden; wall removed, same spot → shown; and shown
+  from every angle where only the crate's own model is in the way.
+
+### Floating base earnings
+
+`BaseEarningsController` pops "+$1,512" off each earning trophy once a second,
+on `GameConfig.INCOME_TICK` — the same second the server actually pays.
+
+- The figure is a new **`IncomeRate`** attribute stamped by `BaseService`, from
+  the new `EconomyService.maturedRate`. Deliberately NOT `item.FinalIncome`,
+  which is the card rate at moneyPass 1 and understates what lands in Cash.
+  `itemRate` now calls `maturedRate` after its own gates, so there is one
+  multiplier chain rather than two that can drift.
+- **Own base only.** Seven plots x fourteen slots would put a hundred labels a
+  second over the plaza and make every base unreadable, including the one a
+  visitor came to look at.
+- **Overlap is prevented by construction**: one reusable label per trophy,
+  living just under a tick — so a trophy can never have two of its own numbers
+  in the air, and nothing is created or destroyed per second — plus a per-slot
+  phase offset so neighbours never fire on the same frame.
+- It starts 5.8 studs above the item, which clears `TrophyLabel` (seated at 2.4
+  and 3.6 studs tall). At the first attempt's 4.6 the number rose straight
+  through the item's own name and rate.
+- A growing trophy stays silent: `MaturationRemaining` is counted down locally,
+  so it starts popping the moment it matures rather than waiting for a rebuild,
+  and never advertises income it is not paying.
+
+Verified live: four trophies popping +$45, +$1,100, +$22,000 and +$600 against
+a HUD reading $23.7K/s — 45 + 1100 + 22000 + 600 = 23,745.
+
+### Safe-zone attractions
+
+New shared `AttractionSign` is the ONE component for a hub marker: a bold
+title, an optional subtitle, and a down chevron, sized in studs. Every
+attraction had been drawing its own sign in its own service with its own font
+sizes and strokes, so from the apron they read as unrelated scenery rather
+than as things to walk over to.
+
+`AttractionSignController` does the bob: client-side, and clock-derived rather
+than a counter, so a sign approached from across the apron is already at the
+point in its bob it would have reached had it been watched the whole time. The
+phase comes from the sign's own world position, so neighbours are visibly out
+of step instead of pulsing in unison. Server-side tweening was rejected — it
+would replicate every step of a cosmetic wobble to every client forever.
+
+Applied to:
+
+- **Trail Shop** — a full sign. Its existing board is a SurfaceGui on a flat
+  face, so it is edge-on and effectively invisible from the spawn circle.
+- **Gift Chest** — title above, with the existing FREE! line kept below it as
+  the status. `GroupGiftController` flips that label to CLAIMED and sweeps its
+  rainbow, so it was left exactly as it is. The lift is **measured, not
+  estimated**: the chest mesh is scaled at run time, and the first attempt put
+  the arrow directly on top of the word it was meant to be pointing past.
+- **Slap cage** — the arrow was added into the sign it already had, rather
+  than a second billboard over the top of it. Its stack was already in the
+  right order, and `SlapDisplayController` finds "Slam" and its gradient by
+  name.
+- **Guardian pedestal** — see below.
+
+There is NO world Item Shop object in this game; the Shop is a HUD button, so
+there was nothing on the apron to mark.
+
+### The guardian sale sign
+
+Rebuilt for hierarchy. The old sign gave the name, the LIMITED TIME! banner
+and the price near-equal weight, so from any distance it read as four
+competing lines and the eye had nowhere to land. Now, in the order a buyer
+needs them: a small **LIMITED TIME** kicker, the **NAME** far the largest and
+in the animal's own colour, the **PRICE** second, the **countdown** smallest
+and quietest (it is the one line that changes every second, so it must never
+be the thing that catches the eye), then the arrow.
+
+The four label NAMES are an interface — `GuardianShopController` finds "Timer"
+and "Limited" by name to run the countdown and the pulse — so they keep the
+names they have always had however the layout around them moves. Outlines are
+now `UIStroke` rather than `TextStrokeTransparency`, which is a fixed
+one-pixel smear that vanishes at the distance this sign is meant to be read
+from.
+
+The countdown is driven off Heartbeat and re-texted only when the second it
+would display actually changes, replacing a `task.wait(1)` loop. `task.wait(1)`
+sleeps for *at least* a second, so the old loop drifted further behind the
+clock on every pass and the sign would visibly hold a value for two beats and
+then skip one.
+
+### Verified
+
+`[Config] validation PASSED - 1523 checks`, `[EconomyTests] PASSED - 202280
+checks`, `upright` 0 offenders, `lootAudit` 95 ok / 1 without art, plus the
+per-feature measurements quoted above.
+
+**Mobile:** everything added is either stud-sized world signage (identical on
+every device), server-side physics, or the input-inert flash, and nothing added
+branches on `Device`. The Studio device emulator cannot be driven over the MCP
+connection, so the phone-layout pass is the one check not run from here.

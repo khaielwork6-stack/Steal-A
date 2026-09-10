@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
+local AttractionSign = require(ReplicatedStorage.Shared.Util.AttractionSign)
 local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
@@ -54,7 +55,25 @@ local function priceText(key: string): string
 	return if price then `R${price}` else "R$ ..."
 end
 
-local function label(parent: Instance, name: string, y: number, height: number, color: Color3, size: number): TextLabel
+--- One line of the sale sign.
+---
+--- THE NAMES ARE AN INTERFACE. GuardianShopController finds "Timer" and
+--- "Limited" by name to run the countdown and the pulse, so the four labels
+--- keep the names they have always had however the layout around them moves.
+---
+--- UIStroke rather than TextStrokeTransparency: the old sign leaned on the
+--- built-in stroke, which is a fixed one-pixel smear and vanishes at the
+--- distance this sign is meant to be read from. A real outline scaled to the
+--- line's weight is most of why the rebuilt sign reads from the spawn circle.
+local function label(
+	parent: Instance,
+	name: string,
+	y: number,
+	height: number,
+	color: Color3,
+	size: number,
+	stroke: number
+): TextLabel
 	local text = Instance.new("TextLabel")
 	text.Name = name
 	text.Size = UDim2.fromScale(1, height)
@@ -63,10 +82,19 @@ local function label(parent: Instance, name: string, y: number, height: number, 
 	text.Font = Enum.Font.FredokaOne
 	text.TextScaled = true
 	text.TextColor3 = color
-	text.TextStrokeTransparency = 0.1
-	text.TextStrokeColor3 = Color3.fromRGB(14, 12, 30)
+	text.TextStrokeTransparency = 1
 	text.Text = ""
 	text.Parent = parent
+
+	local outline = Instance.new("UIStroke")
+	outline.Thickness = stroke
+	outline.Color = Color3.fromRGB(12, 10, 26)
+	outline.Transparency = 0
+	-- Contextual, so the outline follows the glyphs rather than boxing the
+	-- label, which is what makes a heavy stroke look deliberate.
+	outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	outline.Parent = text
+
 	local limit = Instance.new("UITextSizeConstraint")
 	limit.MaxTextSize = size
 	limit.Parent = text
@@ -173,7 +201,23 @@ local function buildStatic(map: Instance): Model
 	p.Parent = anchor
 	prompt = p
 
-	-- The sign: name, LIMITED TIME!, price, countdown - over the animal.
+	-- THE SALE SIGN. Rebuilt for hierarchy: the old one gave the name, the
+	-- LIMITED TIME! banner and the price near-equal weight, so from any
+	-- distance it read as four competing lines and the eye had nowhere to land.
+	--
+	-- The order below is what the player needs, in that order:
+	--   1 LIMITED TIME   a small kicker. It qualifies the offer, so it sits
+	--                    above the name and is the smallest thing on the sign
+	--                    rather than shouting alongside it.
+	--   2 the NAME       far and away the biggest line, in the animal's own
+	--                    colour. This is the one thing that must read from the
+	--                    spawn circle.
+	--   3 the PRICE      second biggest. The decision, once they have looked.
+	--   4 the TIMER      the smallest and the quietest: it matters only once
+	--                    they are already interested, and it is the one line
+	--                    that changes every second, so it must never be the
+	--                    thing that catches the eye.
+	--   5 the ARROW      which of the things on the apron this is about.
 	local signAnchor = Instance.new("Part")
 	signAnchor.Name = "SignAnchor"
 	signAnchor.Size = Vector3.new(1, 1, 1)
@@ -187,19 +231,38 @@ local function buildStatic(map: Instance): Model
 
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "Sign"
-	gui.Size = UDim2.fromScale(17, 9)
+	gui.Size = UDim2.fromScale(18, 11)
 	gui.AlwaysOnTop = false
 	gui.LightInfluence = 0
-	gui.MaxDistance = 220
+	gui.MaxDistance = 260
 	gui.Adornee = signAnchor
 	gui.Parent = signAnchor
 
-	labels.Name = label(gui, "Name", 0, 0.34, Color3.fromRGB(255, 255, 255), 60)
-	labels.Limited = label(gui, "Limited", 0.34, 0.2, Color3.fromRGB(255, 226, 90), 40)
-	labels.Limited.Text = "LIMITED TIME!"
-	labels.Price = label(gui, "Price", 0.55, 0.24, Color3.fromRGB(126, 255, 148), 46)
-	labels.Timer = label(gui, "Timer", 0.79, 0.21, Color3.fromRGB(230, 236, 250), 34)
+	labels.Limited = label(gui, "Limited", 0, 0.12, Color3.fromRGB(255, 226, 90), 26, 2)
+	labels.Limited.Text = "LIMITED TIME"
+	labels.Name = label(gui, "Name", 0.12, 0.31, Color3.fromRGB(255, 255, 255), 68, 4)
+	labels.Price = label(gui, "Price", 0.45, 0.21, Color3.fromRGB(126, 255, 148), 48, 3)
+	labels.Timer = label(gui, "Timer", 0.68, 0.14, Color3.fromRGB(214, 222, 240), 26, 2)
 	labels.Timer.Text = "New Guardian In: --:--:--"
+
+	local arrow = Instance.new("TextLabel")
+	arrow.Name = "Arrow"
+	arrow.AnchorPoint = Vector2.new(0.5, 0)
+	arrow.Size = UDim2.fromScale(0.3, 0.17)
+	arrow.Position = UDim2.fromScale(0.5, 0.83)
+	arrow.BackgroundTransparency = 1
+	arrow.Font = Enum.Font.FredokaOne
+	arrow.TextScaled = true
+	arrow.TextColor3 = Color3.fromRGB(255, 255, 255)
+	arrow.TextStrokeColor3 = Color3.fromRGB(12, 10, 26)
+	arrow.TextStrokeTransparency = 0
+	arrow.Text = "\226\150\188"
+	arrow:SetAttribute(AttractionSign.ARROW_TAG, true)
+	arrow:SetAttribute("RestY", arrow.Position.Y.Scale)
+	arrow.Parent = gui
+	local arrowCap = Instance.new("UITextSizeConstraint")
+	arrowCap.MaxTextSize = 46
+	arrowCap.Parent = arrow
 
 	model.Parent = map
 	return model

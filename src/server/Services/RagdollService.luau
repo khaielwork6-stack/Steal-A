@@ -19,6 +19,11 @@ export type LaunchOptions = {
 	knockback: number,
 	lift: number,
 	stun: number,
+	--- When set, recovery is measured from the moment the player LANDS
+	--- rather than from the launch: they stay down for this many seconds
+	--- after touching the ground, however long the arc took. `stun` is then
+	--- the floor (a minimum airborne time) rather than the whole timer.
+	groundStun: number?,
 	immunity: number,
 }
 
@@ -39,6 +44,45 @@ end
 
 function RagdollService.grantImmunity(player: Player, seconds: number)
 	immuneUntil[player] = math.max(immuneUntil[player] or 0, os.clock() + seconds)
+end
+
+--- Seconds to keep polling for a landing before giving up and standing the
+--- player up anyway. A launch that clears the map (or lands somewhere the
+--- raycast never resolves) must not leave anyone face-down forever.
+local LANDING_TIMEOUT = 8
+--- Below this vertical speed the character is no longer travelling, which
+--- separates "resting on the ground" from "skimming it at the top of a bounce".
+local LANDED_SPEED = 8
+--- How far under the root counts as ground contact.
+local LANDED_PROBE = 5
+
+--- Resolves once `root` is resting on something, or once LANDING_TIMEOUT has
+--- passed. Polled rather than driven by Humanoid.StateChanged: PlatformStand
+--- puts the humanoid in Physics for the whole flight, so Landed never fires
+--- and FloorMaterial stays Air the entire time.
+local function waitForLanding(root: BasePart, minimumAirborne: number)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { root.Parent :: Instance }
+
+	local deadline = os.clock() + LANDING_TIMEOUT
+	-- Always spend the minimum in the air, so a player launched into a wall
+	-- at point-blank range still gets the arc rather than an instant recovery.
+	if minimumAirborne > 0 then
+		task.wait(minimumAirborne)
+	end
+	while os.clock() < deadline do
+		if not root.Parent then
+			return
+		end
+		if math.abs(root.AssemblyLinearVelocity.Y) < LANDED_SPEED then
+			local hit = workspace:Raycast(root.Position, Vector3.new(0, -LANDED_PROBE, 0), params)
+			if hit then
+				return
+			end
+		end
+		task.wait(0.1)
+	end
 end
 
 --- Launches `player` away from `fromPosition`. Returns false when they were
@@ -92,7 +136,7 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 		attachment:Destroy()
 	end)
 
-	task.delay(options.stun, function()
+	local function standUp()
 		if not humanoid.Parent or humanoid.Health <= 0 then
 			return
 		end
@@ -101,7 +145,22 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 		pcall(function()
 			root:SetNetworkOwner(player)
 		end)
-	end)
+	end
+
+	if options.groundStun then
+		-- Down for a fixed spell AFTER the landing. The flight is not part of
+		-- the punishment, so a long arc and a short one cost the same time on
+		-- the floor, and immunity is extended to cover however long that took
+		-- rather than expiring mid-tumble and letting a second hit chain.
+		task.spawn(function()
+			waitForLanding(root, options.stun)
+			RagdollService.grantImmunity(player, options.groundStun + 0.35)
+			task.wait(options.groundStun)
+			standUp()
+		end)
+	else
+		task.delay(options.stun, standUp)
+	end
 
 	return true
 end
