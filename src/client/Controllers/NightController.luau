@@ -78,14 +78,27 @@ local BARRIER_OUT = TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirecti
 
 --- The barrier: lane-wide plus the walls, taller than the walls, just past the
 --- red line so it sits in front of the first zone from the lobby's side.
-local BARRIER_WIDTH = MapConfig.LANE_WIDTH + 2 * MapConfig.WALL_THICKNESS + 80
+-- WIDE ENOUGH THAT THERE IS NO WAY ROUND IT. The lane is 160 studs across
+-- and the old slab cleared it by forty either side, which is fine standing
+-- in the middle of the lobby and useless from the corners: walk wide enough
+-- and the first zone reappears past the edge. This spans the lobby rather
+-- than the lane. It costs nothing - one invisible part that is only shown
+-- for the ten seconds of Night - and the message on it is pinned to a fixed
+-- centred block (see buildFace) so the extra width is plain gradient.
+local BARRIER_WIDTH = MapConfig.LANE_WIDTH + 2 * MapConfig.WALL_THICKNESS + 420
 local BARRIER_HEIGHT = 170
+--- The message block, in studs, centred on the slab and independent of how
+--- wide the slab is. Roughly the width of the lane, so it reads as a sign
+--- across the entrance rather than as text stretched over the whole lobby.
+local BARRIER_MESSAGE_WIDTH = 170
+local BARRIER_MESSAGE_HEIGHT = 96
 --- Just past the line: between the red stripe and the first zone's sign
 --- boards, so nothing of the world stands in front of it. Four studs thick,
 --- not one: a camera orbiting hard against a thin plane can end up on the far
---- side of it between two frames, and four studs is more than the popper will
---- ever step through in one move.
-local BARRIER_THICKNESS = 4
+--- side of it between two frames. Three studs is still more than the camera
+--- popper steps through in a frame, and a curtain across the entrance should
+--- read as a curtain rather than as a block of masonry.
+local BARRIER_THICKNESS = 3
 local BARRIER_STANDOFF = 0.8
 --- How far the slab is buried below the floor. Without it a player looking up
 --- from a crouch at the foot of the barrier sees the world under its bottom
@@ -317,12 +330,32 @@ local function buildFace(part: BasePart, face: Enum.NormalId)
 	gradient.Color = ColorSequence.new(BARRIER_TOP, BARRIER_BOTTOM)
 	gradient.Parent = panel
 
-	barrierLabel(panel, "Moon", UDim2.fromScale(0.36, 0.4), UDim2.fromScale(0.22, 0.42), "🌙", BARRIER_INK)
-	local countdown = barrierLabel(panel, "Countdown", UDim2.fromScale(0.62, 0.4), UDim2.fromScale(0.28, 0.38), "10s", BARRIER_INK)
+	-- THE MESSAGE IS A FIXED PHYSICAL SIZE, CENTRED. The slab is deliberately
+	-- far wider than the lane so nobody can look past its edges, and the
+	-- labels used to be laid out as fractions OF that slab - so every stud of
+	-- extra width stretched the moon, the clock and the title with it until
+	-- the countdown was spread across half the lobby. Sizing this block in
+	-- studs (through the SurfaceGui's pixels-per-stud) instead pins the
+	-- message to the middle of the entrance at a constant size, and widening
+	-- the occluder only ever adds plain gradient either side of it.
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.AnchorPoint = Vector2.new(0.5, 0.5)
+	content.Position = UDim2.fromScale(0.5, 0.5)
+	content.Size = UDim2.fromOffset(
+		BARRIER_MESSAGE_WIDTH * BARRIER_PIXELS_PER_STUD,
+		BARRIER_MESSAGE_HEIGHT * BARRIER_PIXELS_PER_STUD
+	)
+	content.BackgroundTransparency = 1
+	content.BorderSizePixel = 0
+	content.Parent = panel
+
+	barrierLabel(content, "Moon", UDim2.fromScale(0.36, 0.4), UDim2.fromScale(0.22, 0.42), "🌙", BARRIER_INK)
+	local countdown = barrierLabel(content, "Countdown", UDim2.fromScale(0.62, 0.4), UDim2.fromScale(0.28, 0.38), "10s", BARRIER_INK)
 	countdown.TextXAlignment = Enum.TextXAlignment.Left
-	barrierLabel(panel, "Title", UDim2.fromScale(0.5, 0.72), UDim2.fromScale(0.86, 0.12), "NIGHT — LOOT REFRESHING", BARRIER_INK)
+	barrierLabel(content, "Title", UDim2.fromScale(0.5, 0.72), UDim2.fromScale(0.86, 0.12), "NIGHT — LOOT REFRESHING", BARRIER_INK)
 	barrierLabel(
-		panel,
+		content,
 		"Subtitle",
 		UDim2.fromScale(0.5, 0.83),
 		UDim2.fromScale(0.86, 0.06),
