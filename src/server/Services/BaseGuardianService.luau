@@ -468,6 +468,91 @@ local function ensureBay(plot: Instance): Model?
 end
 
 -- ==========================================================
+-- THE EMPTY BAY SELLS
+-- ==========================================================
+--
+-- Standing on your own EMPTY bay, owning no animal at all, opens the Robux
+-- dialog for one of the two currently on sale - picked at random between them,
+-- so the pad is not quietly a billboard for whichever one happens to be first.
+--
+-- Three things keep this from being obnoxious, and all three matter:
+--   * It only fires for a player who owns NOTHING. Someone who owns an animal
+--     and has not equipped it is not a customer, they are a player who needs
+--     Storage, and selling them a second one would be a bug.
+--   * One offer per OFFER_COOLDOWN, whatever they do with the dialog. Walking
+--     on and off the pad cannot reopen it, and neither can dying on it.
+--   * The key is checked against the live on-sale list by
+--     `promptGuardianPass` before any dialog opens.
+--
+-- Roblox's own purchase dialog is what actually asks for money; nothing here
+-- can complete a purchase, and ProcessReceipt remains the only thing that
+-- grants one.
+
+--- Seconds before the pad will offer the same player anything again.
+local OFFER_COOLDOWN = 45
+--- How often the pad is checked. It is a footprint test per player, so this is
+--- cheap; a second is well inside "stepped on it".
+local OFFER_TICK = 1
+
+local nextOfferAt: { [Player]: number } = {}
+
+--- True when the player is physically standing on their OWN bay platform.
+--- Same shape as SpeedService's treadmill test, so "standing on it" means one
+--- thing across the codebase.
+local function isOnOwnBay(player: Player): boolean
+	local plot = BaseService.getPlot(player)
+	local bay = plot and plot:FindFirstChild(BAY_NAME)
+	local platform = bay and bay:FindFirstChild("Platform")
+	if not platform or not platform:IsA("BasePart") then
+		return false
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return false
+	end
+	local offset = platform.CFrame:PointToObjectSpace(root.Position)
+	local half = platform.Size / 2
+	-- Generous vertically: the platform is a thin slab and the player is
+	-- standing ON it, not inside it.
+	return math.abs(offset.X) <= half.X and math.abs(offset.Z) <= half.Z and math.abs(offset.Y) <= 8
+end
+
+local function offerOnBay(player: Player)
+	if os.clock() < (nextOfferAt[player] or 0) then
+		return
+	end
+	local profile = DataService.get(player)
+	if not profile or byOwner[player] then
+		return
+	end
+	-- Owning ANY animal disqualifies them: the bay is empty because nothing is
+	-- equipped, and the answer to that is Storage, not a purchase.
+	for _, def in BaseGuardianConfig.Guardians do
+		if BaseGuardianService.owns(player, def.key) then
+			return
+		end
+	end
+	if not isOnOwnBay(player) then
+		return
+	end
+
+	local onSale = MonetizationService.guardiansOnSale()
+	if #onSale == 0 then
+		return
+	end
+	-- Stamped BEFORE the dialog, so a failure to open still costs the cooldown
+	-- and cannot turn into a prompt every tick.
+	nextOfferAt[player] = os.clock() + OFFER_COOLDOWN
+
+	local key = onSale[math.random(#onSale)]
+	local ok, reason = MonetizationService.promptGuardianPass(player, key)
+	if not ok and reason then
+		notify(player, "info", reason)
+	end
+end
+
+-- ==========================================================
 -- SPAWN / DESPAWN
 -- ==========================================================
 
@@ -1233,6 +1318,21 @@ function BaseGuardianService.start()
 			end
 		end
 		requestLimiter:release(player)
+		nextOfferAt[player] = nil
+	end)
+
+	-- The empty bay's offer. A footprint test per player once a second; every
+	-- condition that decides whether anything opens is re-read inside.
+	task.spawn(function()
+		while true do
+			task.wait(OFFER_TICK)
+			for _, player in Players:GetPlayers() do
+				local ok, err = pcall(offerOnBay, player)
+				if not ok then
+					warn(`[BaseGuardianService] bay offer failed for {player.Name}: {err}`)
+				end
+			end
+		end
 	end)
 
 	StateService.addProvider("guardians", BaseGuardianService.summarise)

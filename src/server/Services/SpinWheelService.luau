@@ -215,9 +215,15 @@ local function onTriggered(player: Player, wheel: Wheel)
 
 	-- 3. THE CLOCK, re-checked against the profile at the exact moment of the
 	--    spin. The client's countdown is a picture of this and never an input.
+	--
+	--    NO TOAST. The owner's client already knows the answer - it is drawing
+	--    the same countdown - and it says so on the prompt card the moment the
+	--    hold completes, which is where the player is looking. A toast across
+	--    the screen for "not yet" is noise. The refusal itself still happens
+	--    here, because a client that has been told to stop asking is not the
+	--    same thing as a client that cannot.
 	local remaining = remainingFor(profile)
 	if remaining > 0 then
-		StateService.notify(player, "info", `Free spin in {SpinWheelService.formatRemaining(remaining)}.`)
 		return
 	end
 

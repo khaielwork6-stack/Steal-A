@@ -276,7 +276,11 @@ local function buildCard(): boolean
 	panel.Position = UDim2.fromScale(0.5, 0.5)
 	panel.Size = UDim2.fromOffset(CARD_WIDTH, CARD_HEIGHT)
 	panel.BackgroundColor3 = PANEL_COLOR
-	panel.BackgroundTransparency = 0.08
+	-- Glassy rather than solid. The card floats over the thing it acts on, and
+	-- at 0.08 it was a slab that hid whatever the player had walked up to. The
+	-- text keeps its own stroke, so legibility comes from the glyphs and not
+	-- from painting out the world behind them.
+	panel.BackgroundTransparency = 0.42
 	panel.BorderSizePixel = 0
 	panel.ZIndex = 2
 	panel.Parent = hit
@@ -286,6 +290,10 @@ local function buildCard(): boolean
 	local edge = Instance.new("UIStroke")
 	edge.Thickness = 3
 	edge.Color = PANEL_EDGE
+	-- The outline carries the card's shape now that the fill barely does, so it
+	-- is softened rather than removed: a hard black rim around a glass panel
+	-- reads as a mistake.
+	edge.Transparency = 0.25
 	edge.Parent = panel
 	cardEdge = edge
 	local gradient = Instance.new("UIGradient")
@@ -559,27 +567,61 @@ local function keyNameFor(prompt: ProximityPrompt): string
 	return prompt.KeyboardKeyCode.Name
 end
 
+--- Writes both lines of the card from one prompt.
+---
+--- THE OBJECT LINE IS OPTIONAL. A prompt that leaves ObjectText empty gets a
+--- card with the action ALONE, centred, at the size the two-line layout gives
+--- the object line - so "HOLD Store" reads as the message rather than sitting
+--- in the bottom half of a card with a blank space over it. Display slots do
+--- exactly this: their old "Display Slot 3" told the player nothing they were
+--- not already standing on.
+local function setLines(prompt: ProximityPrompt)
+	local action = if prompt.HoldDuration > 0 then `HOLD  {prompt.ActionText}` else prompt.ActionText
+	local object = prompt.ObjectText
+	objectLabel.Text = object
+	actionLabel.Text = action
+
+	local textLeft = 9 + KEY_SIZE + 10
+	if object == "" then
+		objectLabel.Visible = false
+		actionLabel.Position = UDim2.new(0, textLeft, 0.5, -15)
+		actionLabel.Size = UDim2.new(1, -textLeft - 12, 0, 30)
+		actionLabel.TextColor3 = OBJECT_COLOR
+	else
+		objectLabel.Visible = true
+		actionLabel.Position = UDim2.new(0, textLeft, 0, 46)
+		actionLabel.Size = UDim2.new(1, -textLeft - 12, 0, 24)
+		actionLabel.TextColor3 = ACTION_COLOR
+	end
+end
+
 --- The current prompt can be RETITLED under us: a display slot flips from
---- "Instant Reveal" to "Reveal" the second its container is ready. This
---- follows that change on the one prompt being shown, so the card never
---- has to be re-applied to notice.
-local retitle: RBXScriptConnection? = nil
+--- "Instant Reveal" to "Reveal" the second its container is ready, and the
+--- spin wheel answers a too-early attempt by putting the time left on its own
+--- object line. This follows BOTH on the one prompt being shown, so the card
+--- never has to be re-applied to notice.
+local retitle: { RBXScriptConnection } = {}
 
 --- Swaps content in place. Never creates a second card.
 local function apply(prompt: ProximityPrompt?)
 	if prompt == current then
 		return
 	end
-	if retitle then
-		retitle:Disconnect()
-		retitle = nil
+	for _, connection in retitle do
+		connection:Disconnect()
 	end
+	table.clear(retitle)
 	if prompt then
-		retitle = prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
-			if prompt == current then
-				actionLabel.Text = if prompt.HoldDuration > 0 then `HOLD  {prompt.ActionText}` else prompt.ActionText
-			end
-		end)
+		for _, property in { "ActionText", "ObjectText" } do
+			table.insert(
+				retitle,
+				prompt:GetPropertyChangedSignal(property):Connect(function()
+					if prompt == current then
+						setLines(prompt)
+					end
+				end)
+			)
+		end
 	end
 	local gui = board
 	if not gui or not gui:IsDescendantOf(game) then
@@ -622,8 +664,7 @@ local function apply(prompt: ProximityPrompt?)
 	gui.Adornee = part
 	gui.StudsOffsetWorldSpace = Vector3.new(0, liftFor(part), 0)
 
-	objectLabel.Text = prompt.ObjectText
-	actionLabel.Text = if prompt.HoldDuration > 0 then `HOLD  {prompt.ActionText}` else prompt.ActionText
+	setLines(prompt)
 	keyLabel.Text = keyNameFor(prompt)
 	ringAlpha.Value = 0
 	paintRing()

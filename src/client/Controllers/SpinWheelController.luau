@@ -29,6 +29,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -257,6 +258,13 @@ local READY_TEXT = "READY!"
 --- So the ready pulse fires once per readiness, not once per frame.
 local announcedReady = false
 
+--- os.clock() until which a too-early hold is still being answered on the
+--- prompt card. See onEarlyAttempt.
+local tooEarlyUntil = 0
+--- How long that answer stays up. Long enough to read, short enough that it is
+--- gone before the player tries again.
+local TOO_EARLY_SECONDS = 3
+
 local function remainingSeconds(): number
 	local wheel = owned
 	if not wheel then
@@ -269,9 +277,13 @@ local function remainingSeconds(): number
 	return readyAt - workspace:GetServerTimeNow()
 end
 
-local function clockText(seconds: number): string
+local function mmss(seconds: number): string
 	local total = math.max(0, math.ceil(seconds))
-	return string.format("FREE SPIN IN %d:%02d", total // 60, total % 60)
+	return string.format("%d:%02d", total // 60, total % 60)
+end
+
+local function clockText(seconds: number): string
+	return "FREE SPIN IN " .. mmss(seconds)
 end
 
 --- A quiet nudge the moment the spin becomes available: one cue and one
@@ -712,6 +724,24 @@ function SpinWheelController.start()
 		end
 	end)
 
+	-- A HOLD THAT WAS TOO EARLY. The server refuses it and says nothing; the
+	-- answer belongs here, on the card the player is already looking at,
+	-- instead of as a toast across the screen. Purely a label - the refusal
+	-- itself happened on the server before this ran.
+	ProximityPromptService.PromptTriggered:Connect(function(prompt)
+		local wheel = owned
+		if spinning or not wheel or prompt ~= wheel.prompt then
+			return
+		end
+		local remaining = remainingSeconds()
+		if remaining <= 0 or remaining == math.huge then
+			return
+		end
+		prompt.ObjectText = `Time left before Spin  {mmss(remaining)}`
+		tooEarlyUntil = os.clock() + TOO_EARLY_SECONDS
+		Audio.play("UiDenied")
+	end)
+
 	Remotes.get("SpinResult").OnClientEvent:Connect(function(index)
 		local wheel = owned
 		if not wheel or type(index) ~= "number" then
@@ -745,12 +775,26 @@ function SpinWheelController.start()
 		local ready = remaining <= 0 and remaining ~= math.huge
 
 		-- THE PROMPT IS A LOCAL DECISION. The server leaves it on for
-		-- everybody and refuses anything it should not honour, so turning it
-		-- off here is presentation: it is off for a wheel that is not mine,
-		-- off while the countdown is running and off for the length of a spin,
-		-- which is what stops a held key starting a second one.
+		-- everybody and refuses anything it should not honour, so what happens
+		-- here is presentation: off for a wheel that is not mine, and off for
+		-- the length of a spin, which is what stops a held key starting a
+		-- second one.
+		--
+		-- It stays ON during the countdown, deliberately. A prompt that simply
+		-- is not there reads as a broken wheel; one that answers "not yet, here
+		-- is how long" teaches the player what the wheel is. The server refuses
+		-- the early hold either way.
 		if wheel.prompt then
-			wheel.prompt.Enabled = ready and not spinning
+			wheel.prompt.Enabled = not spinning
+			if not spinning then
+				if os.clock() < tooEarlyUntil and not ready then
+					-- Still counting DOWN while it is up, so the answer stays
+					-- true for as long as the player is reading it.
+					wheel.prompt.ObjectText = `Time left before Spin  {mmss(remaining)}`
+				else
+					wheel.prompt.ObjectText = if ready then "Free Spin" else ""
+				end
+			end
 		end
 
 		if spinning then

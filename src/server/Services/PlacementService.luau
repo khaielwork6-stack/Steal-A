@@ -736,7 +736,12 @@ function PlacementService.refreshPrompts(player: Player)
 			p.ActionText = "Store"
 			p.HoldDuration = 0.4
 		end
-		p.ObjectText = `Display Slot {index}`
+		-- NO OBJECT LINE. It used to read "Display Slot 3", which told the
+		-- player nothing they could not see - they are standing on the pad, and
+		-- the number is bookkeeping. The card falls back to showing the ACTION
+		-- alone when this is empty (InteractController), which is the whole
+		-- message: HOLD Store.
+		p.ObjectText = ""
 	end
 end
 

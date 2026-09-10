@@ -122,23 +122,48 @@ local function lobbyCentre(): Vector3
 	return Vector3.new(0, 0.5, -95)
 end
 
---- Everyone to the middle of the lobby, spread on a ring so nobody spawns
---- inside anybody, facing up the lane toward the zones.
+--- Pulls the players who are OUT IN THE ZONES back to the middle of the lobby,
+--- spread on a ring so nobody lands inside anybody, facing up the lane.
+---
+--- IT DOES NOT TOUCH ANYONE WHO IS ALREADY SAFE. The point of this sweep is
+--- that the zones are being rerolled under people's feet - it is not a
+--- server-wide summons. A player behind the red line, standing on their own
+--- plot, or running on their treadmill is in no danger from a refresh, and
+--- teleporting them was actively hostile: a long treadmill grind is exactly
+--- the thing you leave running, and every Night it threw the player off the
+--- machine and across the map.
+---
+--- `BaseService.isSafePosition` is the same test PvP and the guardians use, so
+--- "safe" means one thing everywhere.
 local function returnEveryone()
 	local centre = lobbyCentre()
-	local players = Players:GetPlayers()
-	local count = math.max(#players, 1)
-	for index, player in players do
+
+	-- Who actually needs moving, worked out BEFORE anyone is moved: the ring is
+	-- spread across that group, so two stragglers get opposite sides of it
+	-- rather than two slots out of a ring sized for the whole server.
+	local exposed: { { player: Player, character: Model } } = {}
+	for _, player in Players:GetPlayers() do
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
-		if not character or not humanoid or humanoid.Health <= 0 then
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not character or not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then
 			continue
 		end
+		if BaseService.isSafePosition(root.Position) then
+			continue
+		end
+		table.insert(exposed, { player = player, character = character })
+	end
+
+	local count = math.max(#exposed, 1)
+	for index, entry in exposed do
 		local angle = (index - 1) / count * math.pi * 2
 		local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * NightConfig.LOBBY_RING_RADIUS
 		local at = centre + offset + Vector3.new(0, 4, 0)
-		character:PivotTo(CFrame.lookAt(at, Vector3.new(at.X, at.Y, at.Z + 50)))
+		entry.character:PivotTo(CFrame.lookAt(at, Vector3.new(at.X, at.Y, at.Z + 50)))
 	end
+
+	return exposed
 end
 
 -- ==========================================================
@@ -305,9 +330,16 @@ local function beginNight()
 		CarryService.cancelForNight(player)
 	end
 	GuardianService.resetAll()
-	returnEveryone()
 
-	StateService.announce("info", "NIGHT — LOOT REFRESHING", "night")
+	-- TOLD ONLY TO THE PEOPLE IT HAPPENED TO. This used to be an `announce`,
+	-- which put a banner across the screen of every player in the server -
+	-- including the ones standing on their own base, who were neither moved
+	-- nor affected. It exists to explain a teleport, so it goes to whoever was
+	-- teleported and nobody else. The Nightfall pill tells everyone else all
+	-- they need to know.
+	for _, entry in returnEveryone() do
+		StateService.notify(entry.player, "info", "NIGHT — LOOT REFRESHING", "night")
+	end
 
 	-- The reroll happens while the zones are shut, a beat after the lights go
 	-- down so the client has finished its transition before the world changes
@@ -357,8 +389,11 @@ local function endNight()
 
 	LootService.setClosed(false)
 
-	StateService.announce("success", "All loot refreshed! Go steal something!", "refresh", "Notification")
-
+	-- RETIRED: the "All loot refreshed! Go steal something!" banner. It fired
+	-- server-wide every cycle, told nobody anything the reopened zones do not
+	-- already say, and landed over whatever the player was actually doing. The
+	-- Nightfall pill flipping back to Day is the signal; the spotlight calls
+	-- above still shout about anything genuinely worth going for.
 end
 
 -- ==========================================================

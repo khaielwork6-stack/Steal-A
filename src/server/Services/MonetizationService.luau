@@ -614,6 +614,14 @@ function MonetizationService.setGuardianSaleProvider(fn: () -> { string })
 	onSaleKeys = fn
 end
 
+--- The guardian keys the pedestals are actually selling right now. Exposed so
+--- a caller can PICK one rather than having to guess a key and be refused;
+--- `promptGuardianPass` still re-checks whatever comes back, so this is a
+--- convenience and never the authority. Empty until the shop has started.
+function MonetizationService.guardiansOnSale(): { string }
+	return if onSaleKeys then onSaleKeys() else {}
+end
+
 --- Opens the Robux dialog for a guardian on sale.
 ---
 --- `key` comes from the PEDESTAL a player walked up to (a server-side

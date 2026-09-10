@@ -81,6 +81,44 @@ local function formatRemaining(seconds: number): string
 	return string.format("%ds", total)
 end
 
+-- ==========================================================
+-- WHOSE COUNTDOWN IS IT
+-- ==========================================================
+--
+-- The reveal card is built SERVER-side on the pedestal, so it replicates to
+-- everyone standing on the plot. It should not: how long is left on somebody
+-- else's container is their business, it is the only thing on a visiting
+-- player's screen they can do nothing about, and a base with six of them
+-- reads as a wall of clocks belonging to a stranger.
+--
+-- Hidden locally rather than not built at all: the card carries the absolute
+-- end stamp the owner's own client counts down from, and moving it to a
+-- per-client build would mean replicating that stamp a second way.
+
+--- The plot a thing sits on, if any - the child of Map.Bases above it.
+local function plotOf(thing: Instance): Instance?
+	local map = workspace:FindFirstChild("Map")
+	local bases = map and map:FindFirstChild("Bases")
+	if not bases then
+		return nil
+	end
+	local node: Instance? = thing
+	while node do
+		local parent = node.Parent
+		if parent == bases then
+			return node
+		end
+		node = parent
+	end
+	return nil
+end
+
+--- Shows a reveal card only to the player whose container it is.
+local function applyCardOwnership(card: BillboardGui)
+	local plot = plotOf(card)
+	card.Enabled = plot ~= nil and plot:GetAttribute("OwnerUserId") == player.UserId
+end
+
 --- Every display slot on the plot the local player owns.
 local function eachOwnedSlot(): { BasePart }
 	local out: { BasePart } = {}
@@ -527,94 +565,6 @@ local function setFocus(on: boolean, seconds: number)
 	}):Play()
 end
 
---- The name and rarity, shown only once the prize is standing on the pedestal.
---- Built fresh, faded in and out, then destroyed, so it can never linger and
---- there is never more than one on screen.
-local function revealBanner(name: string, rarity: string, color: Color3)
-	local gui = player:FindFirstChild("PlayerGui")
-	local main = gui and gui:FindFirstChild("MainUI")
-	if not main then
-		return
-	end
-	local stale = main:FindFirstChild("RevealBanner")
-	if stale then
-		stale:Destroy()
-	end
-
-	local screen = Instance.new("ScreenGui")
-	screen.Name = "RevealBanner"
-	screen.ResetOnSpawn = false
-	screen.IgnoreGuiInset = true
-	screen.DisplayOrder = 55
-	screen.Parent = main
-
-	local group = Instance.new("CanvasGroup")
-	group.AnchorPoint = Vector2.new(0.5, 0)
-	group.Position = UDim2.fromScale(0.5, 0.13)
-	group.Size = UDim2.fromScale(0.46, 0.135)
-	group.BackgroundColor3 = Color3.fromRGB(12, 14, 26)
-	group.BackgroundTransparency = 0.2
-	group.BorderSizePixel = 0
-	group.GroupTransparency = 1
-	group.Parent = screen
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 16)
-	corner.Parent = group
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2.5
-	stroke.Color = color
-	stroke.Transparency = 0.1
-	stroke.Parent = group
-	-- Capped in pixels as well as scale, so a phone gets a readable card and a
-	-- wide monitor does not get a billboard.
-	local cap = Instance.new("UISizeConstraint")
-	cap.MaxSize = Vector2.new(620, 132)
-	cap.MinSize = Vector2.new(240, 66)
-	cap.Parent = group
-
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.AnchorPoint = Vector2.new(0.5, 0)
-	title.Position = UDim2.fromScale(0.5, 0.06)
-	title.Size = UDim2.fromScale(0.92, 0.52)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextStrokeTransparency = 0.4
-	title.Text = name
-	title.Parent = group
-
-	local tier = Instance.new("TextLabel")
-	tier.Name = "Rarity"
-	tier.AnchorPoint = Vector2.new(0.5, 0)
-	tier.Position = UDim2.fromScale(0.5, 0.58)
-	tier.Size = UDim2.fromScale(0.92, 0.34)
-	tier.BackgroundTransparency = 1
-	tier.Font = Enum.Font.FredokaOne
-	tier.TextScaled = true
-	tier.TextColor3 = color
-	tier.TextStrokeTransparency = 0.5
-	tier.Text = string.upper(rarity)
-	tier.Parent = group
-
-	TweenService:Create(group, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		GroupTransparency = 0,
-	}):Play()
-	task.delay(2.4, function()
-		if not screen.Parent then
-			return
-		end
-		local out = TweenService:Create(group, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			GroupTransparency = 1,
-		})
-		out:Play()
-		out.Completed:Once(function()
-			screen:Destroy()
-		end)
-	end)
-end
-
 local function playReveal(slot: BasePart, reveal: any, token: number)
 	-- The container should still be on the pedestal: the server swaps it out
 	-- SWAP_AT seconds from now, not yet. Streaming can make it a frame late.
@@ -884,12 +834,10 @@ local function playReveal(slot: BasePart, reveal: any, token: number)
 			clone:Destroy()
 		end
 
-		-- The name and the tier, now that there is something to name.
-		revealBanner(
-			if type(reveal.itemName) == "string" then reveal.itemName else "Revealed",
-			rarity,
-			accent
-		)
+		-- NO BANNER. The name and the tier used to be thrown across the top of
+		-- the screen here; the trophy's own nameplate already carries both, plus
+		-- the income, and it does it on the pedestal the player is looking at.
+		-- Two labels for one moment is one too many.
 
 		-- THE BOUNCE: 70% -> 110% -> 100%, scale only, so DisplayFx's own idle
 		-- turn keeps ownership of the pivot.
@@ -983,6 +931,42 @@ function HatchController.start()
 	end)
 
 	RunService.Heartbeat:Connect(repaintCards)
+
+	-- REVEAL CARDS ARE PRIVATE. Applied the moment one replicates in, which is
+	-- what stops another player's countdown ever being drawn for a frame...
+	local function adopt(thing: Instance)
+		if thing:IsA("BillboardGui") and thing.Name == "RevealCard" then
+			applyCardOwnership(thing)
+		end
+	end
+	for _, thing in workspace:GetDescendants() do
+		adopt(thing)
+	end
+	workspace.DescendantAdded:Connect(adopt)
+
+	-- ...and re-applied on a slow sweep, because a PLOT can change hands under
+	-- a card that never moved. Cheap: a handful of billboards, once a second.
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local map = workspace:FindFirstChild("Map")
+			local bases = map and map:FindFirstChild("Bases")
+			if bases then
+				for _, plot in bases:GetChildren() do
+					local mine = plot:GetAttribute("OwnerUserId") == player.UserId
+					local slots = plot:FindFirstChild("DisplaySlots")
+					if slots then
+						for _, slot in slots:GetChildren() do
+							local card = slot:FindFirstChild("RevealCard")
+							if card and card:IsA("BillboardGui") and card.Enabled ~= mine then
+								card.Enabled = mine
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
 end
 
 return HatchController

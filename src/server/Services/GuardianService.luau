@@ -95,6 +95,10 @@ type Guardian = {
 	stuckFor: number,
 	sidestepUntil: number,
 	sidestepSign: number,
+	--- Arrival detection: the closest this guardian has got to the goal of the
+	--- current job, and when it last improved on it. See `arrived`.
+	bestDistance: number,
+	bestAt: number,
 }
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
@@ -861,6 +865,10 @@ local SWITCH_MIN_GAIN = 12
 --- Distance to a dropped item at which the guardian picks it up, on top of
 --- its catch radius, and distance to the socket at which it puts loot back.
 local PICKUP_REACH = 4
+--- How close the guardian has to get to its own post before it lies down.
+--- `sleepPose` snaps it exactly onto the post either way, so this is only
+--- about where the walk stops looking like a walk.
+local HOME_REACH = 6
 local ESCORT_REACH = 7
 --- A recovery or escort that has not finished in this long (jammed on
 --- geometry, item somewhere unreachable) falls back to the instant return.
@@ -880,6 +888,51 @@ local function resetSteering(guardian: Guardian)
 	guardian.lastPosition = nil
 	guardian.stuckFor = 0
 	guardian.sidestepUntil = 0
+	guardian.bestDistance = math.huge
+	guardian.bestAt = os.clock()
+end
+
+-- ==========================================================
+-- ARRIVAL
+-- ==========================================================
+--
+-- Arrival tuning. A guardian is "there" when it is inside the reach, OR when it
+-- has stopped getting closer while already near.
+
+--- Studs of improvement that count as making progress.
+local ARRIVE_PROGRESS = 0.75
+--- No progress for this long means this is as close as it is going to get.
+local ARRIVE_STALL_SECONDS = 1.1
+--- The stall test only applies within this multiple of the reach, so a
+--- guardian halfway across the zone is never counted as having arrived.
+local ARRIVE_STALL_REACH = 2.5
+
+--- Has this guardian arrived at the goal it is steering to?
+---
+--- A PLAIN DISTANCE TEST IS NOT ENOUGH, and this is the bug it hid: a humanoid
+--- running at speed toward a point it cannot physically reach - because its own
+--- body, the item welded in front of it, the socket's own pedestal or a prop is
+--- in the way - does not stop. It ORBITS, at whatever radius its momentum
+--- allows, until the sixty-second job timeout gives up. A zone guardian doing
+--- that is a zone with NO guardian in it, and it ignores fresh steals the whole
+--- time, which is exactly how it was found: circling the socket while the thief
+--- helped themselves to the rest of the zone.
+---
+--- So arrival is also "I have stopped getting closer, and I am already near".
+--- Stopping early costs nothing at either call site: `sleepPose` snaps the
+--- guardian onto its post, and `finishEscort` puts the item back in its own
+--- socket wherever the guardian happens to be standing. The only thing an
+--- early finish gives up is the orbit.
+local function arrived(guardian: Guardian, distance: number, reach: number, now: number): boolean
+	if distance <= reach then
+		return true
+	end
+	if distance < guardian.bestDistance - ARRIVE_PROGRESS then
+		guardian.bestDistance = distance
+		guardian.bestAt = now
+		return false
+	end
+	return distance <= reach * ARRIVE_STALL_REACH and now - guardian.bestAt >= ARRIVE_STALL_SECONDS
 end
 
 -- ----------------------------------------------------------
@@ -1556,7 +1609,9 @@ local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePa
 
 	local position = (model.PrimaryPart :: BasePart).Position
 	local distance = flatDistance(root.Position, position)
-	if distance <= guardian.catchRadius + PICKUP_REACH then
+	-- Same arrival test as the walk home and the escort: an item wedged
+	-- against a wall or a prop is one a guardian can circle forever otherwise.
+	if arrived(guardian, distance, guardian.catchRadius + PICKUP_REACH, now) then
 		guardian.lootId = nil
 		LootService.setState(loot, "Escorted")
 		if not beginEscort(guardian, loot) then
@@ -1587,7 +1642,7 @@ local function stepEscort(guardian: Guardian, humanoid: Humanoid, root: BasePart
 	end
 
 	local distance = flatDistance(root.Position, socket.part.Position)
-	if distance <= ESCORT_REACH or now - guardian.jobStartedAt > JOB_TIMEOUT then
+	if arrived(guardian, distance, ESCORT_REACH, now) or now - guardian.jobStartedAt > JOB_TIMEOUT then
 		finishEscort(guardian)
 		nextJob(guardian)
 		return
@@ -1645,7 +1700,7 @@ local function step(dt: number)
 			end
 			driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
 			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
-			if distance < 6 then
+			if arrived(guardian, distance, HOME_REACH, now) then
 				enterSleep(guardian)
 			end
 			continue
@@ -1726,6 +1781,8 @@ function GuardianService.start()
 			stuckFor = 0,
 			sidestepUntil = 0,
 			sidestepSign = 1,
+			bestDistance = math.huge,
+			bestAt = 0,
 			walkSpeedPerRate = 1,
 		}
 
