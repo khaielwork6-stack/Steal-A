@@ -629,17 +629,6 @@ function BaseService.buildContainer(item: DataService.DisplayItem): Model?
 	})
 end
 
---- "Time: 04:09" under an hour, "Time: 2:14:09" over it. The reference shows
---- minutes and seconds; a twelve-hour wait needs the extra field or it reads
---- as seven hundred minutes.
-function BaseService.formatRevealClock(seconds: number): string
-	local total = math.max(0, math.ceil(seconds))
-	if total >= 3600 then
-		return string.format("Time: %d:%02d:%02d", total // 3600, (total % 3600) // 60, total % 60)
-	end
-	return string.format("Time: %02d:%02d", total // 60, total % 60)
-end
-
 --- "11h 42m" / "14m 08s" / "8s". Mirrors HatchService.formatRemaining; kept
 --- here too so the display never has to require that service.
 local function formatRemaining(seconds: number): string
@@ -662,13 +651,6 @@ function BaseService.buildRevealCard(slot: BasePart, container: Model, item: Dat
 	local endsAt = tonumber(item.HatchEndsAt) or 0
 	local remaining = math.max(0, endsAt - os.time())
 	local ready = remaining <= 0
-	-- THE WHOLE WAIT, so the client can show a percentage that means
-	-- something rather than one measured from whenever it happened to join.
-	-- This leaks nothing the countdown does not already give away: a
-	-- container with eleven hours left is visibly a top-tier prize either
-	-- way, which is why the WAIT was always public and the REWARD never is.
-	local total = math.max(HatchConfig.hatchSeconds(item.Rarity, item.Size, item.Mutation), 1)
-	local done = math.clamp((total - remaining) / total, 0, 1)
 
 	local anchor = container.PrimaryPart or container:FindFirstChildWhichIsA("BasePart", true)
 	if not anchor then
@@ -688,7 +670,6 @@ function BaseService.buildRevealCard(slot: BasePart, container: Model, item: Dat
 	gui.MaxDistance = HatchConfig.CARD_MAX_DISTANCE
 	gui.Adornee = anchor
 	gui:SetAttribute("HatchEndsAt", endsAt)
-	gui:SetAttribute("RevealTotal", total)
 	gui:SetAttribute("InstanceId", item.InstanceId)
 	gui:SetAttribute("SlotIndex", item.SlotIndex)
 	gui.Parent = slot
@@ -739,7 +720,7 @@ function BaseService.buildRevealCard(slot: BasePart, container: Model, item: Dat
 	clock.TextScaled = true
 	clock.TextStrokeTransparency = 0.5
 	clock.TextColor3 = if ready then MysteryConfig.READY_TINT else Color3.fromRGB(255, 255, 255)
-	clock.Text = if ready then "READY TO REVEAL!" else BaseService.formatRevealClock(remaining)
+	clock.Text = if ready then "READY TO REVEAL!" else formatRemaining(remaining)
 	clock.Parent = plate
 
 	local track = Instance.new("Frame")
@@ -760,20 +741,6 @@ function BaseService.buildRevealCard(slot: BasePart, container: Model, item: Dat
 	fill.BackgroundColor3 = if ready then MysteryConfig.READY_TINT else Color3.fromRGB(120, 170, 255)
 	fill.BorderSizePixel = 0
 	fill.Parent = track
-	-- THE PERCENTAGE, sitting on the bar exactly as the reference does. Two
-	-- decimals, because a twelve-hour wait moves the first one about once a
-	-- minute and a bar that never appears to move reads as broken.
-	local percent = Instance.new("TextLabel")
-	percent.Name = "Percent"
-	percent.Size = UDim2.fromScale(1, 1)
-	percent.BackgroundTransparency = 1
-	percent.Font = Enum.Font.FredokaOne
-	percent.TextScaled = true
-	percent.TextColor3 = Color3.fromRGB(255, 255, 255)
-	percent.TextStrokeTransparency = 0.35
-	percent.ZIndex = fill.ZIndex + 1
-	percent.Text = string.format("%.2f%%", done * 100)
-	percent.Parent = track
 	local fillCorner = Instance.new("UICorner")
 	fillCorner.CornerRadius = UDim.new(0.5, 0)
 	fillCorner.Parent = fill

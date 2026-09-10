@@ -46,6 +46,10 @@ local HatchController = {}
 
 local player = Players.LocalPlayer
 
+--- Sealed containers this client knows about, from StatePush. InstanceId ->
+--- { endsAt, startedAt }. Never carries anything about the reward.
+local sealed: { [string]: { endsAt: number, startedAt: number } } = {}
+
 --- One reveal at a time, and one token per reveal: a late tween from an
 --- abandoned sequence checks its token and stops rather than touching a
 --- pedestal that has moved on.
@@ -67,15 +71,14 @@ end
 -- THE OWNER'S SLOTS
 -- ==========================================================
 
---- "Time: 04:09" under an hour, "Time: 2:14:09" over it. Mirrors
---- BaseService.formatRevealClock, which stamps the card when it is built;
---- this is what retimes it every second afterwards.
-local function formatRevealClock(seconds: number): string
+local function formatRemaining(seconds: number): string
 	local total = math.max(0, math.ceil(seconds))
 	if total >= 3600 then
-		return string.format("Time: %d:%02d:%02d", total // 3600, (total % 3600) // 60, total % 60)
+		return string.format("%dh %02dm", total // 3600, (total % 3600) // 60)
+	elseif total >= 60 then
+		return string.format("%02d:%02d", total // 60, total % 60)
 	end
-	return string.format("Time: %02d:%02d", total // 60, total % 60)
+	return string.format("%ds", total)
 end
 
 --- Every display slot on the plot the local player owns.
@@ -132,18 +135,12 @@ local function repaintCards()
 		local outline = plate and plate:FindFirstChild("Outline") :: UIStroke?
 		local track = plate and plate:FindFirstChild("Track")
 		local fill = track and track:FindFirstChild("Fill") :: Frame?
-		local percent = track and track:FindFirstChild("Percent") :: TextLabel?
 		if not clock or not caption then
 			continue
 		end
 
 		local endsAt = tonumber(card:GetAttribute("HatchEndsAt")) or 0
 		local remaining = endsAt - now
-		-- THE WHOLE WAIT, stamped by the server when the card was built. The
-		-- percentage is measured against that, so it is the item's real
-		-- progress and not progress since this client happened to look.
-		local total = math.max(tonumber(card:GetAttribute("RevealTotal")) or 0, 1)
-		local done = math.clamp((total - remaining) / total, 0, 1)
 
 		if remaining <= 0 then
 			caption.Text = ""
@@ -158,15 +155,9 @@ local function repaintCards()
 				fill.Size = UDim2.fromScale(1, 1)
 				fill.BackgroundColor3 = MysteryConfig.READY_TINT
 			end
-			if percent then
-				percent.Text = "100.00%"
-			end
 		else
 			caption.Text = "REVEAL IN"
-			clock.Text = formatRevealClock(remaining)
-			if percent then
-				percent.Text = string.format("%.2f%%", done * 100)
-			end
+			clock.Text = formatRemaining(remaining)
 			-- The final ten seconds pulse softly between white and gold.
 			if remaining <= HatchConfig.CARD_PULSE_FROM then
 				clock.TextColor3 = if second % 2 == 0 then GOLD else WHITE
@@ -176,8 +167,15 @@ local function repaintCards()
 			if outline then
 				outline.Color = GOLD
 			end
-			if fill then
-				fill.Size = UDim2.fromScale(done, 1)
+			local id = card:GetAttribute("InstanceId")
+			local entry = if type(id) == "string" then sealed[id] else nil
+			if fill and entry then
+				-- The bar needs a start as well as an end. The only honest one
+				-- the client has is "when this client first saw it", so a fresh
+				-- join shows a bar already partly full rather than one that
+				-- lies about the total wait.
+				local total = math.max(entry.endsAt - entry.startedAt, 1)
+				fill.Size = UDim2.fromScale(math.clamp(1 - remaining / total, 0, 1), 1)
 			end
 		end
 
@@ -940,6 +938,32 @@ end
 
 function HatchController.start()
 	preloadCycleCue()
+
+	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+		if not state then
+			return
+		end
+		local list = state.sealed
+		if type(list) ~= "table" then
+			return
+		end
+		local seen: { [string]: boolean } = {}
+		for _, row in list do
+			if type(row) == "table" and type(row.instanceId) == "string" then
+				local existing = sealed[row.instanceId]
+				sealed[row.instanceId] = {
+					endsAt = row.endsAt or 0,
+					startedAt = if existing then existing.startedAt else os.time(),
+				}
+				seen[row.instanceId] = true
+			end
+		end
+		for id in sealed do
+			if not seen[id] then
+				sealed[id] = nil
+			end
+		end
+	end)
 
 	-- The reveal cue. Arrives ONLY after the server has committed, and is the
 	-- first moment this client is told anything about the reward.

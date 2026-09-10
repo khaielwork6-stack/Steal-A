@@ -4213,9 +4213,7 @@ connection, so the phone-layout pass is the one check not run from here.
 
 ---
 
-## The chest RNG polish pass (2026-09-10)
-
-### The silhouette roulette
+## The silhouette reveal roulette (2026-09-10)
 
 `HatchController.playReveal` no longer turns the container and pops it. After
 the lift, the container is concealed and a run of solid black item
@@ -4244,6 +4242,7 @@ Three things worth knowing before you change it:
   `swapAt` deliberately excludes the LAST entry of `cycleDelays` because the
   final change is held for `holdSeconds` instead of waiting it. Get that
   wrong and the client stares at a held silhouette waiting for an item.
+  Measured over a full reveal: zero frames with nothing on the pedestal.
 - **Silhouettes come from `LootModel.previewSource`**, the ReplicatedStorage
   preview folder, because the client cannot see ServerStorage. An item with
   no published preview is skipped as a decoy.
@@ -4252,50 +4251,41 @@ Three things worth knowing before you change it:
   the classes every silhouette is the same size and the run reads as one
   shape flickering.
 
-The cue (asset 107511012621133) is played BY the silhouette change and never
-by a clock of its own, which is the whole reason picture and sound cannot
-drift. Its pitch hardens as the wheel slows and drops furthest on the winning
-frame.
+The cue (`RevealCycle`, asset 107511012621133) is played BY the silhouette
+change and never by a clock of its own, which is the whole reason picture and
+sound cannot drift. Its pitch hardens as the wheel slows and drops furthest
+on the winning frame. It is preloaded at start-up so the first tick of the
+first reveal is not silence.
 
-### What else moved
+The focus vignette and the camera pull respect Reduced Effects
+(`HatchController.setReducedEffects`, wired from SettingsController); the
+roulette itself always plays, because it is the feature rather than a
+flourish on top of one.
 
-- **Reveal card**: `Time: 00:04` plus a two-decimal percentage on the bar. The
-  percentage is measured against `RevealTotal`, stamped by the server when the
-  card is built, not against when the client happened to look.
-- **Backtick toggles Storage** (`InventoryController.toggle`). Gated on
-  `gameProcessedEvent`, so typing a backquote in chat does nothing.
-- **Guardians no longer circle their socket.** The return radius was 7 studs
-  inside a 16-stud pad; it is 14 now, plus a stall detector that completes the
-  return when a guardian stops making progress inside its home area. The item
-  is restored to its exact authoritative socket by `LootService` either way.
-- **Night curtain** spans the lobby (597 studs) rather than the lane, and its
-  message is pinned to a constant 170x96 stud block so widening the occluder
-  does not stretch the text.
-- **Two Guardian sale slots.** `GuardianShopService` state is per-slot;
-  `MonetizationService.promptGuardianPass(player, key)` validates the key
-  against `GuardianShopService.onSaleKeys()`.
+## Two Guardian sale slots
 
-### Already in place before this pass
+`GuardianShopService` kept its state in module-level singletons - one model,
+one frame, one prompt, one set of labels, one "current" key - so a second
+pedestal would have overwritten the first. Those are now fields on a `Slot`
+record and the service builds two.
 
-Worth knowing so you do not rebuild them: the floating shop signs with bobbing
-arrows (`AttractionSign` + `AttractionSignController`), the floating money
-popups on base trophies (`BaseEarningsController`), the prompt occlusion that
-stops item info leaking through walls (`InteractController.hasLineOfSight`),
-and the reveal card's bounding-box positioning.
+Slot 1 is the rotation exactly as it was, so a player who knew what was on
+sale still finds it where they expect. Slot 2 shows the NEXT animal in the
+same order: today's preview of tomorrow. The two are therefore never the same
+guardian, roll over together on the one boundary, and need no rotation state
+of their own. With four animals in `ROTATION_ORDER` the pair walks the whole
+roster in half the time. The second pedestal (`MapConfig.HUB.guardianShopB`)
+is the first reflected in X, clear of the Slap cage by eighteen studs and the
+gift chest by fifteen.
 
-### Still to do
+**Purchases stay server-decided.** `promptGuardianPass` used to re-derive the
+key from the rotation and ignore its caller, which cannot work once two
+different animals are for sale. It now takes one - from the PEDESTAL the
+player physically walked up to, a server-side prompt trigger, never from a
+client - and checks it against `GuardianShopService.onSaleKeys()` before
+opening any dialog. A key that is not standing on a pedestal is refused
+whoever asks. Verified: Cat (not on sale) refused, Panda (on sale) reaches
+the ownership check.
 
-**Storage and hotbar (brief section 8) is NOT implemented.** Today a stored
-item is re-placed from the Storage panel and the server picks the slot. The
-brief wants a stored item to occupy a numbered hotbar slot, be equipped with
-that number, carried, and physically placed where the player chooses.
-
-That is a real piece of work and it is the one place in this codebase where a
-mistake costs a player an item. The hotbar (`HotbarController`) is currently a
-Tool bar - Bat, Slap, Trap - driven through the Humanoid, and loot is not a
-Tool (see the commit "Loot is no longer equippable: Tool inherits Model").
-Whoever picks it up needs to keep each item in exactly one authoritative
-state (Placed / Stored / Carried), and the dangerous transitions are
-store-while-carrying, equip-spam, and disconnect mid-carry. `CarryService`
-already owns carry state and `PlacementService.equip` already moves an item
-out of storage; the join between them is what is missing.
+`Invoke("guardianSlots", nil, "SomeKey")` reports both slots as the live
+services see them and probes the refusal path.

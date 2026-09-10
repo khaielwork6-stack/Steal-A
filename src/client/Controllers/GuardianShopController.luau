@@ -141,7 +141,7 @@ local function attach(model: Model)
 		local whole = math.floor(remaining)
 		if whole ~= shownSecond then
 			shownSecond = whole
-			label.Text = `Changes In: {BaseGuardianConfig.formatCountdown(remaining)}`
+			label.Text = `New Guardian In: {BaseGuardianConfig.formatCountdown(remaining)}`
 		end
 	end)
 end

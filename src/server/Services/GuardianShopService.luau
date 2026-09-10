@@ -254,17 +254,12 @@ local function buildStatic(map: Instance, slot: Slot): Model
 	gui.Adornee = signAnchor
 	gui.Parent = signAnchor
 
-	-- FOUR LINES, LARGEST TO SMALLEST, in the order a buyer asks the
-	-- questions: what is this, which one, what does it cost, how long have I
-	-- got. The heading says FOR SALE rather than LIMITED TIME because the
-	-- countdown underneath already carries the urgency, and "for sale" is the
-	-- part a player crossing the apron needs to read first.
-	slot.labels.Limited = label(gui, "Limited", 0, 0.155, Color3.fromRGB(255, 226, 90), 34, 3)
-	slot.labels.Limited.Text = "GUARDIAN FOR SALE!"
-	slot.labels.Name = label(gui, "Name", 0.155, 0.30, Color3.fromRGB(255, 255, 255), 68, 4)
-	slot.labels.Price = label(gui, "Price", 0.455, 0.20, Color3.fromRGB(126, 255, 148), 50, 3)
-	slot.labels.Timer = label(gui, "Timer", 0.655, 0.155, Color3.fromRGB(230, 236, 250), 32, 3)
-	slot.labels.Timer.Text = "Changes In: --:--:--"
+	slot.labels.Limited = label(gui, "Limited", 0, 0.12, Color3.fromRGB(255, 226, 90), 26, 2)
+	slot.labels.Limited.Text = "LIMITED TIME"
+	slot.labels.Name = label(gui, "Name", 0.12, 0.31, Color3.fromRGB(255, 255, 255), 68, 4)
+	slot.labels.Price = label(gui, "Price", 0.45, 0.21, Color3.fromRGB(126, 255, 148), 48, 3)
+	slot.labels.Timer = label(gui, "Timer", 0.68, 0.14, Color3.fromRGB(214, 222, 240), 26, 2)
+	slot.labels.Timer.Text = "New Guardian In: --:--:--"
 
 	local arrow = Instance.new("TextLabel")
 	arrow.Name = "Arrow"
