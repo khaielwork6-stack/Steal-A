@@ -4210,3 +4210,92 @@ per-feature measurements quoted above.
 every device), server-side physics, or the input-inert flash, and nothing added
 branches on `Device`. The Studio device emulator cannot be driven over the MCP
 connection, so the phone-layout pass is the one check not run from here.
+
+---
+
+## The chest RNG polish pass (2026-09-10)
+
+### The silhouette roulette
+
+`HatchController.playReveal` no longer turns the container and pops it. After
+the lift, the container is concealed and a run of solid black item
+silhouettes cycles on a fixed stage above the pedestal, slowing like a wheel,
+with one long fake-out beat before it lands on the prize.
+
+Read `HatchConfig.Silhouette` for every number. The shape of it:
+
+| Rarity | Steps | Swap at | Total |
+|---|---|---|---|
+| Common | 8 | 2.78s | 3.44s |
+| Legendary | 10 | 3.20s | 3.86s |
+| Divine | 12 | 3.63s | 4.29s |
+
+**It decides nothing.** The server rolls, commits, starts the income and only
+then fires `HatchReveal`, which now carries `itemId`, `itemName`, `rarity`
+and `zoneIndex`. The last silhouette is read from that payload; the decoys
+come from `LootConfig.pool(zoneIndex)`, which every client already has. There
+is no path from the animation to what a player receives.
+
+Three things worth knowing before you change it:
+
+- **`swapAt` must equal the animation.** The server rebuilds the pedestal at
+  `HatchConfig.swapAt(rarity)`, and the client bursts the winning silhouette
+  at exactly that moment. They are derived from the same delay list, and
+  `swapAt` deliberately excludes the LAST entry of `cycleDelays` because the
+  final change is held for `holdSeconds` instead of waiting it. Get that
+  wrong and the client stares at a held silhouette waiting for an item.
+- **Silhouettes come from `LootModel.previewSource`**, the ReplicatedStorage
+  preview folder, because the client cannot see ServerStorage. An item with
+  no published preview is skipped as a decoy.
+- **Every shape is fitted to `stageSpan` and then pushed off it** by a random
+  size class. Without the fitting a Colossal prize fills the screen; without
+  the classes every silhouette is the same size and the run reads as one
+  shape flickering.
+
+The cue (asset 107511012621133) is played BY the silhouette change and never
+by a clock of its own, which is the whole reason picture and sound cannot
+drift. Its pitch hardens as the wheel slows and drops furthest on the winning
+frame.
+
+### What else moved
+
+- **Reveal card**: `Time: 00:04` plus a two-decimal percentage on the bar. The
+  percentage is measured against `RevealTotal`, stamped by the server when the
+  card is built, not against when the client happened to look.
+- **Backtick toggles Storage** (`InventoryController.toggle`). Gated on
+  `gameProcessedEvent`, so typing a backquote in chat does nothing.
+- **Guardians no longer circle their socket.** The return radius was 7 studs
+  inside a 16-stud pad; it is 14 now, plus a stall detector that completes the
+  return when a guardian stops making progress inside its home area. The item
+  is restored to its exact authoritative socket by `LootService` either way.
+- **Night curtain** spans the lobby (597 studs) rather than the lane, and its
+  message is pinned to a constant 170x96 stud block so widening the occluder
+  does not stretch the text.
+- **Two Guardian sale slots.** `GuardianShopService` state is per-slot;
+  `MonetizationService.promptGuardianPass(player, key)` validates the key
+  against `GuardianShopService.onSaleKeys()`.
+
+### Already in place before this pass
+
+Worth knowing so you do not rebuild them: the floating shop signs with bobbing
+arrows (`AttractionSign` + `AttractionSignController`), the floating money
+popups on base trophies (`BaseEarningsController`), the prompt occlusion that
+stops item info leaking through walls (`InteractController.hasLineOfSight`),
+and the reveal card's bounding-box positioning.
+
+### Still to do
+
+**Storage and hotbar (brief section 8) is NOT implemented.** Today a stored
+item is re-placed from the Storage panel and the server picks the slot. The
+brief wants a stored item to occupy a numbered hotbar slot, be equipped with
+that number, carried, and physically placed where the player chooses.
+
+That is a real piece of work and it is the one place in this codebase where a
+mistake costs a player an item. The hotbar (`HotbarController`) is currently a
+Tool bar - Bat, Slap, Trap - driven through the Humanoid, and loot is not a
+Tool (see the commit "Loot is no longer equippable: Tool inherits Model").
+Whoever picks it up needs to keep each item in exactly one authoritative
+state (Placed / Stored / Carried), and the dangerous transitions are
+store-while-carrying, equip-spam, and disconnect mid-carry. `CarryService`
+already owns carry state and `PlacementService.equip` already moves an item
+out of storage; the join between them is what is missing.
