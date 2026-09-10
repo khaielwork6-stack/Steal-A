@@ -52,6 +52,8 @@ local PortalService = require(Services.PortalService)
 local HatchService = require(Services.HatchService)
 local MysterySpawnService = require(Services.MysterySpawnService)
 local OfflineService = require(Services.OfflineService)
+local SpinWheelService = require(Services.SpinWheelService)
+local StarterTaskService = require(Services.StarterTaskService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -90,6 +92,25 @@ end)
 -- A drop the guardian can walk to waits for the guardian; one it cannot reach
 -- (behind the red line) goes home on the old timer.
 CarryService.setRecoveryCheck(GuardianService.canRecover)
+
+-- ==========================================================
+-- THE BEGINNER CHECKLIST
+-- ==========================================================
+--
+-- Three rows, each completed by the ONE service that already knows the real
+-- thing happened. Wired here so StarterTaskService is not a dependency of any
+-- of the three - and so the whole of "what completes a row" is one paragraph
+-- rather than three lines buried in three files.
+--
+-- Every hook fires only from a path the SERVER has already committed to: a
+-- carry that is live, a reveal that is flipped, a treadmill tick that has
+-- paid. There is no client message anywhere in this.
+CarryService.setStolenHandler(function(player)
+	StarterTaskService.complete(player, "steal")
+end)
+SpeedService.onTrained = function(player)
+	StarterTaskService.complete(player, "train")
+end
 
 -- The tutorial vase goes straight back to its pedestal when dropped, instead of
 -- lying on the floor while the tutorial pins a replacement into the socket -
@@ -298,6 +319,11 @@ end)
 -- could have used before the commit - by then the trophy is already on the
 -- base and every client can see it anyway.
 HatchService.onHatched = function(player, item)
+	-- The checklist's "Reveal 1 Item", first: this runs from inside
+	-- HatchService.commit AFTER the flag is flipped, so the reveal is already
+	-- real and irreversible by the time the row is ticked.
+	StarterTaskService.complete(player, "reveal")
+
 	local plot = BaseService.getPlot(player)
 	local slots = plot and plot:FindFirstChild("DisplaySlots")
 	local slot = slots and slots:FindFirstChild(string.format("DisplaySlot%02d", item.SlotIndex))
@@ -337,6 +363,9 @@ TrailService.start()
 ZoneSignService.start()
 EventStandService.start()
 TutorialService.start()
+-- Registers its StatePush provider, so it must be up before the first push a
+-- joining player gets - which is what draws the checklist on their first frame.
+StarterTaskService.start()
 RagdollService.start()
 RagdollService.setMovementRefresher(function(player)
 	SpeedService.applyMovement(player)
@@ -347,6 +376,9 @@ PvPService.start()
 -- registered before BaseService hands out a single plot.
 BaseGuardianService.start()
 HeistService.start()
+-- Also listens for the plot rebuild: a wheel belongs to whoever holds the plot
+-- it stands on, so it has to be registered before the first plot is handed out.
+SpinWheelService.start()
 
 -- BaseService goes LAST on purpose. Assigning a plot fires the rebuild hook that
 -- creates a player's display-slot prompts, so every listener must already be

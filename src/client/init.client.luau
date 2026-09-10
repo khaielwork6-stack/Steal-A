@@ -48,6 +48,8 @@ local HatchController = require(script.Controllers.HatchController)
 local EscapeFlashController = require(script.Controllers.EscapeFlashController)
 local BaseEarningsController = require(script.Controllers.BaseEarningsController)
 local AttractionSignController = require(script.Controllers.AttractionSignController)
+local SpinWheelController = require(script.Controllers.SpinWheelController)
+local StarterTaskController = require(script.Controllers.StarterTaskController)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
@@ -118,5 +120,12 @@ BaseEarningsController.start()
 -- The bob on every safe-zone attraction arrow. The signs themselves are built
 -- server-side; only the motion is local.
 AttractionSignController.start()
+-- The free spin: hides every wheel but the one on this player's own plot,
+-- draws its countdown, and plays the spin the server has already decided.
+-- AFTER HUDController, which is what starts EffectsController for the burst.
+SpinWheelController.start()
+-- The three-row beginner checklist, bottom-right. Renders StatePush.starter
+-- and disappears for good when the server stops sending it.
+StarterTaskController.start()
 
 print("[Client] controllers started")

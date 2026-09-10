@@ -28,8 +28,10 @@ local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
+local SpinWheelConfig = require(ReplicatedStorage.Shared.Config.SpinWheelConfig)
+local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
 
-local SCHEMA_VERSION = 12
+local SCHEMA_VERSION = 13
 local STORE_NAME = "PlayerProfiles_v1"
 
 --- The longest a growth value may claim. NightService stops crediting an
@@ -146,9 +148,17 @@ export type Profile = {
 	-- rejoin. See GroupGiftService.
 	GroupGiftClaimed: boolean,
 	-- v7. Which OWNED base guardian stands in the bay ("" = none). Ownership
-	-- itself is never stored: the Game Pass is the source of truth and
+	-- is otherwise not stored: the Game Pass is the source of truth and
 	-- BaseGuardianService re-checks it before spawning anything.
 	EquippedGuardian: string,
+	-- v13. Base guardians WON on the spin wheel, by key. The one exception to
+	-- the rule above, and it has to be durable for the same reason the receipt
+	-- list is: Roblox cannot be asked about a guardian it never sold, so if
+	-- this were in memory a rejoin would take the prize back.
+	--
+	-- It is only ever ADDED to, and only by SpinWheelService. Losing it is the
+	-- one failure this schema cannot repair, so nothing clears it.
+	GuardiansWon: { [string]: boolean },
 	-- v7. "Bat" or "Slap". The Slap is validated against its Game Pass on
 	-- every join; an unowned selection falls back to the Bat.
 	EquippedWeapon: string,
@@ -176,6 +186,24 @@ export type Profile = {
 	-- because it is an ABSOLUTE second the cooldown keeps running while the
 	-- player is away and cannot be reset by leaving, dying or rejoining.
 	TrapReadyAt: number,
+	-- v13. Seconds of ACTUAL PLAY accrued toward the next free spin, 0 to
+	-- SpinWheelConfig.PLAY_SECONDS.
+	--
+	-- Deliberately a DURATION and not a deadline - the exact opposite of
+	-- TrapReadyAt above. The trap recharges on the wall clock and should keep
+	-- ticking while the player is away; the spin is earned by playing, so it
+	-- must not. A timestamp would hand a spin to anyone who left for ten
+	-- minutes, so what is saved is how far they got and the clock is rebuilt
+	-- from it on every join. See SpinWheelService.
+	SpinProgress: number,
+	-- v13. The beginner checklist: task key -> true once its reward has been
+	-- granted. Durable because the reward is one-time; an in-memory set would
+	-- pay all three again on every rejoin.
+	StarterTasks: { [string]: boolean },
+	-- v13. The checklist is finished AND its celebration has been seen, so it
+	-- is gone for good. Separate from "all three done" so the completion
+	-- animation gets a moment to play before the panel is retired forever.
+	StarterTasksClosed: boolean,
 }
 
 local store: DataStore? = nil
@@ -214,6 +242,7 @@ local function defaultProfile(): Profile
 		EquippedTrail = "",
 		GroupGiftClaimed = false,
 		EquippedGuardian = "",
+		GuardiansWon = {},
 		EquippedWeapon = "Bat",
 		PendingSteal = nil,
 		PendingReveal = nil,
@@ -222,6 +251,10 @@ local function defaultProfile(): Profile
 		OfflineCashRate = 0,
 		PendingOfflineCash = 0,
 		TrapReadyAt = 0,
+		-- A brand-new player starts the full ten minutes from their first spin.
+		SpinProgress = 0,
+		StarterTasks = {},
+		StarterTasksClosed = false,
 	}
 end
 
@@ -445,7 +478,32 @@ local function migrate(profile: Profile): Profile
 		profile.SchemaVersion = 12
 	end
 
-	-- Future migrations chain here: if version < 13 then ... end
+	if version < 13 then
+		-- v13 adds the recurring free spin and the beginner checklist.
+		--
+		-- An existing player has won no guardian on the wheel, has earned no
+		-- spin progress, and has completed no checklist row - all three are
+		-- empty rather than back-filled. In particular the checklist is NOT
+		-- pre-completed for a veteran: it is three small rewards for three
+		-- things they do in the first minute of any session anyway, and
+		-- guessing which ones they have "already done" from lifetime counters
+		-- would hand out rewards for actions taken before the feature existed.
+		if type(profile.GuardiansWon) ~= "table" then
+			profile.GuardiansWon = {}
+		end
+		if type(profile.SpinProgress) ~= "number" then
+			profile.SpinProgress = 0
+		end
+		if type(profile.StarterTasks) ~= "table" then
+			profile.StarterTasks = {}
+		end
+		if type(profile.StarterTasksClosed) ~= "boolean" then
+			profile.StarterTasksClosed = false
+		end
+		profile.SchemaVersion = 13
+	end
+
+	-- Future migrations chain here: if version < 14 then ... end
 
 	return profile
 end
@@ -715,6 +773,13 @@ local function reconcile(profile: Profile): Profile
 	if type(profile.EquippedGuardian) ~= "string" then
 		profile.EquippedGuardian = ""
 	end
+	-- Guardians won on the wheel. Repaired only when it is not a table at all,
+	-- for the same reason as the receipt list above: replacing a damaged one
+	-- with an empty one would silently take a prize back, and unlike a Game
+	-- Pass there is nobody else to ask.
+	if type(profile.GuardiansWon) ~= "table" then
+		profile.GuardiansWon = {}
+	end
 	if type(profile.EquippedWeapon) ~= "string" or profile.EquippedWeapon == "" then
 		profile.EquippedWeapon = "Bat"
 	end
@@ -726,6 +791,38 @@ local function reconcile(profile: Profile): Profile
 	end
 	if type(profile.TutorialIntroSeen) ~= "boolean" then
 		profile.TutorialIntroSeen = false
+	end
+
+	-- The free spin's accrued play time. Finite, non-negative and never past a
+	-- full cycle: a corrupt value must not bank several spins at once, and the
+	-- safe direction for a broken clock here is "not ready yet".
+	local spinProgress = tonumber(profile.SpinProgress) or 0
+	if spinProgress ~= spinProgress or spinProgress == math.huge or spinProgress < 0 then
+		spinProgress = 0
+	end
+	profile.SpinProgress = math.min(spinProgress, SpinWheelConfig.PLAY_SECONDS)
+
+	-- The beginner checklist. Unknown keys are dropped (a row that no longer
+	-- exists), and every kept value is a real boolean.
+	if type(profile.StarterTasks) ~= "table" then
+		profile.StarterTasks = {}
+	end
+	local tasks: { [string]: boolean } = {}
+	for _, task in StarterTaskConfig.Tasks do
+		if (profile.StarterTasks :: any)[task.key] == true then
+			tasks[task.key] = true
+		end
+	end
+	profile.StarterTasks = tasks
+	if type(profile.StarterTasksClosed) ~= "boolean" then
+		profile.StarterTasksClosed = false
+	end
+	-- A closed checklist stays closed; one that is closed without being
+	-- finished (an older build, a hand-edited save) is simply finished.
+	if profile.StarterTasksClosed then
+		for _, task in StarterTaskConfig.Tasks do
+			tasks[task.key] = true
+		end
 	end
 
 	-- Offline earnings: finite, non-negative numbers, whatever the save says.

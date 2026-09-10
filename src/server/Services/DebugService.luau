@@ -1786,6 +1786,56 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return out
 	end,
 
+	--- THE FREE SPIN, as the live service sees it: the caller's accrued play
+	--- time, which wheel is theirs and whether it is locked.
+	spin = function(player)
+		local SpinWheelService = require(script.Parent.SpinWheelService)
+		return SpinWheelService.inspect(player)
+	end,
+
+	--- Hands the caller their next spin immediately, so the wheel can be
+	--- tested without playing for ten minutes. Grants nothing itself: the
+	--- prompt, the roll and the payout all still go through the real path.
+	spinReady = function(player)
+		local SpinWheelService = require(script.Parent.SpinWheelService)
+		return { ok = SpinWheelService.debugReady(player), state = SpinWheelService.inspect(player) }
+	end,
+
+	--- Pays out ONE segment through the wheel's real grant path, so the rare
+	--- wedges - the two guardians and the 1B jackpot - can be checked without
+	--- waiting for the roll that would produce them.
+	spinGrant = function(player, index: any)
+		local SpinWheelService = require(script.Parent.SpinWheelService)
+		local BaseGuardianService = require(script.Parent.BaseGuardianService)
+		local result = SpinWheelService.debugGrant(player, math.clamp(tonumber(index) or 1, 1, 12))
+		result.ownsPanda = BaseGuardianService.owns(player, "Panda")
+		result.ownsTiger = BaseGuardianService.owns(player, "Tiger")
+		result.ownsCat = BaseGuardianService.owns(player, "Cat")
+		return result
+	end,
+
+	--- Rolls the wheel `count` times WITHOUT granting anything, so the odds
+	--- can be measured against the weight table rather than trusted.
+	spinOdds = function(_player, count: any)
+		local SpinWheelService = require(script.Parent.SpinWheelService)
+		return SpinWheelService.debugOdds(math.clamp(tonumber(count) or 100000, 1, 2000000))
+	end,
+
+	--- The beginner checklist: what the caller has done, and a reset so the
+	--- three rows can be walked through again.
+	starter = function(player, reset: any)
+		local StarterTaskService = require(script.Parent.StarterTaskService)
+		local DataService = require(script.Parent.DataService)
+		if reset == true or reset == "reset" then
+			StarterTaskService.debugReset(player)
+		end
+		local profile = DataService.get(player)
+		return {
+			summary = StarterTaskService.summarise(player),
+			closed = if profile then profile.StarterTasksClosed else nil,
+		}
+	end,
+
 	rotation = function()
 		local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
 		local now = workspace:GetServerTimeNow()

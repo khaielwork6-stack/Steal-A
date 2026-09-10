@@ -4289,3 +4289,181 @@ the ownership check.
 
 `Invoke("guardianSlots", nil, "SomeKey")` reports both slots as the live
 services see them and probes the refusal path.
+
+---
+
+## The recurring free spin (2026-09-10)
+
+Every plot carries a hand-placed `Spin Wheel System` model. `SpinWheelService`
+finds all five at start-up, works out which plot each one is standing inside
+(`plotUnder`, against the plot's own floor slab) and from then on treats the
+pair as one thing. **Nothing is built or moved** - the art is the owner's, and
+rebuilding it here would throw their placement away on every boot.
+
+### The three things that are easy to get wrong
+
+**THE IMAGE ID IS THE IMAGE, NOT THE DECAL.** Uploading a picture to Roblox
+produces a *Decal* that wraps an *Image*, and the id the website shows you is
+the decal's. An `ImageLabel` cannot draw a decal - it renders nothing, with no
+error and no warning, which is exactly what the wheel did with the id it was
+first given (decal `122986758743506`). `SpinWheelConfig.WHEEL_IMAGE` holds the
+image inside it, `89920250248309`. To swap the art, run this once in Studio:
+
+    local m = game:GetService("InsertService"):LoadAsset(<new decal id>)
+    print(m:FindFirstChildWhichIsA("Decal").Texture)
+
+and paste what it prints into `SpinWheelConfig.WHEEL_IMAGE`. That is the only
+place the wheel's face is named.
+
+**THE HALF-WEDGE.** The art's segment BOUNDARIES sit on the multiples of 30
+degrees, so at zero rotation the pointer is on the line between 12 and 1, not
+on the middle of anything. `angleFor` is therefore `i x 30 - 15`. Drop the -15
+and every prize lands on the line between itself and its neighbour - the one
+failure a wheel cannot get away with. `validate` pins it.
+
+**A `UIScale` PARENTED TO A `BillboardGui` DRAGS THE BILLBOARD OFF ITS
+ADORNEE.** It does not merely fail to scale. The countdown sign renders through
+a plain `Body` frame for exactly this reason; put the UIScale back on the
+BillboardGui and the sign appears beside the wheel instead of above it.
+
+### What the server owns
+
+- **The clock.** `Profile.SpinProgress` is seconds of ACTUAL PLAY, folded in
+  once a second from real elapsed time while the player is in the server.
+  Deliberately a DURATION and not a deadline - the exact opposite of
+  `TrapReadyAt`, which recharges on the wall clock. A timestamp would hand a
+  spin to anyone who left for ten minutes. The absolute `SpinReadyAt` attribute
+  the client counts down from is rebuilt from the duration on every join.
+- **The roll**, against a `Random` the module owns. `SpinWheelConfig.Segments`
+  is authoritative: twelve weights summing to exactly 10,000, checked by
+  `validate`. Measured over 2,000,000 rolls, every segment landed within 1.7%
+  of its weight.
+- **The prize**, granted the moment the roll lands - before the client has
+  drawn a frame. If the animation never finishes, nothing is lost.
+
+The client is sent ONE number: the winning segment index. Everything else hangs
+off that through the shared config, so there is no reward, no amount and no
+odds on the wire.
+
+Note the wheel's ART shows generous DISPLAYED odds (2% on the jackpot, 5% on
+the Panda, 3% on the Tiger). The real weights are 0.3%, 1.2% and 0.5%. That gap
+is deliberate and is the owner's decision; the picture and the table are
+independent by design, so changing one does not change the other.
+
+### Why the prompt is never disabled server-side
+
+`Enabled` is one value shared by every client and the wheel is ready for
+exactly one of them. So the server leaves it true and each CLIENT decides: off
+for everyone but the owner, off for the owner until their own countdown reaches
+zero, off for the length of a spin. That is presentation, and it is treated as
+one - ownership, readiness and the spin lock are all re-checked in
+`onTriggered`, so nothing a client shows or hides can produce a spin. A spin is
+asked for with a ProximityPrompt and deliberately not a RemoteEvent: `Triggered`
+arrives with the Player Roblox resolved, on the prompt the player physically
+walked up to.
+
+### Visibility
+
+`SpinWheelController` hides every wheel and then un-hides the one whose
+`OwnerUserId` matches - parts, lights, art, prompt, particles. Hiding is local:
+nothing there writes anything another client can see. The countdown sign and
+the win banner are not hidden at all; they are never BUILT except on the
+owner's client, which is the only guarantee that cannot be got wrong. Base
+reassignment is picked up from the attribute, so a plot changing hands moves
+the wheel with it.
+
+The spin runs LOCALLY on the anchored disc (the server never touches its
+CFrame), which is what makes the landing frame-perfect instead of a stutter of
+replicated positions. Measured: 5.04 turns in 3.4s, peaking near 3,500 deg/s
+and easing to a dead stop, landing on the server's segment to three decimals.
+
+The 0.7s spin cue is LOOPED - one Sound instance, no timer to drift, nothing to
+leave a second copy behind - and its `PlaybackSpeed` rides the wheel's own
+remaining travel, so the ticking slows with the picture. Stopped and destroyed
+on the landing frame.
+
+### Guardians won on the wheel
+
+`BaseGuardianService.owns` is now the ONLY thing that knows how an animal can
+be owned, and there are two ways: the Game Pass (Roblox's answer, cached) and
+`Profile.GuardiansWon` (ours). The profile is checked FIRST - it is a table
+lookup and cannot be cold, whereas the pass cache answers false until warmed.
+`grantWon` is the one writer, is idempotent, and equips into an EMPTY bay only.
+
+A guardian wedge landing on an animal the player already owns pays
+`DUPLICATE_GUARDIAN_SPEED` instead: ownership is a set, so there is no such
+thing as a second Tiger, and a rare wedge must never land as a blank.
+
+> NOT VERIFIABLE IN STUDIO: the group account owns all four passes, so the
+> `GuardiansWon` branch of `owns` could not be exercised end to end here. The
+> durability half IS tested (migrate / reconcile round-trips), and
+> `Invoke("spinGrant", name, 5)` pays a Panda through the real grant path on a
+> live server with an account that does not own it.
+
+## The three-row beginner checklist
+
+`StarterTaskService`. Completion is an EVENT, not a poll: each row is completed
+by the one service that already knows the real thing happened -
+`CarryService.trySteal` once the carry is live, `HatchService.commit` once
+`Hatched` is flipped, and `SpeedService`'s training tick once the Speed has
+landed. All three are wired in `init.server.luau` so the service is not a
+dependency of any of them, and so "what completes a row" is one paragraph
+rather than three lines buried in three files.
+
+Each row pays once ever: the flag is written into `Profile.StarterTasks`
+BEFORE the reward, so a duplicate call finds it set and returns.
+
+**Rewards are paid EXACTLY, through `award` and not `earn`** - the 2x Cash pass
+would turn a "$500" row into $1,000 and the checklist would be lying to the
+players most likely to notice. Same rule on the wheel's cash wedges.
+
+An existing player is NOT pre-completed. The v13 migration leaves all three
+open: they are three small rewards for three things anyone does in the first
+minute of a session, and guessing which ones a veteran has "already done" from
+lifetime counters would pay for actions taken before the feature existed.
+
+### Where the checklist sits
+
+Desktop and tablet: bottom-right, ten pixels above the Nightfall pill.
+`clearance` MEASURES the pill's real rect rather than assuming its height, and
+does it in screen-absolute pixels on both sides - which is the only way that is
+correct when the thing being avoided lives in a ScreenGui with a different
+`IgnoreGuiInset`. The shift lock does.
+
+**A phone does not have a bottom-right to put this in**, and that is a
+measurement rather than an opinion. On the right edge of a landscape phone: the
+offer tiles own y 74-210, the shift lock owns the band 160-108 up from the
+bottom, and Roblox's jump button owns the bottom 130. On a 390-tall screen that
+leaves about twenty pixels, and "shift upward" runs into the offer tiles. The
+bottom-LEFT is worse - that is the movement thumbstick. So a phone gets the one
+genuinely empty band: the top strip between the stat card (which ends at x=168)
+and the right-aligned gear and GIFT buttons. See `Metrics.corner`.
+
+### The lifecycle bug worth knowing about
+
+`finishing` was originally a permanent latch. A checklist rebuilt after
+finishing once could never finish again AND could never be torn down - it
+stranded on screen for the rest of the session. It is now cleared on every
+build, and the panel does not destroy itself on completion: the server keeps
+sending the finished checklist for `CLOSE_DELAY` so the flourish has something
+to play, and a panel that destroyed itself first was simply rebuilt by the next
+of those pushes. **Removal has exactly one owner: the push that says the
+checklist is retired.**
+
+## Schema v13
+
+Three new durable fields, all additive: `GuardiansWon`, `SpinProgress`,
+`StarterTasks` + `StarterTasksClosed`. `reconcile` repairs each of them fail-
+safe - a corrupt `SpinProgress` reads as "not ready yet" and one past a full
+cycle clamps to a single spin, never several. `GuardiansWon` is only replaced
+when it is not a table at all, for the same reason as the receipt list: unlike
+a Game Pass there is nobody else to ask, so silently emptying it would take a
+prize back for good.
+
+## Debug
+
+    Invoke("spin", name)               the caller's progress, wheel and lock
+    Invoke("spinReady", name)          hand yourself the next spin now
+    Invoke("spinOdds", name, 2000000)  roll without granting; measure the weights
+    Invoke("spinGrant", name, 5)       pay ONE segment through the real grant path
+    Invoke("starter", name)            the checklist; pass "reset" to reopen it

@@ -37,6 +37,7 @@ local EscapeFlashController = require(script.Parent.EscapeFlashController)
 local BaseEarningsController = require(script.Parent.BaseEarningsController)
 local AttractionSignController = require(script.Parent.AttractionSignController)
 local HatchController = require(script.Parent.HatchController)
+local SpinWheelController = require(script.Parent.SpinWheelController)
 
 local SettingsController = {}
 
@@ -81,6 +82,9 @@ local function applyReduced(reduced: boolean)
 	BaseEarningsController.setReducedEffects(reduced)
 	AttractionSignController.setReducedEffects(reduced)
 	HatchController.setReducedEffects(reduced)
+	-- The spin itself always plays - it is the feature, not a flourish on one.
+	-- What this drops is the confetti, the bounce and the rainbow drift.
+	SpinWheelController.setReducedEffects(reduced)
 end
 
 local function applyAll()

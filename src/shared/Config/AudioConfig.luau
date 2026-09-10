@@ -76,6 +76,17 @@ AudioConfig.Cues = {
 	--- picture and sound cannot drift apart. Its PlaybackSpeed is set per
 	--- shot by HatchController: bright and fast early, heavy on the last.
 	RevealCycle = { id = asset(107511012621133), volume = 0.75, category = "event" },
+	--- THE SPIN WHEEL'S TICKING, for the length of one spin and no longer.
+	--- The asset is only 0.7s, so it is LOOPED rather than re-triggered: one
+	--- Sound instance, no timer to drift and nothing to leave a second copy
+	--- behind. SpinWheelController rides its PlaybackSpeed down as the wheel
+	--- slows, so the ticking decelerates with the picture, and stops and
+	--- destroys it on the landing frame.
+	SpinLoop = { id = asset(9120658649), volume = 0.6, category = "event", looped = true },
+	--- The free spin becoming available. Deliberately the treadmill's unlock
+	--- chime rather than a new asset: it already means "something of yours is
+	--- ready" everywhere else in the game.
+	SpinReady = { id = asset(93360393539898), volume = 0.7, category = "event" },
 	Sell = { id = asset(138979515680965), volume = 0.85, category = "event" },
 	TreadmillUnlock = { id = asset(93360393539898), volume = 0.95, category = "event" },
 	UpgradePurchase = { id = asset(80736831159506), volume = 0.9, category = "event" },

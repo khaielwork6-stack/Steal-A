@@ -31,6 +31,9 @@ local MonetizationConfig = require(script.Parent.MonetizationConfig)
 local HatchConfig = require(script.Parent.HatchConfig)
 local MysteryConfig = require(script.Parent.MysteryConfig)
 local PvPConfig = require(script.Parent.PvPConfig)
+local BaseGuardianConfig = require(script.Parent.BaseGuardianConfig)
+local SpinWheelConfig = require(script.Parent.SpinWheelConfig)
+local StarterTaskConfig = require(script.Parent.StarterTaskConfig)
 local NumberFormat = require(script.Parent.Parent.Util.NumberFormat)
 
 type Report = { passed: number, failed: { string } }
@@ -534,6 +537,129 @@ return function(): Report
 	check(ZoneConfig.GUARDIAN_GATE_MARGIN > 0, "the gate margin must be positive")
 	check(ZoneConfig.GUARDIAN_DEFICIT_CATCHUP > 0, "the deficit catch-up must be positive")
 	check(math.abs(GameConfig.legacyWalkSpeedFromPower(10) - 18.26) < 0.05, "the legacy calibration curve must still map Speed 10 to ~18.3")
+
+	-- ==========================================================
+	-- THE SPIN WHEEL
+	-- ==========================================================
+	--
+	-- The wheel is a PICTURE with twelve wedges and a table with twelve rows,
+	-- and the two have to stay the same shape or the pointer lands on the
+	-- wrong words. These are the checks a regression there would be silent
+	-- about: a dropped row, a mistyped weight, a segment with no reward.
+	do
+		local segments = SpinWheelConfig.Segments
+		check(#segments == 12, `the spin wheel must have 12 segments to match its art, has {#segments}`)
+		local total = 0
+		for index, segment in segments do
+			total += segment.weight
+			check(segment.index == index, `spin segment {index} carries index {segment.index}`)
+			check(segment.weight > 0, `spin segment {index} ({segment.label}) has no weight`)
+			check(segment.label ~= "" and segment.won ~= "", `spin segment {index} has no label`)
+			if segment.kind == "guardian" then
+				local key = segment.guardianKey
+				check(
+					key ~= nil and BaseGuardianConfig.ByKey[key :: string] ~= nil,
+					`spin segment {index} names guardian "{tostring(key)}", which does not exist`
+				)
+				check(segment.amount == 0, `spin segment {index} is a guardian and must carry no amount`)
+			else
+				check(segment.amount > 0, `spin segment {index} ({segment.kind}) pays nothing`)
+			end
+			check(
+				SpinWheelConfig.TierColors[segment.tier] ~= nil,
+				`spin segment {index} has an unknown tier "{tostring(segment.tier)}"`
+			)
+		end
+		check(
+			total == SpinWheelConfig.TOTAL_WEIGHT,
+			`spin weights must sum to exactly {SpinWheelConfig.TOTAL_WEIGHT}, sum to {total}`
+		)
+
+		-- THE ROLL MUST BE ABLE TO REACH EVERY SEGMENT. Walking the cumulative
+		-- boundaries proves the mapping without needing a million samples: the
+		-- first ticket of each band and the last must resolve to that band.
+		--- A Random that always deals the ticket we want to test.
+		local function pinned(ticket: number): any
+			return {
+				NextInteger = function(_self: any, _low: number, _high: number): number
+					return ticket
+				end,
+			}
+		end
+		local running = 0
+		local reachable = true
+		for _, segment in segments do
+			local first, last = running + 1, running + segment.weight
+			running = last
+			if
+				SpinWheelConfig.roll(pinned(first)) ~= segment.index
+				or SpinWheelConfig.roll(pinned(last)) ~= segment.index
+			then
+				reachable = false
+			end
+		end
+		check(reachable, "every spin segment must be reachable at both ends of its weight band")
+
+		-- The easing lands EXACTLY, or the pointer stops off the wedge.
+		check(SpinWheelConfig.progress(0) == 0, "the spin curve must start at 0")
+		check(SpinWheelConfig.progress(1) == 1, "the spin curve must end at exactly 1")
+		local monotonic = true
+		local previous = -1
+		for step = 0, 100 do
+			local value = SpinWheelConfig.progress(step / 100)
+			if value < previous then
+				monotonic = false
+			end
+			previous = value
+		end
+		check(monotonic, "the spin curve must never travel backwards")
+
+		-- Twelve wedges of thirty degrees, each landing on its own CENTRE and
+		-- never on the line it shares with its neighbour. The half-wedge is the
+		-- part that is easy to lose in a refactor and impossible to spot in a
+		-- log, so it is pinned here rather than left to the eye.
+		check(math.abs(SpinWheelConfig.SEGMENT_ARC - 30) < 1e-9, "each spin wedge must be 30 degrees")
+		local spacing = true
+		for index = 2, 12 do
+			local step = math.deg(SpinWheelConfig.angleFor(index) - SpinWheelConfig.angleFor(index - 1))
+			if math.abs(step - SpinWheelConfig.SEGMENT_ARC) > 1e-6 then
+				spacing = false
+			end
+		end
+		check(spacing, "consecutive spin segments must be exactly one wedge apart")
+		check(
+			math.abs(math.deg(SpinWheelConfig.angleFor(1)) - 15) < 1e-6,
+			"segment 1's centre must be half a wedge clockwise of the pointer"
+		)
+		check(
+			math.abs((math.deg(SpinWheelConfig.angleFor(12)) % 360) - 345) < 1e-6,
+			"segment 12's centre must be half a wedge anticlockwise of the pointer"
+		)
+
+		check(SpinWheelConfig.PLAY_SECONDS == 600, "the free spin must be earned every 10 minutes of play")
+		check(SpinWheelConfig.WHEEL_IMAGE:match("^rbxassetid://%d+$") ~= nil, "the wheel image must be an rbxassetid")
+		check(
+			SpinWheelConfig.LOCK_SECONDS > SpinWheelConfig.SPIN_SECONDS + SpinWheelConfig.RESULT_SECONDS,
+			"the server's spin lock must outlast the animation it is covering"
+		)
+	end
+
+	-- ==========================================================
+	-- THE BEGINNER CHECKLIST
+	-- ==========================================================
+	do
+		check(#StarterTaskConfig.Tasks == 3, `the starter checklist must have 3 rows, has {#StarterTaskConfig.Tasks}`)
+		local seen: { [string]: boolean } = {}
+		for _, task in StarterTaskConfig.Tasks do
+			check(not seen[task.key], `starter task key "{task.key}" appears twice`)
+			seen[task.key] = true
+			check(task.amount > 0, `starter task "{task.key}" pays nothing`)
+			check(task.text ~= "" and task.reward ~= "", `starter task "{task.key}" has no wording`)
+			check(StarterTaskConfig.ByKey[task.key] == task, `starter task "{task.key}" is missing from ByKey`)
+		end
+		check(not StarterTaskConfig.isComplete({}), "an empty checklist must not read as complete")
+		check(StarterTaskConfig.isComplete(seen), "a checklist with every key must read as complete")
+	end
 
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)

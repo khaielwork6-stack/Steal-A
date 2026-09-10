@@ -58,6 +58,13 @@ function SpeedService.trainingMultiplier(_player: Player): number
 	return 1
 end
 
+--- A TICK OF TRAINING THAT ACTUALLY PAID. Fired from the authoritative tick
+--- below, after the Speed has landed on the profile - so it means "this player
+--- ran on their own treadmill and was paid for it", never "a client said so".
+--- Injected for the same reason as the multiplier above; the beginner
+--- checklist is the current listener.
+function SpeedService.onTrained(_player: Player) end
+
 -- ==========================================================
 -- ACTIVATION - REMOVED ON PURPOSE
 -- ==========================================================
@@ -641,6 +648,14 @@ local function trainingTick()
 		profile.SpeedPower += TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
 		SpeedService.applyMovement(player)
 		StateService.markDirty(player)
+
+		-- The training has been PAID. Anything watching for "they used the
+		-- treadmill" hears about it here and nowhere earlier. In a pcall so
+		-- one listener cannot break the tick for every player on the server.
+		local trained, trainedErr = pcall(SpeedService.onTrained, player)
+		if not trained then
+			warn(`[SpeedService] training listener failed for {player.Name}: {trainedErr}`)
+		end
 
 		-- Crossing a zone's recommended Speed is the single moment the long
 		-- treadmill grind pays off, so it gets its own cue. THE CUE ONLY: the

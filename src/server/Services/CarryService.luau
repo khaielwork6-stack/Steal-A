@@ -66,6 +66,17 @@ function CarryService.setDeliveredHandler(fn: (Player, LootService.LootInstance)
 	onDelivered = fn
 end
 
+--- A STEAL THAT ACTUALLY HAPPENED. Fired at the end of `trySteal`, once the
+--- item is reserved, welded to the thief and the carry is live - never on a
+--- request, a prompt or a touch. Injected rather than required so this file
+--- gains no dependency on whatever happens to be listening; the beginner
+--- checklist is the current listener.
+local onStolen: (Player, LootService.LootInstance) -> () = function() end
+
+function CarryService.setStolenHandler(fn: (Player, LootService.LootInstance) -> ())
+	onStolen = fn
+end
+
 function CarryService.getCarried(player: Player): LootService.LootInstance?
 	return carrying[player]
 end
@@ -463,6 +474,12 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	-- two messages saying the same thing at the same moment. One instructional
 	-- objective at a time, plus a short event toast, is the rule.
 	notify(player, "success", `STOLEN: {loot.name}!`)
+	-- Last, and in a pcall: a listener that throws must not undo a steal that
+	-- has already happened.
+	local ok, err = pcall(onStolen, player, loot)
+	if not ok then
+		warn(`[CarryService] steal listener failed for {player.Name}: {err}`)
+	end
 	return true
 end
 

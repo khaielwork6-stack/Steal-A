@@ -81,6 +81,14 @@ Remotes.NAMES = {
 	-- the amount when the profile loaded and holds it as a pending claim; the
 	-- client can only ask for it. Idempotent. See OfflineService.
 	"OfflineClaimRequest",
+	-- server -> the spinning client only. Fired AFTER the wheel has been rolled
+	-- and the prize granted, and it carries ONE number: the winning segment
+	-- index. Everything the animation needs hangs off that through
+	-- SpinWheelConfig, which both sides already have - so there is no reward,
+	-- no amount and no odds on the wire, and nothing here can be replayed into
+	-- a second prize. The spin itself is asked for with a ProximityPrompt, not
+	-- a remote, so there is deliberately no client -> server event for it.
+	"SpinResult",
 	-- server -> client
 	"StatePush",
 	"Notify",

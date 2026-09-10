@@ -227,12 +227,57 @@ end
 -- OWNERSHIP
 -- ==========================================================
 
+--- TWO WAYS TO OWN AN ANIMAL, and this is the only function that knows about
+--- either. Everything downstream - equip, sync, the Storage tab, the shop
+--- prompt, the offer - asks this and nothing else, so a guardian won on the
+--- wheel behaves exactly like one that was bought.
+---
+--- 1. THE GAME PASS, which Roblox owns. Asked through MonetizationService's
+---    cache, so a refund or a revoke is reflected instead of frozen.
+--- 2. THE WHEEL, which we own. A win is written into `GuardiansWon` on the
+---    profile because Roblox has no record of it to ask for. Checked FIRST:
+---    it is a local table lookup and cannot be cold, whereas the pass cache
+---    answers false until it has been warmed.
 function BaseGuardianService.owns(player: Player, key: string): boolean
 	local def = BaseGuardianConfig.ByKey[key]
-	if not def or def.gamePassId <= 0 then
+	if not def then
+		return false
+	end
+	local profile = DataService.get(player)
+	if profile and profile.GuardiansWon[key] then
+		return true
+	end
+	if def.gamePassId <= 0 then
 		return false
 	end
 	return MonetizationService.ownsPassCached(player, def.gamePassId)
+end
+
+--- Hands a player an animal for good. The ONE writer of `GuardiansWon`.
+---
+--- Idempotent by construction: the flag is a set, so a replayed or duplicated
+--- grant writes the same true a second time and changes nothing. Returns
+--- false when there was nothing to give - an unknown key, or an animal this
+--- player already had - so a caller can tell a real prize from a no-op.
+function BaseGuardianService.grantWon(player: Player, key: string): boolean
+	local def = BaseGuardianConfig.ByKey[key]
+	local profile = DataService.get(player)
+	if not def or not profile then
+		return false
+	end
+	if BaseGuardianService.owns(player, key) then
+		return false
+	end
+	profile.GuardiansWon[key] = true
+	-- An EMPTY bay gets the new animal straight away; one that is already
+	-- guarding is left alone, exactly as a bought pass behaves. Storage is
+	-- where a player changes their mind.
+	if profile.EquippedGuardian == "" or not BaseGuardianService.owns(player, profile.EquippedGuardian) then
+		BaseGuardianService.equip(player, key)
+	else
+		StateService.pushNow(player)
+	end
+	return true
 end
 
 -- ==========================================================
