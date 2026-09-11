@@ -320,14 +320,33 @@ GameConfig.GUARDIAN_IDLE_ANIMATIONS = {
 -- LOOT LIFECYCLE
 -- ==========================================================
 --
--- THERE IS NO PER-SOCKET REFILL TIMER. A socket emptied by a successful theft
--- stays empty until the next GLOBAL refresh. That is the core of the pacing:
--- the world is picked clean, everybody watches the countdown, and the refresh
--- is a shared event rather than a private slot machine.
+-- THERE IS NO PER-SOCKET REFILL TIMER - EXCEPT IN ZONE 1. A socket emptied by
+-- a successful theft stays empty until the next GLOBAL refresh. That is the core
+-- of the pacing: the world is picked clean, everybody watches the countdown, and
+-- the refresh is a shared event rather than a private slot machine.
 --
 -- The only paths that put an item back into its own socket early are a guardian
 -- reclaim and an unclaimed PvP drop, and both return the SAME instance - they
 -- never roll a new one.
+
+--- ZONE 1 RESPAWNS ON ITS OWN, by owner decision (2026-09-11). A stolen Zone 1
+--- container comes back after a random 60-90 seconds instead of waiting out
+--- the 270s Night refresh.
+---
+--- WHY ZONE 1 AND ONLY ZONE 1. Seven players share Zone 1's four sockets, and
+--- a simulation of the first fifteen minutes put a new player in a normal
+--- server at 11.7 minutes with NOTHING to steal - the leading reason for early
+--- quits. The "slot machine" argument against refill timers is real for the
+--- map as a whole, and does not apply here: Zone 1's best item pays less than
+--- most commons a few zones on, so a faster Zone 1 moves new players along
+--- without printing anything that matters later. Zones 2-12 keep the shared
+--- refresh untouched, and `validate` pins that this table names Zone 1 alone.
+---
+--- The Night refresh still rerolls Zone 1 with everything else; this only
+--- decides how soon an EMPTIED socket fills in between.
+GameConfig.ZONE_RESPAWN = {
+	[1] = { min = 60, max = 90 },
+} :: { [number]: { min: number, max: number } }
 
 --- Fallback only: a reclaimed item the guardian cannot physically carry home
 --- (no model) goes back to its socket after this instead.
@@ -355,9 +374,24 @@ GameConfig.GLOBAL_REFRESH_WARNING = 10 -- retired: the Night countdown replaced 
 -- ==========================================================
 --
 -- The first steal is guaranteed so a brand new player always meets the same,
--- winnable opening: a Normal/Normal Ancient Vase.
+-- winnable opening: a Normal/Normal Pharaoh Mask.
+--
+-- It was the Ancient Vase, the cheapest item in the game, which made the
+-- tutorial's payoff beat read "EARNING $1/s". The Mask ($35/s) is the first
+-- item that looks like progress. Only the TUTORIAL copy is special: the Mask's
+-- own stats, weight and ordinary spawns are exactly as LootConfig says.
 
-GameConfig.TUTORIAL_ITEM_ID = "Museum_AncientVase"
+GameConfig.TUTORIAL_ITEM_ID = "Museum_PharaohMask"
+--- Earlier tutorial items. A player part-way through the tutorial when the item
+--- changed placed the OLD one, and the tutorial reads "have you placed the
+--- tutorial item" from the Index - so without this they would be sent back to
+--- step one to steal a Mask they were never asked for.
+GameConfig.TUTORIAL_LEGACY_ITEM_IDS = { "Museum_AncientVase" }
+--- The tutorial copy reveals this fast, whatever its rarity. The Mask is a Rare
+--- (45s); the Vase it replaced was a Common (5s), and a 45-second wait on a new
+--- player's very first reveal is exactly the dead time this change removes.
+--- Applies to the pinned tutorial copy only - every other Mask waits 45s.
+GameConfig.TUTORIAL_HATCH_SECONDS = 5
 GameConfig.TUTORIAL_ZONE = 1
 GameConfig.TUTORIAL_SOCKET = 1
 GameConfig.TUTORIAL_FINISH_DELAY = 9 -- seconds the zone-2 pointer stays up

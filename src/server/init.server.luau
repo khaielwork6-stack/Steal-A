@@ -117,6 +117,10 @@ end
 -- which is how a new player could mint duplicates by stealing and dropping in a
 -- loop. Every other item keeps the normal reclaimable drop.
 CarryService.returnsHomeOnDrop = TutorialService.isTutorialLoot
+-- The pinned tutorial item is for new players only. It is re-pinned every half
+-- second while anyone in the server still needs it, so without this every other
+-- player could take a free Pharaoh Mask from that socket on a loop.
+CarryService.mayTakeLoot = TutorialService.mayTakeLoot
 
 -- A brand-new player starts on the hub facing the Zone 01 gate; everyone else
 -- starts at their plot.

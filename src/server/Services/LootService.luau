@@ -37,6 +37,13 @@
 	appears, players hunt, the good sockets get taken, the world empties, the
 	countdown runs, everyone races out again.
 
+	THE ONE EXCEPTION IS ZONE 1 (GameConfig.ZONE_RESPAWN). A socket emptied by
+	a theft there rolls a fresh container after a random 60-90 seconds, so a
+	new player sharing four sockets with six others is not left with nothing
+	to do. Zone 1's best item is worth less than a common a few zones on, so
+	the slot-machine argument above does not reach it. Every other zone keeps
+	the rule exactly as written.
+
 	Two paths put an item back early, and BOTH return the same instance rather
 	than rolling a new one:
 	  * a guardian reclaim (you were caught - you should not have to wait five
@@ -126,6 +133,13 @@ export type LootInstance = {
 	--- leaving, a guardian) calls `onLost` instead of sending it to a socket.
 	heist: boolean?,
 	onLost: ((reason: string) -> ())?,
+	--- The tutorial's guaranteed item, pinned by TutorialService. World state
+	--- only - never saved. It does two things: only a player still in the
+	--- tutorial may steal it (CarryService), and placing it starts the fast
+	--- tutorial reveal (PlacementService). Without the first, a server with a
+	--- new player in it would hand anyone an endless supply of Pharaoh Masks,
+	--- re-pinned every half second.
+	tutorialPin: boolean?,
 }
 
 --- The part a player interacts with. Ordinary loot: its PrimaryPart. A tall
@@ -168,6 +182,11 @@ type Socket = {
 	index: number,
 	part: BasePart,
 	loot: LootInstance?,
+	--- Bumped every time a theft empties this socket. A pending Zone 1 respawn
+	--- carries the value it was scheduled under and does nothing if it has
+	--- moved on - so a timer from an earlier theft can never refill a socket
+	--- early after it has been refilled and emptied again.
+	respawnGeneration: number?,
 }
 
 local sockets: { { Socket } } = {}
@@ -622,13 +641,47 @@ function LootService.getSocket(zoneIndex: number, socketIndex: number): Socket?
 	return if zone then zone[socketIndex] else nil
 end
 
+--- Schedules the Zone 1 respawn for a socket a theft just emptied. A no-op in
+--- every zone without a GameConfig.ZONE_RESPAWN entry, which is every zone
+--- but the first.
+---
+--- The timer re-checks everything when it fires rather than trusting what was
+--- true when it was set, because four things can happen in between:
+---   * the thief is caught and returnToOrigin puts the SAME item back
+---   * the tutorial re-pins its guaranteed item into this socket
+---   * the Night refresh fills every empty socket in the world
+---   * the socket is refilled and stolen from again (the generation moves on)
+--- In the first three the socket is occupied and the timer stands down; in
+--- the fourth the newer theft's own timer is the one that counts. While the
+--- world is closed for the Night nothing spawns: the refresh at the end of it
+--- fills the socket anyway.
+local function scheduleRespawn(socket: Socket)
+	local window = GameConfig.ZONE_RESPAWN[socket.zoneIndex]
+	if not window then
+		return
+	end
+	local generation = (socket.respawnGeneration or 0) + 1
+	socket.respawnGeneration = generation
+	local delay = window.min + math.random() * (window.max - window.min)
+	task.delay(delay, function()
+		if socket.respawnGeneration ~= generation or socket.loot or closed then
+			return
+		end
+		LootService.fillSocket(socket)
+	end)
+end
+
 --- Detaches loot from its socket, leaving the socket EMPTY until the next global
---- refresh. There is deliberately no delay argument: a per-socket refill timer is
---- the thing this economy exists to remove.
+--- refresh - or, in Zone 1 only, until its own respawn (see scheduleRespawn).
 function LootService.detach(loot: LootInstance)
 	local socket = LootService.getSocket(loot.zoneIndex, loot.socketIndex)
 	if socket and socket.loot == loot then
 		socket.loot = nil
+		-- Only when THIS call actually emptied the socket. `consume` also passes
+		-- through here for an item placed long after its steal, by which time the
+		-- socket is already empty or holds something new - neither may start a
+		-- second timer.
+		scheduleRespawn(socket)
 	end
 end
 

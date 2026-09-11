@@ -156,10 +156,12 @@ return function(): Report
 	-- ==========================================================
 	-- ITEM POOLS AND SPAWN WEIGHTS
 	-- ==========================================================
+	-- Zones 1-3 are this game's own early odds (owner decision, 2026-09-11);
+	-- 4-11 are the reference game's. See LootConfig SPAWN WEIGHTS.
 	local expectedWeights = {
-		{ 34, 24, 17, 10, 7, 4.5, 2.5, 1 },
-		{ 29.274167, 23.217443, 17.160719, 12.113448, 8.075632, 5.551997, 4.037816, 0.568777 },
-		{ 26.585432, 20.450332, 15.337749, 12.270199, 9.202650, 8.180133, 6.646358, 1.327147 },
+		{ 23.448276, 16.551724, 25.000000, 11.764706, 8.235294, 7.714286, 4.285714, 3.000000 },
+		{ 17.846154, 14.153846, 23.000000, 20.000000, 8.888889, 6.111111, 9.000000, 1.000000 },
+		{ 15.000000, 15.000000, 20.000000, 17.000000, 14.000000, 9.379310, 7.620690, 2.000000 },
 		{ 26.006779, 20.005214, 17.004432, 13.003389, 11.002868, 7.852047, 5.001304, 0.123968 },
 		{ 29.444067, 21.570745, 18.335133, 14.020984, 11.863910, 4.171033, 0.371904, 0.222224 },
 		{ 26.848869, 22.040116, 18.032822, 15.027352, 17.030999, 0.619840, 0.222224, 0.177779 },
@@ -479,7 +481,53 @@ return function(): Report
 	-- ==========================================================
 	-- ANCHORS
 	-- ==========================================================
-	check(LootConfig.ById["Museum_AncientVase"].income == 1, "the tutorial vase must be $1/s")
+	-- The owner's early-zone odds, stated the way they were specified: per
+	-- rarity, not per slot. This is the check that reads like the spec.
+	local earlyOdds = {
+		[1] = { Common = 40, Uncommon = 25, Rare = 20, Epic = 12, Legendary = 3 },
+		[2] = { Common = 32, Uncommon = 23, Rare = 20, Epic = 15, Legendary = 9, Cosmic = 1 },
+		[3] = { Common = 15, Uncommon = 15, Rare = 20, Epic = 17, Legendary = 14, Mythic = 17, Cosmic = 2 },
+	}
+	for zoneIndex, wanted in earlyOdds do
+		local byRarity: { [string]: number } = {}
+		for _, item in LootConfig.pool(zoneIndex) do
+			byRarity[item.rarity] = (byRarity[item.rarity] or 0) + LootConfig.weightShare(item.id) * 100
+		end
+		for rarity, share in wanted do
+			check(near(byRarity[rarity] or 0, share, 1e-4), `zone {zoneIndex} {rarity} must be {share}%, got {byRarity[rarity] or 0}`)
+		end
+		for rarity in byRarity do
+			check(wanted[rarity] ~= nil, `zone {zoneIndex} must not roll {rarity}`)
+		end
+	end
+
+	-- ZONE 1 RESPAWNS ON ITS OWN; NO OTHER ZONE DOES. A global per-socket delay
+	-- must still never come back, and the Zone 1 exception must not quietly
+	-- spread to the zones whose pacing depends on the shared refresh.
+	check((GameConfig :: any).SOCKET_REFILL_DELAY == nil, "the global per-socket refill delay must not come back")
+	local respawnZones = 0
+	for zoneIndex, window in GameConfig.ZONE_RESPAWN do
+		respawnZones += 1
+		check(zoneIndex == 1, `only Zone 1 may respawn between refreshes, found zone {zoneIndex}`)
+		check(window.min == 60 and window.max == 90, `Zone 1 must respawn in 60-90s, got {window.min}-{window.max}`)
+	end
+	check(respawnZones == 1, `exactly one zone may respawn between refreshes, got {respawnZones}`)
+
+	-- THE TUTORIAL ITEM. A Zone 1 item in the tutorial's own socket, pinned at
+	-- the Common reveal speed so a new player's first reveal stays five seconds.
+	local tutorialItem = LootConfig.ById[GameConfig.TUTORIAL_ITEM_ID]
+	check(tutorialItem ~= nil, `the tutorial item {GameConfig.TUTORIAL_ITEM_ID} must exist`)
+	check(GameConfig.TUTORIAL_ITEM_ID == "Museum_PharaohMask", "the tutorial item must be the Pharaoh Mask")
+	check(tutorialItem ~= nil and tutorialItem.zoneIndex == GameConfig.TUTORIAL_ZONE, "the tutorial item must belong to the tutorial zone")
+	check(
+		GameConfig.TUTORIAL_HATCH_SECONDS == HatchConfig.hatchSeconds("Common", "Normal", "Normal"),
+		"the tutorial item must reveal at the Common Normal/Normal speed"
+	)
+	for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
+		check(LootConfig.ById[legacyId] ~= nil, `legacy tutorial item {legacyId} must still exist`)
+	end
+
+	check(LootConfig.ById["Museum_AncientVase"].income == 1, "the Ancient Vase must be $1/s")
 	check(LootConfig.ById["Museum_Diamond"].income == 1800, "Museum Diamond must be $1,800/s")
 	check(LootConfig.ById["Pirate_CursedCoin"].income == 220e3, "Cursed Coin must be $220,000/s")
 	check(LootConfig.ById["SecretLab_MutationCrystal"].income == 45e6, "Blue Crystal must be $45M/s")
@@ -490,10 +538,9 @@ return function(): Report
 		LootConfig.ById["Bank_BankersBriefcase"].income > LootConfig.ById["Bank_PlatinumBullionStack"].income,
 		"the Bank's $32M -> $25M step is intentional and must not be sorted"
 	)
-	check(LootConfig.ById["Museum_AncientVase"].rarity == "Common", "the tutorial vase must be Common")
+	check(LootConfig.ById["Museum_AncientVase"].rarity == "Common", "the Ancient Vase must be Common")
 	check(GameConfig.STARTING_SPEED_POWER == 10, "starting Speed must be 10")
 	check(GameConfig.STARTING_CASH == 0, "starting Cash must be 0")
-	check((GameConfig :: any).SOCKET_REFILL_DELAY == nil, "the per-socket refill delay must not come back")
 	check((GameConfig :: any).TUTORIAL_CASH_BRIDGE == nil, "the tutorial Cash bridge must not come back")
 	check((BaseConfig :: any).ACTIVATION_COST == nil, "base activation must not come back")
 

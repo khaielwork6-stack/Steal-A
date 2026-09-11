@@ -160,14 +160,18 @@ end
 ---
 --- Idempotent: an item that already carries a deadline keeps it, so a rebuild
 --- or a re-equip can never extend or restart somebody's wait.
-function HatchService.beginIncubation(player: Player, item: DataService.DisplayItem)
+---
+--- `overrideSeconds` replaces the rolled duration. Only the tutorial's pinned
+--- item passes one (GameConfig.TUTORIAL_HATCH_SECONDS); it is applied once, at
+--- the first stamp, and the idempotence above means nothing can re-apply it.
+function HatchService.beginIncubation(player: Player, item: DataService.DisplayItem, overrideSeconds: number?)
 	if item.Hatched ~= false then
 		return
 	end
 	if tonumber(item.HatchEndsAt) then
 		return
 	end
-	local seconds = HatchService.durationFor(item.Rarity, item.Size, item.Mutation)
+	local seconds = overrideSeconds or HatchService.durationFor(item.Rarity, item.Size, item.Mutation)
 	item.HatchEndsAt = os.time() + seconds
 	StateService.markDirty(player)
 end

@@ -10,8 +10,9 @@
 	`weight` is the item's share of every socket roll in its zone. EVERY
 	socket in a zone rolls independently from ALL EIGHT items using these
 	weights; duplicates are allowed, nothing is excluded, nothing is rerolled.
-	Zones 1-11 carry the reference game's verified per-slot weights, in this
-	game's item-slot order. Rarity is a label read off RarityConfig.ZoneRarities
+	Zones 4-11 carry the reference game's verified per-slot weights, in this
+	game's item-slot order; zones 1-3 carry this game's own richer early odds
+	(see SPAWN WEIGHTS). Rarity is a label read off RarityConfig.ZoneRarities
 	and drives nothing in the roll.
 
 	ItemId is the stable save key and must NEVER be renamed - the display `name`
@@ -65,13 +66,32 @@ local LootConfig = {}
 -- SPAWN WEIGHTS (per zone, in item-slot order)
 -- ==========================================================
 --
--- The reference game's verified per-slot weights for zones 1-11. Zone 12
+-- The reference game's verified per-slot weights for zones 4-11. Zone 12
 -- repeats Zone 11's - a PROVISIONAL post-game table, not a parity value.
+--
+-- ZONES 1-3 ARE THIS GAME'S OWN, NOT PARITY (owner decision, 2026-09-11).
+-- Early progression was measured as the reason new players were leaving, so
+-- the first three zones were given richer odds, specified PER RARITY:
+--
+--   Zone 1  Common 40  Uncommon 25  Rare 20  Epic 12  Legendary 3
+--   Zone 2  Common 32  Uncommon 23  Rare 20  Epic 15  Legendary 9   Cosmic 1
+--   Zone 3  Common 15  Uncommon 15  Rare 20  Epic 17  Legendary 14  Mythic 17  Cosmic 2
+--
+-- Where a rarity covers two slots, its share is split in the SAME RATIO the
+-- reference weights had between them, so the cheaper of two Commons stays
+-- the likelier one. Each zone sums to exactly 100. Zone 1 was 58% Common
+-- ($1-$2/s items) and is now 40%; its expected income per steal goes from
+-- $40.93/s to $88.56/s.
+--
+-- The old values, should parity ever be wanted back:
+--   [1] = { 34, 24, 17, 10, 7, 4.5, 2.5, 1 }
+--   [2] = { 29.274167, 23.217443, 17.160719, 12.113448, 8.075632, 5.551997, 4.037816, 0.568777 }
+--   [3] = { 26.585432, 20.450332, 15.337749, 12.270199, 9.202650, 8.180133, 6.646358, 1.327147 }
 
 LootConfig.ZoneWeights = {
-	[1] = { 34, 24, 17, 10, 7, 4.5, 2.5, 1 },
-	[2] = { 29.274167, 23.217443, 17.160719, 12.113448, 8.075632, 5.551997, 4.037816, 0.568777 },
-	[3] = { 26.585432, 20.450332, 15.337749, 12.270199, 9.202650, 8.180133, 6.646358, 1.327147 },
+	[1] = { 23.448276, 16.551724, 25.000000, 11.764706, 8.235294, 7.714286, 4.285714, 3.000000 },
+	[2] = { 17.846154, 14.153846, 23.000000, 20.000000, 8.888889, 6.111111, 9.000000, 1.000000 },
+	[3] = { 15.000000, 15.000000, 20.000000, 17.000000, 14.000000, 9.379310, 7.620690, 2.000000 },
 	[4] = { 26.006779, 20.005214, 17.004432, 13.003389, 11.002868, 7.852047, 5.001304, 0.123968 },
 	[5] = { 29.444067, 21.570745, 18.335133, 14.020984, 11.863910, 4.171033, 0.371904, 0.222224 },
 	[6] = { 26.848869, 22.040116, 18.032822, 15.027352, 17.030999, 0.619840, 0.222224, 0.177779 },

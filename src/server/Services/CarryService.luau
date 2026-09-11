@@ -414,6 +414,10 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 		return "Someone beat you to it!"
 	end
 
+	if not CarryService.mayTakeLoot(player, loot) then
+		return "That one's saved for a new player - try another crate!"
+	end
+
 	local model = loot.model
 	local reach = LootService.interactionPart(loot)
 	if not model or not model.PrimaryPart or not reach then
@@ -457,9 +461,10 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	loot.carrier = player
 	carrying[player] = loot
 	LootService.setState(loot, "Carried")
-	-- The socket is now EMPTY and stays empty until the global refresh. If the
-	-- guardian takes this item back, returnToOrigin puts THIS instance back into
-	-- it; nothing rolls a replacement.
+	-- The socket is now EMPTY and stays empty until the global refresh (or, in
+	-- Zone 1 only, its own 60-90s respawn - see LootService.detach). If the
+	-- guardian takes this item back first, returnToOrigin puts THIS instance
+	-- back into it; nothing rolls a replacement.
 	LootService.detach(loot)
 	CarryService.applyMovement(player)
 	onCarryChanged(player)
@@ -524,10 +529,18 @@ end
 
 --- Whether a dropped item goes STRAIGHT HOME instead of lying where it fell.
 --- Overridden by init with TutorialService's answer: true only for the pinned
---- tutorial vase while its carrier is still in the tutorial. Everywhere else a
+--- tutorial item while its carrier is still in the tutorial. Everywhere else a
 --- drop stays a drop, reclaimable for the usual window.
 function CarryService.returnsHomeOnDrop(_player: Player, _loot: LootService.LootInstance): boolean
 	return false
+end
+
+--- Whether `player` may steal this particular item. Overridden by init with
+--- TutorialService.mayTakeLoot: the pinned tutorial item is reserved for
+--- players still in the tutorial, and everything else is fair game. Injected
+--- rather than required, so CarryService keeps no dependency on the tutorial.
+function CarryService.mayTakeLoot(_player: Player, _loot: LootService.LootInstance): boolean
+	return true
 end
 
 --- Lays an item on the ground at `position` (feet at `floorY`) and marks it

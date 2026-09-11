@@ -31,6 +31,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -423,50 +424,249 @@ end
 -- right edge above the hold button, and every panel opened much larger.
 -- Nothing is rebound or renamed; the pack's own handlers keep every button.
 
---- Menu tile size on touch, in pixels (before the HUD's UIScale).
+-- ==========================================================
+-- THE MENU BLOCK: ALWAYS TWO BY TWO
+-- ==========================================================
+--
+-- Shop and Upgrades on top, Index and Storage below, on every phone and
+-- tablet, whatever its width or aspect ratio. Never one row of four.
+--
+-- THE SIZE IS MEASURED PER SCREEN. The block has to sit between two things:
+-- the stat card above it, and Roblox's movement thumbstick below it. The
+-- thumbstick is NOT a guess here - it lives in PlayerGui.TouchGui, so its
+-- resting ring (ThumbstickStart) is read from the real layout on the real
+-- device. From the PlayerModule's own source, that ring is 74px across and
+-- sits 64-93px up from the bottom-left corner depending on which control style
+-- Roblox serves, which is why no fixed fraction of the screen can be right.
+--
+-- Three steps, in order, stopping at the first that fits:
+--   1. The owner's layout: 60px tiles centred at 56% of the screen. On any
+--      screen with room for it, the block is exactly what it always was.
+--   2. Smaller tiles, packed under the stat card, never below 44px - the
+--      smallest reliable finger target.
+--   3. The whole block shrunk uniformly, still two by two. Only on the
+--      smallest phones, and never below TOUCH_MIN_BLOCK_SCALE.
+-- Captions are the pack's own fixed-height labels, so they stay readable at
+-- every tile size.
+
+--- Menu tile size on touch, in pixels. The owner's size, used whenever it fits.
 local TOUCH_TILE = 60
+--- The smallest tile drawn before the block is shrunk as a whole instead.
+local TOUCH_TILE_MIN = 44
+--- The smallest the whole block is ever scaled. Past this the captions stop
+--- being legible, and a block that is slightly too tall is the lesser harm.
+local TOUCH_MIN_BLOCK_SCALE = 0.72
 local TOUCH_TILE_GAP = 8
 --- Vertical gap between the two rows: room for the caption under each tile.
 local TOUCH_TILE_LABEL_GAP = 26
+--- How far each caption hangs below its plate - the pack's Title is 18 tall
+--- at +14 - so the BOTTOM row needs this much clear space beneath it too.
+local TOUCH_CAPTION_DROP = 32
+--- Clearance kept from the stat card above and the thumbstick ring below.
+local TOUCH_BLOCK_MARGIN = 8
+--- The block's centre in the owner's layout, as a share of the HUD's height.
+local TOUCH_BLOCK_CENTRE = 0.56
 --- Largest font any TextScaled label inside a panel may reach on touch, so a
 --- short label in a tall row does not balloon.
 local TOUCH_PANEL_MAX_TEXT = 26
 
-local function layoutTouchRail(buttons: GuiObject, left: GuiObject)
-	local width = TOUCH_TILE * 2 + TOUCH_TILE_GAP + RAIL_INSET.Offset
-	buttons.AnchorPoint = Vector2.new(0, 0.5)
-	buttons.Position = UDim2.new(0, 0, 0.56, 0)
-	buttons.Size = UDim2.fromOffset(width, TOUCH_TILE * 2 + TOUCH_TILE_LABEL_GAP)
+--- The grid's two rows, as laid out (without the bottom row's captions).
+local function blockHeight(tile: number): number
+	return tile * 2 + TOUCH_TILE_LABEL_GAP
+end
+
+--- How much screen the block really covers, captions included.
+local function blockExtent(tile: number): number
+	return blockHeight(tile) + TOUCH_CAPTION_DROP
+end
+
+--- Top of Roblox's resting thumbstick ring, in `ui`'s local coordinates, or
+--- nil when there is no thumbstick to measure (keyboard, gamepad, or the
+--- touch controls not built yet).
+local function thumbstickTop(ui: ScreenGui): number?
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	local touchGui = playerGui and playerGui:FindFirstChild("TouchGui")
+	local ring = touchGui and touchGui:FindFirstChild("ThumbstickStart", true)
+	if ring and ring:IsA("GuiObject") and ring.AbsoluteSize.Y > 0 then
+		-- AbsolutePosition shares one space across every ScreenGui, so taking
+		-- away the HUD's own AbsolutePosition lands it in the HUD's coordinates.
+		return ring.AbsolutePosition.Y - ui.AbsolutePosition.Y
+	end
+	return nil
+end
+
+--- Bottom of the stat card, in `ui`'s local coordinates.
+---
+--- On touch the card lives top-left. A card still reading in the LOWER half is
+--- its desktop position from before layoutTouchStats moved it - Roblox only
+--- updates AbsolutePosition on the next frame - so it is ignored rather than
+--- used to push the menu block off the bottom of the screen for a frame.
+local function statBottom(ui: ScreenGui): number?
+	local card = ui:FindFirstChild("StatHUD")
+	if card and card:IsA("GuiObject") and card.Visible and card.AbsoluteSize.Y > 0 then
+		local top = card.AbsolutePosition.Y - ui.AbsolutePosition.Y
+		if top > ui.AbsoluteSize.Y * 0.5 then
+			return nil
+		end
+		return top + card.AbsoluteSize.Y
+	end
+	return nil
+end
+
+--- Works out tile size, block scale and where the block's top goes. Pure
+--- arithmetic on three measurements, so it can be reasoned about (and was
+--- checked) for any screen height without a device.
+---
+--- `ceiling`/`floor` are the local Y the block's visual extent must stay
+--- between; `hudHeight` is the HUD's own height. Returns the tile size, the
+--- uniform scale to apply to the block, and the block's top Y - or `nil` for
+--- the top when the owner's centred layout fits and should be used as-is.
+local function fitBlock(ceiling: number, floor: number, hudHeight: number): (number, number, number?)
+	-- 1. The owner's layout, if it clears both.
+	local centredTop = hudHeight * TOUCH_BLOCK_CENTRE - blockHeight(TOUCH_TILE) / 2
+	if centredTop >= ceiling and centredTop + blockExtent(TOUCH_TILE) <= floor then
+		return TOUCH_TILE, 1, nil
+	end
+
+	local available = floor - ceiling
+	-- 2. The biggest tile that fits, down to the finger-size floor.
+	local tile = math.floor((available - TOUCH_TILE_LABEL_GAP - TOUCH_CAPTION_DROP) / 2)
+	if tile >= TOUCH_TILE_MIN then
+		return math.min(tile, TOUCH_TILE), 1, ceiling
+	end
+
+	-- 3. Minimum tiles, the whole block scaled to fit - still two by two.
+	local scale = math.clamp(available / blockExtent(TOUCH_TILE_MIN), TOUCH_MIN_BLOCK_SCALE, 1)
+	return TOUCH_TILE_MIN, scale, ceiling
+end
+HUDLayoutController.fitBlock = fitBlock
+
+--- The four buttons, in the order the grid must draw them. Set explicitly
+--- rather than trusted to whoever created each button: Upgrades and Storage
+--- are cloned in later by their own controllers, and the pack's Shop and
+--- Index carry whatever LayoutOrder the pack shipped with.
+local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4 }
+
+--- Lays the four menu tiles out as a two-by-two block sized for THIS screen.
+--- Safe to call again at any time: it recomputes from live measurements and
+--- rewrites every property it owns.
+local function fitTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
+	local hudHeight = ui.AbsoluteSize.Y
+	if hudHeight <= 0 then
+		return
+	end
+	local hudScale = 1
+	local hudUiScale = ui:FindFirstChildOfClass("UIScale")
+	if hudUiScale and hudUiScale.Scale > 0 then
+		hudScale = hudUiScale.Scale
+	end
+
+	-- In the HUD's local pixels, before its UIScale.
+	local ceiling = ((statBottom(ui) or 120) + TOUCH_BLOCK_MARGIN) / hudScale
+	local ringTop = thumbstickTop(ui)
+	local floorY = ((ringTop or (hudHeight - 150)) - TOUCH_BLOCK_MARGIN) / hudScale
+	local tile, scale, top = fitBlock(ceiling, floorY, hudHeight / hudScale)
+
+	local width = tile * 2 + TOUCH_TILE_GAP + RAIL_INSET.Offset
+	if top then
+		buttons.AnchorPoint = Vector2.new(0, 0)
+		buttons.Position = UDim2.fromOffset(0, top)
+	else
+		buttons.AnchorPoint = Vector2.new(0, 0.5)
+		buttons.Position = UDim2.new(0, 0, TOUCH_BLOCK_CENTRE, 0)
+	end
+	buttons.Size = UDim2.fromOffset(width, blockHeight(tile))
+
+	-- The uniform shrink for step 3. Its own UIScale, named, so it cannot be
+	-- mistaken for the per-button hover scales the pack creates.
+	local fit = buttons:FindFirstChild("FitScale")
+	if scale < 0.999 then
+		if not fit then
+			local made = Instance.new("UIScale")
+			made.Name = "FitScale"
+			made.Parent = buttons
+			fit = made
+		end
+		(fit :: UIScale).Scale = scale
+	elseif fit then
+		(fit :: UIScale).Scale = 1
+	end
+
 	left.Size = UDim2.fromScale(1, 1)
 	local grid = left:FindFirstChildOfClass("UIGridLayout")
 	if grid then
-		grid.CellSize = UDim2.fromOffset(TOUCH_TILE, TOUCH_TILE)
-		-- The row gap is the tile's own caption height: each tile's label
-		-- hangs below its plate, and at a tighter gap the bottom row drew over
-		-- the top row's words.
+		grid.CellSize = UDim2.fromOffset(tile, tile)
+		-- The row gap is the caption's height: each tile's label hangs below
+		-- its plate, and at a tighter gap the bottom row drew over the top
+		-- row's words.
 		grid.CellPadding = UDim2.fromOffset(TOUCH_TILE_GAP, TOUCH_TILE_LABEL_GAP)
 		grid.FillDirection = Enum.FillDirection.Horizontal
+		-- THE LINE THAT MAKES IT TWO BY TWO. At most two per row, so four
+		-- buttons can only ever be two rows, however wide the block is.
 		grid.FillDirectionMaxCells = 2
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
 		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
-		grid.VerticalAlignment = Enum.VerticalAlignment.Center
+		grid.VerticalAlignment = Enum.VerticalAlignment.Top
 		grid.StartCorner = Enum.StartCorner.TopLeft
 	end
-	-- Belt and braces on the layering: the TOP row draws over the bottom row,
-	-- so a caption that still overhangs sits in front of the tile below it
-	-- rather than being clipped behind it. Siblings sort by ZIndex here.
-	local function layer(button: Instance)
-		if not button:IsA("GuiObject") then
-			return
-		end
-		local order = button.LayoutOrder
-		button.ZIndex = if order <= 2 then 4 else 2
-	end
 	for _, button in left:GetChildren() do
-		layer(button)
+		local order = MENU_ORDER[button.Name]
+		if order and button:IsA("GuiObject") then
+			button.LayoutOrder = order
+			-- Belt and braces on the layering: the TOP row draws over the
+			-- bottom row, so a caption that still overhangs sits in front of
+			-- the tile below it rather than being clipped behind it.
+			button.ZIndex = if order <= 2 then 4 else 2
+		end
 	end
-	left.ChildAdded:Connect(function(child)
-		task.defer(layer, child)
+end
+
+local function layoutTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
+	fitTouchRail(ui, buttons, left)
+	-- Again once the frame has laid out, now that the stat card's and the
+	-- thumbstick's real positions can be read.
+	task.spawn(function()
+		RunService.Heartbeat:Wait()
+		fitTouchRail(ui, buttons, left)
 	end)
+	-- Upgrades and Storage arrive after this pass; place them the moment they do.
+	left.ChildAdded:Connect(function(child)
+		if MENU_ORDER[child.Name] then
+			task.defer(fitTouchRail, ui, buttons, left)
+		end
+	end)
+
+	-- IT STAYS TWO BY TWO. If anything - the pack, a future controller, a
+	-- stray tween - rewrites the grid, the block is rebuilt on the spot rather
+	-- than left as a row of four. Guarded so our own rewrite does not recurse.
+	local grid = left:FindFirstChildOfClass("UIGridLayout")
+	if grid then
+		local refitting = false
+		local function guard()
+			if refitting then
+				return
+			end
+			if grid.FillDirectionMaxCells ~= 2 or grid.FillDirection ~= Enum.FillDirection.Horizontal then
+				refitting = true
+				fitTouchRail(ui, buttons, left)
+				refitting = false
+			end
+		end
+		grid:GetPropertyChangedSignal("FillDirectionMaxCells"):Connect(guard)
+		grid:GetPropertyChangedSignal("FillDirection"):Connect(guard)
+	end
+
+	-- A rotation, a resize, or the stat card and thumbstick settling after we
+	-- first measured: refit on the viewport signal, and once more a little
+	-- later for whatever lands after start-up.
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			task.defer(fitTouchRail, ui, buttons, left)
+		end)
+	end
+	task.delay(1.5, fitTouchRail, ui, buttons, left)
+	task.delay(4, fitTouchRail, ui, buttons, left)
 end
 
 local function layoutTouchStats(ui: ScreenGui)
@@ -567,10 +767,11 @@ end
 local function applyTouchLayout(ui: ScreenGui)
 	local buttons = ui:FindFirstChild("Buttons")
 	local left = buttons and buttons:FindFirstChild("Left")
-	if buttons and buttons:IsA("GuiObject") and left and left:IsA("GuiObject") then
-		layoutTouchRail(buttons, left)
-	end
+	-- The stat card first: the menu block is measured against where it ends.
 	layoutTouchStats(ui)
+	if buttons and buttons:IsA("GuiObject") and left and left:IsA("GuiObject") then
+		layoutTouchRail(ui, buttons, left)
+	end
 	layoutTouchPanels(ui)
 	layoutTouchOffers(ui)
 end

@@ -27,7 +27,12 @@ local StarterTaskConfig = {}
 --- Everything below stays as it is: the rows, the wording, the amounts, the
 --- profile fields and the three gameplay hooks in init.server. This is the
 --- only line that decides whether any of it runs.
-StarterTaskConfig.ENABLED = false
+---
+--- Back ON (owner decision, 2026-09-11) as part of the early-progression pass:
+--- three small rewards for three things every new player does in their first
+--- minute. Desktop keeps its original bottom-right block; touch shows one task
+--- at a time in the top strip (StarterTaskController).
+StarterTaskConfig.ENABLED = true
 
 export type Kind = "cash" | "speed"
 

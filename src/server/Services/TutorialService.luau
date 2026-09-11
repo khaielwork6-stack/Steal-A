@@ -4,7 +4,7 @@
 	The persistent T0-T9 opening (GDD section 4).
 
 	The single most important rule here: the stage is DERIVED from actual saved
-	data - is the vase discovered, has Speed moved - and
+	data - is the tutorial item discovered, has Speed moved - and
 	never merely trusted from a stale TutorialStage integer. That means a player
 	who disconnects at any point, dies, gets caught, or rejoins on a different
 	plot resumes at the right place automatically, and no recovery special-case
@@ -144,9 +144,20 @@ local function deriveStage(player: Player): number
 		return STAGE.COMPLETE
 	end
 
-	-- Index discovery is the durable marker: it survives selling the vase, so a
-	-- player cannot be knocked back to "place it" by cashing their first item in.
+	-- Index discovery is the durable marker: it survives selling the first item,
+	-- so a player cannot be knocked back to "place it" by cashing it in. An
+	-- earlier tutorial item counts too - a player who placed the Vase before the
+	-- tutorial switched to the Mask has done this step, and must not be sent
+	-- back to steal a Mask they were never asked for.
 	local placedFirstItem = profile.Index[GameConfig.TUTORIAL_ITEM_ID] == true
+	if not placedFirstItem then
+		for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
+			if profile.Index[legacyId] == true then
+				placedFirstItem = true
+				break
+			end
+		end
+	end
 	local trained = profile.SpeedPower > GameConfig.STARTING_SPEED_POWER
 
 	-- The base is always active, so placing the first item leads straight to the
@@ -198,7 +209,7 @@ end
 
 --- Read by StateService each push.
 --- A player who has not yet stolen anything. BaseService starts them on the
---- hub, a few seconds from the tutorial vase, rather than at their plot.
+--- hub, a few seconds from the tutorial item, rather than at their plot.
 function TutorialService.isAtStart(player: Player): boolean
 	return deriveStage(player) == STAGE.STEAL
 end
@@ -281,28 +292,47 @@ local function evaluate(player: Player)
 	end
 end
 
---- True for THE tutorial vase in the hands of someone still doing the tutorial:
+--- True while `player` still needs their guaranteed first item.
+local function needsTutorialItem(player: Player): boolean
+	local profile = DataService.get(player)
+	return profile ~= nil and profile.TutorialStage < STAGE.INCOME
+end
+
+--- True for THE tutorial item in the hands of someone still doing the tutorial:
 --- the pinned item, from the pinned socket, carried by a player who has not yet
 --- reached the income stage. CarryService asks this before turning a drop into
---- a floor item; for this one case the drop sends the vase straight home.
+--- a floor item; for this one case the drop sends the item straight home.
+---
+--- `tutorialPin` rather than the item id alone: a Pharaoh Mask that simply
+--- rolled into this socket is an ordinary Mask, not the tutorial's.
 function TutorialService.isTutorialLoot(player: Player, loot: LootService.LootInstance): boolean
-	if loot.itemId ~= GameConfig.TUTORIAL_ITEM_ID then
+	if not loot.tutorialPin or loot.itemId ~= GameConfig.TUTORIAL_ITEM_ID then
 		return false
 	end
 	if loot.zoneIndex ~= GameConfig.TUTORIAL_ZONE or loot.socketIndex ~= GameConfig.TUTORIAL_SOCKET then
 		return false
 	end
-	local profile = DataService.get(player)
-	return profile ~= nil and profile.TutorialStage < STAGE.INCOME
+	return needsTutorialItem(player)
 end
 
---- The vase this service last pinned. Held so the maintainer can tell "the
---- socket is empty because MY vase is out being carried" from "the socket is
---- empty because that vase is gone" - the two used to look identical, and the
---- first case was being answered with a brand-new vase.
-local pinnedVase: LootService.LootInstance? = nil
+--- Whether `player` may steal a pinned tutorial item at all. The pin exists for
+--- new players; anyone past their first item is turned away from it, or a
+--- server with one new player in it would re-pin a free Pharaoh Mask for
+--- everybody else every half second. Ordinary loot answers true.
+function TutorialService.mayTakeLoot(player: Player, loot: LootService.LootInstance): boolean
+	if not loot.tutorialPin then
+		return true
+	end
+	return needsTutorialItem(player)
+end
 
---- Keeps the guaranteed Ancient Vase in its socket while anyone still needs it.
+--- The item this service last pinned. Held so the maintainer can tell "the
+--- socket is empty because MY item is out being carried" from "the socket is
+--- empty because that item is gone" - the two used to look identical, and the
+--- first case was being answered with a brand-new one.
+local pinnedItem: LootService.LootInstance? = nil
+
+--- Keeps the guaranteed tutorial item in its socket while anyone still needs it.
 local function maintainTutorialLoot()
 	local needed = false
 	for _, player in Players:GetPlayers() do
@@ -313,15 +343,26 @@ local function maintainTutorialLoot()
 		end
 	end
 	if not needed then
+		-- NOBODY NEEDS IT ANY MORE: RELEASE IT. Left pinned, the last Mask would
+		-- stay reserved for a new player who is no longer in the server - one
+		-- of Zone 1's four sockets locked to everyone until the Night refresh.
+		-- Released, it is an ordinary one-off Mask for whoever gets there first,
+		-- and with no tutorial player left nothing re-pins it, so this can never
+		-- become a supply.
+		local leftover = pinnedItem
+		if leftover then
+			leftover.tutorialPin = nil
+			pinnedItem = nil
+		end
 		return
 	end
 
-	-- ONE VASE. If the last pinned instance is still tracked and is anywhere but
+	-- ONE PIN. If the last pinned instance is still tracked and is anywhere but
 	-- sitting in its socket - reserved, carried, dropped, on its way back - then
-	-- it IS the tutorial vase and the socket is empty on purpose. Re-pinning here
+	-- it IS the tutorial item and the socket is empty on purpose. Re-pinning here
 	-- is exactly how duplicates were minted. Only once it has been placed or
 	-- retired (LootService forgets it) is a fresh one pinned.
-	local pinned = pinnedVase
+	local pinned = pinnedItem
 	if pinned and LootService.get(pinned.id) == pinned and pinned.state ~= "Spawned" then
 		return
 	end
@@ -330,11 +371,14 @@ local function maintainTutorialLoot()
 		GameConfig.TUTORIAL_ZONE,
 		GameConfig.TUTORIAL_SOCKET,
 		GameConfig.TUTORIAL_ITEM_ID,
-		1, -- Scale 1: the reference-size vase, a Normal by label
+		1, -- Scale 1: the reference-size item, a Normal by label
 		"Normal"
 	)
 	if result then
-		pinnedVase = result
+		-- Flagged every pass, not just when minted: forceSocket hands back an
+		-- instance that was already correct without rebuilding it.
+		result.tutorialPin = true
+		pinnedItem = result
 	end
 end
 

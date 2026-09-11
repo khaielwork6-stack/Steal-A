@@ -4467,3 +4467,130 @@ prize back for good.
     Invoke("spinOdds", name, 2000000)  roll without granting; measure the weights
     Invoke("spinGrant", name, 5)       pay ONE segment through the real grant path
     Invoke("starter", name)            the checklist; pass "reset" to reopen it
+
+## 42. Early progression pass (2026-09-11)
+
+Owner-requested, after new players were measured leaving early. A simulation of
+the first fifteen minutes put a new player in a normal server at 11.7 minutes
+with nothing to steal, $5/s at the five-minute mark, and a "$1/s" tutorial
+payoff. Six changes.
+
+### Zone 1 respawns on its own (60-90s)
+
+`GameConfig.ZONE_RESPAWN = { [1] = { min = 60, max = 90 } }`. A socket emptied
+by a THEFT in Zone 1 rolls a fresh container after a random 60-90s; Zones 2-12
+keep the shared Night refresh exactly as before. `LootService.detach` schedules
+it, and only when that call actually emptied the socket (`consume` passes
+through `detach` too, long after the steal).
+
+The timer re-checks everything when it fires rather than trusting what was
+true when it was set. A per-socket `respawnGeneration` kills stale timers. An
+occupied socket means a caught thief's item came back, the tutorial re-pinned
+its item, or the Night refilled it, so the timer stands down. Nothing spawns
+while the world is closed for the Night.
+
+`validate` still pins that a GLOBAL `SOCKET_REFILL_DELAY` must never come back,
+and now also pins that `ZONE_RESPAWN` names Zone 1 and nothing else, at 60-90.
+
+Verified in Play: a Zone 1 socket refilled 80.9s after its theft. The control,
+a Zone 2 theft, got **no** new crate in 98s (only the same crate back via the
+catch path).
+
+### The tutorial item is the Pharaoh Mask
+
+`TUTORIAL_ITEM_ID = "Museum_PharaohMask"` ($35/s, Rare) instead of the $1
+Vase. The Mask's own stats, weight and ordinary spawns are untouched. Three
+things had to come with it:
+
+- **Legacy progress.** The tutorial reads "have you placed the tutorial item"
+  from the Index. `TUTORIAL_LEGACY_ITEM_IDS = { "Museum_AncientVase" }` also
+  counts, so a player part-way through the old tutorial is not sent back to
+  step one for a Mask they were never asked for.
+- **A 5s first reveal.** A Rare takes 45s to reveal. The pinned tutorial copy
+  alone uses `TUTORIAL_HATCH_SECONDS = 5` (the Common speed): `LootInstance`
+  gained a never-saved `tutorialPin`, and `PlacementService` passes the override
+  to `HatchService.beginIncubation` for that one placement. Verified: tutorial
+  Mask "ready in 5s", while an ordinary Epic placed alongside kept 1m 43s.
+- **It is reserved.** `maintainTutorialLoot` re-pins every 0.5s while anyone in
+  the server is in the tutorial and nothing restricted who could take it. With
+  a $1 Vase nobody cared; with a $35 Rare it was a free Mask supply for every
+  other player on a loop. `CarryService.mayTakeLoot` (injected from
+  `TutorialService.mayTakeLoot` in init) refuses a pinned item to anyone past
+  their first item: "That one's saved for a new player - try another crate!".
+  Once nobody in the server needs it the pin is **released**, so the leftover
+  Mask becomes an ordinary one-off crate rather than a socket locked to
+  everyone until the Night. Verified live: refused while reserved, accepted
+  after release.
+
+### Zones 1-3 odds
+
+Owner-specified, per rarity: Zone 1 C40 U25 R20 E12 L3; Zone 2 C32 U23 R20
+E15 L9 Co1; Zone 3 C15 U15 R20 E17 L14 M17 Co2. Where a rarity covers two
+slots its share keeps the ratio the reference weights had, so the cheaper
+Common stays the likelier one. Zone 1's expected income per steal goes from
+$40.93/s to $88.56/s. **Zones 1-3 are now this game's own and no longer
+reference parity**; the old values are kept in a comment in `LootConfig`.
+`validate` pins both the per-slot weights and a per-rarity check written the
+way the spec was.
+
+### Starter checklist back on, and a touch presentation
+
+`StarterTaskConfig.ENABLED = true`. Desktop is unchanged: the original
+bottom-right block above the Nightfall pill.
+
+Touch (phones and tablets) now shows ONE compact card in the top strip, between
+Roblox's top-bar buttons and the Nightfall pill: `STARTER TASKS · X/3`, the
+next task and its reward, styled like the pill. Finishing a task ticks it in
+place (marker springs, reward flashes, card punches, count steps), holds about
+a second, then slides up and away as the next task rises in. A task finished
+out of order is brought on screen, ticked, and the card returns to the first
+open one. The last one reads ALL DONE! and the card shrinks away. Verified
+frame by frame, including the out-of-order case.
+
+**Coordinate spaces, measured:** `GuiService.TopbarInset` is in true screen
+space (Min 208,0 / Max 1280,58 on the test window), while every
+`AbsolutePosition` is measured from 58px lower. The card lives in an
+IgnoreGuiInset ScreenGui, whose local space is the true screen, and converts
+every AbsolutePosition by subtracting its own. Mixing the two puts the card
+58px too low.
+
+### The mobile menu is always two by two
+
+Shop / Upgrades over Index / Storage on every touch device. The screenshot the
+owner sent came from 1408e48's reverted rework, which deliberately switched to
+"one row of four" on short screens. `HUDLayoutController.fitTouchRail` now
+measures the gap between the stat card and **Roblox's real thumbstick ring**
+(`PlayerGui.TouchGui…ThumbstickStart`, readable because the place ships its own
+PlayerModule) and fits the block in three steps: the owner's centred 60px
+layout if it fits, else smaller tiles down to 44px packed under the stat card,
+else the whole block scaled down (never below 0.72, for caption legibility).
+`FillDirectionMaxCells = 2` is re-asserted if anything rewrites it, and
+`LayoutOrder` is set explicitly.
+
+`fitBlock` was checked against 9 devices x both of Roblox's control styles:
+13 of 18 clear. The five tight cases are all at or under 375px tall on the
+newer control style. There the bottom row's captions sit up to ~11px over the
+resting ring on 360px Androids, and the 320px iPhone SE (2016) has 46px of
+room, where no readable 2x2 fits. The stick is dynamic, so it still starts
+anywhere else in its zone.
+
+### Not yet done
+
+- **A real device-emulator pass.** `StudioDeviceEmulatorService` is not
+  reachable over MCP. Touch was verified by running the real controllers with
+  `Device.isTouch` forced true on a 1280x720 client, plus the device-matrix
+  arithmetic above. A phone, a wide phone and a tablet in the emulator is still
+  owed.
+
+### Found in passing, not changed
+
+- The debug `goHome` teleports to the plot's `Spawn` marker, which sits
+  outside that plot's own SafeZone footprint (Base03: spawn x=-8, SafeZone x
+  4-86). `place` then refuses with "Get back to your base first!". It is a test
+  tool quirk worth knowing; teleport to the SafeZone centre instead.
+- `HUDLayoutController.buildSettingsGear`'s idempotence guard looks for
+  `SettingsGear` directly under MainUI, but the gear is parented into `Top`,
+  so calling `start()` twice builds a second gear. It only runs once in a
+  real session.
+
+`validate` 1661/0 (up from 1616), `economyTests` 202,420/0, upright 0.

@@ -124,7 +124,15 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	})
 	local placed = profile.DisplayItems[#profile.DisplayItems]
 	-- THE TIMER STARTS HERE and nowhere else - the moment the base accepts it.
-	HatchService.beginIncubation(player, placed)
+	-- The pinned tutorial copy reveals at the tutorial's own speed instead of
+	-- its rarity's (a Rare Mask would otherwise make a new player's very first
+	-- reveal a 45-second wait). The flag lives on the world instance and is
+	-- never saved, so this can only ever apply to that one placement.
+	HatchService.beginIncubation(
+		player,
+		placed,
+		if loot.tutorialPin then GameConfig.TUTORIAL_HATCH_SECONDS else nil
+	)
 
 	-- DISCOVERY IS DEFERRED. A sealed container must not add its item to the
 	-- Index, announce a new find, or pay a discovery reward - all three would
