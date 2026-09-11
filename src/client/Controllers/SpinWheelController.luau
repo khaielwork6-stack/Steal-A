@@ -4,11 +4,13 @@
 	Everything a player SEES of the free spin: their own wheel, its countdown,
 	the spin itself and the win.
 
-	IT DECIDES NOTHING. The server rolls the wheel, grants the prize and then
-	fires SpinResult with one number. By the time a single frame of the
-	animation has drawn, the reward is already the player's - so this file is
-	free to be as theatrical as it likes without any of it mattering to the
-	outcome. If the sequence never finishes, nothing is lost.
+	IT DECIDES NOTHING. The server rolls the wheel and fires SpinResult with
+	one number: the wedge to land on. It then PAYS the prize on its own clock
+	once the spin and the settle are over (SpinWheelConfig.REVEAL_SECONDS), so
+	the order a player sees is always: the wheel spins, lands on the wedge,
+	settles - and only then the banner, the celebration and the Cash or Speed.
+	This file cannot hurry or withhold the payout; if the sequence never
+	finishes on screen, the prize still arrives.
 
 	ONE WHEEL EXISTS FOR YOU, AND IT IS YOURS.
 	Every plot in the world carries a wheel, and they all replicate to everyone.
@@ -24,8 +26,8 @@
 	THE SPIN RUNS LOCALLY. The disc is anchored and the server never touches
 	its CFrame, so this rotates it directly. That is what makes the landing
 	frame-perfect on the owner's screen instead of a stutter of replicated
-	positions - and it means the animation cannot desync from the result,
-	because the result arrived first.
+	positions - and it means the animation cannot land on the wrong wedge,
+	because which wedge won arrived first.
 ]]
 
 local Players = game:GetService("Players")
@@ -547,27 +549,40 @@ local function runSpin(wheel: Wheel, index: number)
 		end
 		flickTicker(wheel)
 
-		Audio.play("RevealPop")
-		if segment.tier ~= "normal" then
-			-- A guardian or the jackpot gets a second layer. The rare wins have
-			-- to feel different from a $1,500, and this is the difference.
-			Audio.play("ZoneUnlock")
-		end
-		if not reducedEffects then
-			local variant = if segment.tier == "normal" then "Gold" else "Blue"
-			EffectsController.burst(variant, wheel.disc.Position)
+		-- THE REVEAL WAITS FOR THE SETTLE. The frame above is the LANDING: the
+		-- disc stops and rocks onto the winning wedge. Nothing names the prize
+		-- until that rocking is over and the wedge is plainly under the
+		-- pointer - then the sound, the burst and the banner arrive together,
+		-- in step with the server paying it (SpinWheelConfig.REVEAL_SECONDS).
+		-- The burst and the second sound layer are tier-coloured, so they wait
+		-- too: firing them on the landing frame would give a rare win away
+		-- before the banner said so.
+		task.delay(SpinWheelConfig.REVEAL_SECONDS - SpinWheelConfig.SPIN_SECONDS, function()
+			if token ~= spinToken then
+				return
+			end
+			Audio.play("RevealPop")
 			if segment.tier ~= "normal" then
-				task.delay(0.18, function()
-					EffectsController.burst("Gold", wheel.disc.Position + Vector3.new(0, 2, 0))
-				end)
+				-- A guardian or the jackpot gets a second layer. The rare wins
+				-- have to feel different from a $1,500, and this is the difference.
+				Audio.play("ZoneUnlock")
 			end
-		end
-		showBanner(segment)
+			if not reducedEffects then
+				local variant = if segment.tier == "normal" then "Gold" else "Blue"
+				EffectsController.burst(variant, wheel.disc.Position)
+				if segment.tier ~= "normal" then
+					task.delay(0.18, function()
+						EffectsController.burst("Gold", wheel.disc.Position + Vector3.new(0, 2, 0))
+					end)
+				end
+			end
+			showBanner(segment)
 
-		task.delay(SpinWheelConfig.RESULT_SECONDS + 0.3, function()
-			if token == spinToken then
-				spinning = false
-			end
+			task.delay(SpinWheelConfig.RESULT_SECONDS + 0.3, function()
+				if token == spinToken then
+					spinning = false
+				end
+			end)
 		end)
 	end
 

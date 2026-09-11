@@ -4594,3 +4594,48 @@ anywhere else in its zone.
   real session.
 
 `validate` 1661/0 (up from 1616), `economyTests` 202,420/0, upright 0.
+
+## 43. The spin wheel pays when it lands (2026-09-11)
+
+The prize was granted on the prompt trigger, before the client had drawn a
+frame. The toast ("FREE SPIN: $1,500!") and the new Cash on the HUD arrived
+about 3.5s before the disc stopped, giving the result away mid-spin; the
+banner itself appeared on the landing frame, while the settle bounce was
+still rocking.
+
+Now:
+
+1. **Server.** On the trigger the spin is spent and the roll decided, exactly
+   as before, but the prize is held in `pending` and paid by
+   `SpinWheelService.settle` on the server's own clock, at
+   `SpinWheelConfig.REVEAL_SECONDS` (spin + settle, 3.82s) plus a 0.25s
+   `GRANT_LATENCY_ALLOWANCE`, because the client starts its spin when
+   SpinResult arrives. The client is never trusted to say "I landed". A
+   tampered one could otherwise pay itself early or stall forever.
+2. **Client.** The landing frame is only the stop and the bounce. The
+   RevealPop, the tier-coloured bursts, the second sound layer and the banner
+   all wait until the settle is over. The coloured burst on the landing frame
+   would otherwise give a rare win away before the banner.
+3. **Leaving mid-spin still pays.** New `DataService.onBeforeRelease`, which
+   runs inside `release` immediately before the leave-save. That is
+   guaranteed, rather than depending on the order Roblox fires PlayerRemoving
+   connections in, and it does NOT run on autosaves, so a routine save landing
+   mid-spin never flushes the prize early. `settle` clears `pending` before
+   paying, so whichever of the timer and the leave hook comes first pays and
+   the other finds nothing.
+
+`validate` pins that the reveal cannot precede the landing, and that the prize
+is paid before the wheel unlocks for another spin.
+
+Verified in Play through the real prompt, with a per-frame client timeline:
+result 0.00s, banner visible 3.83s, toasts and Cash change 4.07-4.08s, and
+nothing about the prize before the banner. Checked on a $15,000 wedge, a
+$1,500 wedge and a Panda Guardian. Leave path, via the new
+`Invoke("spinRelease", name)` one second into a spin: the $1,500 was paid
+there exactly once, nothing more when the wheel later landed, and no toast
+was sent.
+
+Note for the next test: the `SpinWinUI` ScreenGui stays Enabled between spins
+with its card hidden, so check the card's visibility, not `Enabled`.
+
+`validate` 1663/0, `economyTests` 202,422/0.

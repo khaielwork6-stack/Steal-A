@@ -1826,6 +1826,26 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return SpinWheelService.debugOdds(math.clamp(tonumber(count) or 100000, 1, 2000000))
 	end,
 
+	--- Runs the LEAVE path's release hooks on the caller without actually
+	--- releasing them - the only way to exercise "left mid-spin" in a solo
+	--- Studio session. Spin first, call this while the wheel is turning, and
+	--- the pending prize should be paid here and NOT again when it lands.
+	spinRelease = function(player)
+		local SpinWheelService = require(script.Parent.SpinWheelService)
+		local profile = DataService.get(player)
+		local before = SpinWheelService.inspect(player).pendingPrize
+		local cash, speed = profile and profile.Cash, profile and profile.SpeedPower
+		DataService.runBeforeRelease(player)
+		return {
+			pendingBefore = before,
+			pendingAfter = SpinWheelService.inspect(player).pendingPrize,
+			cashBefore = cash,
+			cashAfter = profile and profile.Cash,
+			speedBefore = speed,
+			speedAfter = profile and profile.SpeedPower,
+		}
+	end,
+
 	--- The beginner checklist: what the caller has done, and a reset so the
 	--- three rows can be walked through again.
 	starter = function(player, reset: any)

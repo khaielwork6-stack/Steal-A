@@ -242,6 +242,18 @@ SpinWheelConfig.BOUNCE_SECONDS = 0.42
 --- How long the win banner holds before it clears.
 SpinWheelConfig.RESULT_SECONDS = 2.4
 
+--- THE REVEAL, measured from the moment the owner's client starts the spin:
+--- the whole spin, then the settle. The disc has stopped rocking and is at
+--- rest on the winning wedge before anything names the prize - the banner,
+--- the celebration and the prize itself all wait for this.
+SpinWheelConfig.REVEAL_SECONDS = SpinWheelConfig.SPIN_SECONDS + SpinWheelConfig.BOUNCE_SECONDS
+--- The server grants a beat after REVEAL_SECONDS. The client starts spinning
+--- when SpinResult ARRIVES, up to a one-way trip after the server sent it, so
+--- a grant timed to the server's own clock alone would land a few frames
+--- before the wheel on a laggy connection - the Cash counter ticking up while
+--- the disc is still settling. This keeps the order "lands, shows, pays".
+SpinWheelConfig.GRANT_LATENCY_ALLOWANCE = 0.25
+
 --- Everything the server must hold the wheel closed for: the spin, the
 --- bounce, the banner and a beat.
 SpinWheelConfig.LOCK_SECONDS = SpinWheelConfig.SPIN_SECONDS

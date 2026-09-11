@@ -16,9 +16,26 @@
 	    Nothing accrues while they are away, and the ten minutes cannot be
 	    served by leaving.
 	  * The roll. `SpinWheelConfig.roll` against a Random this module owns.
-	  * The prize. Granted the moment the roll lands, before the owner's client
-	    has drawn a single frame.
+	  * The prize. Decided at the roll, PAID WHEN THE WHEEL HAS LANDED.
 	The client is sent one number - which segment won - and draws that.
+
+	WHY THE PRIZE WAITS
+	It used to be granted on the trigger, before the client had drawn a frame.
+	The toast ("FREE SPIN: $1,500!") and the new Cash on the HUD then arrived
+	three and a half seconds before the disc stopped, and gave the result away
+	while it was still spinning. Now the roll is decided and the spin is spent
+	immediately, but the prize is held in `pending` and paid on the server's
+	own clock once the spin and its settle are over (SpinWheelConfig
+	.REVEAL_SECONDS, plus a latency allowance). The client is never trusted to
+	say "I have landed" - a tampered one could otherwise pay itself early or
+	stall forever - and nothing it does can change what or when it is paid.
+
+	A PLAYER WHO LEAVES MID-SPIN IS STILL PAID. `settle` is registered with
+	DataService.onBeforeRelease, which runs inside the leave path immediately
+	before the leave-save - guaranteed, rather than depending on the order
+	Roblox fires PlayerRemoving connections in. The spin has been spent by
+	then; losing the prize along with it is not an option. Routine autosaves
+	do NOT run that hook, so a save landing mid-spin never pays early.
 
 	HOW A SPIN IS ASKED FOR
 	A ProximityPrompt, and deliberately not a RemoteEvent. `Triggered` arrives
@@ -77,6 +94,11 @@ local rng = Random.new()
 --- REAL elapsed time rather than from how often the loop happened to run. A
 --- throttled server therefore under-counts nothing and over-counts nothing.
 local lastAccrual: { [Player]: number } = {}
+
+--- Prizes rolled but not yet paid: the wheel is still turning. At most one per
+--- player, because the wheel's lock outlasts the wait (validate pins it).
+--- Cleared BEFORE the payout runs, so no path can pay the same spin twice.
+local pending: { [Player]: SpinWheelConfig.Segment } = {}
 
 -- ==========================================================
 -- ATTRIBUTES  (what the client reads)
@@ -151,22 +173,34 @@ end
 -- THE PRIZE
 -- ==========================================================
 
---- Pays out one segment. Called exactly once per spin, from `onTriggered`,
---- with the wheel already locked - so there is no path where this runs twice
+--- Pays out one segment. Called exactly once per spin - from `settle`, which
+--- clears the pending entry first - so there is no path where this runs twice
 --- for one spin and no path where a client reaches it at all.
-local function grant(player: Player, profile: DataService.Profile, segment: SpinWheelConfig.Segment)
+---
+--- `announce` is false only when paying a player who is leaving: the prize
+--- still goes into the profile that is about to be saved, but there is nobody
+--- left to show a toast to.
+local function grant(player: Player, profile: DataService.Profile, segment: SpinWheelConfig.Segment, announce: boolean)
+	local function tell(message: string)
+		if announce then
+			StateService.notify(player, "success", message, "levelup")
+		end
+	end
+
 	if segment.kind == "cash" then
 		-- EXACTLY what the wedge says. Not `earn`: that applies the 2x Cash
 		-- pass, and a wheel promising $1,500 must pay $1,500 to everybody.
 		EconomyService.award(player, segment.amount, "other")
-		StateService.notify(player, "success", `FREE SPIN: {NumberFormat.cash(segment.amount)}!`, "levelup")
+		tell(`FREE SPIN: {NumberFormat.cash(segment.amount)}!`)
 	elseif segment.kind == "speed" then
 		-- Added to the saved total, never multiplied into it. The Speed pass
 		-- multiplies TRAINING GAIN and nothing else (see SpeedService), so a
 		-- flat prize stays flat for everyone.
 		profile.SpeedPower += segment.amount
-		SpeedService.applyMovement(player)
-		StateService.notify(player, "success", `FREE SPIN: +{NumberFormat.short(segment.amount)} SPEED!`, "levelup")
+		if announce then
+			SpeedService.applyMovement(player)
+		end
+		tell(`FREE SPIN: +{NumberFormat.short(segment.amount)} SPEED!`)
 	elseif segment.kind == "guardian" and segment.guardianKey then
 		local key = segment.guardianKey
 		-- `grantWon` is idempotent and answers false when the player already
@@ -174,16 +208,49 @@ local function grant(player: Player, profile: DataService.Profile, segment: Spin
 		-- cannot corrupt anything; it pays a consolation instead of nothing,
 		-- so a rare wedge never lands as a blank.
 		if BaseGuardianService.grantWon(player, key) then
-			StateService.notify(player, "success", `FREE SPIN: THE {string.upper(key)} GUARDIAN IS YOURS!`, "levelup")
+			tell(`FREE SPIN: THE {string.upper(key)} GUARDIAN IS YOURS!`)
 		else
 			profile.SpeedPower += SpinWheelConfig.DUPLICATE_GUARDIAN_SPEED
-			SpeedService.applyMovement(player)
-			StateService.notify(
-				player,
-				"success",
-				`You already own the {key} Guardian - have +{NumberFormat.short(SpinWheelConfig.DUPLICATE_GUARDIAN_SPEED)} Speed instead!`,
-				"levelup"
+			if announce then
+				SpeedService.applyMovement(player)
+			end
+			tell(
+				`You already own the {key} Guardian - have +{NumberFormat.short(SpinWheelConfig.DUPLICATE_GUARDIAN_SPEED)} Speed instead!`
 			)
+		end
+	end
+end
+
+--- Pays a player's pending prize, if they have one. Two callers:
+---   * the landing timer in `onTriggered`, with `announce` true - the normal
+---     path, once the wheel has visibly stopped on the winning wedge
+---   * DataService's release hook, with `announce` false - a player who left
+---     mid-spin, paid into the profile before the leave-save writes it
+--- Whichever comes first pays; the other finds nothing pending and returns.
+function SpinWheelService.settle(player: Player, announce: boolean)
+	local segment = pending[player]
+	if not segment then
+		return
+	end
+	-- Cleared BEFORE paying: a yield or an error inside the payout can never
+	-- leave it pending for the other caller to pay a second time.
+	pending[player] = nil
+
+	local profile = DataService.get(player)
+	if not profile then
+		return
+	end
+	local ok, err = pcall(grant, player, profile, segment, announce)
+	if not ok then
+		warn(`[SpinWheelService] payout failed for {player.Name}: {err}`)
+		return
+	end
+	if announce then
+		StateService.pushNow(player)
+		-- Durable the moment it is paid. The leave path needs none of this:
+		-- DataService saves the profile straight after this returns.
+		if DataService.isPersistent() then
+			task.spawn(DataService.save, player)
 		end
 	end
 end
@@ -243,10 +310,12 @@ local function onTriggered(player: Player, wheel: Wheel)
 		return
 	end
 
-	grant(player, profile, segment)
-	StateService.pushNow(player)
+	-- DECIDED NOW, PAID AT THE LANDING. The prize is held here while the wheel
+	-- turns; nothing about it - no toast, no Cash, no Speed - reaches the
+	-- player until the disc has stopped on it. See WHY THE PRIZE WAITS.
+	pending[player] = segment
 
-	-- The animation is told what already happened. One number: the client
+	-- The animation is told which wedge to land on. One number: the client
 	-- reads the rest out of the shared config, and there is nothing in the
 	-- payload that could be replayed into a second prize.
 	local ok, err = pcall(function()
@@ -256,11 +325,17 @@ local function onTriggered(player: Player, wheel: Wheel)
 		warn(`[SpinWheelService] result cue failed for {player.Name}: {err}`)
 	end
 
-	-- Durable immediately. A spin is the one action here that both spends and
-	-- pays, so it must not be sitting in memory when the server goes down.
+	-- The spend is durable now; the prize is saved the moment it is paid. If
+	-- the server went down in the four seconds between, the spin is lost and
+	-- comes back in ten minutes - the safe direction, where the alternative
+	-- is a prize paid twice.
 	if DataService.isPersistent() then
 		task.spawn(DataService.save, player)
 	end
+
+	task.delay(SpinWheelConfig.REVEAL_SECONDS + SpinWheelConfig.GRANT_LATENCY_ALLOWANCE, function()
+		SpinWheelService.settle(player, true)
+	end)
 
 	task.delay(SpinWheelConfig.LOCK_SECONDS, function()
 		wheel.lockedUntil = 0
@@ -487,6 +562,12 @@ function SpinWheelService.start()
 		SpinWheelService.refresh(player)
 	end)
 
+	-- A prize still waiting for its wheel is paid on the way out, before the
+	-- leave-save. See A PLAYER WHO LEAVES MID-SPIN IS STILL PAID.
+	DataService.onBeforeRelease(function(player)
+		SpinWheelService.settle(player, false)
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		lastAccrual[player] = nil
 		-- The plot is released on this same event; the accrual tick below
@@ -536,6 +617,8 @@ function SpinWheelService.inspect(player: Player): { [string]: any }
 		ownerUserId = if wheel then wheel.ownerUserId else nil,
 		readyAt = if wheel then wheel.model:GetAttribute(ATTR_READY_AT) else nil,
 		locked = if wheel then os.clock() < wheel.lockedUntil else nil,
+		--- The prize rolled but not yet paid, while the wheel is still turning.
+		pendingPrize = if pending[player] then pending[player].label else nil,
 		guardiansWon = if profile then profile.GuardiansWon else nil,
 	}
 end
@@ -552,7 +635,7 @@ function SpinWheelService.debugGrant(player: Player, index: number): { [string]:
 		return { error = "no profile or no such segment" }
 	end
 	local before = { cash = profile.Cash, speed = profile.SpeedPower, equipped = profile.EquippedGuardian }
-	grant(player, profile, segment)
+	grant(player, profile, segment, true)
 	StateService.pushNow(player)
 	return {
 		segment = segment.label,

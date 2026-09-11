@@ -985,7 +985,38 @@ function DataService.save(player: Player): boolean
 	return ok
 end
 
+--- Runs on a profile when its player LEAVES, before the leave-save writes it.
+---
+--- For state that is deliberately held back while the player is here and must
+--- not be lost when they go - a free-spin prize still waiting for its wheel
+--- to land (SpinWheelService). Hooked here rather than on PlayerRemoving
+--- because this is guaranteed to run before the save, whatever order Roblox
+--- fires its PlayerRemoving connections in. Unlike `onBeforeSave` it does NOT
+--- run on autosaves, so nothing held back is ever flushed early just because
+--- a routine save happened to land mid-spin.
+local beforeRelease: { (Player, Profile) -> () } = {}
+
+function DataService.onBeforeRelease(fn: (Player, Profile) -> ())
+	table.insert(beforeRelease, fn)
+end
+
+--- Runs the release hooks without releasing. Exposed for the debug bridge, so
+--- the leave path can be exercised in a solo Studio session.
+function DataService.runBeforeRelease(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	for _, fn in beforeRelease do
+		local ok, err = pcall(fn, player, profile)
+		if not ok then
+			warn(`[DataService] before-release hook failed for {player.Name}: {err}`)
+		end
+	end
+end
+
 function DataService.release(player: Player)
+	DataService.runBeforeRelease(player)
 	DataService.save(player)
 	profiles[player] = nil
 	loading[player] = nil

@@ -698,6 +698,18 @@ return function(): Report
 			SpinWheelConfig.LOCK_SECONDS > SpinWheelConfig.SPIN_SECONDS + SpinWheelConfig.RESULT_SECONDS,
 			"the server's spin lock must outlast the animation it is covering"
 		)
+		-- THE REVEAL WAITS FOR THE LANDING. The prize is named and paid only
+		-- once the spin AND its settle are over, and it is paid while the wheel
+		-- is still locked - so no second spin can start before the first has
+		-- paid out.
+		check(
+			SpinWheelConfig.REVEAL_SECONDS >= SpinWheelConfig.SPIN_SECONDS + SpinWheelConfig.BOUNCE_SECONDS,
+			"the prize must not be revealed before the wheel has landed and settled"
+		)
+		check(
+			SpinWheelConfig.REVEAL_SECONDS + SpinWheelConfig.GRANT_LATENCY_ALLOWANCE < SpinWheelConfig.LOCK_SECONDS,
+			"the prize must be paid before the wheel unlocks for another spin"
+		)
 	end
 
 	-- ==========================================================
