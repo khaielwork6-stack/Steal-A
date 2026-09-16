@@ -35,6 +35,57 @@ function MuseumTests.run(): any
 			check(zone:FindFirstChild(name) ~= nil, `{def.id}.{name}`)
 		end
 		check(zone:GetAttribute("ZoneIndex") == index and zone:GetAttribute("ZoneLength") == MapConfig.zoneLength(index), `{def.id} band contract`)
+		local floor = zone.Floor :: BasePart
+		local template = game.ServerStorage.GameAssets.Template.ZoneFloors:FindFirstChild(`Zone {index}`) :: BasePart
+		local expectedSize = Vector3.new(160, template.Size.Y, MapConfig.zoneLength(index))
+		local expectedFrame = CFrame.new(0, -template.Size.Y / 2, MapConfig.zoneStartZ(index) + MapConfig.zoneLength(index) / 2)
+		check((floor.Size - expectedSize).Magnitude < 0.01 and floor.CFrame:FuzzyEq(expectedFrame, 0.01), `{def.id} original kit floor geometry`)
+		local checker = false
+		for _, texture in floor:GetChildren() do
+			if texture:IsA("Texture") and texture.Face == Enum.NormalId.Top and texture.Texture == "rbxassetid://6372755229" then
+				checker = math.abs(texture.Transparency - 0.55) < 0.01 and texture.StudsPerTileU == 12 and texture.StudsPerTileV == 12
+			end
+		end
+		check(checker and floor.Material ~= Enum.Material.Grass and floor.Material ~= Enum.Material.Sand, `{def.id} visible stone checker floor`)
+		local portal = zone.Gate:FindFirstChild("Doorway")
+		local sides, clearLeft, clearRight = 0, -80, 80
+		local safeDecor, partCount = true, 0
+		for _, root in { zone.Decorations, portal } do
+			if not root then continue end
+			for _, p in root:GetDescendants() do
+				if not p:IsA("BasePart") then continue end
+				partCount += 1
+				safeDecor = safeDecor and p.Anchored and not p.CanCollide and not p.CanTouch and not p.CanQuery
+				if p.Name == "ReturnWall" then
+					sides += 1
+					if p.Position.X < 0 then clearLeft = p.Position.X + p.Size.X / 2
+					else clearRight = p.Position.X - p.Size.X / 2 end
+				end
+			end
+		end
+		check(safeDecor, `{def.id} scenery cannot collide or intercept interaction/trap rays`)
+		check(partCount <= 605, `{def.id} decoration and portal part budget`)
+		check(sides == 2 and clearRight - clearLeft >= 40 and clearRight - clearLeft <= 56.01 and math.abs(clearRight + clearLeft) < 0.01, `{def.id} centred open doorway`)
+		local header = portal and portal:FindFirstChild("Header") :: BasePart?
+		check(header ~= nil and header.Position.Y - header.Size.Y / 2 >= 20 and header.Position.Y - header.Size.Y / 2 <= 46, `{def.id} overhead portal clearance`)
+		local collection = zone.Decorations:FindFirstChild("CollectionExhibits")
+		check(collection ~= nil and #collection:GetChildren() == 2, `{def.id} two collection silhouettes`)
+		for n = 1, 4 do
+			local case = zone.Decorations:FindFirstChild(string.format("Socket%02dVitrine", n))
+			local plinth = case and case:FindFirstChild("StonePlinth") :: BasePart?
+			local cheeks, contains = 0, plinth ~= nil
+			if case and plinth then
+				for _, cheek in case:GetChildren() do
+					if cheek:IsA("BasePart") and cheek.Name == "AlcoveCheek" then
+						cheeks += 1
+						contains = contains and cheek.Size.Z >= 4 and cheek.Size.X >= 20
+							and math.abs(plinth.Position.X - cheek.Position.X) + plinth.Size.X / 2 < cheek.Size.X / 2
+							and math.abs(cheek.Position.Z - plinth.Position.Z) - cheek.Size.Z / 2 > plinth.Size.Z / 2
+					end
+				end
+			end
+			check(cheeks == 2 and contains, `{def.id} vitrine {n} inside masonry recess`)
+		end
 		check(#zone.SpawnSockets:GetChildren() == 4, `{def.id} four sockets`)
 		for n = 1, 4 do
 			local socket = LootService.getSocket(index, n)

@@ -4777,3 +4777,63 @@ Nothing about item weight was implemented. A future experiment could map
 At 30 studs/s that costs 0/0.3/0.6; at 240 it costs 0/2.4/4.8. That is large
 enough to matter to the carefully tuned guardian margins. It needs its own
 all-zone chase simulation and acceptance pass before touching production.
+
+## 45. Museum rooms follow-up (2026-09-16)
+
+The first museum pass left the kit floor's outdoor colour intact. This pass
+styles the actual `zone.Floor`: a separate stone colour/material for each
+gallery, with its existing Top checker texture retained at 0.55 transparency
+and 12-stud tiles. No floor Size, CFrame, thickness or height was changed.
+The twelve wall/floor pairs now range from sandstone and pink marble through
+sea green, royal purple, olive, frost, lapis, electric blue, vault green,
+toxic green, floral cream, hazard yellow and the navy terminal. Gold remains
+the shared trim. Kit wall bodies take the room palette too.
+
+Each existing `Gate` keeps its sign/service role and gains a `Doorway` folder:
+two full-height return walls, jambs and a header, with 56 studs of clear width.
+Header clearance progresses from 24 to 46 studs for the larger late guardians.
+These ten parts are anchored, non-colliding, non-touching and non-queryable.
+The runner and its forward sightline remain open. Nothing can close a portal.
+
+Vitrine cheeks are now four-stud masonry returns surrounding the existing
+case, with an accent back and crown. The recess refits with the unchanged
+case when its loot changes. A fresh Play exposed a large Construction roll
+outside the initial recess; both depth edges now fit large cases while
+retaining at least the twelve-stud centre spine. Loot dimensions, prompts,
+sealed state and the existing vitrine scale logic are unchanged.
+
+`MuseumExhibits` supplies two large static collection pieces per room:
+amphora/stele, ship/anchor, throne/shield, saucer/dish, crystals/polar bear,
+sarcophagus/pyramid, barbell/trophy, vault/bullion, containment/molecule,
+clock/teapot, crane/mixer and jet engines. The terminal's existing suspended
+airliner and ribs remain. Built-in sphere meshes preserve elongated shapes;
+primitive Ball parts rendered those shapes at their shortest dimension.
+The first room's pieces sit forward of its close-set recesses, clear of the
+runner. Removed the small wall emblems and thinned the repeated bay props.
+No extra lights, physics, scripts, prompts or per-frame work in the exhibits.
+
+Measured decoration BaseParts by gallery, excluding the ten new portal parts:
+202, 205, 216, 227, 256, 294, 303, 334, 383, 347, 424, 562.
+Including those portals gives a range of 212-572, below the previous
+reported 216-605. This is a part-count check, not a physical-device FPS test.
+
+### Verification
+
+Rojo changes were verified in a fresh Play and the actual Edit Script.Source.
+All twelve palettes/exhibits were inspected in the native Studio window.
+The MCP screen-capture endpoint returned a black 3D background; native window
+capture rendered correctly. That distinction matters when checking visuals.
+
+- `validate`: 1,663 passed, zero failures.
+- `economyTests`: 202,422 passed, zero failures.
+- `museumTests`: 683 passed, zero failures. Adds original floor geometry,
+  visible checker treatment, centred doorway clearance, safe scenery flags,
+  the part budget, two collection pieces and four contained recesses per room.
+- `museumLoops`: all twelve steal/wake/chase/escape/same-roll returns passed.
+- `museumScenarios`: sealed placement, drop/return, trap/root immunity, Night
+  reset/reopening with 48 occupied sockets, and catch/same-roll return passed.
+
+No configuration, economy, loot, laser, crouch or guardian gameplay changes
+were made in this follow-up. The pre-existing local `.gitignore` edit belongs
+to the owner and is excluded from this commit. The owner explicitly requested
+`git push origin master`, including the previously unpushed `865762d`.
