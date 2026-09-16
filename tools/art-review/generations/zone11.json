@@ -1,0 +1,446 @@
+[
+  {
+    "generationId": "8b229cca-a65b-4e6a-b826-5eeb32e5c091",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Several rolled cobalt-blue architectural blueprints, one partly unfurled as a curling upright sheet, bound with a black rubber band. Bold glowing white architectural linework on paper, polished gold triangular set-square rests diagonally across them. Legendary. Hazard-yellow small accents, strong rolled-paper and open-triangle silhouette.",
+    "publishedAssetId": "138568158660441",
+    "tag": "Assistant-3374d08a-e774-42dc-a3f1-690e1a11e3d2",
+    "id": "Construction_Blueprints",
+    "primary": "paper_geom",
+    "finishes": {
+      "paper": {
+        "material": "Cardboard"
+      },
+      "square": {
+        "material": "Metal"
+      },
+      "lines": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          240,
+          210
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://117185809553396",
+        "name": "lines_geom",
+        "texture": "rbxassetid://108510216693023"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://138214017069900",
+        "name": "square_geom",
+        "texture": "rbxassetid://89027433892392"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124092497366981",
+        "name": "paper_geom",
+        "texture": "rbxassetid://100083462171421"
+      }
+    ]
+  },
+  {
+    "generationId": "9a1d21f6-e5cc-4871-8fdd-9270d9f89952",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Hi-vis saturated orange safety vest on a discreet slim steel display stand. Authentic sleeveless open-front garment with gold zip and clips, two bright silver reflective horizontal bands and shoulder strips that glow white. Legendary, soft fabric folds, hazard orange and chrome with yellow detail, instantly readable vest silhouette.",
+    "publishedAssetId": "107678563600349",
+    "tag": "Assistant-ff759f9d-3399-41e5-a738-27f894a4c5f4",
+    "id": "Construction_RareSafetyVest",
+    "primary": "vest_geom",
+    "finishes": {
+      "vest": {
+        "material": "Fabric"
+      },
+      "stand": {
+        "material": "Metal"
+      },
+      "bands": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          235,
+          248,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84581493513681",
+        "name": "bands_geom",
+        "texture": "rbxassetid://89306892534250"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://89329991512923",
+        "name": "stand_geom",
+        "texture": "rbxassetid://128947297681442"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://101544972212187",
+        "name": "vest_geom",
+        "texture": "rbxassetid://86209205507695"
+      }
+    ]
+  },
+  {
+    "generationId": "928a338b-6354-4968-8962-2b4b7a8e2610",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Rich red steel foreman's toolbox with lid OPEN, chrome hand tools arranged inside the tray, a large ornate gold wrench levitates horizontally above it with clear air gap. Warm gold glow inside the box, brass latches and chunky carry handle. Mythic. Open tray, tall lifted lid and floating open-jaw wrench define silhouette.",
+    "publishedAssetId": "103585399184781",
+    "tag": "Assistant-c58dd840-e982-44fc-9c4d-47cf28e1c28b",
+    "id": "Construction_ForemansToolbox",
+    "primary": "box_geom",
+    "finishes": {
+      "box": {
+        "material": "Metal"
+      },
+      "lid": {
+        "material": "Metal"
+      },
+      "tools": {
+        "material": "Metal"
+      },
+      "wrench": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 1.1
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84174373254520",
+        "name": "light_geom",
+        "texture": "rbxassetid://100060237670718"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://128742469830912",
+        "name": "wrench_geom",
+        "texture": "rbxassetid://77765102835347"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://132969664491111",
+        "name": "tools_geom",
+        "texture": "rbxassetid://110855616032575"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://79403465307124",
+        "name": "lid_geom",
+        "texture": "rbxassetid://136723070117875"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136856877744152",
+        "name": "box_geom",
+        "texture": "rbxassetid://132807032698112"
+      }
+    ]
+  },
+  {
+    "generationId": "98110924-fa61-4622-b1de-a95181ae389b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A rectangular chain-link fence panel on two wide steel feet. Galvanized silver steel frame, hazard-yellow top rail, open diamond-pattern wire mesh with real HOLES that remain see-through. Clean blue-violet nebula enamel accents on steel. One small detached diamond link section floats just outside the upper corner. Cosmic. Airy see-through fence silhouette is essential, never a solid board.",
+    "publishedAssetId": "107276218035965",
+    "tag": "Assistant-535a72fb-9ae1-41b3-9823-38fdc6b275b5",
+    "id": "Construction_MetalFence",
+    "primary": "frame_geom",
+    "finishes": {
+      "frame": {
+        "material": "Metal"
+      },
+      "links": {
+        "material": "Metal"
+      },
+      "satellite": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.2
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122407522457552",
+        "name": "satellite_geom",
+        "texture": "rbxassetid://100778599192827"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://101884021085468",
+        "name": "links_geom",
+        "texture": "rbxassetid://121933903069306"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://125226870267971",
+        "name": "frame_geom",
+        "texture": "rbxassetid://92340024571319"
+      }
+    ]
+  },
+  {
+    "generationId": "8722167f-d35e-472b-8432-5499772ef72a",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Luxurious polished gold construction hard hat, broad forward brim, raised centre rib, deep blue-violet starfield enamel strip along shell. A bright warm lamp mounted at FRONT casts a sculpted thin translucent light cone, one small detached gold rivet beside crown. Cosmic. Authentic curved hard-hat shape, asymmetrical forward brim and lamp.",
+    "publishedAssetId": "78371115508656",
+    "tag": "Assistant-68ca6516-fb35-4ac0-a92b-7d38d8168cb9",
+    "id": "Construction_GoldenHardHat",
+    "primary": "hat_geom",
+    "finishes": {
+      "hat": {
+        "material": "Metal"
+      },
+      "lamp": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ]
+      },
+      "cone": {
+        "glow": true,
+        "color": [
+          255,
+          225,
+          143
+        ],
+        "clearTexture": true,
+        "transparency": 0.8
+      },
+      "rivet": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.3
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://139373793599153",
+        "name": "rivet_geom",
+        "texture": "rbxassetid://89841685374836"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://94667212219082",
+        "name": "cone_geom",
+        "texture": "rbxassetid://79907422430494"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://97338826404167",
+        "name": "lamp_geom",
+        "texture": "rbxassetid://87142984086963"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://96755159504689",
+        "name": "hat_geom",
+        "texture": "rbxassetid://131102878452752"
+      }
+    ]
+  },
+  {
+    "generationId": "c50d4da6-9bbe-45b9-a3b8-3abd1635189d",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A heavy cordless construction drill tilted diagonally on a small steel mount, near-black ergonomic body and battery foot, polished gold chuck and trigger. Long spiral drill bit with intense amber emission running along it and a hot luminous tip. Secret: near-black body, single vivid amber color. Authentic smooth hand-tool proportions, horizontal nose and downward handle silhouette.",
+    "publishedAssetId": "132100698404804",
+    "tag": "Assistant-add84acd-8c17-45b7-9e03-db2f5876f396",
+    "id": "Construction_GoldenDrill",
+    "primary": "body_geom",
+    "authorRotation": "CFrame.Angles(0,math.pi/2,0)",
+    "finishes": {
+      "body": {
+        "material": "Rubber",
+        "color": [
+          25,
+          28,
+          30
+        ]
+      },
+      "chuck": {
+        "material": "Metal"
+      },
+      "bit": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          160,
+          22
+        ]
+      },
+      "mount": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://106592262775262",
+        "name": "mount_geom",
+        "texture": "rbxassetid://106860431507918"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://131745763322937",
+        "name": "bit_geom",
+        "texture": "rbxassetid://107489930095086"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://96168701233413",
+        "name": "chuck_geom",
+        "texture": "rbxassetid://113238586927181"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://119924097406936",
+        "name": "body_geom",
+        "texture": "rbxassetid://128407323572016"
+      }
+    ]
+  },
+  {
+    "generationId": "5eb5e06a-fab8-41ff-bcac-ac5b9340675d",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A majestic golden folding stepladder HALF-OPEN in a broad A-frame, both sides separated with clearly visible air between them. Rich polished gold rails, brilliant gold-white glowing rungs, layered concentric radiant rings around both top hinges. Thin light shafts along legs. Eternal. WIDE triangular A-frame outline and open rectangular spaces between rungs are essential.",
+    "publishedAssetId": "127705936911428",
+    "tag": "Assistant-ee23271a-d20c-457d-a9b6-62de6c6d074d",
+    "id": "Construction_BossLadder",
+    "primary": "ladder_geom",
+    "authorRotation": "CFrame.Angles(0,math.pi/4,0)",
+    "finishes": {
+      "ladder": {
+        "material": "Metal"
+      },
+      "halos": {
+        "material": "Metal"
+      },
+      "rungs": {
+        "material": "Metal"
+      },
+      "shafts": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122080741753463",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://112176224698756"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://80948716087175",
+        "name": "rungs_geom",
+        "texture": "rbxassetid://91946022232984"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://76633438154675",
+        "name": "halos_geom",
+        "texture": "rbxassetid://91698607246479"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://138286407884387",
+        "name": "ladder_geom",
+        "texture": "rbxassetid://88599802554549"
+      }
+    ]
+  },
+  {
+    "generationId": "a13376d4-6d80-4e7a-9446-d3d14bdd1a0a",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Magnificent sledgehammer with an oversized faceted near-white diamond head and long gold-bound dark walnut haft, displayed diagonally. Three separated concentric radiant halo rings surround the head, multiple small diamond shards float around it, white-prismatic shafts radiate outward. Divine, premium brilliant crystal facets and polished gold, strong T-head diagonal silhouette, spectacular but clean.",
+    "publishedAssetId": "109721953383130",
+    "tag": "Assistant-1b04096f-df14-4b0c-92d6-8c52f05edde8",
+    "id": "Construction_DiamondHammer",
+    "primary": "haft_geom",
+    "finishes": {
+      "haft": {
+        "material": "Wood"
+      },
+      "head": {
+        "material": "Glass",
+        "transparency": 0.12
+      },
+      "inner_halo": {
+        "material": "Metal"
+      },
+      "middle_halo": {
+        "material": "Metal"
+      },
+      "outer_halo": {
+        "material": "Metal"
+      },
+      "shards": {
+        "material": "Metal"
+      },
+      "shafts": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://123183206282256",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://85063447607799"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://72767082764648",
+        "name": "shards_geom",
+        "texture": "rbxassetid://95690802936332"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://130041825988928",
+        "name": "outer_halo_geom",
+        "texture": "rbxassetid://119992413953726"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://71005026898277",
+        "name": "middle_halo_geom",
+        "texture": "rbxassetid://139662406736585"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://129409518228755",
+        "name": "inner_halo_geom",
+        "texture": "rbxassetid://92016849365674"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://100416245690437",
+        "name": "head_geom",
+        "texture": "rbxassetid://84133388396976"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77272130582418",
+        "name": "haft_geom",
+        "texture": "rbxassetid://124119657708798"
+      }
+    ]
+  }
+]

@@ -104,6 +104,63 @@ local DEFINITIONS: {[string]: Definition} = {
 		["band_geom"]="rbxassetid://136499775864929",
 		["bills_geom"]="rbxassetid://110162836431702",
 	}, finishes={bills_geom={material=Enum.Material.Cardboard}, band_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 8b229cca-a65b-4e6a-b826-5eeb32e5c091 (2026-09-16).
+	Construction_Blueprints = {asset=138568158660441, primary="paper_geom", meshes={
+		["lines_geom"]="rbxassetid://117185809553396",
+		["square_geom"]="rbxassetid://138214017069900",
+		["paper_geom"]="rbxassetid://124092497366981",
+	}, finishes={paper_geom={material=Enum.Material.Cardboard}, square_geom={material=Enum.Material.Metal}, lines_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,240,210)}}},
+	-- Studio MCP generate_mesh, 9a1d21f6-e5cc-4871-8fdd-9270d9f89952 (2026-09-16).
+	Construction_RareSafetyVest = {asset=107678563600349, primary="vest_geom", meshes={
+		["bands_geom"]="rbxassetid://84581493513681",
+		["stand_geom"]="rbxassetid://89329991512923",
+		["vest_geom"]="rbxassetid://101544972212187",
+	}, finishes={vest_geom={material=Enum.Material.Fabric}, stand_geom={material=Enum.Material.Metal}, bands_geom={glow=true,clearTexture=true,color=Color3.fromRGB(235,248,255)}}},
+	-- Studio MCP generate_mesh, 928a338b-6354-4968-8962-2b4b7a8e2610 (2026-09-16).
+	Construction_ForemansToolbox = {asset=103585399184781, primary="box_geom", meshes={
+		["light_geom"]="rbxassetid://84174373254520",
+		["wrench_geom"]="rbxassetid://128742469830912",
+		["tools_geom"]="rbxassetid://132969664491111",
+		["lid_geom"]="rbxassetid://79403465307124",
+		["box_geom"]="rbxassetid://136856877744152",
+	}, finishes={box_geom={material=Enum.Material.Metal}, lid_geom={material=Enum.Material.Metal}, tools_geom={material=Enum.Material.Metal}, wrench_geom={material=Enum.Material.Metal,mode="Hover",speed=1.1}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143)}}},
+	-- Studio MCP generate_mesh, 98110924-fa61-4622-b1de-a95181ae389b (2026-09-16).
+	Construction_MetalFence = {asset=107276218035965, primary="frame_geom", meshes={
+		["satellite_geom"]="rbxassetid://122407522457552",
+		["links_geom"]="rbxassetid://101884021085468",
+		["frame_geom"]="rbxassetid://125226870267971",
+	}, finishes={frame_geom={material=Enum.Material.Metal}, links_geom={material=Enum.Material.Metal}, satellite_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.2}}},
+	-- Studio MCP generate_mesh, 8722167f-d35e-472b-8432-5499772ef72a (2026-09-16).
+	Construction_GoldenHardHat = {asset=78371115508656, primary="hat_geom", meshes={
+		["rivet_geom"]="rbxassetid://139373793599153",
+		["cone_geom"]="rbxassetid://94667212219082",
+		["lamp_geom"]="rbxassetid://97338826404167",
+		["hat_geom"]="rbxassetid://96755159504689",
+	}, finishes={hat_geom={material=Enum.Material.Metal}, lamp_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143)}, cone_geom={glow=true,color=Color3.fromRGB(255,225,143),clearTexture=true,transparency=0.8}, rivet_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.3}}},
+	-- Studio MCP generate_mesh, c50d4da6-9bbe-45b9-a3b8-3abd1635189d (2026-09-16).
+	Construction_GoldenDrill = {asset=132100698404804, primary="body_geom", authorRotation=CFrame.Angles(0,math.pi/2,0), meshes={
+		["mount_geom"]="rbxassetid://106592262775262",
+		["bit_geom"]="rbxassetid://131745763322937",
+		["chuck_geom"]="rbxassetid://96168701233413",
+		["body_geom"]="rbxassetid://119924097406936",
+	}, finishes={body_geom={material=Enum.Material.Rubber,color=Color3.fromRGB(25,28,30)}, chuck_geom={material=Enum.Material.Metal}, bit_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,160,22)}, mount_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 5eb5e06a-fab8-41ff-bcac-ac5b9340675d (2026-09-16).
+	Construction_BossLadder = {asset=127705936911428, primary="ladder_geom", authorRotation=CFrame.Angles(0,math.pi/4,0), meshes={
+		["shafts_geom"]="rbxassetid://122080741753463",
+		["rungs_geom"]="rbxassetid://80948716087175",
+		["halos_geom"]="rbxassetid://76633438154675",
+		["ladder_geom"]="rbxassetid://138286407884387",
+	}, finishes={ladder_geom={material=Enum.Material.Metal}, halos_geom={material=Enum.Material.Metal}, rungs_geom={material=Enum.Material.Metal}, shafts_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, a13376d4-6d80-4e7a-9446-d3d14bdd1a0a (2026-09-16).
+	Construction_DiamondHammer = {asset=109721953383130, primary="haft_geom", meshes={
+		["shafts_geom"]="rbxassetid://123183206282256",
+		["shards_geom"]="rbxassetid://72767082764648",
+		["outer_halo_geom"]="rbxassetid://130041825988928",
+		["middle_halo_geom"]="rbxassetid://71005026898277",
+		["inner_halo_geom"]="rbxassetid://129409518228755",
+		["head_geom"]="rbxassetid://100416245690437",
+		["haft_geom"]="rbxassetid://77272130582418",
+	}, finishes={haft_geom={material=Enum.Material.Wood}, head_geom={material=Enum.Material.Glass,transparency=0.12}, inner_halo_geom={material=Enum.Material.Metal}, middle_halo_geom={material=Enum.Material.Metal}, outer_halo_geom={material=Enum.Material.Metal}, shards_geom={material=Enum.Material.Metal}, shafts_geom={material=Enum.Material.Metal}}},
 	-- Studio MCP generate_mesh, b1305c82-5a11-4a4a-ba7c-82af5ccdac58 (2026-09-16).
 	Grandma_KnittedSweater = {asset=74205462266801, primary="sweater_geom", meshes={
 		["accent_geom"]="rbxassetid://82855031555761",
