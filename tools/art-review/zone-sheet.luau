@@ -31,11 +31,19 @@ for i,def in defs do
  label(card,def.rarity:upper(),0,0.02,1,0.05,12,colors[def.rarity])
  label(card,def.name,0.04,0.52,0.92,0.09,14)
  if def.retained then label(card,"EXISTING ART",0,0.60,1,0.035,10,Color3.fromRGB(255,190,100)) end
- local source=RS.LootPreviews:FindFirstChild(def.id)
+ local source=RS.LootPreviews:FindFirstChild(def.id) or RS.LootPreviews:WaitForChild(def.id,8)
  if not source then
   label(card,"Existing placeholder\nNo replacement mesh",0.05,0.23,0.90,0.17,12,Color3.fromRGB(255,190,100))
   continue
  end
+ local deadline=os.clock()+5
+ repeat
+  local expected=source:GetAttribute("ItemArtPartCount")
+  local count=0
+  for _,p in source:GetDescendants() do if p:IsA("BasePart") then count+=1 end end
+  if type(expected)~="number" or count>=expected then break end
+  task.wait()
+ until os.clock()>=deadline
  for row=1,2 do
   local vp=Instance.new("ViewportFrame"); vp.BackgroundTransparency=1; vp.BorderSizePixel=0
   vp.Size=UDim2.fromScale(0.94,if row==1 then 0.44 else 0.30)

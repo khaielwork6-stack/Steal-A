@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Ready = require(ReplicatedStorage.Shared.Util.ItemArtReady)
 local Controller = {}
 type Joint = {part: BasePart, weld: Weld, rest: CFrame, scale: number, mode: string, axis: string, speed: number, phase: number}
-type Entry = {joints: {Joint}, near: boolean}
+type Entry = {joints: {Joint}, particles: {ParticleEmitter}, near: boolean}
 local entries: {[Model]: Entry} = {}
 local reduced = false
 local started = false
@@ -35,6 +35,12 @@ end
 
 function Controller.setReducedEffects(value: boolean)
 	reduced = value
+	for _, entry in entries do
+		for _, emitter in entry.particles do
+			emitter.Enabled = not value and entry.near
+			if value then emitter:Clear() end
+		end
+	end
 	if value then
 		for model, entry in entries do
 			for _, joint in entry.joints do pose(model, joint, 0, false) end
@@ -45,7 +51,12 @@ end
 local function register(model: Model)
 	if entries[model] or not Ready.check(model) or not model.PrimaryPart or model:GetAttribute("RevealHold") then return end
 	local joints: {Joint} = {}
+	local particles: {ParticleEmitter} = {}
 	for _, part in model:GetDescendants() do
+		if part:IsA("ParticleEmitter") and part:GetAttribute("ItemArtParticle") then
+			part.Enabled = not reduced
+			table.insert(particles, part)
+		end
 		if part:IsA("BasePart") and part ~= model.PrimaryPart then
 			local mode = part:GetAttribute("ItemArtMotion")
 			if type(mode) ~= "string" then continue end
@@ -64,7 +75,7 @@ local function register(model: Model)
 				phase=tonumber(part:GetAttribute("ItemArtPhase")) or 0})
 		end
 	end
-	entries[model] = {joints=joints, near=false}
+	entries[model] = {joints=joints, particles=particles, near=false}
 end
 
 function Controller.start()
@@ -88,6 +99,7 @@ function Controller.start()
 			for model, entry in entries do
 				if not model:IsDescendantOf(bases) then entries[model] = nil; continue end
 				entry.near = (model:GetPivot().Position - camera.CFrame.Position).Magnitude <= 260
+				for _, emitter in entry.particles do emitter.Enabled = entry.near and not reduced end
 			end
 		end
 		if reduced then return end

@@ -36,6 +36,15 @@ end
 
 function Review.run(player: Player, action: string?): any
 	assert(RunService:IsStudio(),"Item art review is Studio-only")
+	if action=="assets" then return require(script.Parent.ItemArtAudit).run() end
+	if action=="capacity14" then
+		assert(active and active.player==player,"Begin a protected review first")
+		local profile=assert(DataService.get(player),"No profile")
+		profile.BaseCapacityTier=math.max(profile.BaseCapacityTier,7)
+		BaseService.rebuildDisplays(player)
+		StateService.pushNow(player)
+		return {temporarySlots=BaseService.unlockedSlots(player),freeSlots=BaseService.freeSlots(player)}
+	end
 	if action=="restore" then
 		assert(not active or active.player==player,"Another tester owns the review")
 		return restore(true)

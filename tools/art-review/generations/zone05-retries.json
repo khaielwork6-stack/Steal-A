@@ -1,0 +1,46 @@
+[
+  {
+    "id": "NorthPole_SantasHat",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A classic red fabric winter cap, thick fluffy white fur brim and an oversized white pompom on a long soft tip that flops conspicuously off to the left. Holly-red cloth with smooth folds, warm white fur, a tiny gold seam ornament. Rare. Cheerful authentic soft fabric, asymmetric floppy silhouette, no emission.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "Visual review: generated an ear-flap winter cap instead of a floppy conical Santa hat."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "NorthPole_SantasGiftSack",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An enormous bulging crimson velvet gift sack, nearly black burgundy in shadow, irregular wrapped-package bulges stretch the fabric. Thick warm gold rope cinches its neck; top gathered folds spread open with intense warm gold light escaping from within. Secret rarity: a subdued near-black body and a single striking golden emission source at the mouth. Soft folds, broad low lopsided sack outline.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "Visual review: generated an angular open triangular form instead of a rounded closed cloth sack."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "NorthPole_SantasHat",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A Santa Claus holiday HAT, a LONG SOFT RED CONE with a rounded pointed tip BENT and DROOPING down to the LEFT, ending in an OVERSIZED fluffy white POMPOM. Thick circular WHITE FUR BAND around the bottom opening. Red cloth cone grows taller than wide then flops to one side. NO ear flaps, no straps, no helmet, no bucket shape. Authentic Santa Claus Christmas cap, realistic soft fabric folds, smooth sculpted organic surface. Rare, tiny gold stitching accent, no glow. Parts: red conical cloth and white fur including pompom.",
+    "error": null,
+    "result": {
+      "generationId": "f296db98-2991-4151-be65-343e947153a1",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A Santa Claus holiday HAT, a LONG SOFT RED CONE with a rounded pointed tip BENT and DROOPING down to the LEFT, ending in an OVERSIZED fluffy white POMPOM. Thick circular WHITE FUR BAND around the bottom opening. Red cloth cone grows taller than wide then flops to one side. NO ear flaps, no straps, no helmet, no bucket shape. Authentic Santa Claus Christmas cap, realistic soft fabric folds, smooth sculpted organic surface. Rare, tiny gold stitching accent, no glow. Parts: red conical cloth and white fur including pompom.",
+      "publishedAssetId": "120263058836680",
+      "tag": "Assistant-fadd2ebe-a895-4e10-bc37-b7156d687bc5"
+    },
+    "finalFailure": false
+  },
+  {
+    "id": "NorthPole_SantasGiftSack",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A large soft ROUND BULGING DRAWSTRING BAG made of plush deep burgundy velvet, continuous CLOSED cloth body like a rounded pear resting on its broad curved bottom. Gently curved package bulges under the fabric, smoothly draped folds. Narrow gathered NECK tied with thick gold rope; only the small top mouth is open, intense warm golden light glows from it. No triangular forms, no tent, no flat panels, no holes through sides. Secret-tier collectible: near-black burgundy body with gold mouth light, rich realistic soft fabric, asymmetrical rounded outline.",
+    "error": null,
+    "result": {
+      "generationId": "a3eb1e2c-5786-4f87-8f02-080faadcccfb",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A large soft ROUND BULGING DRAWSTRING BAG made of plush deep burgundy velvet, continuous CLOSED cloth body like a rounded pear resting on its broad curved bottom. Gently curved package bulges under the fabric, smoothly draped folds. Narrow gathered NECK tied with thick gold rope; only the small top mouth is open, intense warm golden light glows from it. No triangular forms, no tent, no flat panels, no holes through sides. Secret-tier collectible: near-black burgundy body with gold mouth light, rich realistic soft fabric, asymmetrical rounded outline.",
+      "publishedAssetId": "100838161833342",
+      "tag": "Assistant-a9efb2c9-fb4e-4bc9-a73c-b400eeac17ce"
+    },
+    "finalFailure": false
+  }
+]

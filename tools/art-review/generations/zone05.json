@@ -1,0 +1,338 @@
+[
+  {
+    "generationId": "08b1ef06-cdc1-4a1d-be08-acf94c139ad1",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A bright red tin toy steam locomotive, golden boiler bands, pine-green cab, chunky black wheels with red spokes. A large sculpted puff of cream-white smoke floats as a frozen curl above its chimney. Epic: small faint warm accent at the front lamp. Three-quarter toy shape with smokestack and cab, authentic rounded boiler and joyful clean colors.",
+    "publishedAssetId": "112981394859159",
+    "tag": "Assistant-54bd3102-9e02-4b63-a813-9e441c3dac88",
+    "id": "NorthPole_NiceList",
+    "primary": "train_geom",
+    "authorRotation": "CFrame.Angles(0,math.pi/2,0)",
+    "finishes": {
+      "train": {
+        "material": "Metal"
+      },
+      "wheels": {
+        "material": "Rubber"
+      },
+      "smoke": {
+        "material": "SmoothPlastic"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://108557422657389",
+        "name": "smoke_geom",
+        "texture": "rbxassetid://74249951091727"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://101495797841279",
+        "name": "wheels_geom",
+        "texture": "rbxassetid://97153919797653"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://133804072102341",
+        "name": "train_geom",
+        "texture": "rbxassetid://115704565060800"
+      }
+    ]
+  },
+  {
+    "generationId": "43feb6a6-7c1d-46f2-9246-0ff7e49d78d7",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Polished gold sleigh bell with a wide flared open mouth and visible clapper, deep red ribbon tied in an oversized looped bow at the top, a small green holly sprig with red berries. Warm radiance from inside the mouth. Legendary rich gold; rounded bell outline with the dramatic bow above.",
+    "publishedAssetId": "99510621411127",
+    "tag": "Assistant-6faae0ba-4c48-4495-a9f9-57dcbe562516",
+    "id": "NorthPole_GoldenBell",
+    "primary": "bell_geom",
+    "finishes": {
+      "bell": {
+        "material": "Metal"
+      },
+      "ribbon": {
+        "material": "Fabric"
+      },
+      "holly": {
+        "material": "SmoothPlastic"
+      },
+      "inner_light": {
+        "glow": true,
+        "color": [
+          255,
+          224,
+          142
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://93942419272333",
+        "name": "inner_light_geom",
+        "texture": "rbxassetid://78527853466231"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://120847977894928",
+        "name": "holly_geom",
+        "texture": "rbxassetid://130138902332791"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://115792695501994",
+        "name": "ribbon_geom",
+        "texture": "rbxassetid://91763541025501"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://75596411365851",
+        "name": "bell_geom",
+        "texture": "rbxassetid://127985457801042"
+      }
+    ]
+  },
+  {
+    "generationId": "f56072f2-b6eb-4acf-9ea5-6d9aa09c527f",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A saturated royal-blue schematic sheet partially unfurled from a large curled roll. Thin clean cream technical linework depicts a toy locomotive. A small detached cyan holographic toy locomotive hovers above the sheet, with clearly visible empty space separating paper and projection. Mythic, brilliant cyan projection, blue paper and warm gold scroll-end caps.",
+    "publishedAssetId": "125963223639102",
+    "tag": "Assistant-0f0cb8bf-a096-405f-aa39-4bb39b7f4d1c",
+    "id": "NorthPole_ToyBlueprint",
+    "primary": "paper_geom",
+    "finishes": {
+      "paper": {
+        "material": "Fabric"
+      },
+      "hologram": {
+        "glow": true,
+        "color": [
+          87,
+          241,
+          255
+        ],
+        "clearTexture": true,
+        "mode": "Hover",
+        "speed": 1.1
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82216889787092",
+        "name": "hologram_geom",
+        "texture": "rbxassetid://93900480318159"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77181251220353",
+        "name": "paper_geom",
+        "texture": "rbxassetid://119222497663650"
+      }
+    ]
+  },
+  {
+    "generationId": "e801f2bb-6afa-4f4d-9c78-375055b02207",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A gold foil gift box wrapped with thick holly-red ribbon; enormous soft red bow with broad looped tails. The lid and bow float slightly above the box, an obvious open gap pouring warm golden light. Mythic, rich foil and soft ribbon contrast; suspended lid is aligned above the square box. No extra pedestal.",
+    "publishedAssetId": "91090558173172",
+    "tag": "Assistant-c1d621b3-d20d-4260-80ae-420feb68fd5a",
+    "id": "NorthPole_GoldenPresent",
+    "primary": "box_geom",
+    "finishes": {
+      "box": {
+        "material": "Foil"
+      },
+      "lid": {
+        "material": "Foil",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "bow": {
+        "material": "Fabric",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "inner_light": {
+        "glow": true,
+        "color": [
+          255,
+          224,
+          142
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82741354850218",
+        "name": "inner_light_geom",
+        "texture": "rbxassetid://118467729125390"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://140437258800379",
+        "name": "bow_geom",
+        "texture": "rbxassetid://101313676322001"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://126683214838393",
+        "name": "lid_geom",
+        "texture": "rbxassetid://101105501025883"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124998849833198",
+        "name": "box_geom",
+        "texture": "rbxassetid://96248750156189"
+      }
+    ]
+  },
+  {
+    "generationId": "0f763941-9617-4662-8824-ee8202b9191b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A clear round glass snow globe on a carved warm walnut base. Inside: tiny snow-covered log cabin with warm yellow windows and a pine-green conifer, snow mound under them. Faint clean violet-blue galaxy swirl on glass. One small detached golden star floats outside the dome at upper right. Cosmic, charming richly made miniature, distinct sphere-on-plinth outline.",
+    "publishedAssetId": "111135401048404",
+    "tag": "Assistant-c4c7ddb5-2074-40d3-ae43-6850d0e66fd8",
+    "id": "NorthPole_MagicSnowGlobe",
+    "primary": "base_geom",
+    "finishes": {
+      "base": {
+        "material": "Wood"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.75,
+        "clearTexture": true,
+        "color": [
+          205,
+          230,
+          255
+        ]
+      },
+      "star": {
+        "glow": true,
+        "color": [
+          255,
+          224,
+          142
+        ],
+        "clearTexture": true,
+        "mode": "Orbit",
+        "speed": 0.3
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://106325803741238",
+        "name": "star_geom",
+        "texture": "rbxassetid://111512355384620"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://140655893795921",
+        "name": "pine_geom",
+        "texture": "rbxassetid://100685756113228"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116279578160380",
+        "name": "cabin_geom",
+        "texture": "rbxassetid://111570669794007"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://127988657963229",
+        "name": "glass_geom",
+        "texture": "rbxassetid://92112411834778"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://134484049553731",
+        "name": "base_geom",
+        "texture": "rbxassetid://87288124545248"
+      }
+    ]
+  },
+  {
+    "generationId": "f296db98-2991-4151-be65-343e947153a1",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A Santa Claus holiday HAT, a LONG SOFT RED CONE with a rounded pointed tip BENT and DROOPING down to the LEFT, ending in an OVERSIZED fluffy white POMPOM. Thick circular WHITE FUR BAND around the bottom opening. Red cloth cone grows taller than wide then flops to one side. NO ear flaps, no straps, no helmet, no bucket shape. Authentic Santa Claus Christmas cap, realistic soft fabric folds, smooth sculpted organic surface. Rare, tiny gold stitching accent, no glow. Parts: red conical cloth and white fur including pompom.",
+    "publishedAssetId": "120263058836680",
+    "tag": "Assistant-fadd2ebe-a895-4e10-bc37-b7156d687bc5",
+    "id": "NorthPole_SantasHat",
+    "primary": "hat_geom",
+    "finishes": {
+      "hat": {
+        "material": "Fabric"
+      },
+      "fur": {
+        "material": "Fabric"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://91306798182458",
+        "name": "fur_geom",
+        "texture": "rbxassetid://114887406155661"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://81515226799856",
+        "name": "hat_geom",
+        "texture": "rbxassetid://121851758078236"
+      }
+    ]
+  },
+  {
+    "generationId": "a3eb1e2c-5786-4f87-8f02-080faadcccfb",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A large soft ROUND BULGING DRAWSTRING BAG made of plush deep burgundy velvet, continuous CLOSED cloth body like a rounded pear resting on its broad curved bottom. Gently curved package bulges under the fabric, smoothly draped folds. Narrow gathered NECK tied with thick gold rope; only the small top mouth is open, intense warm golden light glows from it. No triangular forms, no tent, no flat panels, no holes through sides. Secret-tier collectible: near-black burgundy body with gold mouth light, rich realistic soft fabric, asymmetrical rounded outline.",
+    "publishedAssetId": "100838161833342",
+    "tag": "Assistant-a9efb2c9-fb4e-4bc9-a73c-b400eeac17ce",
+    "id": "NorthPole_SantasGiftSack",
+    "primary": "sack_geom",
+    "finishes": {
+      "sack": {
+        "material": "Fabric",
+        "color": [
+          65,
+          10,
+          22
+        ]
+      },
+      "rope": {
+        "material": "Fabric"
+      },
+      "light": {
+        "glow": true,
+        "color": [
+          255,
+          224,
+          142
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://95540814880799",
+        "name": "light_geom",
+        "texture": "rbxassetid://129555357618435"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://138813752651050",
+        "name": "rope_geom",
+        "texture": "rbxassetid://137493994567973"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://123244904992560",
+        "name": "sack_geom",
+        "texture": "rbxassetid://110893793905359"
+      }
+    ]
+  }
+]

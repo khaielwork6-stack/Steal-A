@@ -398,14 +398,14 @@ LootConfig.Normalization = {
 	Area51_AntiGravityCube = { 1.0000, 3.694, 5.000, 3.670 }, -- Anti-Gravity Cube: 3.69 x 5.00 x 3.67 -> 3.69 x 5.00 x 3.67
 	Area51_UFOCore = { 1.0000, 5.480, 5.000, 5.461 }, -- UFO Core: 5.48 x 5.00 x 5.46 -> 5.48 x 5.00 x 5.46
 	Area51_AlienArtifact = { 1.0000, 4.881, 5.000, 4.886 }, -- Alien Artifact: 4.88 x 5.00 x 4.89 -> 4.88 x 5.00 x 4.89
-	NorthPole_SantasHat = { 0.9615, 5.200, 5.200, 5.200 }, -- Santa's Hat: 5.20 x 5.20 x 5.20 -> 5.00 x 5.00 x 5.00
-	NorthPole_NiceList = { 1.0000, 3.500, 4.000, 8.000 }, -- Toy Train: 3.50 x 4.00 x 8.00 -> 3.50 x 4.00 x 8.00
-	NorthPole_GoldenBell = { 1.8614, 1.306, 2.686, 2.575 }, -- Golden Bell: 1.31 x 2.69 x 2.57 -> 2.43 x 5.00 x 4.79
-	NorthPole_ToyBlueprint = { 1.5000, 4.260, 3.000, 5.000 }, -- Toy Blueprint: 4.26 x 3.00 x 5.00 -> 6.39 x 4.50 x 7.50
-	NorthPole_GoldenPresent = { 0.2105, 21.793, 23.752, 22.540 }, -- Golden Present: 21.79 x 23.75 x 22.54 -> 4.59 x 5.00 x 4.74
-	NorthPole_MagicSnowGlobe = { 0.5788, 10.284, 8.639, 10.310 }, -- Magic Snow Globe: 10.28 x 8.64 x 10.31 -> 5.95 x 5.00 x 5.97
-	NorthPole_SantasGiftSack = { 0.5431, 9.663, 9.206, 9.665 }, -- Santa's Gift Sack: 9.66 x 9.21 x 9.67 -> 5.25 x 5.00 x 5.25
-	NorthPole_ChristmasStar = { 1.0000, 3.525, 5.000, 2.790 }, -- Generated mesh, lootAudit.
+	NorthPole_SantasHat = { 1.0000, 5.652, 5.000, 4.650 }, -- Santa's Hat: 5.65 x 5.00 x 4.65 -> 5.65 x 5.00 x 4.65
+	NorthPole_NiceList = { 1.0000, 5.391, 5.000, 2.208 }, -- Toy Train: 5.39 x 5.00 x 2.21 -> 5.39 x 5.00 x 2.21
+	NorthPole_GoldenBell = { 1.0000, 4.189, 5.000, 3.678 }, -- Golden Bell: 4.19 x 5.00 x 3.68 -> 4.19 x 5.00 x 3.68
+	NorthPole_ToyBlueprint = { 1.0000, 3.486, 5.000, 1.963 }, -- Toy Blueprint: 3.49 x 5.00 x 1.96 -> 3.49 x 5.00 x 1.96
+	NorthPole_GoldenPresent = { 1.0000, 3.551, 5.000, 3.544 }, -- Golden Present: 3.55 x 5.00 x 3.54 -> 3.55 x 5.00 x 3.54
+	NorthPole_MagicSnowGlobe = { 1.0000, 4.835, 5.000, 4.194 }, -- Magic Snow Globe: 4.83 x 5.00 x 4.19 -> 4.83 x 5.00 x 4.19
+	NorthPole_SantasGiftSack = { 1.0000, 4.855, 5.000, 4.854 }, -- Santa's Gift Sack: 4.86 x 5.00 x 4.85 -> 4.86 x 5.00 x 4.85
+	NorthPole_ChristmasStar = { 1.0000, 3.525, 5.000, 2.790 }, -- Christmas Star: 3.53 x 5.00 x 2.79 -> 3.53 x 5.00 x 2.79
 	Egypt_CanopicJar = { 0.8333, 4.800, 6.000, 1.200 }, -- Pharaoh's Golden Scepter: 4.80 x 6.00 x 1.20 -> 4.00 x 5.00 x 1.00
 	Egypt_Shawarma = { 1.0910, 6.874, 3.925, 4.577 }, -- Shawarma: 6.87 x 3.92 x 4.58 -> 7.50 x 4.28 x 4.99
 	Egypt_AncientMau = { 0.2778, 4.485, 18.000, 5.437 }, -- Ancient Mau: 4.49 x 18.00 x 5.44 -> 1.25 x 5.00 x 1.51
@@ -485,7 +485,6 @@ LootConfig.Normalization = {
 LootConfig.ModelOverrides = {
 	-- Zone 04: same item, same name, better art.
 	-- Zone 05: Nice List -> Toy Train.
-	NorthPole_NiceList = "Toy Train",
 	-- Zone 06: Canopic Jar -> Pharaoh’s Golden Scepter. NOTE: the asset name
 	-- uses a curly apostrophe (U+2019), not an ASCII one; a straight quote here
 	-- will not find it.

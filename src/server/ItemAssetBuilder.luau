@@ -10,6 +10,50 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, 08b1ef06-cdc1-4a1d-be08-acf94c139ad1 (2026-09-16).
+	NorthPole_NiceList = {asset=112981394859159, primary="train_geom", authorRotation=CFrame.Angles(0,math.pi/2,0), meshes={
+		["smoke_geom"]="rbxassetid://108557422657389",
+		["wheels_geom"]="rbxassetid://101495797841279",
+		["train_geom"]="rbxassetid://133804072102341",
+	}, finishes={train_geom={material=Enum.Material.Metal}, wheels_geom={material=Enum.Material.Rubber}, smoke_geom={material=Enum.Material.SmoothPlastic}}},
+	-- Studio MCP generate_mesh, 43feb6a6-7c1d-46f2-9246-0ff7e49d78d7 (2026-09-16).
+	NorthPole_GoldenBell = {asset=99510621411127, primary="bell_geom", meshes={
+		["inner_light_geom"]="rbxassetid://93942419272333",
+		["holly_geom"]="rbxassetid://120847977894928",
+		["ribbon_geom"]="rbxassetid://115792695501994",
+		["bell_geom"]="rbxassetid://75596411365851",
+	}, finishes={bell_geom={material=Enum.Material.Metal}, ribbon_geom={material=Enum.Material.Fabric}, holly_geom={material=Enum.Material.SmoothPlastic}, inner_light_geom={glow=true,color=Color3.fromRGB(255,224,142),clearTexture=true}}},
+	-- Studio MCP generate_mesh, f56072f2-b6eb-4acf-9ea5-6d9aa09c527f (2026-09-16).
+	NorthPole_ToyBlueprint = {asset=125963223639102, primary="paper_geom", meshes={
+		["hologram_geom"]="rbxassetid://82216889787092",
+		["paper_geom"]="rbxassetid://77181251220353",
+	}, finishes={paper_geom={material=Enum.Material.Fabric}, hologram_geom={glow=true,color=Color3.fromRGB(87,241,255),clearTexture=true,mode="Hover",speed=1.1}}},
+	-- Studio MCP generate_mesh, e801f2bb-6afa-4f4d-9c78-375055b02207 (2026-09-16).
+	NorthPole_GoldenPresent = {asset=91090558173172, primary="box_geom", meshes={
+		["inner_light_geom"]="rbxassetid://82741354850218",
+		["bow_geom"]="rbxassetid://140437258800379",
+		["lid_geom"]="rbxassetid://126683214838393",
+		["box_geom"]="rbxassetid://124998849833198",
+	}, finishes={box_geom={material=Enum.Material.Foil}, lid_geom={material=Enum.Material.Foil,mode="Hover",speed=1}, bow_geom={material=Enum.Material.Fabric,mode="Hover",speed=1}, inner_light_geom={glow=true,color=Color3.fromRGB(255,224,142),clearTexture=true}}},
+	-- Studio MCP generate_mesh, 0f763941-9617-4662-8824-ee8202b9191b (2026-09-16).
+	NorthPole_MagicSnowGlobe = {asset=111135401048404, primary="base_geom", meshes={
+		["star_geom"]="rbxassetid://106325803741238",
+		["pine_geom"]="rbxassetid://140655893795921",
+		["cabin_geom"]="rbxassetid://116279578160380",
+		["glass_geom"]="rbxassetid://127988657963229",
+		["base_geom"]="rbxassetid://134484049553731",
+	}, finishes={base_geom={material=Enum.Material.Wood}, glass_geom={material=Enum.Material.Glass,transparency=0.75,clearTexture=true,color=Color3.fromRGB(205,230,255)}, star_geom={glow=true,color=Color3.fromRGB(255,224,142),clearTexture=true,mode="Orbit",speed=0.3}}},
+	-- Studio MCP generate_mesh, f296db98-2991-4151-be65-343e947153a1 (2026-09-16).
+	NorthPole_SantasHat = {asset=120263058836680, primary="hat_geom", meshes={
+		["fur_geom"]="rbxassetid://91306798182458",
+		["hat_geom"]="rbxassetid://81515226799856",
+	}, finishes={hat_geom={material=Enum.Material.Fabric}, fur_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, a3eb1e2c-5786-4f87-8f02-080faadcccfb (2026-09-16).
+	NorthPole_SantasGiftSack = {asset=100838161833342, primary="sack_geom", meshes={
+		["light_geom"]="rbxassetid://95540814880799",
+		["rope_geom"]="rbxassetid://138813752651050",
+		["sack_geom"]="rbxassetid://123244904992560",
+	}, finishes={sack_geom={material=Enum.Material.Fabric,color=Color3.fromRGB(65,10,22)}, rope_geom={material=Enum.Material.Fabric}, light_geom={glow=true,color=Color3.fromRGB(255,224,142),clearTexture=true}}},
 	-- Studio MCP generate_mesh, 354f1748-e5ee-4c4e-95f7-165732c2a57b (2026-09-16).
 	Area51_MeteorFragment = {asset=74566797233942, primary="shard_geom", meshes={
 		["ring_geom"]="rbxassetid://73037553108593",
@@ -256,6 +300,46 @@ local function decorate(model: Model, id: string)
 	elseif id == "Museum_Meteorite" then
 		neon(mesh("fissures"), Color3.fromRGB(255, 112, 20))
 		mesh("rock").Material = Enum.Material.Slate
+	elseif id == "NorthPole_NiceList" then
+		local train = mesh("train")
+		accent(model, "WarmHeadlamp", Vector3.one * 0.18,
+			train.CFrame * CFrame.new(0, -train.Size.Y * 0.1, train.Size.Z * 0.49), gold)
+	elseif id == "NorthPole_ToyBlueprint" then
+		local paper, projection = mesh("paper"), mesh("hologram")
+		projection.CFrame = CFrame.new(paper.Position + Vector3.new(0,paper.Size.Y*0.5+projection.Size.Y*0.5+0.25,0)) * CFrame.Angles(0,math.pi/2,0)
+	elseif id == "NorthPole_MagicSnowGlobe" then
+		local base, glass = mesh("base"), mesh("glass")
+		local cabin, pine, star = mesh("cabin"), mesh("pine"), mesh("star")
+		cabin.Size *= 2.2
+		pine.Size *= 2.3
+		local floor = base.Position.Y + base.Size.Y * 0.5
+		cabin.CFrame = CFrame.new(base.Position.X + 0.35, floor + cabin.Size.Y * 0.5, base.Position.Z + 0.2)
+		pine.CFrame = CFrame.new(base.Position.X - 0.7, floor + pine.Size.Y * 0.5, base.Position.Z - 0.25)
+		star.Size *= 1.8
+		star.CFrame = CFrame.new(glass.Position + Vector3.new(glass.Size.X * 0.58, glass.Size.Y * 0.28, 0))
+		pine.TextureID, pine.Color, pine.Material = "", Color3.fromRGB(22,105,61), Enum.Material.Grass
+		for _, child in pine:GetChildren() do if child:IsA("SurfaceAppearance") then child:Destroy() end end
+		for _,x in {-0.22,0.22} do
+			local window=accent(model,"CabinWindow",Vector3.new(0.16,0.2,0.025),cabin.CFrame*CFrame.new(x,0.08,cabin.Size.Z*0.46),gold)
+			window.Shape=Enum.PartType.Block
+		end
+		local snow = Instance.new("ParticleEmitter")
+		snow.Name = "ItemArtSnow"
+		snow:SetAttribute("ItemArtParticle", true)
+		snow.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		snow.Color, snow.LightEmission = ColorSequence.new(Color3.new(1,1,1)), 0.1
+		snow.Size = NumberSequence.new(0.045)
+		snow.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.15,0.1),NumberSequenceKeypoint.new(0.8,0.1),NumberSequenceKeypoint.new(1,1)})
+		snow.Rate, snow.Lifetime, snow.Speed = 7, NumberRange.new(1.8,2.2), NumberRange.new(0.1,0.25)
+		snow.Shape, snow.ShapeStyle = Enum.ParticleEmitterShape.Sphere, Enum.ParticleEmitterShapeStyle.Volume
+		snow.EmissionDirection, snow.LockedToPart = Enum.NormalId.Bottom, true
+		snow.Parent = mesh("glass")
+	elseif id == "NorthPole_SantasGiftSack" then
+		local light, sack = mesh("light"), mesh("sack")
+		light.Size *= 0.6
+		light.CFrame = CFrame.new(sack.Position + Vector3.new(0,sack.Size.Y*0.37,0))
+		sack.TextureID, sack.Color = "", Color3.fromRGB(65,10,22)
+		for _,child in sack:GetChildren() do if child:IsA("SurfaceAppearance") then child:Destroy() end end
 	elseif id == "Museum_GoldenCrown" then
 		-- Tiny gem only: Epic has a faint accent, not a glowing crown body.
 		neon(mesh("ruby_gems"), Color3.fromRGB(255, 85, 95))
