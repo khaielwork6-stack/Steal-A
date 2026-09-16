@@ -1,0 +1,62 @@
+[
+  {
+    "id": "Museum_PharaohMask",
+    "generationId": "dbb2d898-5d29-462d-961f-2f03b4d0cf10",
+    "generationName": "Premium Roblox simulator museum collectible, stylized realism matching a finely made terracotta amphora: authentic real-world proportions, smoothly sculpted curves, clean bright saturated colors, rich carefully made finish, no noisy photographic texture, no room, no labels, no UI, no surrounding display pedestal. Upright object around five studs tall. Bold readable silhouette at 100 pixels. Ancient Egyptian funerary death mask, a recognisable serene gold human face with almond-shaped deep lapis-blue inlaid eyes and narrow braided false beard. Broad flared striped nemes headdress falling to the shoulders, alternating rich aged gold and royal lapis blue stripes, its top gently rounded. Smooth realistic facial proportions and curved cheekbones, beautiful sculpted lips. Rare rarity: rich real gold metal and polished lapis, NO emission, NO halo, no gem stand. Solid bust-shaped outline, flat stable bottom. Two mesh components: gold facial mask including beard; blue-and-gold striped headdress.",
+    "publishedAssetId": "89885023945258",
+    "tag": "Assistant-e4cd6f78-1e4a-41c7-974c-8a71983c50fc",
+    "primary": "mask_geom",
+    "parts": [
+      {
+        "name": "headdress_geom",
+        "up": 1.0000001192092896,
+        "size": [
+          2.4047298431396484,
+          3.1560873985290527,
+          1.9950201511383057
+        ],
+        "mesh": "rbxassetid://74694780901052",
+        "texture": "rbxassetid://95825359063071"
+      },
+      {
+        "name": "mask_geom",
+        "up": 1.0000001192092896,
+        "size": [
+          2.410083770751953,
+          3.1539483070373535,
+          1.9983855485916138
+        ],
+        "mesh": "rbxassetid://87585968350974",
+        "texture": "rbxassetid://138863913285610"
+      }
+    ]
+  },
+  {
+    "id": "Museum_Meteorite",
+    "generationId": "2b7047c4-c65d-4f39-860d-a1fef4a14c55",
+    "generationName": "Premium Roblox museum loot collectible, stylized realism matching a smooth finely crafted terracotta amphora, saturated clean colors and sculpted believable surfaces, NO noisy photo texture. A JAGGED ASYMMETRIC CHARRED METEORITE fragment, never oval, never egg-shaped, never spherical, never a vase or helmet. Strong distinctive lopsided outline: a broad crag sticking diagonally up LEFT, a deep V-shaped missing chunk in the upper RIGHT edge, a sharp broken lower-right corner, and a slanted fracture face. This is rough fractured space rock with impact pits and angular rubble edges, NOT crystal points. Body is matte charcoal-black; several wide branching fiery ORANGE cracks expose molten fissures cutting down its broken faces, orange visible clearly from FRONT. Epic rarity: restrained orange glowing fissures only, no halo, no hovering satellites. Rock rests precariously on a very small flat dark iron oval display ring at bottom. Three separate meshes: rock with its complex broken asymmetric surface and crater pits; molten orange fissures embedded in cracks; understated display_ring. Upright 5 studs high, 4 studs wide. No room, no labels, no other objects. Front faces positive Z. Broad left crag must break the silhouette dramatically.",
+    "publishedAssetId": "132844588760781",
+    "tag": "Assistant-d25935ac-03f9-42c6-a7dd-7f6aec2a333c",
+    "primary": "rock_geom",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://133116366119719",
+        "name": "display_ring_geom",
+        "texture": "rbxassetid://107445578543958"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://139224356390479",
+        "name": "fissures_geom",
+        "texture": "rbxassetid://72361406317246"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://110658841101781",
+        "name": "rock_geom",
+        "texture": "rbxassetid://101429547259141"
+      }
+    ]
+  }
+]

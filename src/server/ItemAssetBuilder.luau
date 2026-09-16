@@ -6,8 +6,21 @@ local InsertService = game:GetService("InsertService")
 local ServerStorage = game:GetService("ServerStorage")
 local LootModel = require(game:GetService("ReplicatedStorage").Shared.Util.LootModel)
 local Builder = {}
-type Definition = {asset: number, primary: string, meshes: {[string]: string}}
+type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, glow: boolean?,
+	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
+type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, dbb2d898-5d29-462d-961f-2f03b4d0cf10 (2026-09-16).
+	Museum_PharaohMask = {asset=89885023945258, primary="mask_geom", meshes={
+		["headdress_geom"]="rbxassetid://74694780901052",
+		["mask_geom"]="rbxassetid://87585968350974",
+	}},
+	-- Studio MCP generate_mesh, 2b7047c4-c65d-4f39-860d-a1fef4a14c55 (2026-09-16).
+	Museum_Meteorite = {asset=132844588760781, primary="rock_geom", meshes={
+		["display_ring_geom"]="rbxassetid://133116366119719",
+		["fissures_geom"]="rbxassetid://139224356390479",
+		["rock_geom"]="rbxassetid://110658841101781",
+	}},
 	-- Studio MCP generate_mesh, 46882e4a-22d2-473e-9e7f-09f43b62d399 (2026-09-16).
 	-- Owner-approved terracotta amphora: generated finish retained unchanged.
 	Museum_AncientVase = {asset=106158589587145, primary="body_geom", meshes={
@@ -108,7 +121,10 @@ local function decorate(model: Model, id: string)
 	local pearl = Color3.fromRGB(255, 248, 216)
 	local purple = Color3.fromRGB(168, 65, 255)
 	local cyan = Color3.fromRGB(131, 236, 255)
-	if id == "Museum_GoldenCrown" then
+	if id == "Museum_Meteorite" then
+		neon(mesh("fissures"), Color3.fromRGB(255, 112, 20))
+		mesh("rock").Material = Enum.Material.Slate
+	elseif id == "Museum_GoldenCrown" then
 		-- Tiny gem only: Epic has a faint accent, not a glowing crown body.
 		neon(mesh("ruby_gems"), Color3.fromRGB(255, 85, 95))
 	elseif id == "Museum_Diamond" then
@@ -195,6 +211,19 @@ local function construct(id: string, def: Definition): Model
 		local _, size = model:GetBoundingBox()
 		model:ScaleTo(model:GetScale() * 5 / size.Y)
 		decorate(model, id)
+		for name, finish in def.finishes or {} do
+			local part = model:FindFirstChild(name)
+			assert(part and part:IsA("MeshPart"), id .. " missing finish mesh " .. name)
+			if finish.material then part.Material = finish.material end
+			if finish.color then part.Color = finish.color end
+			if finish.transparency then part.Transparency = finish.transparency end
+			if finish.clearTexture then
+				part.TextureID = ""
+				for _, child in part:GetChildren() do if child:IsA("SurfaceAppearance") then child:Destroy() end end
+			end
+			if finish.glow then part.Material = Enum.Material.Neon end
+			if finish.mode then motion(part, finish.mode, finish.speed or 0.5, finish.axis) end
+		end
 		local min, max = LootModel.visibleExtents(model)
 		assert(min and max, id .. " has no visible art")
 		local fit = LootModel.normalisationFor(max - min)

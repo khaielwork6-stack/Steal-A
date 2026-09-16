@@ -369,10 +369,10 @@ LootConfig.Normalization = {
 	Museum_AncientVase = { 1.0000, 3.485, 5.000, 3.515 }, -- Generated mesh amphora; measured with lootAudit.
 	Museum_RarePainting = { 1.0000, 3.721, 5.000, 1.913 }, -- Generated mesh, lootAudit.
 	Museum_GoldenStatue = { 1.0000, 2.117, 5.000, 2.094 }, -- Generated mesh, lootAudit.
-	Museum_PharaohMask = { 0.8621, 4.500, 5.800, 1.400 }, -- Pharaoh Mask: 4.50 x 5.80 x 1.40 -> 3.88 x 5.00 x 1.21
+	Museum_PharaohMask = { 1.0000, 3.818, 5.000, 3.168 }, -- Generated mesh, live lootAudit
 	Museum_Ruby = { 1.0000, 2.250, 5.000, 2.240 }, -- Generated mesh, lootAudit.
 	Museum_GoldenCrown = { 1.0000, 9.154, 4.000, 9.144 }, -- Generated mesh, lootAudit.
-	Museum_Meteorite = { 0.8333, 5.635, 6.000, 4.902 }, -- Meteorite: 5.64 x 6.00 x 4.90 -> 4.70 x 5.00 x 4.08
+	Museum_Meteorite = { 1.0000, 3.867, 5.000, 4.607 }, -- Generated mesh, live lootAudit
 	Museum_Diamond = { 1.0000, 3.149, 5.000, 3.160 }, -- Generated mesh, lootAudit.
 	Pirate_TreasureMap = { 0.3571, 11.000, 14.000, 2.000 }, -- Treasure Map: 11.00 x 14.00 x 2.00 -> 3.93 x 5.00 x 0.71
 	Pirate_CaptainsHat = { 0.8042, 6.908, 6.217, 3.454 }, -- Captain's Hat: 6.91 x 6.22 x 3.45 -> 5.56 x 5.00 x 2.78
@@ -482,8 +482,6 @@ LootConfig.Normalization = {
 -- the asset named here changed. The right-hand string must match the model's
 -- name in ServerStorage.GameAssets.Loot EXACTLY, including apostrophes.
 LootConfig.ModelOverrides = {
-	-- Zone 01: a better Pharaoh Mask model. Display name unchanged.
-	Museum_PharaohMask = "Pharaohs Mask",
 	-- Zone 04: same item, same name, better art.
 	Area51_TopSecretFiles = "Top Secret Files",
 	-- Zone 05: Nice List -> Toy Train.
