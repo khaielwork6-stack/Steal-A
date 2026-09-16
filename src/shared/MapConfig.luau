@@ -27,10 +27,8 @@ MapConfig.ZONE_COUNT = 12
 -- front. Seven do not fit without shrinking a plot below its fourteen pads.
 -- Server Size in Game Settings must match (it is read-only to scripts).
 MapConfig.BASE_COUNT = 5
---- FOUR per zone. MysterySpawnService re-seats them into an arc around the
---- zone's guardian at start-up and DESTROYS any fifth a baked map still
---- carries, so the retired fifth spawn cannot return from an old place file.
-MapConfig.SOCKETS_PER_ZONE = 4
+-- Two side rooms, four sealed displays and one guardian in each room.
+MapConfig.SOCKETS_PER_ZONE = 8
 --- Eighteen pads for a rebuilt plot (BaseConfig's top level). A baked plot
 --- keeps its fourteen until the map is rebuilt; BaseService clamps to what
 --- is physically there.

@@ -10,14 +10,10 @@
 	Signs are generated from ZoneConfig rather than authored into the map, so
 	changing a gate value never means re-editing geometry.
 
-	WHERE THEY STAND AND WHICH WAY THEY FACE
-	One per zone, on the LEFT of the entrance from the approaching player's
-	point of view, planted SIGN_INSIDE studs INSIDE the zone's near edge and
-	turned SIGN_YAW degrees in toward the lane centre.
-	The face is drawn on the board's Front (its -Z side), which is the side an
-	approaching player sees: they come up the lane from -Z. The old signs sat
-	just inside the zone with the face on the Back, so they read only after
-	the player had walked past them.
+	WHERE THEY STAND
+	Suspended above the central corridor at each zone entrance. This keeps
+	the recommendation visible without placing its former freestanding post
+	inside a side room. Both faces are readable on the approach and escape.
 
 	THE LOOK
 	A dark rounded panel with the zone's emoji, number and name across the top,
@@ -36,19 +32,8 @@ local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local ZoneSignService = {}
 
---- Smaller than the first pass (24-high post, 34 x 14 board): the sign is a
---- corner marker inside the zone now, not a billboard over the lane.
 local POST_HEIGHT = 15
 local BOARD_SIZE = Vector3.new(22, 9, 1)
---- Studs INSIDE the zone, past its near edge. The sign stands in the zone
---- it names, in the corner by the left wall just past the entrance - not
---- out in the lane ahead of it, where it sat in every player's eyeline.
-local SIGN_INSIDE = 18
---- Degrees each board turns in toward the lane centre.
-local SIGN_YAW = 24
---- Board centre's distance in from the wall face. The board is 22 wide and
---- yawed, so this keeps its outer end a couple of studs off the wall.
-local SIGN_INSET = 13
 
 local PANEL = Color3.fromRGB(18, 22, 36)
 local PANEL_EDGE = Color3.fromRGB(34, 40, 62)
@@ -132,8 +117,6 @@ local function buildFace(board: BasePart, zone: ZoneConfig.ZoneDef, accent: Colo
 end
 
 local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
-	local startZ = MapConfig.zoneStartZ(zone.index)
-	local z = startZ + SIGN_INSIDE
 
 	local model = Instance.new("Model")
 	model.Name = `Sign_{zone.id}`
@@ -143,25 +126,16 @@ local function buildSign(zone: ZoneConfig.ZoneDef, parent: Instance)
 	-- would silently disagree with it the first time a band boundary moves.
 	local accent = RarityConfig.Colors[RarityConfig.topRarityFor(zone.index)] or RarityConfig.Colors.Common
 
-	-- ONE sign per zone, on the LEFT of the entrance as the player approaches.
-	-- They come up the lane along +Z, and a character facing +Z has +X on
-	-- its LEFT (Roblox is right-handed: RightVector = Look x Up = -X). The
-	-- earlier pass put the board at -X believing that was left; a Play
-	-- screenshot from the spawn circle showed it on the right. The gate's
-	-- lintel carries the zone's name across the lane; this board carries the
-	-- number.
-	for _, side in { 1 } do
-		local x = side * (MapConfig.LANE_HALF - SIGN_INSET)
-		-- Turned in toward the centre line: the left sign looks a little
-		-- right, the right sign a little left. Front (-Z) faces the approach.
-		local facing = CFrame.new(x, 0, z) * CFrame.Angles(0, side * math.rad(SIGN_YAW), 0)
+	-- One suspended sign per zone, above the open running route.
+	do
+		local facing = CFrame.new(0, 14, MapConfig.zoneStartZ(zone.index) + 2)
 
 		local post = Instance.new("Part")
 		post.Name = "Post"
 		post.Size = Vector3.new(1.4, POST_HEIGHT, 1.4)
 		post.CFrame = facing * CFrame.new(0, POST_HEIGHT / 2, 0)
 		post.Anchored = true
-		post.CanCollide = false
+		post.CanCollide, post.CanQuery, post.Transparency = false, false, 1
 		post.CastShadow = false
 		post.Color = Color3.fromRGB(46, 50, 68)
 		post.Material = Enum.Material.SmoothPlastic

@@ -2,7 +2,7 @@
 --[[
 	MysteryConfig
 	The closed mystery container: which model each zone uses, how big it gets,
-	and where the four of them stand around their guardian.
+	and the fallback offsets for eight world containers.
 
 	THE LOOP THIS SERVES
 	A zone no longer shows the item it is offering. It shows a sealed container
@@ -101,25 +101,22 @@ MysteryConfig.INTERACT_RANGE_PER_STUD = 0.5
 MysteryConfig.CARRY_OVERHEAD_SCALE = 2.6
 
 -- ==========================================================
--- WHERE THE FOUR STAND
+-- LEGACY FALLBACK OFFSETS
 -- ==========================================================
---
--- FOUR containers per zone, in a shallow protective arc around the guardian:
--- two in front of it and two behind, so the guardian reads as the thing
--- guarding them and the lane down the middle stays open to run.
---
--- Offsets are in the zone's own frame, in studs: +X is across the lane, +Z is
--- deeper into the zone (away from the safe line). The guardian rests at the
--- origin of this frame. MysterySpawnService raycasts each one to the floor and
--- nudges it clear of scenery before it settles.
+-- Source-built rooms use MuseumLayout.socketFrame. These offsets are only
+-- used when opening an older place without authored MuseumSocket markers.
 
-MysteryConfig.SOCKETS_PER_ZONE = 4
+MysteryConfig.SOCKETS_PER_ZONE = 8
 
 MysteryConfig.SocketOffsets = {
 	{ name = "Spawn01", x = -26, z = -14 }, -- front-left  (nearer the entrance)
 	{ name = "Spawn02", x = 26, z = -14 }, -- front-right
 	{ name = "Spawn03", x = -32, z = 18 }, -- rear-left
 	{ name = "Spawn04", x = 32, z = 18 }, -- rear-right
+	{ name = "Spawn05", x = -26, z = -44 },
+	{ name = "Spawn06", x = 26, z = -44 },
+	{ name = "Spawn07", x = -32, z = 48 },
+	{ name = "Spawn08", x = 32, z = 48 },
 }
 
 --- Clear space demanded around a socket when it is settled against scenery.

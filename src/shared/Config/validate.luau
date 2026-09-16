@@ -58,9 +58,9 @@ return function(): Report
 	-- ==========================================================
 	check(ZoneConfig.COUNT == 12, `expected 12 zones, got {ZoneConfig.COUNT}`)
 	check(ZoneConfig.PARITY_COUNT == 11, "the parity baseline is zones 1-11")
-	check(ZoneConfig.SOCKETS_PER_ZONE == 4, "expected 4 mystery containers per zone")
+	check(ZoneConfig.SOCKETS_PER_ZONE == 8, "expected two rooms with four containers each")
 	check(MysteryConfig.SOCKETS_PER_ZONE == ZoneConfig.SOCKETS_PER_ZONE, "MysteryConfig and ZoneConfig must agree on the socket count")
-	check(#MysteryConfig.SocketOffsets == 4, "there must be exactly four socket offsets around the guardian")
+	check(#MysteryConfig.SocketOffsets == 8, "there must be eight fallback socket offsets")
 	do
 		-- The four stand in an arc: two in front of the guardian, two behind,
 		-- one pair either side of the lane centre. A layout that collapsed to
@@ -71,8 +71,8 @@ return function(): Report
 			if offset.z < 0 then front += 1 else rear += 1 end
 			check(math.abs(offset.x) >= 12, "a container must stand clear of the guardian, not on it")
 		end
-		check(left == 2 and right == 2, "two containers either side of the guardian")
-		check(front == 2 and rear == 2, "two containers in front of the guardian and two behind")
+		check(left == 4 and right == 4, "balanced fallback layout across the lane")
+		check(front == 4 and rear == 4, "balanced fallback depth")
 		check(MysteryConfig.SOCKET_MIN_SEPARATION > 0, "containers need a minimum separation")
 	end
 	do
@@ -216,10 +216,10 @@ return function(): Report
 		-- Four containers now, not five: the brief retired the fifth spawn, so
 		-- the at-least-once figure is over FOUR independent nests.
 		local atLeastOnce = 1 - (1 - p) ^ ZoneConfig.SOCKETS_PER_ZONE
-		check(near(atLeastOnce, 0.0196872, 1e-6), `Blue Crystal at-least-once-in-4 must be ~1.9687%, got {atLeastOnce * 100}%`)
+		check(near(atLeastOnce, 1 - (1 - 0.0196872) ^ 2, 1e-6), `Blue Crystal at-least-once-in-8 must match two four-item rooms, got {atLeastOnce * 100}%`)
 		local refreshesPerHour = 3600 / NightConfig.CYCLE_SECONDS
 		check(near(refreshesPerHour, 3600 / 270, 1e-9), "refreshes per hour must follow the 270s cycle (13.33/h)")
-		check(near(p * ZoneConfig.SOCKETS_PER_ZONE * 12, 0.23801088, 1e-7), "Blue Crystal expected occurrences/hour over 4 nests x 12 refreshes")
+		check(near(p * ZoneConfig.SOCKETS_PER_ZONE * 12, 0.47602176, 1e-7), "Blue Crystal expected occurrences/hour over 8 nests x 12 refreshes")
 	end
 
 	-- ==========================================================

@@ -54,6 +54,9 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	museumLoops = function(player)
 		return require(script.Parent.MuseumTests).loops(player)
 	end,
+	museumPaths = function(player)
+		return require(script.Parent.MuseumTests).paths(player)
+	end,
 	museumScenarios = function(player)
 		return require(script.Parent.MuseumTests).scenarios(player)
 	end,

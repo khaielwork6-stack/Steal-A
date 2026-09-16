@@ -7,22 +7,21 @@ local DARK = Color3.fromRGB(24, 29, 38)
 local WHITE = Color3.fromRGB(226, 228, 217)
 local WOOD = Color3.fromRGB(98, 58, 37)
 
-function Exhibits.build(parent: Instance, centerZ: number, index: number, accent: Color3)
+function Exhibits.build(parent: Instance, roomFrame: CFrame, roomWidth: number, roomDepth: number, index: number, accent: Color3)
 	local collection = Instance.new("Folder")
 	collection.Name, collection.Parent = "CollectionExhibits", parent
 	for side = 1, 2 do
-		local sign = if side == 1 then -1 else 1
 		local model = Instance.new("Model")
 		model.Name, model.Parent = "Exhibit" .. side, collection
-		-- The first band is short: bring its two pieces in front of the deep
-		-- reveals so they remain visible on approach. The runner stays clear.
-		local frame = CFrame.new(sign * (if index == 1 then 16 else 63), 0, centerZ) * CFrame.Angles(0, sign * math.pi / 2, 0)
+		local frame = roomFrame * (if side == 1 then CFrame.new(0, 0, roomDepth - 11)
+			else CFrame.new(roomWidth / 2 - 10, 0, 22) * CFrame.Angles(0, -math.pi / 2, 0))
 		local function p(name: string, size: Vector3, cf: CFrame, color: Color3, shape: Enum.PartType?): Part
 			local piece = Instance.new("Part")
-			piece.Name, piece.Size, piece.CFrame = name, size, frame * cf
-			piece.Color, piece.Material = color, Enum.Material.SmoothPlastic
+			piece.Name, piece.Size, piece.CFrame = name, size * 0.65, frame * CFrame.new(cf.Position * 0.65) * cf.Rotation
+			piece.Color, piece.Material = color, Enum.Material.Plastic
 			piece.Anchored, piece.CanCollide, piece.CanTouch, piece.CanQuery, piece.CastShadow = true, false, false, false, false
-			piece.TopSurface, piece.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+			piece.TopSurface, piece.BottomSurface = Enum.SurfaceType.Studs, Enum.SurfaceType.Inlet
+			piece.FrontSurface, piece.BackSurface = Enum.SurfaceType.Studs, Enum.SurfaceType.Studs
 			if shape == Enum.PartType.Ball then
 				-- A primitive Ball renders a sphere at the shortest dimension.
 				-- A built-in sphere mesh preserves these ellipsoid silhouettes.
@@ -42,11 +41,14 @@ function Exhibits.build(parent: Instance, centerZ: number, index: number, accent
 		p("CollectionPlinth", Vector3.new(if index == 1 then 10 else 24, 2, if index == 1 then 8 else 16), CFrame.new(0, 1, 0), DARK).Material = Enum.Material.Slate
 		if index == 1 then
 			if side == 1 then
-				model.Name = "MonumentalAmphora"
-				p("Vessel", Vector3.new(9, 13, 8), CFrame.new(0, 8.5, 0), accent, Enum.PartType.Ball)
-				disk("Neck", 4, 5, Vector3.new(0, 17, 0), GOLD)
-				disk("Lip", 7, 1, Vector3.new(0, 20, 0), GOLD)
-				for _, s in { -1, 1 } do rod("Handle", Vector3.new(s * 3, 17, 0), Vector3.new(s * 5, 10, 0), 1, GOLD) end
+				model.Name = "WhiteMuseumStatue"
+				p("StatuePedestal", Vector3.new(10, 5, 9), CFrame.new(0, 4, 0), WHITE)
+				p("Torso", Vector3.new(6, 7, 3), CFrame.new(0, 14, 0), WHITE)
+				p("Head", Vector3.new(4, 4, 4), CFrame.new(0, 20, 0), WHITE)
+				for _, sign in { -1, 1 } do
+					p("Leg", Vector3.new(2.5, 6, 3), CFrame.new(sign * 1.6, 8, 0), WHITE)
+					p("Arm", Vector3.new(2, 7, 3), CFrame.new(sign * 4.2, 14, 0), WHITE)
+				end
 			else
 				model.Name = "CarvedAntiquity"
 				p("Stele", Vector3.new(9, 19, 5), CFrame.new(0, 11.5, 0), WOOD).Material = Enum.Material.Sandstone

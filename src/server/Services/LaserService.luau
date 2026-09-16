@@ -90,19 +90,22 @@ local function step()
 		for _, beam in candidates do
 			local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
 			if typeof(a) ~= "Vector3" or typeof(b) ~= "Vector3" then continue end
-			local zone = beam.Parent and beam.Parent.Parent
-			local index = zone and zone:GetAttribute("ZoneIndex")
+			local index = beam:GetAttribute("ZoneIndex")
+			local room = beam:GetAttribute("RoomIndex")
+			if type(room) ~= "number" then continue end
 			if type(index) ~= "number" then continue end
+			local key = (index - 1) * 2 + room
 			local times = cooldown[player] or {}
 			cooldown[player] = times
-			if (times[index] or 0) > started then continue end
+			if (times[key] or 0) > started then continue end
 			metrics.narrowChecks += 1
 			if Geometry.sweptBoxHit(a, b, from, center, half) then
-				times[index] = started + 1.5
+				times[key] = started + 1.5
 				metrics.trips += 1
 				player:SetAttribute("LastLaserZone", index)
 				player:SetAttribute("LastLaserTrip", workspace:GetServerTimeNow())
-				GuardianService.alarm(index, player)
+				player:SetAttribute("LastLaserRoom", room)
+				GuardianService.alarm(index, player, room)
 			end
 		end
 	end
@@ -120,7 +123,7 @@ function LaserService.start()
 	for _, zone in workspace.Map.Zones:GetChildren() do
 		local index = zone:GetAttribute("ZoneIndex")
 		local field = zone:FindFirstChild("Lasers")
-		if type(index) == "number" and index >= 3 and field then
+		if type(index) == "number" and index >= 1 and field then
 			table.insert(fields, { index = index, startZ = MapConfig.zoneStartZ(index), endZ = MapConfig.zoneEndZ(index), folder = field })
 		end
 	end

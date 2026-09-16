@@ -4837,3 +4837,82 @@ No configuration, economy, loot, laser, crouch or guardian gameplay changes
 were made in this follow-up. The pre-existing local `.gitignore` edit belongs
 to the owner and is excluded from this commit. The owner explicitly requested
 `git push origin master`, including the previously unpushed `865762d`.
+
+## 46. Approved left/right museum rooms (2026-09-16)
+
+The owner approved the twelve concept boards and their explicit four-items-per-room
+proposal. This supersedes the earlier four-per-zone/one-guardian layout: every
+zone now has two enclosed side rooms, eight sealed containers and two guardians.
+The central corridor remains continuous. All twelve original zone lengths,
+160-stud width, kit floor geometry/top Y=0, transition depth and safe line remain
+unchanged. The lobby, bases, saved art kit and purchased systems are preserved.
+
+`Shared.MuseumLayout` is the geometry authority. It defines the 44-stud central
+corridor, 58-stud room depth, room frontage (zone length minus 8, capped at 140),
+28-stud clear door width, graduated 24–46-stud door heights, socket ownership,
+visual display footprint cap and doorway waypoints. Long zones keep their travel
+distance; solid facade extensions close the unused side wings. Each room has a
+real colliding/queryable structure, separate from its hollow, non-queryable
+museum decoration. Floors remain the original kit parts under flush inlays.
+
+`MuseumGallery` builds the left/right room shells, studded plastic pillars,
+coffered ceilings, gold sconces, static shadowless lighting, ropes, plants,
+medallions and four glass/gold cases along each rear wall. The centrepiece and
+side exhibit are scenery only. `MuseumExhibits` places the twelve themed
+collections in room-local frames; the first centrepiece is a white Roblox
+statue, and the Airport has a suspended aircraft. Native studs require Plastic,
+not SmoothPlastic; the kit wall texture was a checker and is not used as studs.
+The old gate pylons are removed, the Gate lintel is narrowed to the corridor,
+and recommended-Speed signs hang over the approach instead of inside a room.
+
+Socket 01–04 belong to the left guard; 05–08 to the right. The marker names remain
+SocketNN and GuardianPost/GuardianPost02 for compatibility. MysterySpawnService
+preserves their authored positions. World sealed containers use a context-specific
+visual footprint cap to fit the cases, which still refit when a roll changes.
+Item identity, per-roll weights, stored Scale, mutations, income and save schema
+are unchanged. Eight independent rolls intentionally double per-refresh supply
+relative to the previous four; count-dependent economy assertions now reflect
+that approved change. Base/carry sizing and hatch behavior are unchanged.
+
+GuardianService maintains an independent state machine per room. Theft, drop
+recovery and laser alarms choose the owning guard; nearest-target scans cannot
+claim the opposite room's loot. Doorway routing works in both directions and
+across the corridor. Catch, drop pickup and arrival checks cannot reach through
+room walls. Traps enumerate active room guardians, while legacy zone-only public
+APIs default to the left room. No paid Freeze Guards feature was added.
+
+Lasers are confined to the room interiors: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+14 beams per room (182 total). Early fields teach low/high beams; later patterns
+stagger endpoint gaps and add diagonals. Emitters have floor stands. Standing,
+jumping, crouching, swept server checks, alarm immunity and Night behavior retain
+the existing implementation. Cooldowns and alarm ownership are now per room.
+
+### Verification and review
+
+- `validate`: 1,667 passed, zero failures.
+- `economyTests`: 202,434 passed, zero failures.
+- `museumTests`: 1,610 passed, zero failures. Checks the original kit
+  floor, two enclosed rooms, eight contained displays, open side doors, clear
+  corridor, room-only laser progression, scenery flags and 72 doorway routes.
+- `museumLoops`: all 24 room steal/wake/chase/escape/same-roll-return loops passed;
+  each also verifies that the opposite room's guardian stayed asleep.
+- `museumScenarios`: sealed placement, drop/return, placed trap/root protection,
+  catch/same-roll return and Night reset/reopening with 96 occupied sockets passed.
+- `museumPaths` (new Studio-only DebugService command): real Humanoid entrance and
+  return through both room doors in zones 1, 6 and 12, opposite-room isolation,
+  live high-beam crouch clearance and correct-room standing alarm all passed.
+
+All twelve themes were inspected in the native Studio window. Local screenshots
+are under `reference/museum-built/` (ignored, not game assets). Camera/HUD changes
+used for review are temporary. One inspection command attempted `_G` access,
+which the MCP environment does not expose; it changed no game state. Gameplay
+startup and the service checks reported no new script errors.
+
+Measured room structure + decoration BaseParts per zone: 490, 524, 530, 536, 554,
+566, 576, 594, 604, 616, 626, 670, excluding loot and guardians. There are 24 rooms,
+24 room guardians, 96 sockets and 182 beams. This is a desktop Studio check and a
+part budget measurement, not a mobile-device frame-rate certification.
+
+The owner's existing `.gitignore` modification is preserved and excluded from
+this implementation commit. Rojo sync was verified directly against Edit
+Script.Source and through fresh Play runs; no `rojo build` was used.

@@ -313,21 +313,17 @@ function EconomyTests.run(): Report
 	do
 		local p = LootConfig.weightShare("SecretLab_MutationCrystal")
 		local sockets = ZoneConfig.SOCKETS_PER_ZONE
-		-- THE SOCKET COUNT CHANGED. The economy brief assumed five nests; the
-		-- later mystery brief says "use exactly four active spawn positions
-		-- per zone, remove the fifth spawn completely". Four wins, so the
-		-- per-hour figures below are the four-socket restatement of the same
-		-- per-socket probability, which is itself unchanged.
-		check(sockets == 4, `the zone must have four sockets, not {sockets}`)
+		-- Approved side-room layout: two independent sets of four per zone.
+		check(sockets == 8, `the zone must have eight sockets, got {sockets}`)
 		check(near(p, 0.00495856, 1e-9), `per socket {p * 100}% must be 0.495856%`)
-		check(near(1 - (1 - p) ^ sockets, 0.0196872, 1e-6), "at least once in 4 nests must be ~1.96872%")
+		check(near(1 - (1 - p) ^ sockets, 1 - (1 - 0.0196872) ^ 2, 1e-6), "at least once in eight matches two four-item rooms")
 		-- AND TWELVE REFRESHES AN HOUR WAS THE OTHER STALE INPUT. The live
 		-- cycle is NightConfig's 270 seconds, so a zone refreshes 3600/270
 		-- times an hour, not twelve. Derived from the config so the two
 		-- numbers can never drift apart again.
 		local refreshesPerHour = 3600 / NightConfig.CYCLE_SECONDS
 		check(near(refreshesPerHour, 3600 / 270), `the cycle must refresh {3600 / 270} times an hour, not {refreshesPerHour}`)
-		check(near(p * sockets * refreshesPerHour, 0.26445653, 1e-7), "expected occurrences/hour must be 0.26445653")
+		check(near(p * sockets * refreshesPerHour, 0.52891307, 1e-7), "expected occurrences/hour must be 0.52891307")
 		-- The brief's own figure, kept as the record of what it assumed.
 		check(near(p * 5 * 12, 0.2975136, 1e-7), "the retired five-nest, twelve-refresh figure was 0.2975136/hour")
 		check(p * sockets * 12 < 1, "the Blue Crystal must no longer appear ~7.2 times an hour")
@@ -396,17 +392,17 @@ function EconomyTests.run(): Report
 			end
 		end
 
-		-- FOUR SOCKETS, and no fifth anywhere in the configuration.
-		check(MysteryConfig.SOCKETS_PER_ZONE == 4, "the mystery layout must use four sockets")
-		check(ZoneConfig.SOCKETS_PER_ZONE == 4, "the zone config must agree that there are four")
-		check(#MysteryConfig.SocketOffsets == 4, "there must be exactly four socket offsets")
+		-- Two sets of four, with no ninth spawn.
+		check(MysteryConfig.SOCKETS_PER_ZONE == 8, "the mystery layout must use eight sockets across two rooms")
+		check(ZoneConfig.SOCKETS_PER_ZONE == 8, "the zone config must agree that there are eight")
+		check(#MysteryConfig.SocketOffsets == 8, "there must be exactly eight socket offsets")
 		local socketNames: { [string]: boolean } = {}
 		for index, offset in MysteryConfig.SocketOffsets do
 			check(offset.name == string.format("Spawn%02d", index), `socket {index} is named {offset.name}, out of order`)
 			check(socketNames[offset.name] == nil, `socket name {offset.name} must be unique`)
 			socketNames[offset.name] = true
 		end
-		check(socketNames["Spawn05"] == nil, "no fifth spawn may be configured")
+		check(socketNames["Spawn09"] == nil, "no ninth spawn may be configured")
 		for a = 1, 4 do
 			for b = a + 1, 4 do
 				local first, second = MysteryConfig.SocketOffsets[a], MysteryConfig.SocketOffsets[b]

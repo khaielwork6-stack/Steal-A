@@ -1355,7 +1355,7 @@ function MapBuilder.rebuildGalleries(): Folder
 	placeSockets(map)
 	require(script.Parent.MuseumGallery).build(map)
 	MapBuilder.applyDecorCollision(map)
-	map:SetAttribute("MuseumRevision", 1)
+	map:SetAttribute("MuseumRevision", 3)
 	return map :: Folder
 end
 
@@ -1385,7 +1385,7 @@ function MapBuilder.build(): Folder
 	placeSockets(map)
 	require(script.Parent.MuseumGallery).build(map)
 	MapBuilder.applyDecorCollision(map)
-	map:SetAttribute("MuseumRevision", 1)
+	map:SetAttribute("MuseumRevision", 3)
 
 	local parts = 0
 	for _, d in map:GetDescendants() do

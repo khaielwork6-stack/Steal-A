@@ -35,7 +35,9 @@ The museum lane is rebuilt from `MapBuilder` and `MuseumGallery` at server
 startup, before services bind to its sockets. Press **Play** to see source
 changes synced by Rojo. The saved lobby, plots, wheels and asset kit remain in
 the place; rebuilding the lane does not replace them. See HANDOFF section 44
-for the laser service, crouch controls and verification commands.
+for the laser service and crouch controls. Section 46 documents the approved
+left/right rooms: four sealed displays and one guard per room, with lasers
+inside. The central corridor stays clear; all twelve zones use this layout.
 
 ---
 

@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local LootService = require(script.Parent.LootService)
 local MuseumTests = {}
@@ -47,67 +48,90 @@ function MuseumTests.run(): any
 			end
 		end
 		check(checker and floor.Material ~= Enum.Material.Grass and floor.Material ~= Enum.Material.Sand, `{def.id} visible stone checker floor`)
-		local portal = zone.Gate:FindFirstChild("Doorway")
-		local sides, clearLeft, clearRight = 0, -80, 80
-		local safeDecor, partCount = true, 0
-		for _, root in { zone.Decorations, portal } do
-			if not root then continue end
-			for _, p in root:GetDescendants() do
-				if not p:IsA("BasePart") then continue end
-				partCount += 1
-				safeDecor = safeDecor and p.Anchored and not p.CanCollide and not p.CanTouch and not p.CanQuery
-				if p.Name == "ReturnWall" then
-					sides += 1
-					if p.Position.X < 0 then clearLeft = p.Position.X + p.Size.X / 2
-					else clearRight = p.Position.X - p.Size.X / 2 end
+		check(#zone.SpawnSockets:GetChildren() == 8, `{def.id} eight sockets`)
+		check(#zone.GuardianSpawns:GetChildren() == 2, `{def.id} two guardian posts`)
+		check(#zone.Rooms:GetChildren() == 2, `{def.id} left and right rooms`)
+		local structural = RaycastParams.new()
+		structural.FilterType, structural.RespectCanCollide = Enum.RaycastFilterType.Include, true
+		structural.FilterDescendantsInstances = { zone.Rooms, zone.Structure }
+		check(workspace:Raycast(Vector3.new(0, 3, MapConfig.zoneStartZ(index)), Vector3.new(0, 0, MapConfig.zoneLength(index)), structural) == nil, `{def.id} central corridor clear`)
+		local totalParts = 0
+		for roomIndex, name in { "Left", "Right" } do
+			local room = zone.Rooms[name]
+			local frame = Layout.frame(index, roomIndex)
+			local width, depth = Layout.width(index), Layout.DEPTH
+			local safeDecor = true
+			for _, part in room.Decorations:GetDescendants() do
+				if part:IsA("BasePart") then
+					totalParts += 1
+					safeDecor = safeDecor and part.Anchored and not part.CanCollide and not part.CanQuery and not part.CanTouch
 				end
 			end
-		end
-		check(safeDecor, `{def.id} scenery cannot collide or intercept interaction/trap rays`)
-		check(partCount <= 605, `{def.id} decoration and portal part budget`)
-		check(sides == 2 and clearRight - clearLeft >= 40 and clearRight - clearLeft <= 56.01 and math.abs(clearRight + clearLeft) < 0.01, `{def.id} centred open doorway`)
-		local header = portal and portal:FindFirstChild("Header") :: BasePart?
-		check(header ~= nil and header.Position.Y - header.Size.Y / 2 >= 20 and header.Position.Y - header.Size.Y / 2 <= 46, `{def.id} overhead portal clearance`)
-		local collection = zone.Decorations:FindFirstChild("CollectionExhibits")
-		check(collection ~= nil and #collection:GetChildren() == 2, `{def.id} two collection silhouettes`)
-		for n = 1, 4 do
-			local case = zone.Decorations:FindFirstChild(string.format("Socket%02dVitrine", n))
-			local plinth = case and case:FindFirstChild("StonePlinth") :: BasePart?
-			local cheeks, contains = 0, plinth ~= nil
-			if case and plinth then
-				for _, cheek in case:GetChildren() do
-					if cheek:IsA("BasePart") and cheek.Name == "AlcoveCheek" then
-						cheeks += 1
-						contains = contains and cheek.Size.Z >= 4 and cheek.Size.X >= 20
-							and math.abs(plinth.Position.X - cheek.Position.X) + plinth.Size.X / 2 < cheek.Size.X / 2
-							and math.abs(cheek.Position.Z - plinth.Position.Z) - cheek.Size.Z / 2 > plinth.Size.Z / 2
-					end
+			check(safeDecor, `{def.id} {name} safe decoration flags`)
+			check(room:GetAttribute("DoorHeight") == Layout.doorHeight(index), `{def.id} {name} graduated doorway height`)
+			check(#room.Structure:GetChildren() == 7, `{def.id} {name} enclosed walls and ceiling`)
+			check(#room.Decorations.CollectionExhibits:GetChildren() == 2, `{def.id} {name} themed centrepiece and side exhibit`)
+			for _, x in { -8, 0, 8 } do
+				local from = frame:PointToWorldSpace(Vector3.new(x, 4, -10))
+				local target = frame:PointToWorldSpace(Vector3.new(x, 4, 14))
+				check(workspace:Raycast(from, target - from, structural) == nil, `{def.id} {name} permanent open doorway x{x}`)
+			end
+			for _, x in { -width / 2 + 7, width / 2 - 7 } do
+				local from = frame:PointToWorldSpace(Vector3.new(x, 4, -10))
+				check(workspace:Raycast(from, frame:VectorToWorldSpace(Vector3.new(0, 0, 20)), structural) ~= nil, `{def.id} {name} facade blocks side shortcut`)
+			end
+			-- Follow the steering waypoints in short segments. Every segment must
+			-- clear the actual room walls in both directions and across the hall.
+			local socketAt = Layout.socketFrame(index, (roomIndex - 1) * 4 + 1).Position
+			local hall = Vector3.new(0, 3, MapConfig.zoneStartZ(index) + 6)
+			local opposite = Layout.socketFrame(index, (2 - roomIndex) * 4 + 4).Position
+			for routeIndex, route in { { socketAt, hall }, { hall, socketAt }, { socketAt, opposite } } do
+				local from, goal = route[1], route[2]
+				local clear = true
+				for _ = 1, 800 do
+					if (Vector3.new(from.X, 0, from.Z) - Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1 then break end
+					local waypoint = Layout.waypoint(from, goal)
+					local delta = Vector3.new(waypoint.X - from.X, 0, waypoint.Z - from.Z)
+					if delta.Magnitude < 0.01 then clear = false; break end
+					local step = delta.Unit * math.min(1, delta.Magnitude)
+					if workspace:Raycast(Vector3.new(from.X, 3, from.Z), step, structural) then clear = false; break end
+					from += step
 				end
+				check(clear and (Vector3.new(from.X, 0, from.Z) - Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1, `{def.id} {name} doorway route {routeIndex}`)
 			end
-			check(cheeks == 2 and contains, `{def.id} vitrine {n} inside masonry recess`)
-		end
-		check(#zone.SpawnSockets:GetChildren() == 4, `{def.id} four sockets`)
-		for n = 1, 4 do
-			local socket = LootService.getSocket(index, n)
-			check(socket ~= nil and socket.loot ~= nil and socket.loot.state == "Spawned", `{def.id} socket {n} live loot`)
-			check(socket ~= nil and socket.loot ~= nil and LootService.promptOf(socket.loot) ~= nil, `{def.id} socket {n} steal prompt`)
-		end
-		local beams = 0
-		for _, beam in zone.Lasers:GetChildren() do
-			local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
-			if typeof(a) ~= "Vector3" or typeof(b) ~= "Vector3" then continue end
-			beams += 1
-			local x = if index <= 5 then 70 else 0
-			check(not Geometry.sweptBoxHit(a, b, Vector3.new(x, 2.6, MapConfig.zoneStartZ(index)), Vector3.new(x, 2.6, MapConfig.zoneEndZ(index)), Vector3.new(2, 2.6, 2)), `{def.id} open bypass beam {beams}`)
-		end
-		check(beams == (if index < 3 then 0 elseif index <= 5 then 3 elseif index <= 8 then 6 else 12), `{def.id} laser escalation`)
-		for _, fraction in { 0.001, 0.25, 0.5, 0.75, 0.999 } do
-			local z = MapConfig.zoneStartZ(index) + MapConfig.zoneLength(index) * fraction
-			for _, x in { 0, 70, -44, 44 } do
-				local hit = workspace:Raycast(Vector3.new(x, 6, z), Vector3.new(0, -10, 0), floors)
-				check(hit ~= nil and math.abs(hit.Position.Y) < 0.1, `{def.id} continuous floor x{x} z{fraction}`)
+			for column = 1, 4 do
+				local n = (roomIndex - 1) * 4 + column
+				local socket = LootService.getSocket(index, n)
+				check(socket ~= nil and socket.loot ~= nil and socket.loot.state == "Spawned", `{def.id} socket {n} live loot`)
+				check(socket ~= nil and socket.loot ~= nil and LootService.promptOf(socket.loot) ~= nil, `{def.id} socket {n} steal prompt`)
+				local marker = zone.SpawnSockets[string.format("Socket%02d", n)]
+				check(marker.CFrame:FuzzyEq(Layout.socketFrame(index, n), 0.01) and marker:GetAttribute("RoomIndex") == roomIndex, `{def.id} socket {n} remains in its room`)
+				local case = room.Decorations[string.format("Socket%02dVitrine", n)]
+				local plinth = case.StonePlinth
+				local localAt = frame:PointToObjectSpace(plinth.Position)
+				check(math.abs(localAt.X) + plinth.Size.Z / 2 < width / 2 - 2 and localAt.Z + plinth.Size.X / 2 < depth - 2, `{def.id} case {n} fits room`)
+				check(case:FindFirstChild("Glass") ~= nil and case:FindFirstChild("GoldUpright") ~= nil, `{def.id} case {n} glass and gold frame`)
+			end
+			local count = 0
+			for _, beam in zone.Lasers:GetChildren() do
+				if beam:GetAttribute("RoomIndex") ~= roomIndex then continue end
+				count += 1
+				local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
+				for _, point in { a, b } do
+					local at = frame:PointToObjectSpace(point)
+					check(math.abs(at.X) < width / 2 - 3 and at.Z > 5 and at.Z < depth - 15, `{def.id} {name} laser {count} inside room`)
+				end
+				check(not Geometry.sweptBoxHit(a, b, Vector3.new(0, 2.6, MapConfig.zoneStartZ(index)), Vector3.new(0, 2.6, MapConfig.zoneEndZ(index)), Vector3.new(8, 2.6, 2)), `{def.id} laser leaves corridor clear`)
+			end
+			check(count == Layout.BEAMS[index], `{def.id} {name} laser escalation`)
+			for _, x in { 0, -width * 0.25, width * 0.25 } do
+				local at = frame:PointToWorldSpace(Vector3.new(x, 6, depth / 2))
+				local hit = workspace:Raycast(at, Vector3.new(0, -10, 0), floors)
+				check(hit ~= nil and math.abs(hit.Position.Y) < 0.1, `{def.id} {name} kit floor at zero`)
 			end
 		end
+		check(totalParts < 900, `{def.id} two-room decoration budget`)
+
 	end
 	return report
 end
@@ -131,26 +155,29 @@ function MuseumTests.loops(player: Player): any
 	local ok, err = pcall(function()
 		Night.setDayRemaining(260)
 		for index = 1, 12 do
-			Guardian.resetAll()
-			local socket = assert(LootService.getSocket(index, 2))
-			local loot = assert(socket.loot)
-			local id, token, income = loot.id, loot.spawnToken, loot.finalIncome
-			character:PivotTo(socket.part.CFrame + Vector3.new(0, 3, 5))
-			root.AssemblyLinearVelocity = Vector3.zero
-			Ragdoll.grantImmunity(player, 1.2) -- observe wake without a catch racing the assertion
-			task.wait(0.15)
-			local stolen = Carry.trySteal(player, loot)
-			local waking = Guardian.inspect(index)
-			task.wait(0.7)
-			local chasing = Guardian.inspect(index)
-			character:PivotTo(CFrame.new(0, 4, -16))
-			root.AssemblyLinearVelocity = Vector3.zero
-			task.wait(0.3)
-			local escaped = Carry.getCarried(player) == loot and player:GetAttribute("Chased") ~= true
-			Carry.reclaim(loot)
-			task.wait(require(ReplicatedStorage.Shared.Config.GameConfig).GUARDIAN_RETURN_DELAY + 0.2)
-			local same = socket.loot == loot and loot.id == id and loot.spawnToken == token and loot.finalIncome == income and loot.state == "Spawned"
-			table.insert(rows, { zone = index, stolen = stolen, wake = waking and waking.state, chase = chasing and chasing.state, escaped = escaped, returnedSameRoll = same })
+			for room = 1, 2 do
+				Guardian.resetAll()
+				local socket = assert(LootService.getSocket(index, (room - 1) * 4 + 2))
+				local loot = assert(socket.loot)
+				local id, token, income = loot.id, loot.spawnToken, loot.finalIncome
+				character:PivotTo(socket.part.CFrame + Vector3.new(0, 3, 5))
+				root.AssemblyLinearVelocity = Vector3.zero
+				Ragdoll.grantImmunity(player, 1.2) -- observe wake without a catch racing the assertion
+				task.wait(0.15)
+				local stolen = Carry.trySteal(player, loot)
+				local waking = Guardian.inspect(index, room)
+				local opposite = Guardian.inspect(index, 3 - room)
+				task.wait(0.7)
+				local chasing = Guardian.inspect(index, room)
+				character:PivotTo(CFrame.new(0, 4, -16))
+				root.AssemblyLinearVelocity = Vector3.zero
+				task.wait(0.3)
+				local escaped = Carry.getCarried(player) == loot and player:GetAttribute("Chased") ~= true
+				Carry.reclaim(loot)
+				task.wait(require(ReplicatedStorage.Shared.Config.GameConfig).GUARDIAN_RETURN_DELAY + 0.2)
+				local same = socket.loot == loot and loot.id == id and loot.spawnToken == token and loot.finalIncome == income and loot.state == "Spawned"
+				table.insert(rows, { zone = index, room = room, oppositeSleeping = opposite and opposite.state == "Sleeping", stolen = stolen, wake = waking and waking.state, chase = chasing and chasing.state, escaped = escaped, returnedSameRoll = same })
+			end
 		end
 	end)
 	local carried = Carry.getCarried(player)
@@ -281,6 +308,86 @@ function MuseumTests.scenarios(player: Player): any
 		require(script.Parent.EconomyService).recalculate(player)
 	end
 	require(script.Parent.StateService).pushNow(player)
+	if not ok then report.error = tostring(err) end
+	return report
+end
+
+-- Real Humanoid navigation, distinct from the deterministic route checks.
+function MuseumTests.paths(player: Player): any
+	assert(game:GetService("RunService"):IsStudio(), "Studio only")
+	local Guardian = require(script.Parent.GuardianService)
+	local Ragdoll = require(script.Parent.RagdollService)
+	local Night = require(script.Parent.NightService)
+	local Laser = require(script.Parent.LaserService)
+	local Carry = require(script.Parent.CarryService)
+	assert(not Carry.getCarried(player), "Finish carry first")
+	assert(not Night.isNight(), "Run during Day")
+	local character = assert(player.Character)
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart
+	local saved = root.CFrame
+	local rows = {}
+	local report: any = { rooms = rows }
+	local function move(at: Vector3)
+		character:PivotTo(CFrame.new(at))
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	local ok, err = pcall(function()
+		Night.setDayRemaining(260)
+		for _, index in { 1, 6, 12 } do
+			for room = 1, 2 do
+				Guardian.resetAll()
+				while Ragdoll.isImmune(player) do task.wait(0.1) end
+				local frame = Layout.frame(index, room)
+				move(frame:PointToWorldSpace(Vector3.new(-Layout.width(index) * 0.2, 3.2, 42)))
+				local woke = Guardian.alarm(index, player, room)
+				local entered = false
+				local deadline = os.clock() + 12
+				while os.clock() < deadline do
+					Ragdoll.grantImmunity(player, 0.4)
+					local at = Guardian.guardianPosition(index, room)
+					if at and frame:PointToObjectSpace(at).Z > 25 then entered = true; break end
+					task.wait(0.1)
+				end
+				local opposite = Guardian.inspect(index, 3 - room)
+				move(Vector3.new(0, 4, -16))
+				deadline = os.clock() + 12
+				local returned = false
+				while os.clock() < deadline do
+					local info = Guardian.inspect(index, room)
+					if info and info.state == "Sleeping" then returned = true; break end
+					task.wait(0.1)
+				end
+				table.insert(rows, { zone = index, room = room, woke = woke, enteredThroughDoor = entered,
+					returnedThroughDoor = returned, oppositeSleeping = opposite and opposite.state == "Sleeping" })
+			end
+		end
+		Guardian.resetAll()
+		while Ragdoll.isImmune(player) do task.wait(0.1) end
+		local zone = workspace.Map.Zones[ZoneConfig.Zones[3].id]
+		local beam: BasePart? = nil
+		for _, candidate in zone.Lasers:GetChildren() do
+			if candidate:IsA("BasePart") and candidate:GetAttribute("RoomIndex") == 2 and candidate:GetAttribute("A").Y > 4 then beam = candidate; break end
+		end
+		assert(beam, "high beam missing")
+		local at = (beam:GetAttribute("A") + beam:GetAttribute("B")) / 2
+		move(Vector3.new(at.X - 6, 3.2, at.Z))
+		Laser.setCrouched(player, true)
+		task.wait(0.2)
+		player:SetAttribute("LastLaserTrip", nil)
+		move(Vector3.new(at.X, 3.2, at.Z))
+		task.wait(0.3)
+		report.crouchClearedHighBeam = player:GetAttribute("LastLaserTrip") == nil
+		Laser.setCrouched(player, false)
+		task.wait(0.2)
+		local info = Guardian.inspect(3, 2)
+		report.standingTrippedMatchingRoom = player:GetAttribute("LastLaserRoom") == 2 and player:GetAttribute("LastLaserZone") == 3
+			and info ~= nil and (info.state == "Waking" or info.state == "Chasing")
+		report.laserLeftOppositeSleeping = Guardian.inspect(3, 1).state == "Sleeping"
+	end)
+	Guardian.resetAll()
+	Laser.setCrouched(player, false)
+	character:PivotTo(saved)
+	root.AssemblyLinearVelocity = Vector3.zero
 	if not ok then report.error = tostring(err) end
 	return report
 end

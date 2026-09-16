@@ -1,8 +1,7 @@
 --!strict
 --[[
 	GuardianService
-	EXACTLY ONE guardian per zone - twelve in the whole world. All four loot
-	sockets in a zone share that single guardian.
+	One guardian per side room: twenty-four total. Each owns four sockets.
 
 	State loop (see CHASE CONTROL for the full machine):
 	    SLEEPING (+ Zzz)
@@ -37,6 +36,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
+local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
@@ -55,6 +55,7 @@ export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Recovering" | "
 
 type Guardian = {
 	zoneIndex: number,
+	roomIndex: number,
 	home: CFrame,
 	state: GuardianState,
 	model: Model?,
@@ -778,15 +779,16 @@ end
 --- slides along the boundary instead of being shoved back off it.
 local function steer(guardian: Guardian, humanoid: Humanoid, root: BasePart, goal: Vector3, now: number, dt: number): number
 	local from = root.Position
-	local flat = Vector3.new(goal.X - from.X, 0, goal.Z - from.Z)
-	local distance = flat.Magnitude
+	local waypoint = Layout.waypoint(from, goal)
+	local flat = Vector3.new(waypoint.X - from.X, 0, waypoint.Z - from.Z)
+	local distance = Vector3.new(goal.X - from.X, 0, goal.Z - from.Z).Magnitude
 
-	if distance < 0.4 then
+	if flat.Magnitude < 0.4 then
 		humanoid:Move(Vector3.zero, false)
 		return distance
 	end
 
-	local direction = flat / distance
+	local direction = flat.Unit
 
 	-- Sidestep out of whatever we are jammed on, if we are jammed on something.
 	if now < guardian.sidestepUntil then
@@ -887,11 +889,11 @@ local ESCORT_REACH = 7
 local JOB_TIMEOUT = 60
 
 function GuardianService.isZoneBusy(zoneIndex: number): boolean
-	local guardian = guardians[zoneIndex]
-	if not guardian then
-		return false
+	for room = 1, Layout.ROOMS_PER_ZONE do
+		local guardian = guardians[Layout.key(zoneIndex, room)]
+		if guardian and guardian.state ~= "Sleeping" then return true end
 	end
-	return guardian.state ~= "Sleeping"
+	return false
 end
 
 --- Clears the per-chase steering state. Anything that starts or ends a chase
@@ -991,6 +993,7 @@ end
 --- The loot's carrier as a chase candidate, or nil if it is not one: not
 --- carried, carrier gone, no character, or already across the red line.
 local function asCarrier(guardian: Guardian, loot: LootService.LootInstance): Carrier?
+	if Layout.roomOfSocket(loot.socketIndex) ~= guardian.roomIndex then return nil end
 	local player = loot.carrier
 	local root = guardian.root
 	if loot.state ~= "Carried" or not player or not player.Parent or not root then
@@ -1026,7 +1029,7 @@ end
 --- Whether a dropped item is somewhere this zone's guardian may walk to: on
 --- the danger side of the line, with a model to pick up.
 function GuardianService.canRecover(loot: LootService.LootInstance): boolean
-	local guardian = guardians[loot.zoneIndex]
+	local guardian = guardians[Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))]
 	local model = loot.model
 	if not guardian or not guardian.root or not model or not model.PrimaryPart then
 		return false
@@ -1042,7 +1045,7 @@ local function nearestDrop(guardian: Guardian): LootService.LootInstance?
 	local best: LootService.LootInstance? = nil
 	local bestDistance = math.huge
 	for _, loot in LootService.instancesInZone(guardian.zoneIndex) do
-		if loot.state == "Dropped" and GuardianService.canRecover(loot) then
+		if loot.state == "Dropped" and Layout.roomOfSocket(loot.socketIndex) == guardian.roomIndex and GuardianService.canRecover(loot) then
 			local model = loot.model :: Model
 			local distance = flatDistance(root.Position, (model.PrimaryPart :: BasePart).Position)
 			if distance < bestDistance then
@@ -1244,7 +1247,7 @@ end
 ---   Waking / Chasing / ReturningLoot -> nothing now; the scan or nextJob picks
 ---                                    the new carrier up when it is the right one
 function GuardianService.engage(loot: LootService.LootInstance, _thief: Player)
-	local guardian = guardians[loot.zoneIndex]
+	local guardian = guardians[Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))]
 	if not guardian or not guardian.humanoid or not guardian.root then
 		return
 	end
@@ -1267,8 +1270,8 @@ GuardianService.wake = GuardianService.engage
 -- Server-only entry from LaserService. An existing chase keeps its target;
 -- frozen guardians and immune players cannot be woken by an alarm. The wake,
 -- steering, speed formula, catch and return below are the ordinary chase.
-function GuardianService.alarm(zoneIndex: number, player: Player): boolean
-	local guardian = guardians[zoneIndex]
+function GuardianService.alarm(zoneIndex: number, player: Player, roomIndex: number?): boolean
+	local guardian = guardians[Layout.key(zoneIndex, roomIndex or 1)]
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -1287,7 +1290,7 @@ end
 --- Loot of this zone was dropped. A guardian with nothing better to do goes
 --- and gets it; a busy one finds it through nextJob when its job ends.
 function GuardianService.noticeDrop(loot: LootService.LootInstance)
-	local guardian = guardians[loot.zoneIndex]
+	local guardian = guardians[Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))]
 	if not guardian or not guardian.root or not GuardianService.canRecover(loot) then
 		return
 	end
@@ -1300,7 +1303,7 @@ function GuardianService.noticeDrop(loot: LootService.LootInstance)
 end
 
 function GuardianService.stopChaseFor(loot: LootService.LootInstance)
-	local guardian = guardians[loot.zoneIndex]
+	local guardian = guardians[Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))]
 	if not guardian or guardian.lootId ~= loot.id then
 		return
 	end
@@ -1488,6 +1491,17 @@ end
 
 --- One frame of the chase proper (Waking / Chasing). Returns after any
 --- transition it makes; the caller moves on to the next guardian.
+-- Never catch through a room wall. Ignore non-queryable exhibit dressing
+-- and filter to the map so players, loot and other guards cannot occlude it.
+local function clearCatch(from: Vector3, target: Vector3): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Map }
+	params.RespectCanCollide = true
+	local a, b = Vector3.new(from.X, 3, from.Z), Vector3.new(target.X, 3, target.Z)
+	return workspace:Raycast(a, b - a, params) == nil
+end
+
 local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
 	local target = guardian.target
 	local lootId = guardian.lootId
@@ -1559,7 +1573,7 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	-- CATCH. The radius scales with the guardian, so a fifteen-stud boss is
 	-- not required to bury its own model in the player before it registers.
 	local reach = (root.Position - targetRoot.Position).Magnitude
-	if reach <= guardian.catchRadius and not GuardianService.isStunned(target)
+	if reach <= guardian.catchRadius and clearCatch(root.Position, targetRoot.Position) and not GuardianService.isStunned(target)
 		and not (guardian.alarm and humanoid:GetAttribute("Rooted")) then
 		-- ONE hit cue, never two: this guardian's own catch sound (each of
 		-- the twelve has one, see AudioConfig.GuardianHits), falling back
@@ -1607,7 +1621,7 @@ local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePa
 	local distance = flatDistance(root.Position, position)
 	-- Same arrival test as the walk home and the escort: an item wedged
 	-- against a wall or a prop is one a guardian can circle forever otherwise.
-	if arrived(guardian, distance, guardian.catchRadius + PICKUP_REACH, now) then
+	if clearCatch(root.Position, position) and arrived(guardian, distance, guardian.catchRadius + PICKUP_REACH, now) then
 		-- PICKED UP IS PUT BACK. The guardian reaches the dropped item and the
 		-- item goes home on that frame; it is never welded on and walked back.
 		guardian.lootId = nil
@@ -1680,7 +1694,7 @@ local function step(dt: number)
 			end
 			driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
 			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
-			if arrived(guardian, distance, HOME_REACH, now) then
+			if clearCatch(root.Position, guardian.home.Position) and arrived(guardian, distance, HOME_REACH, now) then
 				enterSleep(guardian)
 			end
 			continue
@@ -1732,66 +1746,71 @@ function GuardianService.start()
 	for zoneIndex, zoneDef in ZoneConfig.Zones do
 		local zone = zonesFolder:FindFirstChild(zoneDef.id)
 		local posts = zone and zone:FindFirstChild("GuardianSpawns")
-		local post = posts and posts:FindFirstChild("GuardianPost")
-		if not post or not post:IsA("BasePart") then
-			warn(`[GuardianService] {zoneDef.id} has no GuardianPost - rebuild the map`)
-			continue
+		for roomIndex = 1, Layout.ROOMS_PER_ZONE do
+			local post = posts and posts:FindFirstChild(if roomIndex == 1 then "GuardianPost" else "GuardianPost02")
+			if not post or not post:IsA("BasePart") then
+				warn(`[GuardianService] {zoneDef.id} has no GuardianPost - rebuild the map`)
+				continue
+			end
+
+			local model, growth = buildRig(zoneIndex)
+			local humanoid = model:FindFirstChildWhichIsA("Humanoid")
+			local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+			if not humanoid or not root or not root:IsA("BasePart") then
+				warn(`[GuardianService] malformed rig for {zoneDef.id}`)
+				model:Destroy()
+				continue
+			end
+
+			local guardian: Guardian = {
+				zoneIndex = zoneIndex,
+				roomIndex = roomIndex,
+				-- Derived from the body rather than a fixed 2.2: a later zone's
+				-- guardian is physically larger and a constant offset would bury it.
+				home = post.CFrame * CFrame.new(0, (root :: BasePart).Size.Y / 2 + 0.2, 0),
+				state = "Sleeping",
+				catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth,
+				baseSpeed = guardianSpeed(zoneIndex),
+				currentSpeed = guardianSpeed(zoneIndex),
+				nextScanAt = 0,
+				jobStartedAt = 0,
+				stuckFor = 0,
+				sidestepUntil = 0,
+				sidestepSign = 1,
+				bestDistance = math.huge,
+				bestAt = 0,
+				walkSpeedPerRate = 1,
+			}
+
+			humanoid.WalkSpeed = guardianSpeed(zoneIndex)
+			humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+			-- A seated or platform-standing guardian silently stops responding to
+			-- Move; neither state is ever wanted here.
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+			humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+
+			model:PivotTo(guardian.home)
+			model.Parent = holder
+
+			guardian.model = model
+			guardian.humanoid = humanoid
+			guardian.root = root
+			local motor = root:FindFirstChild("ShellMotor")
+			guardian.shellMotor = if motor and motor:IsA("Weld") then motor else nil
+			-- Roblox's walk and idle cycles, on the costumes that have a skeleton.
+			local walkTrack, idleTrack, walkSpeedPerRate = prepareWalk(model)
+			guardian.walkTrack = walkTrack
+			guardian.idleTrack = idleTrack
+			guardian.walkSpeedPerRate = walkSpeedPerRate
+			guardians[Layout.key(zoneIndex, roomIndex or 1)] = guardian
+
+			model.Name ..= "_Room" .. roomIndex
+			model:SetAttribute("ZoneIndex", zoneIndex)
+			model:SetAttribute("RoomIndex", roomIndex)
+			enterSleep(guardian)
 		end
-
-		local model, growth = buildRig(zoneIndex)
-		local humanoid = model:FindFirstChildWhichIsA("Humanoid")
-		local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
-		if not humanoid or not root or not root:IsA("BasePart") then
-			warn(`[GuardianService] malformed rig for {zoneDef.id}`)
-			model:Destroy()
-			continue
-		end
-
-		local guardian: Guardian = {
-			zoneIndex = zoneIndex,
-			-- Derived from the body rather than a fixed 2.2: a later zone's
-			-- guardian is physically larger and a constant offset would bury it.
-			home = post.CFrame * CFrame.new(0, (root :: BasePart).Size.Y / 2 + 0.2, 0),
-			state = "Sleeping",
-			catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth,
-			baseSpeed = guardianSpeed(zoneIndex),
-			currentSpeed = guardianSpeed(zoneIndex),
-			nextScanAt = 0,
-			jobStartedAt = 0,
-			stuckFor = 0,
-			sidestepUntil = 0,
-			sidestepSign = 1,
-			bestDistance = math.huge,
-			bestAt = 0,
-			walkSpeedPerRate = 1,
-		}
-
-		humanoid.WalkSpeed = guardianSpeed(zoneIndex)
-		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-		-- A seated or platform-standing guardian silently stops responding to
-		-- Move; neither state is ever wanted here.
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
-
-		model:PivotTo(guardian.home)
-		model.Parent = holder
-
-		guardian.model = model
-		guardian.humanoid = humanoid
-		guardian.root = root
-		local motor = root:FindFirstChild("ShellMotor")
-		guardian.shellMotor = if motor and motor:IsA("Weld") then motor else nil
-		-- Roblox's walk and idle cycles, on the costumes that have a skeleton.
-		local walkTrack, idleTrack, walkSpeedPerRate = prepareWalk(model)
-		guardian.walkTrack = walkTrack
-		guardian.idleTrack = idleTrack
-		guardian.walkSpeedPerRate = walkSpeedPerRate
-		guardians[zoneIndex] = guardian
-
-		model:SetAttribute("ZoneIndex", zoneIndex)
-		enterSleep(guardian)
 	end
 
 	-- Wake ONLY on a real steal (or a grab of a dropped item - the guardian
@@ -1823,13 +1842,13 @@ function GuardianService.start()
 	for _ in guardians do
 		count += 1
 	end
-	print(`[GuardianService] {count} guardians posted (one per zone), safe line at Z={safeLineZ}`)
+	print(`[GuardianService] {count} guardians posted (one per room), safe line at Z={safeLineZ}`)
 end
 
 --- Traps root a guardian without breaking its state machine: it keeps its
 --- target and resumes the same chase when the root expires (GDD section 12).
-function GuardianService.rootGuardian(zoneIndex: number, seconds: number): boolean
-	local guardian = guardians[zoneIndex]
+function GuardianService.rootGuardian(zoneIndex: number, seconds: number, roomIndex: number?): boolean
+	local guardian = guardians[Layout.key(zoneIndex, roomIndex or 1)]
 	local humanoid = guardian and guardian.humanoid
 	if not guardian or not humanoid or guardian.state == "Sleeping" then
 		return false
@@ -1862,25 +1881,35 @@ end
 --- The zone a guardian is currently chasing in, for trap targeting.
 function GuardianService.activeChaseZones(): { number }
 	local zones = {}
-	for zoneIndex, guardian in guardians do
+	for _, guardian in guardians do
 		if guardian.state == "Chasing" or guardian.state == "Waking" then
-			table.insert(zones, zoneIndex)
+			if not table.find(zones, guardian.zoneIndex) then table.insert(zones, guardian.zoneIndex) end
 		end
 	end
 	return zones
 end
 
+function GuardianService.activeChaseRooms(): { { zoneIndex: number, roomIndex: number } }
+	local rooms = {}
+	for _, guardian in guardians do
+		if guardian.state == "Chasing" or guardian.state == "Waking" then
+			table.insert(rooms, { zoneIndex = guardian.zoneIndex, roomIndex = guardian.roomIndex })
+		end
+	end
+	return rooms
+end
+
 --- Position of a zone's guardian, or nil when it has no rig.
-function GuardianService.guardianPosition(zoneIndex: number): Vector3?
-	local guardian = guardians[zoneIndex]
+function GuardianService.guardianPosition(zoneIndex: number, roomIndex: number?): Vector3?
+	local guardian = guardians[Layout.key(zoneIndex, roomIndex or 1)]
 	return if guardian and guardian.root then guardian.root.Position else nil
 end
 
 --- Debug/reporting helper.
 function GuardianService.snapshot(): { [string]: any }
 	local out = {}
-	for zoneIndex, guardian in guardians do
-		out[ZoneConfig.Zones[zoneIndex].id] = {
+	for _, guardian in guardians do
+		out[ZoneConfig.Zones[guardian.zoneIndex].id .. "_Room" .. guardian.roomIndex] = {
 			state = guardian.state,
 			target = if guardian.target then guardian.target.Name else nil,
 			z = if guardian.root then math.floor(guardian.root.Position.Z) else nil,
@@ -1890,8 +1919,8 @@ function GuardianService.snapshot(): { [string]: any }
 end
 
 --- Everything a test wants to know about one guardian, this frame.
-function GuardianService.inspect(zoneIndex: number): { [string]: any }?
-	local guardian = guardians[zoneIndex]
+function GuardianService.inspect(zoneIndex: number, roomIndex: number?): { [string]: any }?
+	local guardian = guardians[Layout.key(zoneIndex, roomIndex or 1)]
 	if not guardian then
 		return nil
 	end

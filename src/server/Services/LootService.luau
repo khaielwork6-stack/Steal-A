@@ -1,7 +1,7 @@
 --!strict
 --[[
 	LootService
-	Four sealed mystery containers per zone, weighted rolls, and the socket
+	Eight sealed mystery containers per zone, weighted rolls, and the socket
 	lifecycle.
 
 	WHAT A ZONE SHOWS. Never the item: a closed container whose SIZE is the
@@ -28,7 +28,7 @@
 	== SPAWN PACING - THE RULE THAT SHAPES THE WHOLE GAME ==
 
 	A socket emptied by a SUCCESSFUL theft stays empty. There is no per-socket
-	refill timer, and adding one back would undo the entire economy pass: 48
+	refill timer, and adding one back would undo the entire economy pass: 96
 	sockets each quietly rerolling every 20 seconds is a slot machine that prints
 	the best items in the game faster than anyone can spend them.
 
@@ -39,7 +39,7 @@
 
 	THE ONE EXCEPTION IS ZONE 1 (GameConfig.ZONE_RESPAWN). A socket emptied by
 	a theft there rolls a fresh container after a random 60-90 seconds, so a
-	new player sharing four sockets with six others is not left with nothing
+	new player sharing eight sockets with six others is not left with nothing
 	to do. Zone 1's best item is worth less than a common a few zones on, so
 	the slot-machine argument above does not reach it. Every other zone keeps
 	the rule exactly as written.
@@ -52,7 +52,7 @@
 
 	== THE ROLL ==
 
-	FOUR sockets per zone, standing around that zone's guardian. Every socket
+	EIGHT sockets per zone, four in each guarded side room. Every socket
 	rolls INDEPENDENTLY from ALL EIGHT of
 	its zone's items at each item's own zone weight (LootConfig.ZoneWeights):
 	no exclusion, no reroll, no jackpot slot, no Night lean, duplicates
@@ -299,7 +299,7 @@ local function buildModel(loot: LootInstance): Model?
 		zoneIndex = loot.zoneIndex,
 		scale = loot.scale,
 		mutation = loot.mutation,
-		maxFootprint = MysteryConfig.WORLD_MAX_FOOTPRINT,
+		maxFootprint = require(ReplicatedStorage.Shared.MuseumLayout).displayFootprint(loot.zoneIndex),
 		hitbox = true,
 	})
 	if not model then
@@ -839,7 +839,7 @@ end
 -- START
 -- ==========================================================
 
--- RETIRED: synthesiseSocket. MysterySpawnService lays out all four sockets
+-- RETIRED: synthesiseSocket. MysterySpawnService lays out all eight sockets
 -- around the guardian at start-up and clones any a baked map lacks, so there
 -- is exactly one place that can create a socket.
 
@@ -850,8 +850,7 @@ function LootService.start()
 
 	-- Validate the twelve container models FIRST, so a zone with a missing
 	-- model is known before anything tries to fill its sockets, and lay the
-	-- four sockets of every zone out around its guardian (this also destroys
-	-- the retired fifth spawn wherever a baked map still carries one).
+	-- eight sockets of every zone, removing only markers beyond that count.
 	MysterySpawnService.validateModels()
 	MysterySpawnService.layoutAll(map)
 

@@ -53,11 +53,9 @@ ZoneConfig.Zones = {
 ZoneConfig.COUNT = #ZoneConfig.Zones
 --- Zones that take part in the parity baseline: 1-11. Zone 12 is post-game.
 ZoneConfig.PARITY_COUNT = 11
---- FOUR mystery containers per zone, standing around that zone's guardian
---- (MysteryConfig.SocketOffsets). Each rolls independently from all eight of
---- the zone's items. The retired fifth spawn is destroyed on sight at
---- start-up by MysterySpawnService and cannot come back.
-ZoneConfig.SOCKETS_PER_ZONE = 4
+-- Eight independently rolled sealed containers: four in each side room.
+-- Per-item weights and the zone item pools are unchanged.
+ZoneConfig.SOCKETS_PER_ZONE = 8
 
 --- True for a zone inside the parity baseline.
 function ZoneConfig.isParityZone(zoneIndex: number): boolean

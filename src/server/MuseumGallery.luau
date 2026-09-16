@@ -1,6 +1,6 @@
 --!strict
--- The galleries are dressing around the existing twelve bands, never another
--- corridor. No economy or reward information belongs in this module.
+-- Two enclosed, decorated side rooms around the unchanged progression lane.
+-- Shared MuseumLayout owns the doors, display frames and navigation geometry.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
@@ -12,12 +12,13 @@ local DARK = Color3.fromRGB(24, 29, 38)
 local IVORY = Color3.fromRGB(217, 209, 188)
 local RED = Color3.fromRGB(128, 22, 37)
 local TEAL = Color3.fromRGB(61, 234, 224)
-local HEIGHT = 72
+local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
+local HEIGHT = Layout.HEIGHT
 
 -- Stone and wall are a deliberate pair, not a pale blend of the HUD colour.
 -- These are appearance values only; the purchased floor part is retained.
 local ROOM_PALETTES = {
-	{ floor = Color3.fromRGB(226, 192, 188), wall = Color3.fromRGB(190, 142, 96), accent = Color3.fromRGB(114, 51, 51), material = Enum.Material.Marble },
+	{ floor = Color3.fromRGB(226, 192, 188), wall = Color3.fromRGB(213, 169, 169), accent = Color3.fromRGB(114, 51, 51), material = Enum.Material.Marble },
 	{ floor = Color3.fromRGB(131, 145, 146), wall = Color3.fromRGB(42, 112, 105), accent = Color3.fromRGB(206, 177, 123), material = Enum.Material.Slate },
 	{ floor = Color3.fromRGB(156, 135, 182), wall = Color3.fromRGB(87, 48, 132), accent = Color3.fromRGB(154, 39, 62), material = Enum.Material.Marble },
 	{ floor = Color3.fromRGB(151, 160, 164), wall = Color3.fromRGB(91, 103, 62), accent = Color3.fromRGB(235, 120, 38), material = Enum.Material.Concrete },
@@ -40,11 +41,15 @@ end
 local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): Part
 	local p = Instance.new("Part")
 	p.Name, p.Size, p.CFrame = name, size, cf
-	p.Color, p.Material = color, material or Enum.Material.SmoothPlastic
+	p.Color, p.Material = color, material or Enum.Material.Plastic
 	p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery = true, false, false, false
 	p.CastShadow = false
-	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Studs, Enum.SurfaceType.Inlet
 	p.Parent = parent
+	if p.Material == Enum.Material.Plastic then
+		p.FrontSurface, p.BackSurface = Enum.SurfaceType.Studs, Enum.SurfaceType.Studs
+		p.LeftSurface, p.RightSurface = Enum.SurfaceType.Studs, Enum.SurfaceType.Studs
+	end
 	return p
 end
 
@@ -81,19 +86,19 @@ end
 
 -- Only the case fits the roll. The loot's scale, pivot, prompt and contents
 -- remain owned by LootService. A circular clearance fits its client idle turn.
-local function vitrine(decor: Instance, socket: BasePart, index: number, wallColor: Color3, accent: Color3)
+local function vitrine(decor: Instance, socket: BasePart, index: number, wallColor: Color3)
 	local holder = folder(socket.Name .. "Vitrine", decor)
 	local scheduled = false
 	local function fit()
 		scheduled = false
 		if not socket.Parent then return end
-		local span, height = 12, 11
+		local span, height = 12, 10
 		for _, child in socket:GetChildren() do
 			if child:IsA("Model") and child:GetAttribute("LootId") then
 				local low, high = LootModel.visibleExtents(child)
 				if low and high then
 					local size = high - low
-					span = math.max(span, Vector2.new(size.X, size.Z).Magnitude + 3)
+					span = math.max(span, Vector2.new(size.X, size.Z).Magnitude + 2)
 					height = math.max(height, size.Y + 3)
 				end
 			end
@@ -101,23 +106,7 @@ local function vitrine(decor: Instance, socket: BasePart, index: number, wallCol
 		holder:ClearAllChildren()
 		local at = socket.Position
 		local top = at.Y + socket.Size.Y / 2
-		-- The vitrine sits INSIDE this recess, including large rolls. Its side
-		-- returns extend from the wall to the approach side of the case, with
-		-- four-stud masonry reveals rather than thin panels behind the loot.
-		local sign = if at.X > 0 then 1 else -1
-		local frontX = math.max(6, math.abs(at.X) - span / 2 - 2)
-		-- WORLD_MAX_FOOTPRINT rolls can put the rotating case right against
-		-- the outer wall. Fit its masonry too, leaving the centre spine open.
-		local backX = math.max(79, math.abs(at.X) + span / 2 + 2)
-		local opening = math.max(24, span + 6)
-		local nicheHeight = math.max(28, top + height + 2)
-		for _, side in { -1, 1 } do
-			part(holder, "AlcoveCheek", Vector3.new(backX - frontX, nicheHeight, 4), CFrame.new(sign * (frontX + backX) / 2, nicheHeight / 2, at.Z + side * (opening / 2 + 2)), wallColor, Enum.Material.Marble)
-			part(holder, "AlcoveGold", Vector3.new(0.7, nicheHeight, 4.4), CFrame.new(sign * frontX, nicheHeight / 2, at.Z + side * (opening / 2 + 2)), GOLD, Enum.Material.Metal)
-		end
-		part(holder, "AlcoveBack", Vector3.new(1, nicheHeight, opening), CFrame.new(sign * (backX - 0.5), nicheHeight / 2, at.Z), accent)
-		part(holder, "AlcoveCrown", Vector3.new(backX - frontX, 2, opening + 8), CFrame.new(sign * (frontX + backX) / 2, nicheHeight + 1, at.Z), wallColor, Enum.Material.Marble)
-		part(holder, "StonePlinth", Vector3.new(span + 1, top, span + 1), CFrame.new(at.X, top / 2, at.Z), DARK, Enum.Material.Slate)
+		part(holder, "StonePlinth", Vector3.new(span + 1, top, span + 1), CFrame.new(at.X, top / 2, at.Z), wallColor:Lerp(DARK, 0.25), Enum.Material.Plastic)
 		part(holder, "PlinthLip", Vector3.new(span + 1.3, 0.18, span + 1.3), CFrame.new(at.X, top, at.Z), GOLD, Enum.Material.Metal)
 		for _, y in { top + 0.25, top + height } do
 			for _, s in { -1, 1 } do
@@ -154,205 +143,213 @@ local function vitrine(decor: Instance, socket: BasePart, index: number, wallCol
 	fit()
 end
 
-local function bench(parent: Instance, x: number, z: number)
-	part(parent, "BenchSeat", Vector3.new(4, 0.6, 13), CFrame.new(x, 2.4, z), Color3.fromRGB(88, 46, 36), Enum.Material.Wood)
-	for _, s in { -1, 1 } do
-		part(parent, "BenchFoot", Vector3.new(3.5, 2.2, 0.5), CFrame.new(x, 1.1, z + s * 4.5), GOLD, Enum.Material.Metal)
+local function buildRoom(zone: Instance, index: number, roomIndex: number)
+	local palette = ROOM_PALETTES[index]
+	local width, depth = Layout.width(index), Layout.DEPTH
+	local doorHeight = Layout.doorHeight(index)
+	local frame = Layout.frame(index, roomIndex)
+	local room = folder(if roomIndex == 1 then "Left" else "Right", zone.Rooms)
+	room:SetAttribute("RoomIndex", roomIndex)
+	room:SetAttribute("Width", width)
+	room:SetAttribute("Depth", depth)
+	room:SetAttribute("DoorWidth", Layout.DOOR_WIDTH)
+	room:SetAttribute("DoorHeight", doorHeight)
+	local structure = folder("Structure", room)
+	local decor = folder("Decorations", room)
+	local trim = palette.wall:Lerp(DARK, 0.3)
+	local function p(parent: Instance, name: string, size: Vector3, at: Vector3, color: Color3, solid: boolean?): Part
+		local piece = part(parent, name, size, frame * CFrame.new(at), color)
+		if solid then piece.CanCollide, piece.CanQuery, piece.CastShadow = true, true, true end
+		return piece
 	end
-end
-
-local function planter(parent: Instance, x: number, z: number, tint: Color3)
-	part(parent, "Planter", Vector3.new(4, 3, 4), CFrame.new(x, 1.5, z), IVORY, Enum.Material.Marble)
-	local bush = part(parent, "Topiary", Vector3.new(5, 5, 5), CFrame.new(x, 5, z), tint, Enum.Material.Grass)
-	bush.Shape = Enum.PartType.Ball
-end
-
-local function statue(parent: Instance, x: number, z: number)
-	part(parent, "StatuePlinth", Vector3.new(5, 4, 5), CFrame.new(x, 2, z), DARK, Enum.Material.Slate)
-	part(parent, "GiltBust", Vector3.new(4.5, 4, 2.6), CFrame.new(x, 6, z), GOLD, Enum.Material.Metal)
-	local head = part(parent, "GiltHead", Vector3.new(2.6, 3.1, 2.6), CFrame.new(x, 9, z), GOLD, Enum.Material.Metal)
-	head.Shape = Enum.PartType.Ball
-end
-
-local function doorway(zone: Instance, index: number, z0: number, tint: Color3, accent: Color3)
-	local portal = folder("Doorway", zone.Gate)
-	local halfOpening = 28 -- 56 clear studs, centred on the unchanged runner
-	local clearHeight = ({ 24, 24, 26, 26, 28, 30, 32, 34, 38, 40, 44, 46 })[index]
-	portal:SetAttribute("ClearWidth", halfOpening * 2)
-	portal:SetAttribute("ClearHeight", clearHeight)
-	local sideWidth = MapConfig.LANE_HALF - halfOpening
-	for _, s in { -1, 1 } do
-		part(portal, "ReturnWall", Vector3.new(sideWidth, HEIGHT, 4), CFrame.new(s * (halfOpening + sideWidth / 2), HEIGHT / 2, z0 + 2), tint, Enum.Material.Marble)
-		part(portal, "JambPilaster", Vector3.new(5, clearHeight, 6), CFrame.new(s * (halfOpening + 3), clearHeight / 2, z0 + 2), accent, Enum.Material.Marble)
-		for _, y in { 1, clearHeight - 1 } do
-			part(portal, "JambBand", Vector3.new(6, 2, 7), CFrame.new(s * (halfOpening + 3), y, z0 + 2), GOLD, Enum.Material.Metal)
+	-- A central fill covers the space between the side sconces in wider
+	-- rooms; all lights are shadowless and statically owned by the room.
+	local fill = p(decor, "RoomFill", Vector3.one * 0.2, Vector3.new(0, 24, depth * 0.55), IVORY)
+	fill.Transparency = 1
+	local light = Instance.new("PointLight")
+	light.Color, light.Brightness, light.Range, light.Shadows = Color3.fromRGB(242, 246, 255), if index == 12 then 1.5 elseif index == 1 or index == 5 or index == 10 then 0.7 else 1, 60, false
+	light.Parent = fill
+	local halfDoor = Layout.DOOR_WIDTH / 2
+	-- These are actual walls. Only the permanent open doorway connects the
+	-- enclosed room to the corridor. Decorations remain non-queryable.
+	p(structure, "RearWall", Vector3.new(width, HEIGHT, 2), Vector3.new(0, HEIGHT / 2, depth - 1), palette.wall, true)
+	for _, sign in { -1, 1 } do
+		p(structure, "SideWall", Vector3.new(2, HEIGHT, depth), Vector3.new(sign * (width / 2 - 1), HEIGHT / 2, depth / 2), palette.wall, true)
+		local wing = width / 2 - halfDoor
+		p(structure, "FrontWall", Vector3.new(wing, HEIGHT, 2), Vector3.new(sign * (halfDoor + wing / 2), HEIGHT / 2, 0), palette.wall, true)
+		p(decor, "DoorPillar", Vector3.new(3, doorHeight, 4), Vector3.new(sign * (halfDoor + 1.5), doorHeight / 2, -0.5), trim)
+		for _, y in { 1.5, 8, doorHeight - 1 } do
+			p(decor, "DoorCapital", Vector3.new(4, 2, 5), Vector3.new(sign * (halfDoor + 1.5), y, -0.5), GOLD)
+		end
+		p(decor, "Dado", Vector3.new(0.3, 0.7, depth - 4), Vector3.new(sign * (width / 2 - 2.2), 8, depth / 2), GOLD)
+		p(decor, "Skirting", Vector3.new(0.7, 3, depth - 4), Vector3.new(sign * (width / 2 - 2), 1.5, depth / 2), trim)
+		for n = 1, 3 do
+			local z = 5 + n * 13
+			p(decor, "Pilaster", Vector3.new(2, HEIGHT - 3, 2), Vector3.new(sign * (width / 2 - 2), (HEIGHT - 3) / 2, z), trim)
+			-- Gold bracket, elbow and broad downward lamp shade like the video.
+			p(decor, "SconceBracket", Vector3.new(0.8, 4, 2), Vector3.new(sign * (width / 2 - 3), 21, z), GOLD)
+			p(decor, "SconceArm", Vector3.new(4, 0.7, 0.7), Vector3.new(sign * (width / 2 - 5), 22, z), GOLD)
+			p(decor, "SconceShade", Vector3.new(4, 1.2, 4), Vector3.new(sign * (width / 2 - 6), 20, z), GOLD)
+			local bulb = p(decor, "SconceGlow", Vector3.new(3.3, 0.2, 3.3), Vector3.new(sign * (width / 2 - 6), 19.3, z), Color3.fromRGB(255, 233, 164))
+			bulb.Material = Enum.Material.Neon
+			if n == 2 then
+				local light = Instance.new("PointLight")
+				light.Color, light.Range, light.Brightness, light.Shadows = Color3.fromRGB(255, 246, 239), 45, 0.8, false
+				light.Parent = bulb
+			end
+		end
+		for n = 0, 2 do
+			rope(decor, frame:PointToWorldSpace(Vector3.new(sign * (width / 2 - 6), 0, 7 + n * 11)), frame:PointToWorldSpace(Vector3.new(sign * (width / 2 - 6), 0, 18 + n * 11)))
+		end
+		p(decor, "Planter", Vector3.new(4, 3, 4), Vector3.new(sign * (width / 2 - 6), 1.5, depth - 7), trim)
+		for n = 1, 3 do
+			p(decor, "Topiary", Vector3.new(5 - n, 2.5, 5 - n), Vector3.new(sign * (width / 2 - 6), 3 + n * 1.2, depth - 7), Color3.fromRGB(64, 151, 63))
 		end
 	end
-	part(portal, "Header", Vector3.new(halfOpening * 2, HEIGHT - clearHeight, 4), CFrame.new(0, (HEIGHT + clearHeight) / 2, z0 + 2), tint, Enum.Material.Marble)
-	part(portal, "HeaderGold", Vector3.new(halfOpening * 2, 0.7, 6), CFrame.new(0, clearHeight + 0.35, z0 + 2), GOLD, Enum.Material.Metal)
-end
-
-local function laser(parent: Instance, a: Vector3, b: Vector3, puck: boolean)
-	local beam = bar(parent, "Beam", a, b, 0.14, Color3.fromRGB(255, 35, 49), Enum.Material.Neon)
-	beam.CanQuery = true
-	beam:SetAttribute("A", a)
-	beam:SetAttribute("B", b)
-	for _, at in { a, b } do
-		if puck then
-			local base = part(parent, "FloorEmitter", Vector3.new(0.35, 2.4, 2.4), CFrame.new(at.X, 0.25, at.Z) * CFrame.Angles(0, 0, math.pi / 2), DARK, Enum.Material.Metal)
-			base.Shape = Enum.PartType.Cylinder
-			local lens = part(parent, "TealLens", Vector3.new(0.12, 1.8, 1.8), base.CFrame + Vector3.new(0, 0.25, 0), TEAL, Enum.Material.Neon)
-			lens.Shape = Enum.PartType.Cylinder
-			if at.Y > 0.8 then bar(parent, "EmitterStem", Vector3.new(at.X, 0.4, at.Z), at, 0.3, DARK) end
-		else
-			part(parent, "WallEmitter", Vector3.new(1.2, 1.4, 1.4), CFrame.new(at), DARK, Enum.Material.Metal)
+	p(structure, "DoorHeader", Vector3.new(Layout.DOOR_WIDTH, HEIGHT - doorHeight, 2), Vector3.new(0, (HEIGHT + doorHeight) / 2, 0), palette.wall, true)
+	p(decor, "DoorEntablature", Vector3.new(Layout.DOOR_WIDTH + 10, 3, 6), Vector3.new(0, doorHeight + 1.5, -1), trim)
+	plaque(decor, frame * CFrame.new(0, doorHeight + 7, -1.2), Vector3.new(Layout.DOOR_WIDTH + 8, 6, 0.3), string.upper(ZoneConfig.Zones[index].name), GOLD)
+	p(structure, "Ceiling", Vector3.new(width, 1, depth), Vector3.new(0, HEIGHT, depth / 2), palette.floor, true)
+	local bays = math.max(3, math.ceil(width / 24))
+	for n = 0, bays do
+		p(decor, "CofferRib", Vector3.new(1.5, 1.5, depth), Vector3.new(-width / 2 + n * width / bays, HEIGHT - 1, depth / 2), trim)
+	end
+	for n = 0, 3 do
+		p(decor, "CofferCrossbeam", Vector3.new(width, 1.5, 1.5), Vector3.new(0, HEIGHT - 1, n * depth / 3), trim)
+		if n < 3 then
+			for bay = 1, bays do
+				local panel = p(decor, "CeilingLight", Vector3.new(width / bays - 5, 0.1, depth / 3 - 5), Vector3.new(-width / 2 + (bay - 0.5) * width / bays, HEIGHT - 0.6, (n + 0.5) * depth / 3), Color3.fromRGB(253, 235, 191))
+				panel.Material = Enum.Material.Neon
+			end
 		end
 	end
-end
-
-local function lasers(zone: Instance, index: number)
-	local field = folder("Lasers", zone)
-	if index < 3 then return end
-	local z0 = MapConfig.zoneStartZ(index)
-	if index <= 5 then
-		-- The east bypass is always 18 studs wide. Staggering depth makes low,
-		-- middle and high beams readable independently instead of a red wall.
-		for n, y in { 0.8, 2.5, 4.5 } do
-			local z = z0 + 18 + n * 8
-			laser(field, Vector3.new(-77, y, z), Vector3.new(60, y, z), false)
+	for n = 0, bays do
+		p(decor, "RearPilaster", Vector3.new(2, HEIGHT - 3, 2), Vector3.new(-width / 2 + 3 + n * (width - 6) / bays, (HEIGHT - 3) / 2, depth - 2), trim)
+	end
+	p(decor, "RearGoldRail", Vector3.new(width - 4, 0.7, 0.3), Vector3.new(0, 8, depth - 2.3), GOLD)
+	-- Flush inlays use the original kit floor beneath them for all collision.
+	p(decor, "FloorBorder", Vector3.new(width - 10, 0.025, depth - 10), Vector3.new(0, 0.025, depth / 2), trim)
+	p(decor, "FloorField", Vector3.new(width - 12, 0.025, depth - 12), Vector3.new(0, 0.04, depth / 2), palette.floor)
+	p(decor, "MedallionBorder", Vector3.new(14, 0.035, 14), Vector3.new(0, 0.07, 22), trim)
+	p(decor, "MedallionGold", Vector3.new(8, 0.04, 8), Vector3.new(0, 0.09, 22), GOLD)
+	-- Transfer the purchased checker onto the flush decorative floor field.
+	local field = decor.FloorField
+	for _, texture in zone.Floor:GetChildren() do
+		if texture:IsA("Texture") and texture.Face == Enum.NormalId.Top then texture:Clone().Parent = field end
+	end
+	for column = 1, Layout.ITEMS_PER_ROOM do
+		local slot = (roomIndex - 1) * Layout.ITEMS_PER_ROOM + column
+		local socket = zone.SpawnSockets:FindFirstChild(string.format("Socket%02d", slot)) :: BasePart?
+		if not socket then
+			socket = Instance.new("Part")
+			socket.Name = string.format("Socket%02d", slot)
+			socket.Parent = zone.SpawnSockets
 		end
-	else
-		local count = if index <= 8 then 6 else 12
-		for n = 1, count do
-			local sign = if n % 2 == 0 then 1 else -1
-			local row = math.ceil(n / 2)
-			local z = z0 + MapConfig.zoneLength(index) * (0.18 + (row - 1) * 0.64 / math.max(count / 2 - 1, 1))
-			local height = ({ 4.5, 0.8, 2.5 })[(row - 1) % 3 + 1]
-			-- A twelve-stud spine remains free. Cases are outside it, so stealing
-			-- still asks the player to negotiate the field on the way in and out.
-			laser(field, Vector3.new(sign * 8, height, z - 9), Vector3.new(sign * 76, 0.65, z + 9), true)
+		socket:ClearAllChildren()
+		socket.Size, socket.CFrame = Vector3.new(1, 0.2, 1), Layout.socketFrame(index, slot)
+		socket.Anchored, socket.CanCollide, socket.CanTouch, socket.CanQuery, socket.Transparency = true, false, false, false, 1
+		socket:SetAttribute("MuseumSocket", true)
+		socket:SetAttribute("RoomIndex", roomIndex)
+		vitrine(decor, socket, column, palette.wall)
+	end
+	local post = zone.GuardianSpawns:FindFirstChild(if roomIndex == 1 then "GuardianPost" else "GuardianPost02") :: BasePart?
+	if not post then
+		post = Instance.new("Part")
+		post.Name, post.Parent = "GuardianPost02", zone.GuardianSpawns
+	end
+	post.Size, post.CFrame = Vector3.new(1, 0.2, 1), frame * CFrame.new(-halfDoor - 8 - (index - 1), 0.1, -7) * CFrame.Angles(0, math.pi, 0)
+	post.Anchored, post.CanCollide, post.CanTouch, post.CanQuery, post.Transparency = true, false, false, false, 1
+	post:SetAttribute("RoomIndex", roomIndex)
+	require(script.Parent.MuseumExhibits).build(decor, frame, width, depth, index, palette.accent)
+	-- Separate low jump beams and high crouch beams in depth. Later rooms add
+	-- alternating half-width diagonals. Every pattern retains endpoint routes.
+	local count = Layout.BEAMS[index]
+	local rows = math.ceil(count / 2)
+	for n = 1, count do
+		local row = math.ceil(n / 2)
+		local z = 11 + (row - 1) * 24 / math.max(rows - 1, 1)
+		local left = n % 2 == 1
+		local gap = if index >= 3 then (if row % 2 == 0 then -1 else 1) * math.min(10, index) else 0
+		local y = if row % 2 == 1 then 0.8 else 4.5
+		local a = frame:PointToWorldSpace(Vector3.new(if left then -width / 2 + 10 else gap + 3, y, z))
+		local b = frame:PointToWorldSpace(Vector3.new(if left then gap - 3 else width / 2 - 10, if index >= 6 and row % 3 == 0 then 2.5 else y, z + (if index >= 6 then 3 else 0)))
+		local beam = bar(zone.Lasers, "Beam", a, b, 0.16, Color3.fromRGB(255, 35, 49), Enum.Material.Neon)
+		beam.CanQuery = true
+		beam:SetAttribute("A", a)
+		beam:SetAttribute("B", b)
+		beam:SetAttribute("ZoneIndex", index)
+		beam:SetAttribute("RoomIndex", roomIndex)
+		for _, at in { a, b } do
+			part(decor, "LaserEmitter", Vector3.new(1, 1, 1), CFrame.new(at), DARK, Enum.Material.Metal)
+			part(decor, "EmitterFoot", Vector3.new(1.8, 0.3, 1.8), CFrame.new(at.X, 0.15, at.Z), DARK, Enum.Material.Metal)
+			bar(decor, "EmitterStand", Vector3.new(at.X, 0.3, at.Z), at, 0.25, DARK, Enum.Material.Metal)
+		end
+	end
+	if index == 12 then
+		local plane = folder("SuspendedAirliner", decor)
+		p(plane, "Fuselage", Vector3.new(5, 5, 32), Vector3.new(0, 39, 27), IVORY)
+		p(plane, "Wings", Vector3.new(38, 0.8, 8), Vector3.new(0, 38, 28), IVORY)
+		p(plane, "Tail", Vector3.new(14, 0.8, 5), Vector3.new(0, 40, 40), palette.accent)
+		p(plane, "TailFin", Vector3.new(0.8, 7, 6), Vector3.new(0, 43, 39), palette.accent)
+		for _, sign in { -1, 1 } do
+			p(plane, "Engine", Vector3.new(3, 3, 7), Vector3.new(sign * 10, 36, 28), trim)
+			p(plane, "Suspension", Vector3.new(0.15, 24, 0.15), Vector3.new(sign * 10, 51, 28), GOLD)
 		end
 	end
 end
 
 function MuseumGallery.build(map: Instance)
-	for _, run in map.Walls:GetChildren() do
-		local index = tonumber(run.Name:match("^Zone(%d+)_")) or (if run.Name == "WorldEnd" then 12 else nil)
-		if not index then continue end
-		for _, p in run:GetDescendants() do
-			if p:IsA("BasePart") and p.Name == "Cap" then
-				p.Color, p.Material = GOLD, Enum.Material.Metal
-			elseif p:IsA("BasePart") and p.Name == "Body" then
-				p.Color = ROOM_PALETTES[index].wall
-				for _, texture in p:GetChildren() do
-					if texture:IsA("Texture") then texture.Transparency = 0.88 end
-				end
-			end
-		end
-	end
 	for index, def in ZoneConfig.Zones do
 		local zone = map.Zones:FindFirstChild(def.id)
 		if not zone then continue end
-		local decor = folder("Decorations", zone)
-		local z0, length = MapConfig.zoneStartZ(index), MapConfig.zoneLength(index)
-		local center = z0 + length / 2
 		local palette = ROOM_PALETTES[index]
-		local tint = palette.wall
-		local floor = zone.Floor :: BasePart
-		floor.Color, floor.Material = palette.floor, palette.material
-		for _, texture in floor:GetChildren() do
-			if texture:IsA("Texture") and texture.Face == Enum.NormalId.Top then
-				texture.Transparency = 0.55
-				texture.StudsPerTileU, texture.StudsPerTileV = 12, 12
-			end
-		end
+		local length, center = MapConfig.zoneLength(index), MapConfig.zoneCenterZ(index)
 		zone:SetAttribute("MuseumGallery", true)
-		-- A surface treatment, not a raised walkway: the kit remains the only
-		-- walkable floor, at Y=0 all the way from the lobby to the final hall.
-		part(decor, "Runner", Vector3.new(20, 0.04, length), CFrame.new(0, 0.025, center), RED, Enum.Material.Fabric)
-		for _, s in { -1, 1 } do
-			part(decor, "RunnerGoldEdge", Vector3.new(0.35, 0.05, length), CFrame.new(s * 10.25, 0.03, center), GOLD)
-			part(decor, "UpperWall", Vector3.new(1, HEIGHT - MapConfig.WALL_HEIGHT, length), CFrame.new(s * 80, (HEIGHT + MapConfig.WALL_HEIGHT) / 2, center), tint)
-			part(decor, "Cornice", Vector3.new(2.5, 1.5, length), CFrame.new(s * 78.5, HEIGHT - 2, center), GOLD)
-			part(decor, "Dado", Vector3.new(0.7, 1.2, length), CFrame.new(s * 79.2, 9, center), GOLD)
-			part(decor, "CeilingWing", Vector3.new(52, 1, length), CFrame.new(s * 54, HEIGHT, center), tint)
-			part(decor, "CollectionBackdrop", Vector3.new(1, 34, if index == 1 then 12 else 28), CFrame.new(s * 78.5, 18, center), palette.accent)
+		zone:SetAttribute("MuseumRooms", 2)
+		local decor = folder("Decorations", zone)
+		-- Keep the Gate anchor/sign, resize its old full-width outdoor lintel
+		-- to the corridor and remove the pylons that intruded into the rooms.
+		for _, child in zone.Gate:GetChildren() do
+			if child:IsA("BasePart") and child.Name ~= "Lintel" then child:Destroy() end
 		end
-		local bays = math.max(2, math.ceil(length / (82 - index * 3)))
-		for bay = 0, bays do
-			local z = z0 + 3 + (length - 6) * bay / bays
-			part(decor, "CofferBeam", Vector3.new(158, 1.4, 1.3), CFrame.new(0, HEIGHT - 1, z), IVORY)
-			if bay < bays then
-				local light = part(decor, "Skylight", Vector3.new(53, 0.3, (length - 6) / bays - 2), CFrame.new(0, HEIGHT + 1, z + (length - 6) / bays / 2), Color3.fromRGB(218, 234, 242), Enum.Material.Glass)
-				light.Transparency = 0.55
-			end
-			for _, s in { -1, 1 } do
-				local x = s * 76
-				part(decor, "Pilaster", Vector3.new(3, HEIGHT - 4, 3), CFrame.new(x, (HEIGHT - 4) / 2, z), tint, Enum.Material.Marble)
-				for _, y in { 1, 12, HEIGHT - 5 } do part(decor, "ColumnBand", Vector3.new(4.4, 1, 4.4), CFrame.new(x, y, z), GOLD, Enum.Material.Metal) end
-				part(decor, "SconceBack", Vector3.new(0.5, 5, 2), CFrame.new(x - s * 2, 17, z), GOLD, Enum.Material.Metal)
-				local bulb = part(decor, "Sconce", Vector3.new(1, 2.8, 1), CFrame.new(x - s * 2.7, 17, z), Color3.fromRGB(255, 216, 146), Enum.Material.Neon)
-				-- No shadow-casting lights. Every other bay is enough to colour the
-				-- wall; skylights and the existing environment grade light the floor.
-				if bay % 2 == 0 then
-					local glow = Instance.new("PointLight")
-					glow.Color, glow.Range, glow.Brightness, glow.Shadows = bulb.Color, 24, 0.7, false
-					glow.Parent = bulb
-				end
-				local clearOfExhibits = math.abs(z - center) > 20
-					and math.abs(z - (z0 + length * 0.25)) > 24 and math.abs(z - (z0 + length * 0.75)) > 24
-				if bay > 0 and bay < bays and clearOfExhibits then
-					if index >= 5 and bay % 3 == 0 then statue(decor, s * 70, z)
-					elseif bay % 2 == 0 then bench(decor, s * 70, z)
-					else planter(decor, s * 70, z, Color3.fromRGB(57, 104, 64):Lerp(def.color, 0.22)) end
-				end
+		local lintel = zone.Gate:FindFirstChild("Lintel") :: BasePart?
+		if lintel then
+			lintel.Size, lintel.CFrame = Vector3.new(44, 6, 2), CFrame.new(0, 53, MapConfig.zoneStartZ(index) + 1)
+			lintel.CanQuery = false
+			local face = lintel:FindFirstChild("Face")
+			local band = face and face:FindFirstChild("Band")
+			if band and band:IsA("Frame") then band.Size = UDim2.fromScale(0.9, 0.86) end
+		end
+		folder("Rooms", zone)
+		folder("Lasers", zone)
+		zone.Floor.Color, zone.Floor.Material = palette.floor, palette.material
+		for _, texture in zone.Floor:GetChildren() do
+			if texture:IsA("Texture") and texture.Face == Enum.NormalId.Top then
+				texture.Transparency, texture.StudsPerTileU, texture.StudsPerTileV = 0.55, 12, 12
 			end
 		end
-		for n = 1, 4 do
-			local socket = zone.SpawnSockets:FindFirstChild(string.format("Socket%02d", n)) :: BasePart
-			local sign = if n % 2 == 0 then 1 else -1
-			local z = z0 + length * (if n <= 2 then 0.25 else 0.75)
-			socket.CFrame = CFrame.new(sign * 44, 2.1, z)
-			socket:SetAttribute("MuseumSocket", true)
-			vitrine(decor, socket, n, tint, palette.accent)
-			rope(decor, Vector3.new(sign * 63, 0, z - 12), Vector3.new(sign * 63, 0, z + 12))
+		part(decor, "Runner", Vector3.new(18, 0.035, length), CFrame.new(0, 0.025, center), RED, Enum.Material.Fabric)
+		for _, sign in { -1, 1 } do
+			part(decor, "RunnerGoldEdge", Vector3.new(0.3, 0.04, length), CFrame.new(sign * 9.2, 0.03, center), GOLD)
 		end
-		doorway(zone, index, z0, tint, palette.accent)
-		require(script.Parent.MuseumExhibits).build(decor, center, index, palette.accent)
-		lasers(zone, index)
-		if index == 12 then
-			-- A terminal conservatory: a suspended aircraft, brass ribs, departure
-			-- windows and runway inlays. All above/beside the original flat floor.
-			local exhibit = folder("TerminalAtrium", decor)
-			local at = Vector3.new(0, 53, center)
-			local body = part(exhibit, "SuspendedAirliner", Vector3.new(8, 8, 72), CFrame.new(at), IVORY, Enum.Material.Metal)
-			body.Shape = Enum.PartType.Cylinder
-			body.CFrame *= CFrame.Angles(0, math.pi / 2, 0)
-			body.Size = Vector3.new(136, 12, 12)
-			part(exhibit, "Wings", Vector3.new(112, 1.5, 25), CFrame.new(at + Vector3.new(0, -1, 0)), GOLD, Enum.Material.Metal)
-			part(exhibit, "Tailplane", Vector3.new(39, 1, 12), CFrame.new(at + Vector3.new(0, 1, 57)), IVORY)
-			part(exhibit, "TailFin", Vector3.new(1, 11, 18), CFrame.new(at + Vector3.new(0, 6, 55)), def.color)
-			part(exhibit, "Cockpit", Vector3.new(8, 3, 1), CFrame.new(at + Vector3.new(0, 2, -68)), TEAL, Enum.Material.Glass)
-			for _, s in { -1, 1 } do
-				local engine = part(exhibit, "Engine", Vector3.new(13, 7, 7), CFrame.new(at + Vector3.new(s * 30, -5, -5)) * CFrame.Angles(0, math.pi / 2, 0), IVORY, Enum.Material.Metal)
-				engine.Shape = Enum.PartType.Cylinder
-				bar(exhibit, "Suspension", at + Vector3.new(s * 27, 0, 0), Vector3.new(s * 27, HEIGHT, center), 0.25, GOLD)
+		-- Longer zones retain their original travel distance. Facade extensions
+		-- close the unused wings without turning the room into a 700-stud hall.
+		local shell = folder("Structure", zone)
+		local spare = (length - Layout.width(index)) / 2
+		for _, side in { -1, 1 } do
+			for _, endSign in { -1, 1 } do
+				local wall = part(shell, "FacadeExtension", Vector3.new(2, HEIGHT, spare), CFrame.new(side * Layout.CORRIDOR_HALF, HEIGHT / 2, center + endSign * (Layout.width(index) / 2 + spare / 2)), palette.wall)
+				wall.CanCollide, wall.CanQuery = true, true
 			end
-			for n = 1, 10 do
-				local z = z0 + n * length / 11
-				for _, s in { -1, 1 } do
-					bar(exhibit, "TerminalRoofRib", Vector3.new(s * 76, 42, z), Vector3.new(0, HEIGHT - 2, z), 1.2, GOLD, Enum.Material.Metal)
-					part(exhibit, "RunwayInset", Vector3.new(1, 0.06, 7), CFrame.new(s * 13, 0.04, z), TEAL, Enum.Material.Neon)
-					local window = part(exhibit, "DepartureWindow", Vector3.new(0.3, 35, 27), CFrame.new(s * 79, 48, z), Color3.fromRGB(133, 199, 219), Enum.Material.Glass)
-					window.Transparency = 0.3
-				end
-			end
-			for _, s in { -1, 1 } do
-				plaque(exhibit, CFrame.new(s * 54, 25, z0 + 105), Vector3.new(37, 14, 1), "DEPARTURES\n12  /  FINAL GALLERY\nSTEAL. RUN. ESCAPE.", GOLD)
-			end
-			plaque(exhibit, CFrame.new(0, 35, MapConfig.zoneEndZ(index) - 2), Vector3.new(70, 10, 1), "THE GRAND TERMINAL\nEND OF THE COLLECTION", GOLD)
 		end
+		part(decor, "CorridorCeiling", Vector3.new(Layout.CORRIDOR_HALF * 2, 1, length), CFrame.new(0, HEIGHT, center), palette.floor)
+		for n = 1, math.ceil(length / 50) do
+			local z = MapConfig.zoneStartZ(index) + (n - 0.5) * length / math.ceil(length / 50)
+			part(decor, "CorridorCoffer", Vector3.new(Layout.CORRIDOR_HALF * 2, 1.5, 2), CFrame.new(0, HEIGHT - 1, z), DARK)
+		end
+		for room = 1, 2 do buildRoom(zone, index, room) end
 	end
+	map:SetAttribute("MuseumRevision", 3)
 end
 
 return MuseumGallery

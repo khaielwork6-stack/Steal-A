@@ -1,7 +1,7 @@
 --!strict
 --[[
 	MysterySpawnService
-	Where the four mystery containers of a zone stand, and whether that zone's
+	Where the eight mystery containers of a zone stand, and whether that zone's
 	container model is usable at all.
 
 	IT OWNS PLACEMENT, NOT LIFECYCLE. The socket lifecycle - rolling, filling,
@@ -10,7 +10,7 @@
 	once at start-up:
 
 	    "is zone N's container model present and sane?"      -> validate
-	    "where do zone N's four sockets belong?"             -> layout
+	    "where do zone N's eight sockets belong?"             -> layout
 
 	WHY THE SOCKETS MOVE AT ALL
 	The map is baked into the place file, and its sockets were laid out for the
@@ -161,7 +161,7 @@ local function separated(taken: { Vector3 }, x: number, z: number): boolean
 	return true
 end
 
---- Lays one zone's four sockets around its guardian and removes any extras.
+--- Preserves authored room sockets; falls back to offsets for legacy maps.
 --- Returns how many sockets the zone now has.
 function MysterySpawnService.layoutZone(zoneIndex: number, zone: Instance): number
 	local socketFolder = zone:FindFirstChild("SpawnSockets")
@@ -169,7 +169,7 @@ function MysterySpawnService.layoutZone(zoneIndex: number, zone: Instance): numb
 		return 0
 	end
 
-	-- THE FIFTH SPAWN, AND ANYTHING PAST IT, GOES. Named sockets beyond the
+	-- Remove only obsolete markers beyond the approved count. Sockets above the
 	-- configured count are destroyed outright - model, prompt, everything -
 	-- so nothing can resurrect them.
 	local removed = 0
@@ -299,7 +299,7 @@ function MysterySpawnService.layoutAll(map: Instance)
 			placed += MysterySpawnService.layoutZone(zoneIndex, zone)
 		end
 	end
-	print(`[MysterySpawn] {placed} container sockets placed around {ZoneConfig.COUNT} guardians`)
+	print(`[MysterySpawn] {placed} container sockets placed in {ZoneConfig.COUNT * 2} guarded rooms`)
 end
 
 return MysterySpawnService

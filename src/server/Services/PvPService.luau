@@ -635,10 +635,10 @@ local function stepTraps()
 		end
 
 		-- Active guardians: rooted, but their chase state is left intact.
-		for _, zoneIndex in GuardianService.activeChaseZones() do
-			local guardianPosition = GuardianService.guardianPosition(zoneIndex)
+		for _, guard in GuardianService.activeChaseRooms() do
+			local guardianPosition = GuardianService.guardianPosition(guard.zoneIndex, guard.roomIndex)
 			if guardianPosition and (guardianPosition - position).Magnitude <= PvPConfig.TRAP_TRIGGER_RADIUS then
-				if GuardianService.rootGuardian(zoneIndex, PvPConfig.TRAP_ROOT_DURATION) then
+				if GuardianService.rootGuardian(guard.zoneIndex, PvPConfig.TRAP_ROOT_DURATION, guard.roomIndex) then
 					trap.triggered = true
 					trap.part:Destroy()
 					if trap.owner.Parent then
