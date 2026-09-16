@@ -102,6 +102,7 @@ SettingsController.start()
 -- Touch only: forces landscape and adds the shift-lock button. A no-op on
 -- desktop.
 ShiftLockController.start()
+require(script.Controllers.CrouchController).start()
 -- Listens to StatePush for a pending offline payout; shows nothing otherwise.
 OfflineEarningsController.start()
 -- Mirrors "carrying" into the one HUD claim that leaves only DROP on screen.

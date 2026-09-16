@@ -512,6 +512,7 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 
 	-- Find the ground and check it is not a wall or a steep face.
 	local params = RaycastParams.new()
+	params.RespectCanCollide = true -- museum beams are queryable, never ground
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character, trapFolder, workspace:FindFirstChild("Guardians") }
 	local hit = workspace:Raycast(target + Vector3.new(0, 12, 0), Vector3.new(0, -60, 0), params)

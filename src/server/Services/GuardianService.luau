@@ -62,6 +62,7 @@ type Guardian = {
 	root: BasePart?,
 	target: Player?,
 	lootId: string?,
+	alarm: boolean?, -- a laser may start a chase without inventing a loot item
 	wakeAt: number?,
 	shellMotor: Weld?, -- drives the imported costume's pose; nil when unskinned
 	--- Roblox's own walk cycle on a rigged costume; nil for props and custom
@@ -165,6 +166,9 @@ local safeLineZ = 0
 local onCatch: (LootService.LootInstance) -> () = function() end
 local onEscape: (LootService.LootInstance, Player) -> () = function() end
 
+-- Injected by bootstrap to keep CarryService/GuardianService acyclic.
+GuardianService.alarmLootFor = function(_player: Player): LootService.LootInstance? return nil end
+
 --- Wired from init so this service never has to require CarryService back.
 function GuardianService.setCatchHandler(fn: (LootService.LootInstance) -> ())
 	onCatch = fn
@@ -213,6 +217,14 @@ end
 --- it can never outlive the chase.
 local function setChased(player: Player?, on: boolean)
 	if player and player.Parent then
+		local alarm = false
+		for _, active in guardians do
+			if active.target == player then
+				on = true
+				alarm = alarm or active.alarm == true
+			end
+		end
+		player:SetAttribute("LaserChased", alarm)
 		player:SetAttribute("Chased", on)
 	end
 end
@@ -970,7 +982,7 @@ end
 -- FINDING WORK
 -- ----------------------------------------------------------
 
-type Carrier = { player: Player, loot: LootService.LootInstance, root: BasePart, distance: number }
+type Carrier = { player: Player, loot: LootService.LootInstance?, root: BasePart, distance: number, alarm: boolean? }
 
 local function flatDistance(a: Vector3, b: Vector3): number
 	return (Vector3.new(a.X, 0, a.Z) - Vector3.new(b.X, 0, b.Z)).Magnitude
@@ -1075,10 +1087,12 @@ local function standUp(guardian: Guardian)
 end
 
 local function releaseTarget(guardian: Guardian)
-	setChased(guardian.target, false)
+	local previous = guardian.target
 	guardian.target = nil
 	guardian.lootId = nil
+	guardian.alarm = nil
 	guardian.wakeAt = nil
+	setChased(previous, false)
 end
 
 --- Takes a carrier as THE target. From sleep it is the shocked Waking beat
@@ -1088,11 +1102,11 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 	if not root then
 		return
 	end
-	if guardian.target ~= carrier.player then
-		setChased(guardian.target, false)
-	end
+	local previous = guardian.target
 	guardian.target = carrier.player
-	guardian.lootId = carrier.loot.id
+	guardian.lootId = if carrier.loot then carrier.loot.id else nil
+	guardian.alarm = carrier.alarm == true
+	if previous ~= carrier.player then setChased(previous, false) end
 	resetSteering(guardian)
 	setChased(carrier.player, true)
 
@@ -1242,13 +1256,33 @@ function GuardianService.engage(loot: LootService.LootInstance, _thief: Player)
 	if state == "Sleeping" then
 		standUp(guardian)
 		beginChase(guardian, carrier, true)
-	elseif state == "Returning" or state == "Recovering" then
+	elseif state == "Returning" or state == "Recovering" or guardian.alarm then
 		beginChase(guardian, carrier, false)
 	end
 end
 
 --- Kept under its old name for callers and tests.
 GuardianService.wake = GuardianService.engage
+
+-- Server-only entry from LaserService. An existing chase keeps its target;
+-- frozen guardians and immune players cannot be woken by an alarm. The wake,
+-- steering, speed formula, catch and return below are the ordinary chase.
+function GuardianService.alarm(zoneIndex: number, player: Player): boolean
+	local guardian = guardians[zoneIndex]
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not guardian or not guardian.humanoid or not guardian.root
+		or guardian.humanoid:GetAttribute("Rooted") or RagdollService.isImmune(player)
+		or not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0
+		or isBehindSafeLine(root.Position) or LootService.isClosed() then return false end
+	if guardian.state == "Waking" or guardian.state == "Chasing" then return false end
+	local asleep = guardian.state == "Sleeping"
+	if asleep then standUp(guardian) end
+	beginChase(guardian, { player = player, root = root, loot = GuardianService.alarmLootFor(player), alarm = true,
+		distance = flatDistance(root.Position, guardian.root.Position) }, asleep)
+	return true
+end
 
 --- Loot of this zone was dropped. A guardian with nothing better to do goes
 --- and gets it; a busy one finds it through nextJob when its job ends.
@@ -1458,9 +1492,10 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	local target = guardian.target
 	local lootId = guardian.lootId
 	local loot = if lootId then LootService.get(lootId) else nil
+	if guardian.alarm and loot and (loot.state ~= "Carried" or loot.carrier ~= target) then loot = nil end
 
 	-- The chase is only valid while THIS thief still carries THIS item.
-	if not target or not target.Parent or not loot or loot.state ~= "Carried" or loot.carrier ~= target then
+	if not target or not target.Parent or (not guardian.alarm and (not loot or loot.state ~= "Carried" or loot.carrier ~= target)) then
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return
@@ -1468,7 +1503,8 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 
 	local character = target.Character
 	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
-	if not targetRoot or not targetRoot:IsA("BasePart") then
+	local targetHumanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not targetRoot or not targetRoot:IsA("BasePart") or not targetHumanoid or targetHumanoid.Health <= 0 then
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return
@@ -1480,7 +1516,7 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	-- guardian is awake it pursues until the thief is across, is caught, or no
 	-- longer has the item.
 	if isBehindSafeLine(targetRoot.Position) then
-		onEscape(loot, target)
+		if loot then onEscape(loot, target) end
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return
@@ -1523,7 +1559,8 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	-- CATCH. The radius scales with the guardian, so a fifteen-stud boss is
 	-- not required to bury its own model in the player before it registers.
 	local reach = (root.Position - targetRoot.Position).Magnitude
-	if reach <= guardian.catchRadius and not GuardianService.isStunned(target) then
+	if reach <= guardian.catchRadius and not GuardianService.isStunned(target)
+		and not (guardian.alarm and humanoid:GetAttribute("Rooted")) then
 		-- ONE hit cue, never two: this guardian's own catch sound (each of
 		-- the twelve has one, see AudioConfig.GuardianHits), falling back
 		-- to the boss / regular reaction if a zone has none.
@@ -1533,7 +1570,7 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 		-- The catch handler takes the item off the thief AND sends it back to
 		-- its socket. The guardian's only remaining job is to decide what to do
 		-- next - it never carries anything. See "THE ESCORT IS RETIRED".
-		onCatch(loot)
+		if loot then onCatch(loot) end
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return

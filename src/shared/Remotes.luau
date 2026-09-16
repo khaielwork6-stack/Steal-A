@@ -14,6 +14,7 @@ local RunService = game:GetService("RunService")
 local Remotes = {}
 
 Remotes.NAMES = {
+	"CrouchRequest", -- boolean intent; LaserService owns the accepted posture
 	-- client -> server requests
 	"StealRequest",
 	"PlaceLootRequest",

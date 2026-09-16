@@ -9,6 +9,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
+-- Geometry exists before any service captures zone/socket references.
+require(script.MapBuilder).rebuildGalleries()
+
 -- Creates ReplicatedStorage.Remotes before any client tries to wait on it.
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -92,6 +95,7 @@ end)
 -- A drop the guardian can walk to waits for the guardian; one it cannot reach
 -- (behind the red line) goes home on the old timer.
 CarryService.setRecoveryCheck(GuardianService.canRecover)
+GuardianService.alarmLootFor = CarryService.getCarried
 
 -- ==========================================================
 -- THE BEGINNER CHECKLIST
@@ -356,6 +360,7 @@ end
 LootService.start()
 CarryService.start()
 GuardianService.start()
+require(Services.LaserService).start()
 PlacementService.start()
 SpeedService.start()
 -- After BaseService and EconomyService: a commit rebuilds the base and

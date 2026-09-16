@@ -4639,3 +4639,141 @@ Note for the next test: the `SpinWinUI` ScreenGui stays Enabled between spins
 with its card hidden, so check the card's visibility, not `Enabled`.
 
 `validate` 1663/0, `economyTests` 202,422/0.
+
+## 44. The lane becomes a museum (2026-09-16)
+
+The twelve existing bands ARE the corridor. There is no extra hallway and no
+room graph. Their lengths, the 160-stud width, the zero-depth transitions,
+floor tops at Y=0 and the safe line at Z=0 have not moved. All shared Config
+files and MapConfig are unchanged, including the 96 durable ItemIds, odds,
+income, growth, Speed recommendations, guardian tuning and v13 save schema.
+
+### Source owns the lane; the place still owns the kit
+
+The actual checkout did not call the full MapBuilder on startup: it used the
+saved map. Bootstrap now calls `rebuildGalleries()` BEFORE services capture
+zone/socket references. It replaces Zones and Walls from the purchased
+Template floors, WallSegment and Weather, then dresses them with the new
+`MuseumGallery`. The saved lobby, five plots, wheels and movable lobby markers
+stay intact. The full `build()` path uses the same museum module too.
+
+Old top-level lane scenery is parked in ServerStorage.MuseumReplacedScenery
+for the running session, using the existing scenery classifier and excluding
+Humanoids. Nothing is hand-authored in the Edit map. Press Play after Rojo
+syncs to see the rebuild. Do not use `rojo build`: the art is still in the place.
+
+The floor-template consistency check now reads the kit's authored X length.
+Using max(X,Z) falsely warned on the two short rooms, whose WIDTH exceeds
+their LENGTH. No floor or configuration dimension was changed to fix that.
+
+### What replaced the outdoor dressing
+
+One red/gold runner connects the columned portals. The side walls carry
+alcove frames, collection emblems, four dark plinths with gold/glass vitrines,
+velvet ropes, sconces, benches and topiary. Later rooms add more bays and
+gold busts. The roof is coffered around a continuous skylight. Airport is a
+dark terminal atrium with brass ribs, departure boards, runway inlays and a
+large suspended airliner, still over its original flat floor.
+
+Every zone keeps Floor, Bounds, Entrance, SpawnSockets, GuardianSpawns, Gate,
+Decorations, its original attributes and the kit's configured Weather. The
+guardian post stays where it was. Sockets move into the side exhibits, with
+two rows at one-quarter and three-quarters of the band's actual length.
+MysterySpawnService honours the MuseumSocket marker instead of moving those
+sockets back into its old arc around the guard.
+
+THE CRATE STAYS SEALED. The reference shows revealed artifacts, quality and
+kg; this game conceals its roll until the base hatch. The owner explicitly
+approved preserving that rule. The case fits the existing visible container,
+including clearance for its idle turn. It never resizes, rerolls or reveals
+the loot. The existing prompts and container cards remain authoritative.
+Glass and dressing do not collide, block prompt rays or provide trap ground.
+
+### Lasers use the existing guardian
+
+New LaserService owns detection. Zones 1-2 have no beams; 3-5 have three
+horizontal ankle/middle/high beams with dark emitters; 6-8 have six diagonals
+from teal floor emitters; 9-12 have twelve. There are 75 beams in total.
+The early gates have an 18-stud east bypass. Later fields leave the centre
+spine open and put the danger on approaches to the cases. No beam collides.
+
+The server samples players at 10 Hz. One bounds query per player whose swept
+body intersects a laser-bearing zone includes ONLY those zones' laser folders.
+Candidates receive an exact segment-versus-swept-box test (LaserGeometry),
+so a thin beam cannot be skipped merely by crossing between samples. Large
+teleports test the destination rather than alarming every intervening room.
+There are no per-frame, per-beam player rays. Static props and sconce lights
+have shadows disabled. One-client Studio measurement over 2,574 queries:
+maximum complete laser step 0.695 ms. This is not a physical-phone or
+five-client performance benchmark.
+
+`CrouchRequest` carries one rate-limited boolean intent. LaserService owns the
+accepted posture; client-set attributes cannot change its private state.
+Standing/crouched laser bodies are 5.2/2.6 studs tall; actual rig feet follow
+jumps. CrouchController supplies C, R3 and a 66x52 touch button beside Shift
+Lock, plus a reversible local pose. WalkSpeed, JumpPower, camera and save
+settings are untouched. Safe line, Night, death and stun clear the posture.
+The layout adapts when Studio changes input capabilities after startup.
+
+`GuardianService.alarm` enters the same wake, steering, speed, catch and
+return path as stealing, without fabricating a loot item. An alarm won't
+replace an existing chase or wake a rooted guard. Catches respect root and
+player recovery immunity. If an alarmed thief carries another zone's loot,
+the ordinary catch handler still takes that real carried item. Per-player
+Chased/LaserChased flags aggregate targets so one returning guard cannot
+hide another active chase. ChaseWarningController reuses its RUN warning
+for an alarm even when there is no carried item.
+
+There was no Crouch or paid Freeze Guards system in this checkout. The owner
+approved this laser-only crouch and the existing stun/root protection; no
+new paid feature was invented. PvP's ground ray now respects CanCollide so
+a queryable laser cannot become the surface on which a trap is placed.
+
+### Verification, through the live DebugService attribute bridge
+
+Before and after: `validate` 1,663 passed; `economyTests` 202,422 passed,
+zero failures. The latter includes the locked mutation, migration, scale,
+sealed hatch and Night regression sections. Frozen configuration files have
+no diff. Rojo was verified against actual Edit Script.Source and subsequent
+fresh Play sessions, not just a listening port.
+
+New Studio-only commands, following the existing EconomyTests convention:
+
+- `museumTests`: 551 passed, zero failures. Swept high/low/middle/diagonal
+  cases, all twelve map contracts, 48 occupied sockets and steal prompts,
+  75 beam counts/bypasses, and floor probes through all bands.
+- `museumLoops`: all 12 steal -> Waking -> Chasing -> safe-line escape ->
+  same-instance/same-token/same-income return checks passed. It waits the
+  existing two-second return delay. Temporary immunity only holds off catches
+  long enough to observe each wake. The test restores its Steals counter.
+- `museumScenarios`: actual sealed placement, drop/return, placed trap
+  rooting an alarmed guardian, no catch/re-alarm while rooted, Night clearing
+  chase/crouch and moving the player safe, 48 occupied sockets after dawn,
+  and an actual guardian catch returning the same roll all passed. The test
+  removes only its own placed fixture and restores its counters/trap charge.
+
+A client navigated from Z=-12 to Z=4853 through all twelve bands at its
+existing movement speed: east bypass through the early gates, centre spine
+after Egypt. Health remained 100 with no laser alarm. Separately, the same
+zone-3 high beam ignored a crouched crossing and produced Waking/Chased/
+LaserChased on a standing crossing via the server detector. Console showed
+no new runtime errors. Existing art audit still reports one item without art.
+
+iPhone 17 Pro and Galaxy A06 landscape viewports were checked. With actual
+TouchEnabled=true/KeyboardEnabled=false, Crouch is 66x52 and stays available
+while carrying; it is separate from Drop, Jump and Shift Lock. On the A06
+capture: Crouch (543,120)-(609,172), Shift Lock (623,120)-(675,172), Jump
+(610,190)-(680,260), Drop about (296,206)-(410,244). The existing HUD's
+landscape lock remains. Keyboard C and its replicated posture were exercised.
+MCP's simulated touch clicks did not reliably dispatch to the button, and
+device captures showed the GUI over a blank 3D background, whereas desktop
+captures rendered the galleries. Do not call this a verified finger-tap or
+physical-device rendering test. Studio was returned to its default viewport.
+
+### Separate proposal only: kg
+
+Nothing about item weight was implemented. A future experiment could map
+5/15/40 kg to 0/1/2 percent ADDITIONAL carry slowdown, capped at 2 percent.
+At 30 studs/s that costs 0/0.3/0.6; at 240 it costs 0/2.4/4.8. That is large
+enough to matter to the carefully tuned guardian margins. It needs its own
+all-zone chase simulation and acceptance pass before touching production.

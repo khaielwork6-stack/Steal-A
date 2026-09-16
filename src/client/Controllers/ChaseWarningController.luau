@@ -270,7 +270,7 @@ local function start()
 end
 
 local function evaluate()
-	if chased and carrying then
+	if chased and (carrying or player:GetAttribute("LaserChased") == true) then
 		start()
 	else
 		stop()
@@ -282,6 +282,7 @@ end
 -- ==========================================================
 
 function ChaseWarningController.start()
+	player:GetAttributeChangedSignal("LaserChased"):Connect(evaluate)
 	chased = player:GetAttribute("Chased") == true
 	player:GetAttributeChangedSignal("Chased"):Connect(function()
 		chased = player:GetAttribute("Chased") == true

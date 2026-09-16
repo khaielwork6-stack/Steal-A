@@ -218,6 +218,20 @@ function MysterySpawnService.layoutZone(zoneIndex: number, zone: Instance): numb
 		local socket = part :: BasePart
 		socket:SetAttribute("SpawnName", name)
 
+		-- Source-built museum sockets already sit on their case plinths. The
+		-- fallback arc below remains for older places; it must not pull the
+		-- galleries' crates out of the vitrines at every server start.
+		if socket:GetAttribute("MuseumSocket") == true then
+			socket.Anchored, socket.CanCollide, socket.CanQuery = true, false, false
+			socket.Transparency, socket.CastShadow = 1, false
+			for _, child in socket:GetChildren() do
+				if child:IsA("BasePart") then
+					child.Transparency, child.CanCollide, child.CanQuery = 1, false, false
+				end
+			end
+			continue
+		end
+
 		-- Start from the guardian and step out to this slot's corner, then
 		-- pull the spot back inside the lane and inside the zone.
 		local x = math.clamp(post.Position.X + offset.x, -laneHalf + 14, laneHalf - 14)

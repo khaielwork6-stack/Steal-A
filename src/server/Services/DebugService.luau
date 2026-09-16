@@ -48,6 +48,23 @@ end
 ---   Invoke("cash", nil, amount)             award Cash
 ---   Invoke("clearDisplays")                 empty the base
 local COMMANDS: { [string]: (Player, ...any) -> any } = {
+	museumTests = function()
+		return require(script.Parent.MuseumTests).run()
+	end,
+	museumLoops = function(player)
+		return require(script.Parent.MuseumTests).loops(player)
+	end,
+	museumScenarios = function(player)
+		return require(script.Parent.MuseumTests).scenarios(player)
+	end,
+	validate = function()
+		return require(ReplicatedStorage.Shared.Config.validate)()
+	end,
+	lasers = function(player, crouch: boolean?)
+		local service = require(script.Parent.LaserService)
+		if type(crouch) == "boolean" then service.setCrouched(player, crouch) end
+		return service.snapshot()
+	end,
 
 	--- THE PARITY TOOL. Rolls the live roller with a seeded Random and reports
 	--- per-socket odds, at-least-once-in-five, occurrences/hour, income

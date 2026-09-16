@@ -31,6 +31,12 @@ nothing else. Open that and you have an empty game.
 **Always open the real place through Team Create.** Never open a locally built
 `.rbxlx`.
 
+The museum lane is rebuilt from `MapBuilder` and `MuseumGallery` at server
+startup, before services bind to its sockets. Press **Play** to see source
+changes synced by Rojo. The saved lobby, plots, wheels and asset kit remain in
+the place; rebuilding the lane does not replace them. See HANDOFF section 44
+for the laser service, crouch controls and verification commands.
+
 ---
 
 ## Getting set up (macOS or Windows)

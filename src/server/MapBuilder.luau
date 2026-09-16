@@ -4,11 +4,11 @@
 	Generates the entire Steal Something world as real, editable geometry under
 	Workspace.Map, following the hierarchy contract in section 15 of the GDD.
 
-	Run it from the command bar in Edit mode:
-		require(game.ServerScriptService.Server.MapBuilder).build()
-
-	It is idempotent: an existing Workspace.Map is destroyed and rebuilt, so the
-	generator stays the source of truth while individual parts remain hand-editable.
+	Server bootstrap calls rebuildGalleries() before any service binds to the
+	map. It replaces Zones/Walls while keeping the saved lobby, bases and wheels.
+	build() remains the full-world generator for deliberate whole-map rebuilds.
+	Both paths take their lane geometry from source; Edit-mode part changes to
+	that lane do not survive the next Play session.
 
 	WHAT THE WORLD IS MADE OF (the template rebuild)
 	  * THE KIT. The owner bought a map kit; its floor, zone floors and wall
@@ -24,8 +24,9 @@
 	    stands on a MARKER the owner can move in Studio (LobbyLayout).
 	  * THE LANE: 160 wide, twelve zones, each floor a clone of its kit part at
 	    its kit length, tinted the zone's colour. A gate at each entrance, one
-	    sign on the left, an even grid of four plinths and a guardian post,
-	    rain over zones 9-12 - and nothing else on the floor.
+	    sign on the left, four side-alcove vitrines and a guardian post. The
+	    MuseumGallery module adds the continuous interior and laser geometry;
+	    the existing kit weather stays in its configured zones.
 	  * THE WALLS: the kit segment tiled end to end around the lobby and down
 	    both sides of the lane, textured face inward, the lobby in the kit's
 	    clay and every zone's run tinted toward that zone's colour. Corners are
@@ -597,8 +598,8 @@ local function buildZones(map: Instance)
 		floor.CanQuery = true
 		floor.Color = surface.a
 		floor.Parent = zone
-		if math.abs(math.max(template.Size.X, template.Size.Z) - length) > 0.05 then
-			warn(string.format("[MapBuilder] Template.ZoneFloors.\"Zone %d\" is %.1f long but MapConfig.ZONE_LENGTHS says %.1f", i, math.max(template.Size.X, template.Size.Z), length))
+		if math.abs(template.Size.X - length) > 0.05 then
+			warn(string.format("[MapBuilder] Template.ZoneFloors.\"Zone %d\" is %.1f long but MapConfig.ZONE_LENGTHS says %.1f", i, template.Size.X, length))
 		end
 
 		makeVolume(
@@ -1327,7 +1328,39 @@ end
 -- ENTRY POINT
 -- ==========================================================
 
+local function archiveLaneScenery()
+	local archive = ServerStorage:FindFirstChild("MuseumReplacedScenery") or folder("MuseumReplacedScenery", ServerStorage)
+	for _, child in workspace:GetChildren() do
+		if isLaneDecoration(child) and not child:FindFirstChildOfClass("Humanoid") then
+			child.Parent = archive
+		end
+	end
+end
+
+-- Rebuild only the lane before services bind to its sockets. The saved lobby
+-- contains owner-placed wheels and markers that a whole-Map rebuild would lose.
+function MapBuilder.rebuildGalleries(): Folder
+	local map = workspace:FindFirstChild("Map")
+	if not map then
+		return MapBuilder.build()
+	end
+	archiveLaneScenery()
+	for _, name in { "Zones", "Walls" } do
+		local previous = map:FindFirstChild(name)
+		if previous then previous:Destroy() end
+	end
+	buildZones(map)
+	buildWeather(map)
+	buildWalls(map)
+	placeSockets(map)
+	require(script.Parent.MuseumGallery).build(map)
+	MapBuilder.applyDecorCollision(map)
+	map:SetAttribute("MuseumRevision", 1)
+	return map :: Folder
+end
+
 function MapBuilder.build(): Folder
+	archiveLaneScenery()
 	local existing = workspace:FindFirstChild("Map")
 	if existing then
 		existing:Destroy()
@@ -1347,10 +1380,12 @@ function MapBuilder.build(): Folder
 	buildBases(map)
 	buildSpawns(map)
 
-	-- No landmarks and no dressing: the kit's zones are open floor with the
-	-- loot, the guardian, the gate and the sign on it, which is the brief.
+	-- The purchased kit supplies the floor/walls; museum dressing fits the
+	-- same bands and retains every service anchor.
 	placeSockets(map)
+	require(script.Parent.MuseumGallery).build(map)
 	MapBuilder.applyDecorCollision(map)
+	map:SetAttribute("MuseumRevision", 1)
 
 	local parts = 0
 	for _, d in map:GetDescendants() do
