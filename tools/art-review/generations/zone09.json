@@ -1,0 +1,337 @@
+[
+  {
+    "generationId": "a3e1ebcb-a58e-4335-900e-a61d23584a73",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A TALL NARROW industrial pressure cylinder, silver steel caps, white body and diagonal black-yellow hazard band. One glass window stripe exposes luminous churning green liquid, compact handwheel valve projecting at top. Legendary. Slender bottle-shaped scientific silhouette with visible valve, polished metal and bright green window.",
+    "publishedAssetId": "110305125083895",
+    "tag": "Assistant-c0e8874a-0340-449c-9086-782331aa6b6b",
+    "id": "SecretLab_ChemicalCylinder",
+    "primary": "cylinder_geom",
+    "finishes": {
+      "cylinder": {
+        "material": "Metal"
+      },
+      "valve": {
+        "material": "Metal"
+      },
+      "window": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          106,
+          255,
+          80
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84697275082637",
+        "name": "window_geom",
+        "texture": "rbxassetid://121065929719487"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://71269279706297",
+        "name": "valve_geom",
+        "texture": "rbxassetid://96367951959252"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://99719968566070",
+        "name": "cylinder_geom",
+        "texture": "rbxassetid://133104912409869"
+      }
+    ]
+  },
+  {
+    "generationId": "2825b016-a6f5-4d14-b7f4-3fe54289f384",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A BROAD cylindrical laboratory containment tank, four chunky white-and-steel vertical ribs and wide white base. Transparent walls enclose glowing cyan fluid and a small pale floating specimen that touches no walls. Mythic. Squat wide cylindrical reactor with flared feet, sterile white chrome cyan, distinctly wider than a slim pressure bottle.",
+    "publishedAssetId": "105064361391832",
+    "tag": "Assistant-893f256f-664f-4e7e-b443-2ef2110fec58",
+    "id": "SecretLab_ContainmentTank",
+    "primary": "frame_geom",
+    "finishes": {
+      "frame": {
+        "material": "Metal"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.85,
+        "clearTexture": true,
+        "color": [
+          196,
+          242,
+          255
+        ]
+      },
+      "fluid": {
+        "glow": true,
+        "color": [
+          71,
+          234,
+          255
+        ],
+        "transparency": 0.72,
+        "clearTexture": true
+      },
+      "specimen": {
+        "material": "SmoothPlastic",
+        "mode": "Hover",
+        "speed": 1.1
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://108388815563140",
+        "name": "specimen_geom",
+        "texture": "rbxassetid://74137017327747"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://129046285666803",
+        "name": "fluid_geom",
+        "texture": "rbxassetid://101703660404830"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://100492957953094",
+        "name": "glass_geom",
+        "texture": "rbxassetid://89858989734417"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://121625256587596",
+        "name": "frame_geom",
+        "texture": "rbxassetid://110353109503247"
+      }
+    ]
+  },
+  {
+    "generationId": "a5b37653-2fac-4422-800f-30ea32ca93a9",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Eight-legged chrome robotic spider, eight clearly separated articulated legs in an asymmetric wide stance, rounded sleek chassis with deep blue violet clean starfield enamel panels. Cluster of bright red optical sensors. One small leg segment detached outside the leg fan. Cosmic. Strong broad arachnid silhouette with open gaps, premium machined curves.",
+    "publishedAssetId": "118928598803711",
+    "tag": "Assistant-0000a17c-a361-47f9-8295-5eff8e743180",
+    "id": "SecretLab_RobotSpider",
+    "primary": "body_geom",
+    "finishes": {
+      "body": {
+        "material": "Metal"
+      },
+      "legs": {
+        "material": "Metal"
+      },
+      "sensors": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          54,
+          58
+        ]
+      },
+      "satellite": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.2
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://134368225869226",
+        "name": "satellite_geom",
+        "texture": "rbxassetid://92094947292255"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105835129327101",
+        "name": "sensors_geom",
+        "texture": "rbxassetid://90760322739928"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://131749563825217",
+        "name": "legs_geom",
+        "texture": "rbxassetid://76735109138778"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113510420546951",
+        "name": "body_geom",
+        "texture": "rbxassetid://94478404256371"
+      }
+    ]
+  },
+  {
+    "generationId": "758cc70a-5593-459a-99be-913bb9b8099e",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A fiercely luminous jagged electric-blue crystal cluster growing from an irregular near-black stone base. Three tall sharply angled spires plus smaller broken shards, unequal heights and directions. Secret, intensely saturated blue interior cuts through charcoal edges. Branching angular outline, clean broad crystal facets.",
+    "publishedAssetId": "80867123485295",
+    "tag": "Assistant-6ca17b3f-8212-4cac-a443-d5c420a10f88",
+    "id": "SecretLab_MutationCrystal",
+    "primary": "base_geom",
+    "finishes": {
+      "base": {
+        "material": "Slate",
+        "color": [
+          17,
+          22,
+          35
+        ]
+      },
+      "crystals": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          26,
+          104,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://80313655219224",
+        "name": "crystals_geom",
+        "texture": "rbxassetid://133698157902792"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113774794993687",
+        "name": "base_geom",
+        "texture": "rbxassetid://107095670303364"
+      }
+    ]
+  },
+  {
+    "generationId": "f629a860-11dc-4497-935a-e7170c57b32b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A tall upright near-black magnetic containment ring, thick horseshoe-like mechanical rim on two compact feet, holding a blazing cyan plasma sphere FREE at the centre with generous empty space all around it. Three thin zigzag cyan energy arcs bridge part of the gap as sculpted mesh forms. Secret: near-black and intense cyan only. Bold open circular outline around a smaller sphere.",
+    "publishedAssetId": "128993140443671",
+    "tag": "Assistant-c1b8e58b-fd33-4ae5-8a5c-140c80dcb45e",
+    "id": "SecretLab_CyanPlasma",
+    "primary": "ring_geom",
+    "finishes": {
+      "ring": {
+        "material": "Metal"
+      },
+      "core": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          66,
+          235,
+          255
+        ],
+        "mode": "Hover",
+        "speed": 0.8
+      },
+      "arcs": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          66,
+          235,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://96522103944268",
+        "name": "arcs_geom",
+        "texture": "rbxassetid://131336401999992"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://75702558937249",
+        "name": "core_geom",
+        "texture": "rbxassetid://88518042970120"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136214337191781",
+        "name": "ring_geom",
+        "texture": "rbxassetid://76399719082367"
+      }
+    ]
+  },
+  {
+    "generationId": "6cc8c686-65dc-46f8-b4a4-4c8bfa67c59b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Vertical energy canister, silver and warm white caps around a brilliant gold-white core visible through a clear glass band. Three layered concentric radiant rings around its MIDDLE spread far wider than the narrow cylinder. Fine luminous shafts above and below. Eternal, clean sterile white and gold radiance. Ringed waist makes a distinctive hourglass/satellite outline.",
+    "publishedAssetId": "74355149095886",
+    "tag": "Assistant-644056c0-05fa-49ca-a74b-55074a109797",
+    "id": "SecretLab_EnergyCore",
+    "primary": "canister_geom",
+    "finishes": {
+      "canister": {
+        "material": "Metal"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.85,
+        "clearTexture": true,
+        "color": [
+          240,
+          251,
+          255
+        ]
+      },
+      "core": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      },
+      "halos": {
+        "material": "Metal"
+      },
+      "shafts": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://70426571043199",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://96879748870797"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105976400276429",
+        "name": "halos_geom",
+        "texture": "rbxassetid://90037990216605"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84220646909555",
+        "name": "core_geom",
+        "texture": "rbxassetid://84097753454765"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://132621841968889",
+        "name": "glass_geom",
+        "texture": "rbxassetid://139910930506296"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://71213076802776",
+        "name": "canister_geom",
+        "texture": "rbxassetid://112829329571024"
+      }
+    ]
+  }
+]

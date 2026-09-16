@@ -19,6 +19,45 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, a3e1ebcb-a58e-4335-900e-a61d23584a73 (2026-09-16).
+	SecretLab_ChemicalCylinder = {asset=110305125083895, primary="cylinder_geom", meshes={
+		["window_geom"]="rbxassetid://84697275082637",
+		["valve_geom"]="rbxassetid://71269279706297",
+		["cylinder_geom"]="rbxassetid://99719968566070",
+	}, finishes={cylinder_geom={material=Enum.Material.Metal}, valve_geom={material=Enum.Material.Metal}, window_geom={glow=true,clearTexture=true,color=Color3.fromRGB(106,255,80)}}},
+	-- Studio MCP generate_mesh, 2825b016-a6f5-4d14-b7f4-3fe54289f384 (2026-09-16).
+	SecretLab_ContainmentTank = {asset=105064361391832, primary="frame_geom", meshes={
+		["specimen_geom"]="rbxassetid://108388815563140",
+		["fluid_geom"]="rbxassetid://129046285666803",
+		["glass_geom"]="rbxassetid://100492957953094",
+		["frame_geom"]="rbxassetid://121625256587596",
+	}, finishes={frame_geom={material=Enum.Material.Metal}, glass_geom={material=Enum.Material.Glass,transparency=0.85,clearTexture=true,color=Color3.fromRGB(196,242,255)}, fluid_geom={glow=true,color=Color3.fromRGB(71,234,255),transparency=0.72,clearTexture=true}, specimen_geom={material=Enum.Material.SmoothPlastic,mode="Hover",speed=1.1}}},
+	-- Studio MCP generate_mesh, a5b37653-2fac-4422-800f-30ea32ca93a9 (2026-09-16).
+	SecretLab_RobotSpider = {asset=118928598803711, primary="body_geom", meshes={
+		["satellite_geom"]="rbxassetid://134368225869226",
+		["sensors_geom"]="rbxassetid://105835129327101",
+		["legs_geom"]="rbxassetid://131749563825217",
+		["body_geom"]="rbxassetid://113510420546951",
+	}, finishes={body_geom={material=Enum.Material.Metal}, legs_geom={material=Enum.Material.Metal}, sensors_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,54,58)}, satellite_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.2}}},
+	-- Studio MCP generate_mesh, 758cc70a-5593-459a-99be-913bb9b8099e (2026-09-16).
+	SecretLab_MutationCrystal = {asset=80867123485295, primary="base_geom", meshes={
+		["crystals_geom"]="rbxassetid://80313655219224",
+		["base_geom"]="rbxassetid://113774794993687",
+	}, finishes={base_geom={material=Enum.Material.Slate,color=Color3.fromRGB(17,22,35)}, crystals_geom={glow=true,clearTexture=true,color=Color3.fromRGB(26,104,255)}}},
+	-- Studio MCP generate_mesh, f629a860-11dc-4497-935a-e7170c57b32b (2026-09-16).
+	SecretLab_CyanPlasma = {asset=128993140443671, primary="ring_geom", meshes={
+		["arcs_geom"]="rbxassetid://96522103944268",
+		["core_geom"]="rbxassetid://75702558937249",
+		["ring_geom"]="rbxassetid://136214337191781",
+	}, finishes={ring_geom={material=Enum.Material.Metal}, core_geom={glow=true,clearTexture=true,color=Color3.fromRGB(66,235,255),mode="Hover",speed=0.8}, arcs_geom={glow=true,clearTexture=true,color=Color3.fromRGB(66,235,255)}}},
+	-- Studio MCP generate_mesh, 6cc8c686-65dc-46f8-b4a4-4c8bfa67c59b (2026-09-16).
+	SecretLab_EnergyCore = {asset=74355149095886, primary="canister_geom", meshes={
+		["shafts_geom"]="rbxassetid://70426571043199",
+		["halos_geom"]="rbxassetid://105976400276429",
+		["core_geom"]="rbxassetid://84220646909555",
+		["glass_geom"]="rbxassetid://132621841968889",
+		["canister_geom"]="rbxassetid://71213076802776",
+	}, finishes={canister_geom={material=Enum.Material.Metal}, glass_geom={material=Enum.Material.Glass,transparency=0.85,clearTexture=true,color=Color3.fromRGB(240,251,255)}, core_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}, halos_geom={material=Enum.Material.Metal}, shafts_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}}},
 	-- Studio MCP generate_mesh, e20e27e4-a183-4f4f-9af6-00fe739523c1 (2026-09-16).
 	Bank_CashBag = {asset=77206487977847, primary="press_geom", meshes={
 		["slot_geom"]="rbxassetid://124383805408936",
