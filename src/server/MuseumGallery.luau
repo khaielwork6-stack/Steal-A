@@ -257,7 +257,14 @@ local function buildRoom(zone: Instance, index: number, roomIndex: number)
 		post = Instance.new("Part")
 		post.Name, post.Parent = "GuardianPost02", zone.GuardianSpawns
 	end
-	post.Size, post.CFrame = Vector3.new(1, 0.2, 1), frame * CFrame.new(-halfDoor - 8 - (index - 1), 0.1, -7) * CFrame.Angles(0, math.pi, 0)
+	-- Both guards sleep in the corridor on the far (+Z) side of their doorway, so
+	-- a thief leaving the room always has the guard BEHIND them. The two room
+	-- frames are mirrored (room 1 turns -90, room 2 +90), so local +X points to
+	-- world +Z in room 1 and world -Z in room 2: the sign has to flip with it.
+	-- The frame's look direction is out of the room, so the guard faces across
+	-- the corridor with its back to its own room's wall, not into the wall.
+	local deeper = if roomIndex == 1 then 1 else -1
+	post.Size, post.CFrame = Vector3.new(1, 0.2, 1), frame * CFrame.new(deeper * (halfDoor + 8 + (index - 1)), 0.1, -7)
 	post.Anchored, post.CanCollide, post.CanTouch, post.CanQuery, post.Transparency = true, false, false, false, 1
 	post:SetAttribute("RoomIndex", roomIndex)
 	require(script.Parent.MuseumExhibits).build(decor, frame, width, depth, index, palette.accent)

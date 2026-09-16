@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local LootService = require(script.Parent.LootService)
@@ -26,6 +27,8 @@ function MuseumTests.run(): any
 	check(not crossing(2.5, 5.2, 0, 13), "walk around beam endpoint")
 	check(Geometry.sweptBoxHit(Vector3.new(-8, 4, -8), Vector3.new(8, 0, 8), Vector3.new(0, 2, 0), Vector3.new(0, 2, 0), Vector3.one), "stationary diagonal overlap")
 	check(not Geometry.sweptBoxHit(Vector3.new(-8, 4, -8), Vector3.new(8, 0, 8), Vector3.new(6, 2, -6), Vector3.new(6, 2, -6), Vector3.one), "diagonal broad-phase false positive rejected")
+	check(Layout.DOOR_WIDTH >= 40, "museum doorways are at least 40 studs wide")
+	check(GameConfig.GUARDIAN_DOOR_GRACE >= 1 and GameConfig.GUARDIAN_DOOR_GRACE <= 2.5, "doorway grace is 1-2.5 seconds")
 	local floors = RaycastParams.new()
 	floors.FilterType, floors.FilterDescendantsInstances, floors.RespectCanCollide = Enum.RaycastFilterType.Include, { workspace.Map }, true
 	for index, def in ZoneConfig.Zones do
@@ -50,6 +53,16 @@ function MuseumTests.run(): any
 		check(checker and floor.Material ~= Enum.Material.Grass and floor.Material ~= Enum.Material.Sand, `{def.id} visible stone checker floor`)
 		check(#zone.SpawnSockets:GetChildren() == 8, `{def.id} eight sockets`)
 		check(#zone.GuardianSpawns:GetChildren() == 2, `{def.id} two guardian posts`)
+		-- Both guards sleep in the corridor on the far side of their doorway, so a
+		-- thief leaving a room always has its guard behind them.
+		for roomIndex, postName in { "GuardianPost", "GuardianPost02" } do
+			local post = zone.GuardianSpawns:FindFirstChild(postName) :: BasePart?
+			local doorZ = Layout.frame(index, roomIndex).Position.Z
+			check(post ~= nil and post.Position.Z > doorZ + Layout.DOOR_WIDTH / 2, `{def.id} room {roomIndex} guard sleeps past its doorway`)
+			check(post ~= nil and math.abs(post.Position.X) < Layout.CORRIDOR_HALF, `{def.id} room {roomIndex} guard sleeps in the corridor`)
+			-- Faces out across the corridor, back to its own room's wall.
+			check(post ~= nil and post.CFrame.LookVector:Dot(Vector3.new(if roomIndex == 1 then 1 else -1, 0, 0)) > 0.9, `{def.id} room {roomIndex} guard faces away from the wall`)
+		end
 		check(#zone.Rooms:GetChildren() == 2, `{def.id} left and right rooms`)
 		local structural = RaycastParams.new()
 		structural.FilterType, structural.RespectCanCollide = Enum.RaycastFilterType.Include, true
@@ -162,13 +175,20 @@ function MuseumTests.loops(player: Player): any
 				local id, token, income = loot.id, loot.spawnToken, loot.finalIncome
 				character:PivotTo(socket.part.CFrame + Vector3.new(0, 3, 5))
 				root.AssemblyLinearVelocity = Vector3.zero
-				Ragdoll.grantImmunity(player, 1.2) -- observe wake without a catch racing the assertion
+				Ragdoll.grantImmunity(player, 3) -- nothing may catch inside the observation window
 				task.wait(0.15)
 				local stolen = Carry.trySteal(player, loot)
-				local waking = Guardian.inspect(index, room)
+				task.wait(0.3)
+				local afterSteal = Guardian.inspect(index, room) -- a steal alone must stay quiet
+				-- Out through the doorway, into the corridor.
+				character:PivotTo(CFrame.new((if room == 1 then -1 else 1) * 8, 4, MapConfig.zoneCenterZ(index)))
+				root.AssemblyLinearVelocity = Vector3.zero
+				task.wait(0.35)
+				local alerted = Guardian.inspect(index, room)
 				local opposite = Guardian.inspect(index, 3 - room)
-				task.wait(0.7)
-				local chasing = Guardian.inspect(index, room)
+				local chasedAtDoor = player:GetAttribute("Chased") == true
+				task.wait(GameConfig.GUARDIAN_DOOR_GRACE * 0.4) -- well inside the grace, whatever it is set to
+				local held = Guardian.inspect(index, room) -- still inside the doorway grace
 				character:PivotTo(CFrame.new(0, 4, -16))
 				root.AssemblyLinearVelocity = Vector3.zero
 				task.wait(0.3)
@@ -176,7 +196,12 @@ function MuseumTests.loops(player: Player): any
 				Carry.reclaim(loot)
 				task.wait(require(ReplicatedStorage.Shared.Config.GameConfig).GUARDIAN_RETURN_DELAY + 0.2)
 				local same = socket.loot == loot and loot.id == id and loot.spawnToken == token and loot.finalIncome == income and loot.state == "Spawned"
-				table.insert(rows, { zone = index, room = room, oppositeSleeping = opposite and opposite.state == "Sleeping", stolen = stolen, wake = waking and waking.state, chase = chasing and chasing.state, escaped = escaped, returnedSameRoll = same })
+				table.insert(rows, { zone = index, room = room, stolen = stolen,
+					quietSteal = afterSteal ~= nil and afterSteal.state == "Sleeping",
+					alertAtDoor = alerted ~= nil and alerted.state == "Waking", chasedAtDoor = chasedAtDoor,
+					graceHeld = held ~= nil and held.state == "Waking",
+					oppositeSleeping = opposite ~= nil and opposite.state == "Sleeping",
+					escaped = escaped, returnedSameRoll = same })
 			end
 		end
 	end)
@@ -286,10 +311,20 @@ function MuseumTests.scenarios(player: Player): any
 		assert(not Ragdoll.isImmune(player), "Wait for recovery before catch test")
 		loot = take(3)
 		local id, token = loot.id, loot.spawnToken
-		task.wait(0.65)
+		task.wait(0.3)
+		local quiet = Guardian.inspect(3)
+		report.stealStayedQuiet = quiet ~= nil and quiet.state == "Sleeping"
+		-- Leaving the room raises the alert; the guard then holds for the grace.
 		local target = assert(Guardian.guardianPosition(3))
+		move(Vector3.new(target.X + 4, 3.2, target.Z))
+		task.wait(0.35)
+		local alerted = Guardian.inspect(3)
+		report.doorwayAlerted = alerted ~= nil and alerted.state == "Waking"
+		report.noCatchDuringGrace = Carry.getCarried(player) == loot
+		task.wait(GameConfig.GUARDIAN_DOOR_GRACE + 0.3)
+		target = assert(Guardian.guardianPosition(3))
 		move(Vector3.new(target.X, 3.2, target.Z))
-		task.wait(0.25)
+		task.wait(0.3)
 		report.caught = Carry.getCarried(player) == nil and Ragdoll.isImmune(player)
 		task.wait(2.3)
 		report.catchReturnedSameRoll = LootService.getSocket(3, 2).loot == loot and loot.state == "Spawned" and loot.id == id and loot.spawnToken == token
@@ -320,7 +355,10 @@ function MuseumTests.paths(player: Player): any
 	local Night = require(script.Parent.NightService)
 	local Laser = require(script.Parent.LaserService)
 	local Carry = require(script.Parent.CarryService)
+	local Data = require(script.Parent.DataService)
 	assert(not Carry.getCarried(player), "Finish carry first")
+	local profile = assert(Data.get(player))
+	local steals = profile.Lifetime.Steals
 	assert(not Night.isNight(), "Run during Day")
 	local character = assert(player.Character)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart
@@ -380,16 +418,173 @@ function MuseumTests.paths(player: Player): any
 		Laser.setCrouched(player, false)
 		task.wait(0.2)
 		local info = Guardian.inspect(3, 2)
+		-- A trip marks the thief; it no longer wakes the guard.
 		report.standingTrippedMatchingRoom = player:GetAttribute("LastLaserRoom") == 2 and player:GetAttribute("LastLaserZone") == 3
-			and info ~= nil and (info.state == "Waking" or info.state == "Chasing")
+			and Guardian.isSpotted(player, 3, 2)
+		report.laserDidNotWakeGuard = info ~= nil and info.state == "Sleeping"
 		report.laserLeftOppositeSleeping = Guardian.inspect(3, 1).state == "Sleeping"
+		-- ...and a spotted thief who leaves that room with its loot loses the
+		-- doorway grace: the guard is already chasing when an unspotted one would
+		-- still be waiting.
+		local socket = assert(LootService.getSocket(3, 6))
+		local loot = assert(socket.loot)
+		move(socket.part.Position + Vector3.new(0, 3, 5))
+		task.wait(0.2)
+		assert(Carry.trySteal(player, loot), "steal refused")
+		Ragdoll.grantImmunity(player, 3)
+		move(Vector3.new(8, 4, MapConfig.zoneCenterZ(3)))
+		task.wait((GameConfig.GUARDIAN_WAKE_DELAY + GameConfig.GUARDIAN_DOOR_GRACE) / 2 + 0.15)
+		local spotted = Guardian.inspect(3, 2)
+		report.spottedLostGrace = spotted ~= nil and spotted.state == "Chasing"
+		move(Vector3.new(0, 4, -16))
+		task.wait(0.3)
+		local carried = Carry.getCarried(player)
+		if carried then Carry.reclaim(carried) end
+		task.wait(GameConfig.GUARDIAN_RETURN_DELAY + 0.3)
 	end)
+	local leftover = Carry.getCarried(player)
+	if leftover then Carry.reclaim(leftover) end
 	Guardian.resetAll()
 	Laser.setCrouched(player, false)
+	profile.Lifetime.Steals = steals
 	character:PivotTo(saved)
 	root.AssemblyLinearVelocity = Vector3.zero
 	if not ok then report.error = tostring(err) end
 	return report
+end
+
+-- PHYSICAL ESCAPE AUDIT. Real chases with catch immunity OFF: the thing
+-- `loops` cannot show, because it holds immunity to watch the wake. For each
+-- zone and room it steals from the display nearest that room's guard, runs
+-- the thief out through the doorway and down the corridor with MoveTo, and
+-- records who gets away. The rule it checks is ZoneConfig's soft gate:
+--   75% of the recommended Speed -> CAUGHT
+--   100% and 150%                -> ESCAPED
+--   Zone 1 at the starting Speed -> ESCAPED (every new player's first steal)
+-- It changes SpeedPower and Lifetime.Steals on the tester's REAL profile
+-- (Studio saves to the live DataStore), and restores both however it ends.
+function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: { number }?): any
+	assert(game:GetService("RunService"):IsStudio(), "Studio only")
+	local Carry = require(script.Parent.CarryService)
+	local Guardian = require(script.Parent.GuardianService)
+	local Ragdoll = require(script.Parent.RagdollService)
+	local Night = require(script.Parent.NightService)
+	local Data = require(script.Parent.DataService)
+	local Speed = require(script.Parent.SpeedService)
+	local profile = assert(Data.get(player))
+	local character = assert(player.Character)
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart
+	local humanoid = character:FindFirstChildOfClass("Humanoid") :: Humanoid
+	assert(root and humanoid, "No character")
+	assert(not Carry.getCarried(player), "Finish current carry first")
+	local saved = { power = profile.SpeedPower, steals = profile.Lifetime.Steals }
+	local rows: { any } = {}
+	local passed, failed = 0, 0
+	local ok, err = pcall(function()
+		local list = zones or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
+		for _, index in list do
+			local recommended = ZoneConfig.Zones[index].recommendedSpeed
+			local runs = if recommended <= 0 then { 1 } else (fractions or { 0.75, 1, 1.5 })
+			for room = 1, Layout.ROOMS_PER_ZONE do
+				for _, fraction in runs do
+					Night.setDayRemaining(260)
+					Guardian.resetAll()
+					local recover = os.clock() + 12
+					while Ragdoll.isImmune(player) and os.clock() < recover do task.wait(0.1) end
+					task.wait(0.3)
+					local power = math.max(GameConfig.STARTING_SPEED_POWER, math.floor(recommended * fraction))
+					profile.SpeedPower = power
+					Speed.applyMovement(player)
+					local row: any = { zone = index, room = room, fraction = fraction, power = power }
+					table.insert(rows, row)
+					-- The display nearest this room's guard: the hardest one to get away with.
+					local post = assert(Guardian.guardianPosition(index, room))
+					local best: any, bestSocket, bestDistance = nil, 0, math.huge
+					for column = 1, Layout.ITEMS_PER_ROOM do
+						local number = (room - 1) * Layout.ITEMS_PER_ROOM + column
+						local socket = LootService.getSocket(index, number)
+						if socket and socket.loot and socket.loot.state == "Spawned" then
+							local distance = (socket.part.Position - post).Magnitude
+							if distance < bestDistance then best, bestSocket, bestDistance = socket, number, distance end
+						end
+					end
+					if not best then row.outcome = "NO LOOT"; failed += 1; continue end
+					local loot = best.loot
+					row.socket = bestSocket
+					character:PivotTo(best.part.CFrame * CFrame.new(0, 4, 6))
+					root.AssemblyLinearVelocity = Vector3.zero
+					task.wait(0.4)
+					if not Carry.trySteal(player, loot) then row.outcome = "STEAL REFUSED"; failed += 1; continue end
+					task.wait(0.25)
+					row.thiefSpeed = math.floor(humanoid.WalkSpeed * 10) / 10
+					local centreZ, side = MapConfig.zoneCenterZ(index), if room == 1 then -1 else 1
+					local route = {
+						Vector3.new(side * (Layout.CORRIDOR_HALF + 8), 0, centreZ),
+						Vector3.new(side * 6, 0, centreZ),
+						Vector3.new(0, 0, -8),
+					}
+					local leg, started = 1, os.clock()
+					local legFrom = Vector3.new(root.Position.X, 0, root.Position.Z)
+					row.outcome = "TIMEOUT"
+					local closest = math.huge
+					while os.clock() - started < 60 do
+						local at = root.Position
+						local flat = Vector3.new(at.X, 0, at.Z)
+						local goal = route[math.min(leg, #route)]
+						-- A fast runner overshoots a small arrival radius and circles, so a leg
+						-- also ends once the runner is past its goal along the leg.
+						if leg < #route and ((flat - goal).Magnitude < math.max(4, humanoid.WalkSpeed * 0.1)
+							or (flat - goal):Dot(goal - legFrom) >= 0) then
+							legFrom = goal
+							leg += 1
+						end
+						humanoid:MoveTo(route[math.min(leg, #route)])
+						if not row.alertAt and Guardian.hasLeftRoom(loot) then
+							row.alertAt = math.floor((os.clock() - started) * 100) / 100
+						end
+						if row.alertAt then
+							local guard = Guardian.guardianPosition(index, room)
+							if guard then closest = math.min(closest, Vector3.new(guard.X - at.X, 0, guard.Z - at.Z).Magnitude) end
+						end
+						if Carry.getCarried(player) ~= loot then
+							row.outcome = "CAUGHT"
+							row.at = string.format("%.0f,%.0f", at.X, at.Z)
+							break
+						end
+						if at.Z < 0 then
+							row.outcome = "ESCAPED"
+							break
+						end
+						task.wait()
+					end
+					row.seconds = math.floor((os.clock() - started) * 100) / 100
+					row.closestGuard = if closest < math.huge then math.floor(closest) else nil
+					humanoid:MoveTo(root.Position)
+					local expected = if recommended <= 0 or fraction >= 1 then "ESCAPED" else "CAUGHT"
+					row.expected = expected
+					row.pass = row.outcome == expected
+					if row.pass then passed += 1 else failed += 1 end
+					local carried = Carry.getCarried(player)
+					if carried then Carry.reclaim(carried) end
+					task.wait(GameConfig.GUARDIAN_RETURN_DELAY + 0.3)
+				end
+			end
+		end
+	end)
+	local carried = Carry.getCarried(player)
+	if carried then Carry.reclaim(carried) end
+	Guardian.resetAll()
+	profile.SpeedPower = saved.power
+	profile.Lifetime.Steals = saved.steals
+	Speed.applyMovement(player)
+	local lines = {}
+	for _, row in rows do
+		table.insert(lines, string.format("%s Z%02d R%d %3d%% ws=%s -> %s (want %s) alert@%s t=%s closest=%s%s",
+			if row.pass then "PASS" else "FAIL", row.zone, row.room, math.floor(row.fraction * 100),
+			tostring(row.thiefSpeed), tostring(row.outcome), tostring(row.expected), tostring(row.alertAt),
+			tostring(row.seconds), tostring(row.closestGuard), if row.at then " at " .. row.at else ""))
+	end
+	return { passed = passed, failed = failed, error = if ok then nil else tostring(err), lines = lines, restoredSpeedPower = saved.power }
 end
 
 return MuseumTests

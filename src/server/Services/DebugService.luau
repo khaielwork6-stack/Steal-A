@@ -60,6 +60,13 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	museumScenarios = function(player)
 		return require(script.Parent.MuseumTests).scenarios(player)
 	end,
+	--- Real chases, catch immunity off. Optional arrays: zones, speed fractions.
+	--- e.g. roomEscapeAudit(name, {1, 2}, {0.75, 1})
+	roomEscapeAudit = function(player, zones: any?, fractions: any?)
+		return require(script.Parent.MuseumTests).escapeAudit(player,
+			if type(zones) == "table" then zones else nil,
+			if type(fractions) == "table" then fractions else nil)
+	end,
 	validate = function()
 		return require(ReplicatedStorage.Shared.Config.validate)()
 	end,

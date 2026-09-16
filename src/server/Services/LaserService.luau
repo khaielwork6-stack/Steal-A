@@ -1,6 +1,8 @@
 --!strict
 -- Static beams, server-owned posture, occupied-zone queries at 10 Hz. The
 -- client sends only a crouch intent, never a hit/miss, beam or guardian id.
+-- A trip does not wake the guard: it marks the thief as spotted in that room,
+-- which costs them the doorway grace when they leave (GuardianService).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -10,6 +12,7 @@ local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
+local StateService = require(script.Parent.StateService)
 
 local LaserService = {}
 local INTERVAL = 0.1
@@ -105,7 +108,10 @@ local function step()
 				player:SetAttribute("LastLaserZone", index)
 				player:SetAttribute("LastLaserTrip", workspace:GetServerTimeNow())
 				player:SetAttribute("LastLaserRoom", room)
-				GuardianService.alarm(index, player, room)
+				if not GuardianService.isSpotted(player, index, room) then
+					StateService.notify(player, "error", "SPOTTED! The guard won't wait when you leave.")
+				end
+				GuardianService.markSpotted(player, index, room)
 			end
 		end
 	end

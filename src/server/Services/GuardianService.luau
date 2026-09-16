@@ -106,6 +106,15 @@ type Guardian = {
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
 -- never enough to clear an 80-stud containment wall.
 local WAKE_DELAY = GameConfig.GUARDIAN_WAKE_DELAY -- shocked beat before the chase; shared with the speed calibration
+local DOOR_GRACE = GameConfig.GUARDIAN_DOOR_GRACE -- a room guard's hold after a doorway alert
+local SPOTTED_SECONDS = GameConfig.GUARDIAN_SPOTTED_SECONDS
+local DOORWAY_INTERVAL = 0.1
+local nextDoorwayCheck = 0
+--- Loot whose carrier has taken it out of its room. Only this loot can be chased.
+local exitedLoot: { [string]: boolean } = {}
+type SpottedMark = { key: number, untilAt: number }
+--- Thieves a laser caught, per room: they lose the doorway grace.
+local spotted: { [Player]: SpottedMark } = {}
 
 -- Run-cycle tuning. Deliberately over the top: this is the first chase a new
 -- player ever sees and it should read as comedy, not as a walk.
@@ -842,7 +851,8 @@ end
 --
 --   Sleeping       at its post. Nothing wakes it but a steal, or loot from
 --                  its zone being dropped somewhere it can walk to.
---   Waking         the shocked beat after a steal (WAKE_DELAY), facing the thief.
+--   Waking         the alert beat, facing the thief: DOOR_GRACE after a thief
+--                  leaves its room with the loot, WAKE_DELAY otherwise.
 --   Chasing        after ONE thief at a time - the nearest carrier of this
 --                  zone's loot - re-evaluated every SCAN_INTERVAL. The pace
 --                  rises with distance and settles back when close (paceFor).
@@ -994,6 +1004,8 @@ end
 --- carried, carrier gone, no character, or already across the red line.
 local function asCarrier(guardian: Guardian, loot: LootService.LootInstance): Carrier?
 	if Layout.roomOfSocket(loot.socketIndex) ~= guardian.roomIndex then return nil end
+	-- A steal is quiet. Loot is only chaseable once it has left its room.
+	if not exitedLoot[loot.id] then return nil end
 	local player = loot.carrier
 	local root = guardian.root
 	if loot.state ~= "Carried" or not player or not player.Parent or not root then
@@ -1100,7 +1112,7 @@ end
 
 --- Takes a carrier as THE target. From sleep it is the shocked Waking beat
 --- with the alert; mid-job it is an immediate switch with no second alert.
-local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boolean)
+local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boolean, grace: number?)
 	local root = guardian.root
 	if not root then
 		return
@@ -1127,7 +1139,7 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 
 	if fromSleep then
 		guardian.state = "Waking"
-		guardian.wakeAt = os.clock() + WAKE_DELAY
+		guardian.wakeAt = os.clock() + (grace or WAKE_DELAY)
 		-- From a standstill: the first strides are an acceleration, not a launch.
 		guardian.currentSpeed = guardian.baseSpeed * 0.55
 		if guardian.humanoid then
@@ -1139,7 +1151,12 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 		-- Stand up and turn to face the thief.
 		local from = root.Position
 		local look = Vector3.new(carrier.root.Position.X, from.Y, carrier.root.Position.Z)
-		root.CFrame = CFrame.lookAt(from, look)
+		-- A thief standing exactly where the guardian stands makes lookAt a
+		-- zero vector: a NaN CFrame, and the engine deletes the root. Only turn
+		-- when there is somewhere to face.
+		if (look - from).Magnitude > 0.1 then
+			root.CFrame = CFrame.lookAt(from, look)
+		end
 	else
 		guardian.state = "Chasing"
 		guardian.wakeAt = nil
@@ -1317,6 +1334,8 @@ end
 --- its post - not walking home, HOME - with every thief's warning cleared.
 --- Loot a guardian was carrying goes straight back to its socket.
 function GuardianService.resetAll()
+	table.clear(exitedLoot)
+	table.clear(spotted)
 	for _, guardian in guardians do
 		if guardian.state == "Sleeping" then
 			continue
@@ -1646,8 +1665,92 @@ local function stepEscort(guardian: Guardian, _humanoid: Humanoid, _root: BasePa
 	nextJob(guardian)
 end
 
+-- ==========================================================
+-- MUSEUM DOORWAYS
+-- ==========================================================
+--
+-- A steal inside a room is quiet. The room's guard is alerted the moment the
+-- thief carries that room's loot out of the room, then holds DOOR_GRACE before
+-- chasing, so the thief can get lined up and running. The test is "the
+-- carrier is no longer inside the room the loot came from" (MuseumLayout.locate)
+-- at 10 Hz on the server. It is a region test, not a crossing test: a player
+-- too fast to be sampled in the doorway, a teleport and a wall clip all count
+-- the same. Out is out.
+--
+-- A laser trip no longer wakes anyone. It marks the thief as spotted in that
+-- room, and a spotted thief who leaves it gets only the ordinary wake beat.
+
+function GuardianService.markSpotted(player: Player, zoneIndex: number, roomIndex: number)
+	spotted[player] = { key = Layout.key(zoneIndex, roomIndex), untilAt = os.clock() + SPOTTED_SECONDS }
+end
+
+function GuardianService.isSpotted(player: Player, zoneIndex: number, roomIndex: number): boolean
+	local mark = spotted[player]
+	return mark ~= nil and mark.key == Layout.key(zoneIndex, roomIndex) and mark.untilAt > os.clock()
+end
+
+--- True once this loot's carrier has taken it out of its room.
+function GuardianService.hasLeftRoom(loot: LootService.LootInstance): boolean
+	return exitedLoot[loot.id] == true
+end
+
+local function doorwayExit(loot: LootService.LootInstance, player: Player, now: number)
+	exitedLoot[loot.id] = true
+	local key = Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))
+	local guardian = guardians[key]
+	if not guardian or not guardian.humanoid or not guardian.root then
+		return
+	end
+	local carrier = asCarrier(guardian, loot)
+	if not carrier then
+		return
+	end
+	local grace = DOOR_GRACE
+	local mark = spotted[player]
+	if mark and mark.key == key and mark.untilAt > now then
+		grace = WAKE_DELAY
+		spotted[player] = nil
+	end
+	local state = guardian.state
+	if state == "Sleeping" then
+		standUp(guardian)
+		beginChase(guardian, carrier, true, grace)
+	elseif state == "Returning" or state == "Recovering" then
+		beginChase(guardian, carrier, true, grace)
+	end
+	-- Waking or Chasing someone else: the scan picks this carrier up when it
+	-- is the nearer one, and nextJob does when the current job ends.
+end
+
+local function checkDoorways(now: number)
+	if LootService.isClosed() then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		local loot = GuardianService.alarmLootFor(player) -- CarryService.getCarried, wired in init
+		-- Base heists carry zone 0 / socket 0 and are never a museum guard's business.
+		if not loot or loot.state ~= "Carried" or loot.carrier ~= player or exitedLoot[loot.id]
+			or loot.zoneIndex < 1 or loot.socketIndex < 1 then
+			continue
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not root or not root:IsA("BasePart") then
+			continue
+		end
+		local zone, room = Layout.locate(root.Position)
+		if zone ~= loot.zoneIndex or room ~= Layout.roomOfSocket(loot.socketIndex) then
+			doorwayExit(loot, player, now)
+		end
+	end
+end
+
 local function step(dt: number)
 	local now = os.clock()
+	if now >= nextDoorwayCheck then
+		nextDoorwayCheck = now + DOORWAY_INTERVAL
+		checkDoorways(now)
+	end
 
 	for _, guardian in guardians do
 		animateShell(guardian, now)
@@ -1823,10 +1926,12 @@ function GuardianService.start()
 			GuardianService.noticeDrop(loot)
 		elseif next == "Returning" or next == "Placed" or next == "Spawned" then
 			GuardianService.stopChaseFor(loot)
+			exitedLoot[loot.id] = nil -- back in its case: the next steal is quiet again
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		spotted[player] = nil
 		for _, guardian in guardians do
 			if guardian.target == player then
 				releaseTarget(guardian)

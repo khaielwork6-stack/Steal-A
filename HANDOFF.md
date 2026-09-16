@@ -4916,3 +4916,151 @@ part budget measurement, not a mobile-device frame-rate certification.
 The owner's existing `.gitignore` modification is preserved and excluded from
 this implementation commit. Rojo sync was verified directly against Edit
 Script.Source and through fresh Play runs; no `rojo build` was used.
+
+## 47. Guards wake at the doorway (2026-09-16)
+
+§46's rooms looked right and played wrong. Eight real chases with catch
+immunity OFF were eight catches at the doorway: a brand-new player in Zone 1 at
+the starting Speed (caught at t=3.0s, so every new player's first steal
+failed), a Zone 2 thief at 400% of the recommendation running 59.7 studs/s
+against a ~27 studs/s guard, and a scripted kite. The guard woke on the steal
+and only had to walk ~18 studs to the jamb while the thief crossed ~60 studs
+of room toward it. `museumLoops` could not see this (it holds catch immunity)
+and `speedAudit` is arithmetic with no geometry.
+
+### The rule now (owner decision)
+
+1. **A steal is quiet.** Taking a display does not wake anyone.
+2. **The room's guard is alerted when the thief carries that room's loot out
+   of the room.** "!", flash, RUN!!, chase music and `Chased` all start there.
+3. **It then holds `GameConfig.GUARDIAN_DOOR_GRACE` (1s) before chasing**,
+   through the unchanged wake/steer/speed/catch/return path.
+4. **Lasers no longer wake the guard.** A trip marks the thief as spotted in
+   that room for `GUARDIAN_SPOTTED_SECONDS` (45s) and toasts "SPOTTED!"; a
+   spotted thief who leaves that room gets only `GUARDIAN_WAKE_DELAY`.
+
+Two rooms and two guards per zone, eight sockets, zone lengths, speed
+constants, odds, income and the save schema are all unchanged.
+
+### How it works
+
+- `GuardianService.asCarrier` only returns loot in `exitedLoot`, so the steal
+  listener, the scan, `nextJob` and every other chase entry are gated in one
+  place. `exitedLoot` is set by `doorwayExit`, cleared when the loot goes back
+  to Spawned/Returning/Placed, and cleared wholesale by `resetAll` (Night).
+- `checkDoorways` runs at 10 Hz inside the guardian Heartbeat. It is a REGION
+  test, not a crossing test: the carrier is "out" when
+  `MuseumLayout.locate(root)` is no longer the loot's own zone and room. A
+  300 studs/s player crosses a doorway between samples; a region test cannot
+  miss that, a teleport or a wall clip. It reads carries through the existing
+  `alarmLootFor` hook (CarryService.getCarried) and skips base heists, which
+  carry zone 0 / socket 0 and would otherwise resolve to a bogus room key.
+- `beginChase` takes an optional grace; a doorway alert passes DOOR_GRACE, or
+  WAKE_DELAY for a spotted thief. An alert also takes a guard that is
+  Returning or Recovering, with the same grace. A guard already busy with
+  another thief picks the new one up through the scan / `nextJob`.
+- `GuardianService.alarm` still exists (tests and the trap-root scenario use
+  it) but nothing in production calls it any more.
+
+### Map changes (MuseumGallery / MuseumLayout)
+
+- **Both guards sleep on the far (+Z) side of their doorway.** Room 1's post
+  was on the safe-line side, so a thief leaving room 1 ran straight past its
+  guard. Both rooms used the same local offset, but room 1's frame is rotated
+  -90° and room 2's +90°, so the offset landed on opposite sides. The sign now
+  flips with the room.
+- **Guards face out across the corridor**, back to their own room's wall. The
+  post used to add a 180° turn, which pointed every guard at the wall.
+- `DOOR_WIDTH` 28 -> 40.
+
+### A NaN that deleted a guard
+
+`beginChase` turned the guard with `CFrame.lookAt(from, thief)`. A thief
+standing at the guard's exact horizontal position makes that a zero vector,
+the CFrame goes NaN, and the engine removes the root: the guard sits at
+Y = -1,000,000 for the rest of the server. Reproduced on a fresh guard (root
+gone within 0.3s) and fixed by only turning when the offset exceeds 0.1 studs.
+It only triggers at exact coincidence, which a teleporting test hits and a
+walking player practically never does. It was latent before this pass; §46
+only avoided it by timing. `BaseGuardianService` has two similar `lookAt`s
+that were not changed.
+
+### `roomEscapeAudit`: the test that was missing
+
+`DebugInvoke("roomEscapeAudit", name, zones?, fractions?)`, for example
+`{1, 2}, {0.75, 1}`. For each zone and room it steals from the display nearest
+that room's guard, drives the thief with `MoveTo` out through the doorway and
+down the corridor, catch immunity OFF, and reports PASS/FAIL per run against:
+75% caught, 100%/150% escape, Zone 1 at the starting Speed escapes. It sets
+`SpeedPower` and bumps `Lifetime.Steals` on the tester's REAL profile and
+restores both however it ends.
+
+A long audit outlives one MCP call: fire it through `DebugRequest`, then poll
+`DebugResponse` for its id. The runner ends a leg once it is PAST the
+waypoint as well as when it is near it. The first version used a 4-stud
+arrival radius, and at 170+ studs/s the runner circled in the doorway and got
+"caught" there. Those were false failures in Zones 8-12: the test, not the
+game.
+
+### Measured (1s grace, one client, Studio)
+
+| Zones | 50% | 75% | 100% | 150% |
+|---|---|---|---|---|
+| 1, starting Speed | - | - | escapes | - |
+| 2 | escapes | escapes | escapes | escapes |
+| 3-5 | caught | escapes | escapes | - |
+| 6-12 | caught | caught | escapes | - |
+
+Catches in 6-12 happen out in the corridor: a real run-down. The 2s grace
+was only measured in Zones 1-2, where it gave the same results as 1s. 1s was
+kept: it is the low end of the owner's 1-2s range and the value every zone was
+measured at. In Zones 6-12 a 2s grace would add ~130-280 studs of head start
+and has NOT been measured there.
+
+**Open, and the owner's call: Zones 2-5 are forgiving to under-speed
+players.** Their door-to-safety runs are short (Pirate Island ~170 studs,
+~4s), and a guard that starts ~29 studs behind and accelerates from 55% cannot
+close that in the time. Zone 2 lets even 50% escape; the pre-museum map caught
+50% there (§19). This favours new players, which is what §42 was after. If it
+should be stricter, the lever is how far behind the doorway those posts sit
+(`halfDoor + 8 + (index - 1)`), not the speed constants.
+
+### Tests updated
+
+- `museumTests` 1,660 -> 1,684: door width >= 40, grace 1-2.5s, and for all 24
+  posts: past the doorway, in the corridor, facing away from the wall.
+- `museumLoops`: steal stays quiet, alert at the doorway, `Chased` set there,
+  still Waking inside the grace (sampled at 40% of the grace, not a fixed 1s),
+  the other room asleep, escape, same roll back.
+- `museumScenarios`: the real-catch step exits beside the guard, checks the
+  quiet steal, the doorway alert and no catch during the grace, then the catch.
+- `museumPaths`: a standing laser trip marks the thief without waking the
+  guard, and a spotted thief is already Chasing when an unspotted one would
+  still be Waking. It now restores `Lifetime.Steals`, since it steals.
+
+### Verified
+
+`validate` 1,667, `economyTests` 202,434 and `museumTests` 1,684, all with zero
+failures. Every check in `museumScenarios` and `museumPaths` is true.
+`museumLoops`: all 24 rooms pass every check. The facing was checked in a
+screenshot (Pirate Captain asleep, facing across the corridor, room wall
+behind him).
+
+### Studio saves to the live DataStore now: be careful
+
+Studio API access is ON (`DataService.isPersistent()` is true; the
+leaderboards say `OrderedDataStore`). Every Play session writes to the
+owner's real save, and autosave runs every 60s. A balance test during this pass
+changed the owner's `SpeedPower` to 700,000,000 and it was saved. It was put
+back to the exact prior value, **1,334,480,018**, read from
+`PlayerProfiles_v1` version history (`ListVersionsAsync`/`GetVersionAsync`
+on `player_<UserId>`, which the MCP thread cannot call but a DebugService
+command can). That test also added 9 to `Lifetime.Steals`; nothing reads it.
+
+Separately, between §46 and this pass seven items were moved from the owner's
+base into Storage (11 on display -> 6, Storage 2 -> 10, including the Giant
+Money Print Machine at $541,567/s). Nothing was lost. They are still in
+Storage, not re-equipped, pending the owner.
+
+Any test that changes a profile must save and restore what it touches, even
+on error.

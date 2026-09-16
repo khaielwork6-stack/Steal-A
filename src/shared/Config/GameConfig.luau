@@ -180,6 +180,13 @@ end
 
 --- The shocked beat between a steal and the chase (GuardianService.WAKE_DELAY).
 GameConfig.GUARDIAN_WAKE_DELAY = 0.55
+--- Museum rooms: a steal is quiet. The room guard is alerted the moment the
+--- thief carries its loot out through the doorway, then holds this long before
+--- chasing, so the thief can get lined up and running. Replaces the wake beat
+--- for doorway alerts only; a thief a laser spotted gets GUARDIAN_WAKE_DELAY.
+GameConfig.GUARDIAN_DOOR_GRACE = 1
+--- How long a laser trip marks a thief as spotted in that room.
+GameConfig.GUARDIAN_SPOTTED_SECONDS = 45
 --- The least a guardian may trail an at-gate player by, in studs/s.
 GameConfig.GUARDIAN_MIN_GATE_MARGIN = 0.5
 
