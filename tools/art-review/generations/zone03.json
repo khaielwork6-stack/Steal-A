@@ -1,0 +1,246 @@
+[
+  {
+    "generationId": "c954f839-fb09-410a-823e-16dcb0a5cb06",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Wide-bowled gold chalice with a simple twisted stem and broad circular foot. Deep crimson wine sits visibly inside the open bowl. Smooth authentic chalice curves, pleasantly exaggerated broad bowl. Common: matte ochre gold, no emission or polished reflections.",
+    "publishedAssetId": "122217002493466",
+    "tag": "Assistant-3bf8c25e-73c9-44f0-bce3-7899b2ad2ce2",
+    "id": "Castle_GoldenGoblet",
+    "primary": "goblet_geom",
+    "finishes": {
+      "goblet": {
+        "material": "SmoothPlastic"
+      },
+      "wine": {
+        "material": "Glass"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://94585333719235",
+        "name": "wine_geom",
+        "texture": "rbxassetid://74612159014649"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://126949456421904",
+        "name": "goblet_geom",
+        "texture": "rbxassetid://122308452361943"
+      }
+    ]
+  },
+  {
+    "generationId": "a825dfce-f6c8-48bf-b9ea-30103370039c",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A heavy carved gilt portrait frame, tall arch crest and thick ornate scrollwork corners, richer and heavier than a simple gallery frame. Painting depicts a purple-robed noble against a deep crimson ground. Small rear easel legs give depth. Uncommon, worn gold and royal-purple accents, no glow.",
+    "publishedAssetId": "115153745407354",
+    "tag": "Assistant-7ab84d2f-1877-474d-9cd5-d3751ede4e57",
+    "id": "Castle_RoyalPainting",
+    "primary": "frame_geom",
+    "finishes": {
+      "frame": {
+        "material": "Metal"
+      },
+      "stand": {
+        "material": "Wood"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87332797863152",
+        "name": "stand_geom",
+        "texture": "rbxassetid://91645325240406"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://125621963141238",
+        "name": "portrait_geom",
+        "texture": "rbxassetid://73146522131808"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://95268200953308",
+        "name": "frame_geom",
+        "texture": "rbxassetid://131864067239389"
+      }
+    ]
+  },
+  {
+    "generationId": "b96aeaca-6018-4ca6-a694-ad5d1eb3685d",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Silver royal seal stamp standing upright: bulbous faceted grip above a slim stem ending in a broad engraved crest stamp foot. Beside and beneath it spreads an irregular royal-purple wax puddle with an impressed lion crest, offset to one side. Clearly two-part composition; Rare polished silver and purple wax, no glow.",
+    "publishedAssetId": "82514225210748",
+    "tag": "Assistant-71317b67-dda9-492b-8be5-b4fad20ad8bd",
+    "id": "Castle_RoyalSeal",
+    "primary": "stamp_geom",
+    "finishes": {
+      "stamp": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87774333299427",
+        "name": "wax_geom",
+        "texture": "rbxassetid://129616377829811"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://95246490718660",
+        "name": "stamp_geom",
+        "texture": "rbxassetid://105693188593402"
+      }
+    ]
+  },
+  {
+    "generationId": "aae291de-4f91-4bbc-9c63-99644219a73f",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Oversized ornate gold key held almost horizontally, intricate open filigree bow at the left with generous loop holes, long decorative shaft and complex stepped ward bit at the right. A small amethyst sits in the head. Epic with a faint violet gem glow. Long horizontal silhouette with open bow, intricate smooth gold scrollwork.",
+    "publishedAssetId": "98615420129184",
+    "tag": "Assistant-de42ca0e-2e93-4b7b-a0a3-e72c89a8df2e",
+    "id": "Castle_GoldenKey",
+    "primary": "key_geom",
+    "finishes": {
+      "key": {
+        "material": "Metal"
+      },
+      "gem": {
+        "glow": true,
+        "color": [
+          177,
+          72,
+          255
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://83572834898578",
+        "name": "gem_geom",
+        "texture": "rbxassetid://87381311747648"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://135826160765912",
+        "name": "key_geom",
+        "texture": "rbxassetid://88597152055815"
+      }
+    ]
+  },
+  {
+    "generationId": "d2d9ff30-dbda-436e-9b0b-cc08805adb9f",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A tall heater shield with a pointed lower tip, gently curved deep crimson enamel face, rich gold rim, raised sculpted golden lion crest and central boss. Four emerald and ruby cabochons at cardinal points. Tilted backward on a discreet steel stand. Legendary rich gold, clear glowing gemstone details; imposing broad shield silhouette.",
+    "publishedAssetId": "134911969617335",
+    "tag": "Assistant-f6d68e13-c497-48a5-ad67-2829c78a4db5",
+    "id": "Castle_JeweledShield",
+    "primary": "shield_geom",
+    "finishes": {
+      "shield": {
+        "material": "Metal"
+      },
+      "gems": {
+        "glow": true,
+        "color": [
+          255,
+          130,
+          90
+        ]
+      },
+      "stand": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136124197069444",
+        "name": "stand_geom",
+        "texture": "rbxassetid://81319253064185"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116976930956094",
+        "name": "gems_geom",
+        "texture": "rbxassetid://86900806063708"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://125805352622975",
+        "name": "shield_geom",
+        "texture": "rbxassetid://103167868544075"
+      }
+    ]
+  },
+  {
+    "generationId": "55bdd054-b3a6-413f-9286-55449d94c266",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A sumptuous treasure chest with purple velvet lining, ornate curved gold corner fittings and sculpted feet, lid OPEN steeply. A small gold crown rests on the tilted lid, gold treasures visible inside; a large detached amethyst floats above the opening. Bright purple and warm-gold interior radiance. Mythic, regal and lavish. Crown and open lid make a stepped asymmetric outline.",
+    "publishedAssetId": "94127489206252",
+    "tag": "Assistant-2a64bfec-f151-4cf5-a053-1a529c02d685",
+    "id": "Castle_RoyalTreasureChest",
+    "primary": "chest_geom",
+    "finishes": {
+      "chest": {
+        "material": "Fabric"
+      },
+      "lid": {
+        "material": "Metal"
+      },
+      "crown": {
+        "material": "Metal"
+      },
+      "hover_gem": {
+        "glow": true,
+        "color": [
+          177,
+          72,
+          255
+        ],
+        "clearTexture": true,
+        "mode": "Hover",
+        "speed": 1.2
+      },
+      "inner_light": {
+        "glow": true,
+        "color": [
+          255,
+          224,
+          142
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://114480714629832",
+        "name": "inner_light_geom",
+        "texture": "rbxassetid://111730713861896"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://76031517919659",
+        "name": "hover_gem_geom",
+        "texture": "rbxassetid://118116793647026"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82676176097312",
+        "name": "crown_geom",
+        "texture": "rbxassetid://94570378303263"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77848098477738",
+        "name": "lid_geom",
+        "texture": "rbxassetid://71161868706327"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105455695563185",
+        "name": "chest_geom",
+        "texture": "rbxassetid://116490635614833"
+      }
+    ]
+  }
+]

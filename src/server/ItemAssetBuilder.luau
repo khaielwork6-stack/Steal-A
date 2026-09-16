@@ -8,8 +8,43 @@ local LootModel = require(game:GetService("ReplicatedStorage").Shared.Util.LootM
 local Builder = {}
 type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, glow: boolean?,
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
-type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?}
+type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, c954f839-fb09-410a-823e-16dcb0a5cb06 (2026-09-16).
+	Castle_GoldenGoblet = {asset=122217002493466, primary="goblet_geom", meshes={
+		["wine_geom"]="rbxassetid://94585333719235",
+		["goblet_geom"]="rbxassetid://126949456421904",
+	}, finishes={goblet_geom={material=Enum.Material.SmoothPlastic}, wine_geom={material=Enum.Material.Glass}}},
+	-- Studio MCP generate_mesh, a825dfce-f6c8-48bf-b9ea-30103370039c (2026-09-16).
+	Castle_RoyalPainting = {asset=115153745407354, primary="frame_geom", meshes={
+		["stand_geom"]="rbxassetid://87332797863152",
+		["portrait_geom"]="rbxassetid://125621963141238",
+		["frame_geom"]="rbxassetid://95268200953308",
+	}, finishes={frame_geom={material=Enum.Material.Metal}, stand_geom={material=Enum.Material.Wood}}},
+	-- Studio MCP generate_mesh, b96aeaca-6018-4ca6-a694-ad5d1eb3685d (2026-09-16).
+	Castle_RoyalSeal = {asset=82514225210748, primary="stamp_geom", meshes={
+		["wax_geom"]="rbxassetid://87774333299427",
+		["stamp_geom"]="rbxassetid://95246490718660",
+	}, finishes={stamp_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, aae291de-4f91-4bbc-9c63-99644219a73f (2026-09-16).
+	Castle_GoldenKey = {asset=98615420129184, primary="key_geom", authorRotation=CFrame.Angles(0,0,math.pi/2)*CFrame.Angles(math.pi/2,0,0), meshes={
+		["gem_geom"]="rbxassetid://83572834898578",
+		["key_geom"]="rbxassetid://135826160765912",
+	}, finishes={key_geom={material=Enum.Material.Metal}, gem_geom={glow=true,color=Color3.fromRGB(177,72,255),clearTexture=true}}},
+	-- Studio MCP generate_mesh, d2d9ff30-dbda-436e-9b0b-cc08805adb9f (2026-09-16).
+	Castle_JeweledShield = {asset=134911969617335, primary="shield_geom", meshes={
+		["stand_geom"]="rbxassetid://136124197069444",
+		["gems_geom"]="rbxassetid://116976930956094",
+		["shield_geom"]="rbxassetid://125805352622975",
+	}, finishes={shield_geom={material=Enum.Material.Metal}, gems_geom={glow=true,color=Color3.fromRGB(255,130,90)}, stand_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 55bdd054-b3a6-413f-9286-55449d94c266 (2026-09-16).
+	Castle_RoyalTreasureChest = {asset=94127489206252, primary="chest_geom", meshes={
+		["inner_light_geom"]="rbxassetid://114480714629832",
+		["hover_gem_geom"]="rbxassetid://76031517919659",
+		["crown_geom"]="rbxassetid://82676176097312",
+		["lid_geom"]="rbxassetid://77848098477738",
+		["chest_geom"]="rbxassetid://105455695563185",
+	}, finishes={chest_geom={material=Enum.Material.Fabric}, lid_geom={material=Enum.Material.Metal}, crown_geom={material=Enum.Material.Metal}, hover_gem_geom={glow=true,color=Color3.fromRGB(177,72,255),clearTexture=true,mode="Hover",speed=1.2}, inner_light_geom={glow=true,color=Color3.fromRGB(255,224,142),clearTexture=true}}},
 	-- Studio MCP generate_mesh, 0113e8f2-d6bb-46c2-b2cd-c0eaa1179f46 (2026-09-16).
 	Pirate_CaptainsHat = {asset=103102831491969, primary="hat_geom", meshes={
 		["skull_badge_geom"]="rbxassetid://80945403095686",
@@ -258,6 +293,20 @@ local function construct(id: string, def: Definition): Model
 		end
 		local primary = model:FindFirstChild(def.primary) :: BasePart
 		assert(primary and primary.CFrame.UpVector:Dot(Vector3.yAxis) > 0.9999, id .. " is not upright")
+		if def.authorRotation then
+			-- Some generated meshes arrive flat. Author their geometry upright here;
+			-- an invisible upright pivot preserves the resolver's frame contract.
+			local center = model:GetBoundingBox().Position
+			for _, part in model:GetChildren() do
+				if part:IsA("BasePart") then part.CFrame = CFrame.new(center) * def.authorRotation * (part.CFrame - center) end
+			end
+			local root = Instance.new("Part")
+			root.Name, root.Size, root.Transparency = "ItemArtRoot", Vector3.one * 0.05, 1
+			root.CFrame = CFrame.new(center)
+			configure(root, false)
+			root.Parent = model
+			primary = root
+		end
 		model.PrimaryPart = primary
 		-- First author the imported mesh at five studs, then fit accents as a unit.
 		local _, size = model:GetBoundingBox()
