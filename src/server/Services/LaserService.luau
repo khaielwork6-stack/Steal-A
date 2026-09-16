@@ -1,8 +1,9 @@
 --!strict
 -- Static beams, server-owned posture, occupied-zone queries at 10 Hz. The
 -- client sends only a crouch intent, never a hit/miss, beam or guardian id.
--- A trip does not wake the guard: it marks the thief as spotted in that room,
--- which costs them the doorway grace when they leave (GuardianService).
+-- A trip wakes that room's guard at once and it chases whoever touched the
+-- beam, carrying or not (GuardianService.alarm). The other trigger is
+-- leaving the room with its loot (GuardianService, MUSEUM DOORWAYS).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -12,7 +13,6 @@ local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
-local StateService = require(script.Parent.StateService)
 
 local LaserService = {}
 local INTERVAL = 0.1
@@ -23,6 +23,8 @@ local fields: { Field } = {}
 local previous: { [Player]: Sample } = {}
 local crouched: { [Player]: boolean } = {}
 local cooldown: { [Player]: { [number]: number } } = {}
+--- Studio test hook: players the detector ignores (see setExempt).
+local exempt: { [Player]: boolean } = {}
 local metrics = { queries = 0, narrowChecks = 0, trips = 0, lastStepMs = 0, maxStepMs = 0 }
 
 local function validBody(player: Player): (Model?, BasePart?, Humanoid?)
@@ -57,6 +59,7 @@ local function step()
 			if crouched[player] then LaserService.setCrouched(player, false) end
 			continue
 		end
+		if exempt[player] then previous[player] = nil; continue end
 		if crouched[player] then LaserService.setCrouched(player, true) end
 		-- Feet follow the actual rig, so jumping clears low beams. Crouching
 		-- changes only this laser silhouette; movement/carry speed is untouched.
@@ -108,15 +111,20 @@ local function step()
 				player:SetAttribute("LastLaserZone", index)
 				player:SetAttribute("LastLaserTrip", workspace:GetServerTimeNow())
 				player:SetAttribute("LastLaserRoom", room)
-				if not GuardianService.isSpotted(player, index, room) then
-					StateService.notify(player, "error", "SPOTTED! The guard won't wait when you leave.")
-				end
-				GuardianService.markSpotted(player, index, room)
+				GuardianService.alarm(index, player, room)
 			end
 		end
 	end
 	metrics.lastStepMs = (os.clock() - started) * 1000
 	metrics.maxStepMs = math.max(metrics.maxStepMs, metrics.lastStepMs)
+end
+
+--- Studio only. Lets an audit drive a player through a room to measure the
+--- doorway rule on its own, without its route tripping a beam. Ignored live.
+function LaserService.setExempt(player: Player, on: boolean)
+	if RunService:IsStudio() then
+		exempt[player] = if on then true else nil
+	end
 end
 
 function LaserService.snapshot(): any
@@ -143,6 +151,7 @@ function LaserService.start()
 	Players.PlayerAdded:Connect(watch)
 	Players.PlayerRemoving:Connect(function(player)
 		previous[player], crouched[player], cooldown[player] = nil, nil, nil
+		exempt[player] = nil
 		limiter:release(player)
 	end)
 	local accumulated = 0

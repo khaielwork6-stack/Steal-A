@@ -418,29 +418,10 @@ function MuseumTests.paths(player: Player): any
 		Laser.setCrouched(player, false)
 		task.wait(0.2)
 		local info = Guardian.inspect(3, 2)
-		-- A trip marks the thief; it no longer wakes the guard.
+		-- Touching a beam wakes that room's guard at once, carrying or not.
 		report.standingTrippedMatchingRoom = player:GetAttribute("LastLaserRoom") == 2 and player:GetAttribute("LastLaserZone") == 3
-			and Guardian.isSpotted(player, 3, 2)
-		report.laserDidNotWakeGuard = info ~= nil and info.state == "Sleeping"
+			and info ~= nil and (info.state == "Waking" or info.state == "Chasing")
 		report.laserLeftOppositeSleeping = Guardian.inspect(3, 1).state == "Sleeping"
-		-- ...and a spotted thief who leaves that room with its loot loses the
-		-- doorway grace: the guard is already chasing when an unspotted one would
-		-- still be waiting.
-		local socket = assert(LootService.getSocket(3, 6))
-		local loot = assert(socket.loot)
-		move(socket.part.Position + Vector3.new(0, 3, 5))
-		task.wait(0.2)
-		assert(Carry.trySteal(player, loot), "steal refused")
-		Ragdoll.grantImmunity(player, 3)
-		move(Vector3.new(8, 4, MapConfig.zoneCenterZ(3)))
-		task.wait((GameConfig.GUARDIAN_WAKE_DELAY + GameConfig.GUARDIAN_DOOR_GRACE) / 2 + 0.15)
-		local spotted = Guardian.inspect(3, 2)
-		report.spottedLostGrace = spotted ~= nil and spotted.state == "Chasing"
-		move(Vector3.new(0, 4, -16))
-		task.wait(0.3)
-		local carried = Carry.getCarried(player)
-		if carried then Carry.reclaim(carried) end
-		task.wait(GameConfig.GUARDIAN_RETURN_DELAY + 0.3)
 	end)
 	local leftover = Carry.getCarried(player)
 	if leftover then Carry.reclaim(leftover) end
@@ -471,6 +452,7 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	local Night = require(script.Parent.NightService)
 	local Data = require(script.Parent.DataService)
 	local Speed = require(script.Parent.SpeedService)
+	local Laser = require(script.Parent.LaserService)
 	local profile = assert(Data.get(player))
 	local character = assert(player.Character)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart
@@ -480,6 +462,11 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	local saved = { power = profile.SpeedPower, steals = profile.Lifetime.Steals }
 	local rows: { any } = {}
 	local passed, failed = 0, 0
+	-- This audit measures the DOORWAY rule. The scripted route crosses beams, and
+	-- a trip is a separate, immediate chase, so the runner is kept out of the
+	-- laser detector for the duration and the trip count is reported.
+	Laser.setExempt(player, true)
+	local tripsBefore = Laser.snapshot().trips
 	local ok, err = pcall(function()
 		local list = zones or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
 		for _, index in list do
@@ -577,6 +564,8 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	profile.SpeedPower = saved.power
 	profile.Lifetime.Steals = saved.steals
 	Speed.applyMovement(player)
+	Laser.setExempt(player, false)
+	local laserTrips = Laser.snapshot().trips - tripsBefore
 	local lines = {}
 	for _, row in rows do
 		table.insert(lines, string.format("%s Z%02d R%d %3d%% ws=%s -> %s (want %s) alert@%s t=%s closest=%s%s",
@@ -584,7 +573,7 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 			tostring(row.thiefSpeed), tostring(row.outcome), tostring(row.expected), tostring(row.alertAt),
 			tostring(row.seconds), tostring(row.closestGuard), if row.at then " at " .. row.at else ""))
 	end
-	return { passed = passed, failed = failed, error = if ok then nil else tostring(err), lines = lines, restoredSpeedPower = saved.power }
+	return { passed = passed, failed = failed, error = if ok then nil else tostring(err), lines = lines, laserTrips = laserTrips, restoredSpeedPower = saved.power }
 end
 
 return MuseumTests

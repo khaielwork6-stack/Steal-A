@@ -5004,6 +5004,9 @@ game.
 
 ### Measured (1s grace, one client, Studio)
 
+> Superseded by §48: these runs crossed lasers and were not measuring the
+> doorway rule on its own.
+
 | Zones | 50% | 75% | 100% | 150% |
 |---|---|---|---|---|
 | 1, starting Speed | - | - | escapes | - |
@@ -5064,3 +5067,62 @@ Storage, not re-equipped, pending the owner.
 
 Any test that changes a profile must save and restore what it touches, even
 on error.
+
+## 48. Lasers wake the guard again; the doorway numbers re-measured (2026-09-16)
+
+### The rule (owner decision, replaces §47's rule 4)
+
+A room guard chases on EITHER trigger, and on nothing else:
+
+1. **Touching a laser** in its room: the guard wakes at once
+   (`GuardianService.alarm`, the ordinary `GUARDIAN_WAKE_DELAY` beat) and
+   chases whoever touched the beam, carrying or not. A catch ragdolls the
+   player and takes back any loot they carry.
+2. **Leaving the room with its loot** (§47): alert at the doorway, then
+   `GUARDIAN_DOOR_GRACE` (1s) before the chase.
+
+A player who touches no laser and never leaves the room is never chased, even
+while holding the loot. §47's "spotted" mark, its toast and
+`GUARDIAN_SPOTTED_SECONDS` are gone.
+
+Verified live, one client:
+- Empty-handed, walked through a Zone 3 beam: Waking at 0.53s, Chasing at
+  1.07s, hit (ragdolled) at 3.00s, guard home and asleep at 4.00s.
+- Holding Zone 5 loot inside the room for 5s, touching nothing: the guard
+  stayed Sleeping and `Chased` stayed false.
+- Holding that loot, walked through a Zone 5 beam: Chasing at 0.98s (the wake
+  beat, no doorway grace), caught, loot back in its case.
+
+### §47's escape table was contaminated
+
+The audit's scripted route from a display to the doorway crosses beams. Under
+§47's rule a trip marked the runner as spotted, so those runs mostly got the
+0.55s wake instead of the 1s grace. Under this rule a trip is a separate,
+immediate chase. Either way the audit was not measuring the doorway rule on its
+own. `roomEscapeAudit` now exempts the tester from the laser detector for its
+duration (`LaserService.setExempt`, Studio only, ignored live) and reports
+`laserTrips`, which must be 0.
+
+Re-measured with the exemption (0 laser trips), 1s grace, 68 runs:
+
+| Zones | 50% | 75% | 100% |
+|---|---|---|---|
+| 1, starting Speed | - | - | escapes |
+| 2 | escapes | escapes | escapes |
+| 3 | one room escapes, one caught | escapes | escapes |
+| 4-5 | caught | escapes | escapes |
+| 6-12 | caught | caught | escapes (one exception below) |
+
+This supersedes the table in §47. The picture is the same: Zones 6-12
+enforce the recommendation, and Zones 2-5 are lenient to under-speed players
+(still the owner's call; see §47 for the lever). One anomaly: Zone 10 room 1
+at 100% was caught at t=2.28 beside its doorway, while room 2 escaped. It was
+not reproduced or investigated; rerun `roomEscapeAudit(name, {10}, {1})`
+before trusting either result.
+
+### Verified
+
+`validate` 1,667, `economyTests` 202,434, `museumTests` 1,684, zero failures;
+`museumLoops` 24/24; every `museumScenarios` and `museumPaths` check true
+(the path test again expects a standing trip to wake the matching room's
+guard). The owner's SpeedPower was confirmed at 1,334,480,018 afterwards.

@@ -107,14 +107,10 @@ type Guardian = {
 -- never enough to clear an 80-stud containment wall.
 local WAKE_DELAY = GameConfig.GUARDIAN_WAKE_DELAY -- shocked beat before the chase; shared with the speed calibration
 local DOOR_GRACE = GameConfig.GUARDIAN_DOOR_GRACE -- a room guard's hold after a doorway alert
-local SPOTTED_SECONDS = GameConfig.GUARDIAN_SPOTTED_SECONDS
 local DOORWAY_INTERVAL = 0.1
 local nextDoorwayCheck = 0
 --- Loot whose carrier has taken it out of its room. Only this loot can be chased.
 local exitedLoot: { [string]: boolean } = {}
-type SpottedMark = { key: number, untilAt: number }
---- Thieves a laser caught, per room: they lose the doorway grace.
-local spotted: { [Player]: SpottedMark } = {}
 
 -- Run-cycle tuning. Deliberately over the top: this is the first chase a new
 -- player ever sees and it should read as comedy, not as a walk.
@@ -1335,7 +1331,6 @@ end
 --- Loot a guardian was carrying goes straight back to its socket.
 function GuardianService.resetAll()
 	table.clear(exitedLoot)
-	table.clear(spotted)
 	for _, guardian in guardians do
 		if guardian.state == "Sleeping" then
 			continue
@@ -1677,24 +1672,16 @@ end
 -- too fast to be sampled in the doorway, a teleport and a wall clip all count
 -- the same. Out is out.
 --
--- A laser trip no longer wakes anyone. It marks the thief as spotted in that
--- room, and a spotted thief who leaves it gets only the ordinary wake beat.
-
-function GuardianService.markSpotted(player: Player, zoneIndex: number, roomIndex: number)
-	spotted[player] = { key = Layout.key(zoneIndex, roomIndex), untilAt = os.clock() + SPOTTED_SECONDS }
-end
-
-function GuardianService.isSpotted(player: Player, zoneIndex: number, roomIndex: number): boolean
-	local mark = spotted[player]
-	return mark ~= nil and mark.key == Layout.key(zoneIndex, roomIndex) and mark.untilAt > os.clock()
-end
+-- The other trigger is a laser: LaserService calls `alarm`, which wakes the
+-- room guard at once and chases the player who touched it, carrying or not.
+-- A player who touches no laser and never leaves the room is never chased.
 
 --- True once this loot's carrier has taken it out of its room.
 function GuardianService.hasLeftRoom(loot: LootService.LootInstance): boolean
 	return exitedLoot[loot.id] == true
 end
 
-local function doorwayExit(loot: LootService.LootInstance, player: Player, now: number)
+local function doorwayExit(loot: LootService.LootInstance)
 	exitedLoot[loot.id] = true
 	local key = Layout.key(loot.zoneIndex, Layout.roomOfSocket(loot.socketIndex))
 	local guardian = guardians[key]
@@ -1705,24 +1692,18 @@ local function doorwayExit(loot: LootService.LootInstance, player: Player, now: 
 	if not carrier then
 		return
 	end
-	local grace = DOOR_GRACE
-	local mark = spotted[player]
-	if mark and mark.key == key and mark.untilAt > now then
-		grace = WAKE_DELAY
-		spotted[player] = nil
-	end
 	local state = guardian.state
 	if state == "Sleeping" then
 		standUp(guardian)
-		beginChase(guardian, carrier, true, grace)
+		beginChase(guardian, carrier, true, DOOR_GRACE)
 	elseif state == "Returning" or state == "Recovering" then
-		beginChase(guardian, carrier, true, grace)
+		beginChase(guardian, carrier, true, DOOR_GRACE)
 	end
 	-- Waking or Chasing someone else: the scan picks this carrier up when it
 	-- is the nearer one, and nextJob does when the current job ends.
 end
 
-local function checkDoorways(now: number)
+local function checkDoorways()
 	if LootService.isClosed() then
 		return
 	end
@@ -1740,7 +1721,7 @@ local function checkDoorways(now: number)
 		end
 		local zone, room = Layout.locate(root.Position)
 		if zone ~= loot.zoneIndex or room ~= Layout.roomOfSocket(loot.socketIndex) then
-			doorwayExit(loot, player, now)
+			doorwayExit(loot)
 		end
 	end
 end
@@ -1749,7 +1730,7 @@ local function step(dt: number)
 	local now = os.clock()
 	if now >= nextDoorwayCheck then
 		nextDoorwayCheck = now + DOORWAY_INTERVAL
-		checkDoorways(now)
+		checkDoorways()
 	end
 
 	for _, guardian in guardians do
@@ -1931,7 +1912,6 @@ function GuardianService.start()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
-		spotted[player] = nil
 		for _, guardian in guardians do
 			if guardian.target == player then
 				releaseTarget(guardian)
