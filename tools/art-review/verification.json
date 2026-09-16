@@ -1,0 +1,131 @@
+{
+  "generated": 94,
+  "retainedOldArt": [
+    "SecretLab_SecretFormula",
+    "Grandma_CandyBowl"
+  ],
+  "normalization": {
+    "ok": 96
+  },
+  "upright": {
+    "items": 96,
+    "offenders": [],
+    "notUpright": 0
+  },
+  "assetAudit": {
+    "maximumParts": 16,
+    "failures": [],
+    "checks": 4318,
+    "generated": 94,
+    "scaleBuilds": 564,
+    "effectBuilds": 846,
+    "oldArt": [
+      "SecretLab_SecretFormula",
+      "Grandma_CandyBowl"
+    ]
+  },
+  "validate": {
+    "passed": 1667,
+    "failed": []
+  },
+  "economyTests": {
+    "failed": [],
+    "passed": 202434,
+    "sections": {
+      "funnel": {
+        "passed": 12,
+        "failed": 0
+      },
+      "hatch": {
+        "passed": 384,
+        "failed": 0
+      },
+      "scale": {
+        "passed": 149,
+        "failed": 0
+      },
+      "validate": {
+        "passed": 1,
+        "failed": 0
+      },
+      "zone9": {
+        "passed": 8,
+        "failed": 0
+      },
+      "migration": {
+        "passed": 58,
+        "failed": 0
+      },
+      "hatchMigration": {
+        "passed": 15,
+        "failed": 0
+      },
+      "mutations": {
+        "passed": 200040,
+        "failed": 0
+      },
+      "night": {
+        "passed": 93,
+        "failed": 0
+      },
+      "format": {
+        "passed": 7,
+        "failed": 0
+      }
+    }
+  },
+  "museumTests": {
+    "passed": 1684,
+    "failed": []
+  },
+  "boot": {
+    "generatedMeshes": 94,
+    "workers": 8,
+    "meshSeconds": 5.6067542,
+    "serverSeconds": 6.32,
+    "containers": 12,
+    "sockets": 96
+  },
+  "runtime": {
+    "fullBaseTrophies": 14,
+    "phonePreviewPixels": [
+      844,
+      390
+    ],
+    "phoneMethod": "Static trophy/base geometry preview in a ViewportFrame; not device emulation or physical phone profiling.",
+    "desktopFullBase": {
+      "medianMs": 66.735,
+      "p95Ms": 69.1245
+    },
+    "desktopBaseline": {
+      "medianMs": 66.7358,
+      "p95Ms": 70.2042
+    },
+    "mobilePerformanceVerified": false,
+    "reducedEffects": {
+      "animatedJoints": 22,
+      "changedWhenOn": 0,
+      "changedWhenOff": 22,
+      "particlesEnabledWhenOn": 0
+    },
+    "storeReequip": "Passed for temporary Private Jet fixture",
+    "reveals": [
+      "Airport_PrivateJet",
+      "Grandma_CookieJar",
+      "Gym_CoachsWhistle"
+    ],
+    "roulette": "Observed ten Gym silhouette models including seven different decoys and final Gym_CoachsWhistle."
+  },
+  "restoration": {
+    "restored": true,
+    "blockedSaves": 6,
+    "displays": 6,
+    "saved": true,
+    "stored": 10,
+    "speedPower": 1339738258
+  },
+  "limitations": [
+    "Two item generations unresolved; original art retained.",
+    "Actual mobile hardware performance not verified; Studio samples were approximately 15 FPS with both baseline and full base."
+  ]
+}

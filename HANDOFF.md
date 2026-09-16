@@ -5159,3 +5159,89 @@ Studio-only `itemArtReview` debug command snapshots the tester's profile,
 withholds saves during fixtures, and restores the snapshot before saving.
 Use already-free pads; never move existing items. These review candidates still
 need the owner's rarity-sheet approval before zone-by-zone production continues.
+
+## 50. Mesh loot catalog: 94 replacements, two retained originals (2026-09-16)
+
+This supersedes §49's eleven-item checkpoint. The owner approved the vase and
+rarity ladder, then authorized the rest without stopping on individual failures.
+There are now 94 generated-mesh replacements, committed by zone. Two items
+still use their saved-place art: `SecretLab_SecretFormula` (Mutant Specimen)
+and `Grandma_CandyBowl` (Grandmas Cookies). The two specimen attempts made a
+jar but no creature; both cookie requests failed moderation. Exact prompts,
+errors and retry records are in `tools/art-review/FAILED.md` and the generation
+JSON files. The cookie retry accidentally reused the same wording; it was not
+a successful neutral rewrite. Do not quietly mark either item complete.
+
+### Where the art lives
+
+`ItemAssetBuilder.luau` is the source of truth. Each definition records the
+published model asset, every expected mesh ID, the Studio generation ID,
+materials and motion. Main bodies are generated meshes; small lights and gems
+are accents. `decorate` and `finalDetails` correct generated segmentation,
+pose imported geometry and add generated halo meshes. Generation labels are
+not reliable: a piece named "light" may actually be the whole casing. Inspect
+the actual shape before assigning Neon or motion.
+
+The builder still runs after `rebuildGalleries()` and the early, existing
+`MysteryModel.folder()` call, before services publish previews. Eight workers
+load concurrently and all finish before services start. Each load error gets
+one retry. Successful models install atomically per item; failed loads retain
+prior art instead of aborting the game. This supersedes §49's fail-the-whole-
+startup behavior. `LEGACY_NAMES` copies an old alias to its durable ItemId at
+runtime when a replacement is unavailable, leaving the saved-place original
+untouched. `LootModel` fits these fallback clones from their own dimensions,
+so a new mesh's normalization row cannot distort old art during an outage.
+
+`ModelOverrides` is empty, `modelNameFor` remains, and all 96 Normalization
+rows were regenerated through the live debug bridge. A comparison with
+9759064 confirms those are the only changed config tables; item IDs, names,
+rarities, economy and save fields are unchanged. The map, rooms, lasers,
+guardians and sealed-container geometry are unchanged.
+
+### Editing another item
+
+Generate in Studio with a specific shape brief and the approved stylized-realism
+finish. Add its model ID and expected MeshIDs to the builder; keep its existing
+ItemId. Author it upright, with identity PivotOffsets and an upright root.
+Use `authorRotation` for a flat import, which adds an invisible upright root.
+Keep all parts welded, non-colliding and unanchored; the builder fits visible
+geometry once and seats it at Y=0. Motion attributes are consumed by the one
+client controller, relative to DisplayFx's whole-model movement. Hover, orbit,
+spin and pendulum swing cull by distance and stop under Reduced Effects.
+
+Start fresh Play after Rojo has synced; changing source while Play is already
+running does not replace required module caches. Regenerate the affected audit
+rows, review its zone's eight black outlines and actual UI/pedestal appearance,
+and save the exact prompt and IDs alongside the zone metadata. Never substitute
+a pile of primitive parts for an unfinished main mesh.
+
+### Verification and limits
+
+Final clean boot: 94 generated meshes, 2 retained originals, 0 load failures;
+5.61s asset loading with eight workers, 6.32s total server bootstrap. This is
+the measured 94-mesh catalog, not a claim that 96 replacement meshes loaded.
+Server log: 12/12 original zone containers validated; 96 sockets in 24 rooms.
+
+Live debug checks: lootAudit 96 ok, 0 missing/stale/without art; upright 0;
+validate 1,667, economyTests 202,434, museumTests 1,684, all passing. The asset
+audit passed 4,318 checks, 564 scale builds and 846 mutation/aura builds.
+Maximum new-asset part count is 16. All twelve zone sheets, including clearly
+marked retained art, are in `tools/art-review/sheets`; see `REVIEW.md`.
+
+Tested temporary revealed trophies, real Index and Storage cards, a store/
+re-equip cycle, and Gym reveal roulette using its own zone's generated
+silhouettes. The roulette observer saw seven different decoys and the final
+whistle. Twenty-two animated joints froze under Reduced Effects and resumed
+afterward; marked particles were disabled. Fourteen trophies were visible on
+a full test base. An 844 × 390 ViewportFrame checked phone-size composition
+using trophy clones and simplified base geometry. It was not Studio device
+emulation or physical phone profiling. Desktop samples were about 66.7ms per
+frame with both six and fourteen trophies; mobile performance remains
+unverified, and these samples do not demonstrate smooth phone performance.
+
+All account fixtures were protected by `itemArtReview`. The exact pre-review
+profile was restored and saved: six original display items, ten stored items,
+twelve unlocked slots and SpeedPower 1,339,738,258. Temporary capacity/storage
+upgrades, rewards, discoveries, settings and earnings were discarded. Existing
+items were never moved, sold or stored. Keep §47's real-DataStore warning in
+force for every future review.

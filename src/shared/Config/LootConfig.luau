@@ -366,14 +366,14 @@ end
 -- no asset in the place and builds a placeholder. Re-run Invoke("lootAudit") after
 -- any art change - the start-up check flags a stale row by name.
 LootConfig.Normalization = {
-	Museum_AncientVase = { 1.0000, 3.485, 5.000, 3.515 }, -- Generated mesh amphora; measured with lootAudit.
-	Museum_RarePainting = { 1.0000, 3.721, 5.000, 1.913 }, -- Generated mesh, lootAudit.
-	Museum_GoldenStatue = { 1.0000, 2.117, 5.000, 2.094 }, -- Generated mesh, lootAudit.
-	Museum_PharaohMask = { 1.0000, 3.818, 5.000, 3.168 }, -- Generated mesh, live lootAudit
-	Museum_Ruby = { 1.0000, 2.250, 5.000, 2.240 }, -- Generated mesh, lootAudit.
-	Museum_GoldenCrown = { 1.0000, 9.154, 4.000, 9.144 }, -- Generated mesh, lootAudit.
-	Museum_Meteorite = { 1.0000, 3.867, 5.000, 4.607 }, -- Generated mesh, live lootAudit
-	Museum_Diamond = { 1.0000, 3.149, 5.000, 3.160 }, -- Generated mesh, lootAudit.
+	Museum_AncientVase = { 1.0000, 3.485, 5.000, 3.515 }, -- Ancient Vase: 3.48 x 5.00 x 3.51 -> 3.48 x 5.00 x 3.51
+	Museum_RarePainting = { 1.0000, 3.721, 5.000, 1.913 }, -- Rare Painting: 3.72 x 5.00 x 1.91 -> 3.72 x 5.00 x 1.91
+	Museum_GoldenStatue = { 1.0000, 2.117, 5.000, 2.094 }, -- Golden Statue: 2.12 x 5.00 x 2.09 -> 2.12 x 5.00 x 2.09
+	Museum_PharaohMask = { 1.0000, 3.818, 5.000, 3.168 }, -- Pharaoh Mask: 3.82 x 5.00 x 3.17 -> 3.82 x 5.00 x 3.17
+	Museum_Ruby = { 1.0000, 2.250, 5.000, 2.240 }, -- Ruby: 2.25 x 5.00 x 2.24 -> 2.25 x 5.00 x 2.24
+	Museum_GoldenCrown = { 1.0000, 9.154, 4.000, 9.144 }, -- Golden Crown: 9.15 x 4.00 x 9.14 -> 9.15 x 4.00 x 9.14
+	Museum_Meteorite = { 1.0000, 3.867, 5.000, 4.607 }, -- Meteorite: 3.87 x 5.00 x 4.61 -> 3.87 x 5.00 x 4.61
+	Museum_Diamond = { 1.0000, 3.149, 5.000, 3.160 }, -- Diamond: 3.15 x 5.00 x 3.16 -> 3.15 x 5.00 x 3.16
 	Pirate_TreasureMap = { 1.0000, 4.780, 5.000, 3.419 }, -- Treasure Map: 4.78 x 5.00 x 3.42 -> 4.78 x 5.00 x 3.42
 	Pirate_CaptainsHat = { 1.0000, 6.852, 5.000, 6.930 }, -- Captain's Hat: 6.85 x 5.00 x 6.93 -> 6.85 x 5.00 x 6.93
 	Pirate_GoldenCompass = { 1.0000, 4.340, 5.000, 6.512 }, -- Golden Compass: 4.34 x 5.00 x 6.51 -> 4.34 x 5.00 x 6.51
