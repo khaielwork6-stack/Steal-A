@@ -48,6 +48,9 @@ end
 ---   Invoke("cash", nil, amount)             award Cash
 ---   Invoke("clearDisplays")                 empty the base
 local COMMANDS: { [string]: (Player, ...any) -> any } = {
+	itemArtReview = function(player, action: string?)
+		return require(script.Parent.ItemArtReview).run(player, action)
+	end,
 	museumTests = function()
 		return require(script.Parent.MuseumTests).run()
 	end,

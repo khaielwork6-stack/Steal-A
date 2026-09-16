@@ -27,6 +27,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local ItemArtReady = require(game:GetService("ReplicatedStorage").Shared.Util.ItemArtReady)
 
 local DisplayFxController = {}
 
@@ -96,6 +97,8 @@ end
 -- ==========================================================
 
 local function popIn(model: Model)
+	-- Never establish a scale baseline from a partially replicated new asset.
+	if not ItemArtReady.check(model) then return end
 	if reducedEffects then
 		return
 	end

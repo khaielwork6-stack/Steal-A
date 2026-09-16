@@ -8,9 +8,13 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local bootStarted = os.clock()
 
 -- Geometry exists before any service captures zone/socket references.
 require(script.MapBuilder).rebuildGalleries()
+-- Adopt the original, unanchored container templates before mesh loads yield.
+require(ReplicatedStorage.Shared.Util.MysteryModel).folder()
+require(script.ItemAssetBuilder).build()
 
 -- Creates ReplicatedStorage.Remotes before any client tries to wait on it.
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -484,3 +488,4 @@ end
 Players.PlayerAdded:Connect(onPlayer)
 
 print("[Server] Steal Something services started")
+print(string.format("[Server] boot completed in %.2fs", os.clock() - bootStarted))

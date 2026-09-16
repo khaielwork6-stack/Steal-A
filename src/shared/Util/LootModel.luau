@@ -513,7 +513,9 @@ function LootModel.build(options: BuildOptions): (Model, boolean)
 			-- guardian's targeting and the pedestal seating all work from
 			-- measured extents, not from collision, so nothing needs it.
 			descendant.CanCollide = false
-			descendant.CastShadow = false
+			-- Only the new source-authored art opts in; legacy imports keep their policy.
+			descendant.CastShadow = built:GetAttribute("ProceduralItemArt") ~= nil
+				and descendant:GetAttribute("ItemArtShadow") == true
 			-- An import's throne is a working Seat; brushing past the pedestal
 			-- would sit the player on the loot. Disabled stops the sit; CanTouch
 			-- stops the Touched-based seat weld from firing at all.

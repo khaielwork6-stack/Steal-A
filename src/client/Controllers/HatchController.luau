@@ -39,6 +39,7 @@ local Device = require(ReplicatedStorage.Shared.Util.Device)
 local HatchConfig = require(ReplicatedStorage.Shared.Config.HatchConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
+local ItemArtReady = require(ReplicatedStorage.Shared.Util.ItemArtReady)
 local MysteryConfig = require(ReplicatedStorage.Shared.Config.MysteryConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -802,6 +803,13 @@ local function playReveal(slot: BasePart, reveal: any, token: number)
 		-- dissolve. This is the swap: at no point is the pedestal empty.
 		local item = incoming
 		local itemRest = 0
+		-- New multipart art must be completely replicated before ScaleTo caches
+		-- its reference dimensions. On a slow connection reveal it without a bounce.
+		if item and not ItemArtReady.waitFor(item, 1.2) then
+			unconceal(item, incomingPaused)
+			item:SetAttribute("RevealHold", nil)
+			item = nil
+		end
 		if item and item.Parent then
 			-- The AUTHORED rest scale, stamped by LootModel.build, never the
 			-- live one: a scale read while another tween is running would be

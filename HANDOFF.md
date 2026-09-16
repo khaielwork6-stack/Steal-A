@@ -5126,3 +5126,36 @@ before trusting either result.
 `museumLoops` 24/24; every `museumScenarios` and `museumPaths` check true
 (the path test again expects a standing trip to wake the matching room's
 guard). The owner's SpeedPower was confirmed at 1,334,480,018 afterwards.
+
+## 49. Generated loot art checkpoint; protect containers before loading (2026-09-16)
+
+The owner approved the generated-mesh Ancient Vase as the art reference. Ten
+more meshes, one per rarity, are review candidates; the remaining catalog is
+not rebuilt yet. `ItemAssetBuilder` records each published model, its mesh IDs,
+and the Studio generation ID. It replaces only matching children of
+`ServerStorage.GameAssets.Loot`, before LootService publishes previews. The
+eleven new assets have measured Normalization rows; the ten old ModelOverrides
+remain until their replacement assets exist. No economy or item IDs changed.
+
+Loading meshes yields. The saved container templates are unanchored in
+Workspace, so letting asset loading delay their normal adoption made them fall
+out of the world: the server moved an empty folder and validated 0/12. Startup
+now calls the existing `MysteryModel.folder()` immediately before the builder.
+No container geometry, physics properties, names, or resolver behavior changed.
+
+The builder uses eight concurrent workers and waits for every result before
+installing anything or allowing services to start. A load failure cleans up
+the staged models and fails explicitly, preserving the previous Loot assets.
+The log and Loot attributes record count and load duration; bootstrap logs
+total server initialization time. Fresh Play with eleven meshes: 0.66s loading,
+2.35s bootstrap, 12/12 container templates validated, 96 sockets in 24 rooms.
+All twelve source template positions, sizes, and mesh IDs matched Edit exactly.
+The actual 96-mesh boot time still needs measuring after the catalog is built.
+
+New art opts into a part-count readiness guard before reveal scaling. A single
+client controller animates marked trophy sub-elements relative to DisplayFx's
+whole-model motion, with distance culling and Reduced Effects support. The
+Studio-only `itemArtReview` debug command snapshots the tester's profile,
+withholds saves during fixtures, and restores the snapshot before saving.
+Use already-free pads; never move existing items. These review candidates still
+need the owner's rarity-sheet approval before zone-by-zone production continues.
