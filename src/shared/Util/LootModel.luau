@@ -417,6 +417,14 @@ local UPRIGHT_DOT = 0.9
 --- because the primary is also what the carry welds a player to and what the
 --- other parts hang off.
 function LootModel.chooseAnchor(model: Model): BasePart?
+	-- Generated art may need its mesh geometry rotated while the authored
+	-- display frame stays upright. Only those assets declare this tiny root.
+	if model:GetAttribute("ProceduralItemArt") then
+		local root = model:FindFirstChild("ItemArtRoot")
+		if root and root:IsA("BasePart") and root.CFrame.UpVector:Dot(Vector3.yAxis) >= UPRIGHT_DOT then
+			return root
+		end
+	end
 	local best: BasePart? = nil
 	local bestScore = -math.huge
 	for _, descendant in model:GetDescendants() do

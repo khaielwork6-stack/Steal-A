@@ -382,7 +382,7 @@ LootConfig.Normalization = {
 	Pirate_TreasureChest = { 1.0000, 4.410, 5.000, 4.125 }, -- Treasure Chest: 4.41 x 5.00 x 4.12 -> 4.41 x 5.00 x 4.12
 	Pirate_CaptainsCutlass = { 1.0000, 2.925, 5.000, 5.437 }, -- Captain's Cutlass: 2.93 x 5.00 x 5.44 -> 2.93 x 5.00 x 5.44
 	Pirate_JeweledSkull = { 1.0000, 4.319, 5.000, 4.782 }, -- Jeweled Skull: 4.32 x 5.00 x 4.78 -> 4.32 x 5.00 x 4.78
-	Castle_GoldenGoblet = { 1.0000, 2.796, 5.000, 2.797 }, -- Golden Goblet: 2.80 x 5.00 x 2.80 -> 2.80 x 5.00 x 2.80
+	Castle_GoldenGoblet = { 1.0000, 2.798, 5.000, 2.799 }, -- Golden Goblet: 2.80 x 5.00 x 2.80 -> 2.80 x 5.00 x 2.80
 	Castle_RoyalPainting = { 1.0000, 2.372, 5.000, 1.204 }, -- Royal Painting: 2.37 x 5.00 x 1.20 -> 2.37 x 5.00 x 1.20
 	Castle_RoyalSeal = { 1.0000, 5.377, 5.000, 5.304 }, -- Royal Seal: 5.38 x 5.00 x 5.30 -> 5.38 x 5.00 x 5.30
 	Castle_GoldenKey = { 1.0000, 9.923, 4.000, 1.359 }, -- Golden Key: 9.92 x 4.00 x 1.36 -> 9.92 x 4.00 x 1.36
@@ -390,14 +390,14 @@ LootConfig.Normalization = {
 	Castle_RoyalScepter = { 1.0000, 2.917, 5.000, 1.175 }, -- Royal Scepter: 2.92 x 5.00 x 1.17 -> 2.92 x 5.00 x 1.17
 	Castle_RoyalTreasureChest = { 1.0000, 3.926, 5.000, 3.523 }, -- Royal Treasure Chest: 3.93 x 5.00 x 3.52 -> 3.93 x 5.00 x 3.52
 	Castle_KingsCrown = { 1.0000, 5.795, 5.000, 5.275 }, -- King's Crown: 5.80 x 5.00 x 5.27 -> 5.80 x 5.00 x 5.27
-	Area51_TopSecretFiles = { 1.0000, 4.000, 5.000, 1.000 }, -- Top Secret Files: 4.00 x 5.00 x 1.00 -> 4.00 x 5.00 x 1.00
-	Area51_MeteorFragment = { 0.5690, 12.044, 8.787, 11.873 }, -- Meteor Fragment: 12.04 x 8.79 x 11.87 -> 6.85 x 5.00 x 6.76
-	Area51_AlienHelmet = { 0.7596, 7.381, 6.582, 7.377 }, -- Alien Helmet: 7.38 x 6.58 x 7.38 -> 5.61 x 5.00 x 5.60
-	Area51_AlienRayDevice = { 0.7179, 2.528, 6.185, 10.448 }, -- Alien Ray Device: 2.53 x 6.18 x 10.45 -> 1.81 x 4.44 x 7.50
-	Area51_AlienCrystal = { 0.5627, 2.670, 8.886, 3.127 }, -- Alien Crystal: 2.67 x 8.89 x 3.13 -> 1.50 x 5.00 x 1.76
-	Area51_AntiGravityCube = { 0.5000, 6.667, 10.000, 6.667 }, -- Anti-Gravity Cube: 6.67 x 10.00 x 6.67 -> 3.33 x 5.00 x 3.33
-	Area51_UFOCore = { 0.1957, 51.503, 20.434, 45.276 }, -- UFO Core: 51.50 x 20.43 x 45.28 -> 10.08 x 4.00 x 8.86
-	Area51_AlienArtifact = { 1.0000, 4.881, 5.000, 4.886 }, -- Generated mesh, lootAudit.
+	Area51_TopSecretFiles = { 1.0000, 4.457, 5.000, 2.110 }, -- Top Secret Files: 4.46 x 5.00 x 2.11 -> 4.46 x 5.00 x 2.11
+	Area51_MeteorFragment = { 1.0000, 2.337, 5.000, 2.366 }, -- Meteor Fragment: 2.34 x 5.00 x 2.37 -> 2.34 x 5.00 x 2.37
+	Area51_AlienHelmet = { 1.0000, 4.772, 5.000, 4.453 }, -- Alien Helmet: 4.77 x 5.00 x 4.45 -> 4.77 x 5.00 x 4.45
+	Area51_AlienRayDevice = { 1.0000, 5.748, 5.000, 2.619 }, -- Alien Ray Device: 5.75 x 5.00 x 2.62 -> 5.75 x 5.00 x 2.62
+	Area51_AlienCrystal = { 1.0000, 3.167, 5.000, 2.886 }, -- Alien Crystal: 3.17 x 5.00 x 2.89 -> 3.17 x 5.00 x 2.89
+	Area51_AntiGravityCube = { 1.0000, 3.694, 5.000, 3.670 }, -- Anti-Gravity Cube: 3.69 x 5.00 x 3.67 -> 3.69 x 5.00 x 3.67
+	Area51_UFOCore = { 1.0000, 5.480, 5.000, 5.461 }, -- UFO Core: 5.48 x 5.00 x 5.46 -> 5.48 x 5.00 x 5.46
+	Area51_AlienArtifact = { 1.0000, 4.881, 5.000, 4.886 }, -- Alien Artifact: 4.88 x 5.00 x 4.89 -> 4.88 x 5.00 x 4.89
 	NorthPole_SantasHat = { 0.9615, 5.200, 5.200, 5.200 }, -- Santa's Hat: 5.20 x 5.20 x 5.20 -> 5.00 x 5.00 x 5.00
 	NorthPole_NiceList = { 1.0000, 3.500, 4.000, 8.000 }, -- Toy Train: 3.50 x 4.00 x 8.00 -> 3.50 x 4.00 x 8.00
 	NorthPole_GoldenBell = { 1.8614, 1.306, 2.686, 2.575 }, -- Golden Bell: 1.31 x 2.69 x 2.57 -> 2.43 x 5.00 x 4.79
@@ -484,7 +484,6 @@ LootConfig.Normalization = {
 -- name in ServerStorage.GameAssets.Loot EXACTLY, including apostrophes.
 LootConfig.ModelOverrides = {
 	-- Zone 04: same item, same name, better art.
-	Area51_TopSecretFiles = "Top Secret Files",
 	-- Zone 05: Nice List -> Toy Train.
 	NorthPole_NiceList = "Toy Train",
 	-- Zone 06: Canopic Jar -> Pharaoh’s Golden Scepter. NOTE: the asset name

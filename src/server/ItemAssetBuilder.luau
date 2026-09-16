@@ -10,6 +10,46 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, 354f1748-e5ee-4c4e-95f7-165732c2a57b (2026-09-16).
+	Area51_MeteorFragment = {asset=74566797233942, primary="shard_geom", meshes={
+		["ring_geom"]="rbxassetid://73037553108593",
+		["shard_geom"]="rbxassetid://70687890628090",
+	}, finishes={shard_geom={material=Enum.Material.Slate}, ring_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, b3c92716-591f-41a6-976b-1511ec1664be (2026-09-16).
+	Area51_AlienHelmet = {asset=78189831554007, primary="helmet_geom", meshes={
+		["visor_geom"]="rbxassetid://133965920226095",
+		["helmet_geom"]="rbxassetid://124322453626786",
+	}, finishes={helmet_geom={material=Enum.Material.Metal}, visor_geom={glow=true,color=Color3.fromRGB(83,255,63),transparency=0.15,clearTexture=true}}},
+	-- Studio MCP generate_mesh, 95e08813-8a91-4953-8c33-34e0603d25cb (2026-09-16).
+	Area51_TopSecretFiles = {asset=97790846306449, primary="folder_geom", meshes={
+		["papers_geom"]="rbxassetid://139878119934851",
+		["folder_geom"]="rbxassetid://78238528167328",
+	}, finishes={folder_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, 2a1410ac-7dc1-460b-af7e-4968f3c0aa73 (2026-09-16).
+	Area51_AlienRayDevice = {asset=129839009934157, primary="device_geom", authorRotation=CFrame.Angles(0,math.pi/2,0), meshes={
+		["cell_geom"]="rbxassetid://137492560560309",
+		["emitter_geom"]="rbxassetid://89693321202750",
+		["device_geom"]="rbxassetid://103226908722203",
+	}, finishes={device_geom={material=Enum.Material.Metal}, emitter_geom={glow=true,color=Color3.fromRGB(88,255,50),clearTexture=true}, cell_geom={glow=true,color=Color3.fromRGB(153,255,112)}}},
+	-- Studio MCP generate_mesh, 83a3aa99-fbdd-48b7-b977-b1f1f5b0bcbd (2026-09-16).
+	Area51_AlienCrystal = {asset=93786928235643, primary="base_geom", meshes={
+		["crystals_geom"]="rbxassetid://124865195316854",
+		["base_geom"]="rbxassetid://102908113061304",
+	}, finishes={base_geom={material=Enum.Material.Metal}, crystals_geom={glow=true,color=Color3.fromRGB(49,255,112),transparency=0.1}}},
+	-- Studio MCP generate_mesh, c65f4bf7-7e96-4c20-bd33-d8ae2d842257 (2026-09-16).
+	Area51_AntiGravityCube = {asset=138908142599127, primary="base_geom", meshes={
+		["debris_geom"]="rbxassetid://76718718176858",
+		["seams_geom"]="rbxassetid://80248981497351",
+		["cube_geom"]="rbxassetid://123987510095847",
+		["base_geom"]="rbxassetid://98101610486939",
+	}, finishes={base_geom={material=Enum.Material.Metal}, cube_geom={mode="Spin",speed=0.22}, seams_geom={glow=true,color=Color3.fromRGB(87,241,255),clearTexture=true,mode="Spin",speed=0.22}, debris_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.25}}},
+	-- Studio MCP generate_mesh, fa57c288-1858-4aa9-b21d-2d4cf2b4fff7 (2026-09-16).
+	Area51_UFOCore = {asset=73403648402931, primary="shell_geom", meshes={
+		["segment_b_geom"]="rbxassetid://73928627209424",
+		["segment_a_geom"]="rbxassetid://131152084492061",
+		["core_geom"]="rbxassetid://82929486860334",
+		["shell_geom"]="rbxassetid://113372459207546",
+	}, finishes={shell_geom={material=Enum.Material.Metal}, core_geom={glow=true,color=Color3.fromRGB(113,255,59),clearTexture=true,mode="Hover",speed=1}, segment_a_geom={material=Enum.Material.Metal,mode="Spin",speed=0.15}, segment_b_geom={material=Enum.Material.Metal,mode="Spin",speed=-0.15}}},
 	-- Studio MCP generate_mesh, c954f839-fb09-410a-823e-16dcb0a5cb06 (2026-09-16).
 	Castle_GoldenGoblet = {asset=122217002493466, primary="goblet_geom", meshes={
 		["wine_geom"]="rbxassetid://94585333719235",
@@ -205,7 +245,12 @@ local function decorate(model: Model, id: string)
 	local pearl = Color3.fromRGB(255, 248, 216)
 	local purple = Color3.fromRGB(168, 65, 255)
 	local cyan = Color3.fromRGB(131, 236, 255)
-	if id == "Pirate_CaptainsCutlass" then
+	if id == "Castle_GoldenGoblet" then
+		local bowl, wine = mesh("goblet"), mesh("wine")
+		-- Generation put the separate wine surface below the foot. Seat it
+		-- inside the open bowl, just below the lip, without changing the mesh.
+		wine.CFrame = CFrame.new(bowl.Position + Vector3.new(0, bowl.Size.Y * 0.455, 0))
+	elseif id == "Pirate_CaptainsCutlass" then
 		local grip = mesh("grip")
 		accent(model, "RubyPommel", Vector3.one * 0.15, grip.CFrame * CFrame.new(0,-grip.Size.Y*0.5,0), Color3.fromRGB(255,55,65))
 	elseif id == "Museum_Meteorite" then

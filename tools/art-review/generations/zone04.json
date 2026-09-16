@@ -1,0 +1,301 @@
+[
+  {
+    "generationId": "354f1748-e5ee-4c4e-95f7-165732c2a57b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An angular charcoal-grey extraterrestrial mineral fragment rising in a sharp narrow tilted shard, a serrated crystalline broken ridge on one side. Restrained lime-green mineral veins inset into the rock. A small steel containment ring supports it. Rare: vein color without emission. Much sharper and thinner than a rounded meteorite; tall tapered wedge outline.",
+    "publishedAssetId": "74566797233942",
+    "tag": "Assistant-3f9db667-1fcc-41e8-8149-3e0e856e5b8b",
+    "id": "Area51_MeteorFragment",
+    "primary": "shard_geom",
+    "finishes": {
+      "shard": {
+        "material": "Slate"
+      },
+      "ring": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://73037553108593",
+        "name": "ring_geom",
+        "texture": "rbxassetid://125186198629336"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://70687890628090",
+        "name": "shard_geom",
+        "texture": "rbxassetid://111252860899380"
+      }
+    ]
+  },
+  {
+    "generationId": "b3c92716-591f-41a6-976b-1511ec1664be",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An elongated futuristic chrome helmet with a smooth swept-back oval shell, pronounced brow and wraparound lime-green visor, two small antenna nubs at the crown. Open lower neck edge. Epic gleaming chrome with a faint green visor accent. Authentic curved shell, distinctive long oval silhouette, no human face.",
+    "publishedAssetId": "78189831554007",
+    "tag": "Assistant-e559763a-d8d4-420a-a40d-bef0f3e6db0c",
+    "id": "Area51_AlienHelmet",
+    "primary": "helmet_geom",
+    "finishes": {
+      "helmet": {
+        "material": "Metal"
+      },
+      "visor": {
+        "glow": true,
+        "color": [
+          83,
+          255,
+          63
+        ],
+        "transparency": 0.15,
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://133965920226095",
+        "name": "visor_geom",
+        "texture": "rbxassetid://87335597836753"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124322453626786",
+        "name": "helmet_geom",
+        "texture": "rbxassetid://137308500806849"
+      }
+    ]
+  },
+  {
+    "generationId": "95e08813-8a91-4953-8c33-34e0603d25cb",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Manila research folder standing angled upright, loose cream documents and monochrome photographs FAN OUT from its upper right edge at different angles. Red rectangular classification banner on the front, no readable lettering required. Olive binding and a polished steel clip. Rare, clean office materials, no emission. The staggered fan of pages defines the silhouette.",
+    "publishedAssetId": "97790846306449",
+    "tag": "Assistant-7a7fb4a0-0aea-4f5d-acbd-e3dd0470a1b0",
+    "id": "Area51_TopSecretFiles",
+    "primary": "folder_geom",
+    "finishes": {
+      "folder": {
+        "material": "Fabric"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://139878119934851",
+        "name": "papers_geom",
+        "texture": "rbxassetid://72117138725435"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://78238528167328",
+        "name": "folder_geom",
+        "texture": "rbxassetid://83716269505588"
+      }
+    ]
+  },
+  {
+    "generationId": "2a1410ac-7dc1-460b-af7e-4968f3c0aa73",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A chunky futuristic handheld scientific emitter, broad chrome horizontal body with ribbed cylindrical nose, short olive handgrip below and orange controls. Bulbous luminous green coil at the front. A detached small glowing power cell floats inside an open gap in the upper frame. Legendary: chrome and vivid alien-green light, clear horizontal tool silhouette and negative space around the cell.",
+    "publishedAssetId": "129839009934157",
+    "tag": "Assistant-23d4b3fa-c996-40fc-b60b-c6237de3f0d3",
+    "id": "Area51_AlienRayDevice",
+    "primary": "device_geom",
+    "finishes": {
+      "device": {
+        "material": "Metal"
+      },
+      "emitter": {
+        "glow": true,
+        "color": [
+          88,
+          255,
+          50
+        ],
+        "clearTexture": true
+      },
+      "cell": {
+        "glow": true,
+        "color": [
+          153,
+          255,
+          112
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137492560560309",
+        "name": "cell_geom",
+        "texture": "rbxassetid://81961844189048"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://89693321202750",
+        "name": "emitter_geom",
+        "texture": "rbxassetid://110947999251087"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://103226908722203",
+        "name": "device_geom",
+        "texture": "rbxassetid://108448340876231"
+      }
+    ]
+  },
+  {
+    "generationId": "83a3aa99-fbdd-48b7-b977-b1f1f5b0bcbd",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A luminous emerald-green crystal cluster on a charcoal hexagonal containment base. One tall angular central spire and three shorter outward leaning shards of unequal heights, broad clean cut faces, translucent green surfaces and bright internal lime light. Legendary. Strong asymmetric branching outline, not a round stone or regular cone.",
+    "publishedAssetId": "93786928235643",
+    "tag": "Assistant-1b443775-e463-4e2c-b861-3852cfeaa966",
+    "id": "Area51_AlienCrystal",
+    "primary": "base_geom",
+    "finishes": {
+      "base": {
+        "material": "Metal"
+      },
+      "crystals": {
+        "glow": true,
+        "color": [
+          49,
+          255,
+          112
+        ],
+        "transparency": 0.1
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124865195316854",
+        "name": "crystals_geom",
+        "texture": "rbxassetid://132591728356756"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://102908113061304",
+        "name": "base_geom",
+        "texture": "rbxassetid://133396208833855"
+      }
+    ]
+  },
+  {
+    "generationId": "c65f4bf7-7e96-4c20-bd33-d8ae2d842257",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A matte near-black cube levitating well above a flat chrome base plate, generous clear vertical air gap. Cyan luminous seams trace all twelve edges of the cube. Three small irregular chrome fragments hang separated around it. Mythic. The suspended tilted cube, base and scattered fragments remain readable in a frozen pose; authentic smooth cube bevels.",
+    "publishedAssetId": "138908142599127",
+    "tag": "Assistant-b3a00c96-d6ff-4c2c-abf9-98415798c44c",
+    "id": "Area51_AntiGravityCube",
+    "primary": "base_geom",
+    "finishes": {
+      "base": {
+        "material": "Metal"
+      },
+      "cube": {
+        "mode": "Spin",
+        "speed": 0.22
+      },
+      "seams": {
+        "glow": true,
+        "color": [
+          87,
+          241,
+          255
+        ],
+        "clearTexture": true,
+        "mode": "Spin",
+        "speed": 0.22
+      },
+      "debris": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.25
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://76718718176858",
+        "name": "debris_geom",
+        "texture": "rbxassetid://135958575491979"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://80248981497351",
+        "name": "seams_geom",
+        "texture": "rbxassetid://120355148935476"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://123987510095847",
+        "name": "cube_geom",
+        "texture": "rbxassetid://98776277039891"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://98101610486939",
+        "name": "base_geom",
+        "texture": "rbxassetid://118705480235522"
+      }
+    ]
+  },
+  {
+    "generationId": "fa57c288-1858-4aa9-b21d-2d4cf2b4fff7",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A brushed chrome spherical reactor shell split into THREE separated curved shell segments, framing a blazing lime-green plasma sphere at its centre. Generous air gaps expose the central sphere from front and sides. Mythic: bright green emission and floating shell sections, smooth machined curved metal, no stand. Interrupted circular silhouette with curved detached lobes.",
+    "publishedAssetId": "73403648402931",
+    "tag": "Assistant-ba69e60c-ea5a-4dbb-96c2-f7a28312b370",
+    "id": "Area51_UFOCore",
+    "primary": "shell_geom",
+    "finishes": {
+      "shell": {
+        "material": "Metal"
+      },
+      "core": {
+        "glow": true,
+        "color": [
+          113,
+          255,
+          59
+        ],
+        "clearTexture": true,
+        "mode": "Hover",
+        "speed": 1
+      },
+      "segment_a": {
+        "material": "Metal",
+        "mode": "Spin",
+        "speed": 0.15
+      },
+      "segment_b": {
+        "material": "Metal",
+        "mode": "Spin",
+        "speed": -0.15
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://73928627209424",
+        "name": "segment_b_geom",
+        "texture": "rbxassetid://75480003997895"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://131152084492061",
+        "name": "segment_a_geom",
+        "texture": "rbxassetid://120731954354998"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82929486860334",
+        "name": "core_geom",
+        "texture": "rbxassetid://86402494874576"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113372459207546",
+        "name": "shell_geom",
+        "texture": "rbxassetid://105981971486843"
+      }
+    ]
+  }
+]

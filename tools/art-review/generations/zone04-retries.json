@@ -1,0 +1,32 @@
+[
+  {
+    "id": "Area51_TopSecretFiles",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Manila research folder standing angled upright, loose cream documents and monochrome photographs FAN OUT from its upper right edge at different angles. Red rectangular classification banner on the front, no readable lettering required. Olive binding and a polished steel clip. Rare, clean office materials, no emission. The staggered fan of pages defines the silhouette.",
+    "error": {
+      "status": "Failed",
+      "jobResult": {
+        "content": [
+          {
+            "text": "Mesh generation failed with error: Model generation failed with status: Failed",
+            "type": "text"
+          }
+        ],
+        "isError": true
+      }
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Area51_TopSecretFiles",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Manila research folder standing angled upright, loose cream documents and monochrome photographs FAN OUT from its upper right edge at different angles. Red rectangular classification banner on the front, no readable lettering required. Olive binding and a polished steel clip. Rare, clean office materials, no emission. The staggered fan of pages defines the silhouette.",
+    "error": null,
+    "result": {
+      "generationId": "95e08813-8a91-4953-8c33-34e0603d25cb",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Manila research folder standing angled upright, loose cream documents and monochrome photographs FAN OUT from its upper right edge at different angles. Red rectangular classification banner on the front, no readable lettering required. Olive binding and a polished steel clip. Rare, clean office materials, no emission. The staggered fan of pages defines the silhouette.",
+      "publishedAssetId": "97790846306449",
+      "tag": "Assistant-7a7fb4a0-0aea-4f5d-acbd-e3dd0470a1b0"
+    },
+    "finalFailure": false
+  }
+]
