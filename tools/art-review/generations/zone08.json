@@ -1,0 +1,333 @@
+[
+  {
+    "generationId": "e20e27e4-a183-4f4f-9af6-00fe739523c1",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Compact ornate money printing press in vault green and polished brass. Large gold hand crank extends from its right side, rollers across the body and a curling sheet of fresh green banknotes emerging UPWARD from a luminous slot. Legendary. Authentic smooth machine forms, arch-top press, paper curve and projecting crank give character.",
+    "publishedAssetId": "77206487977847",
+    "tag": "Assistant-2abfa119-c787-47b7-bc6c-fc4cc6fad169",
+    "id": "Bank_CashBag",
+    "primary": "press_geom",
+    "finishes": {
+      "press": {
+        "material": "Metal"
+      },
+      "crank": {
+        "material": "Metal"
+      },
+      "notes": {
+        "material": "Cardboard"
+      },
+      "slot": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124383805408936",
+        "name": "slot_geom",
+        "texture": "rbxassetid://89479816561061"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116366412651806",
+        "name": "notes_geom",
+        "texture": "rbxassetid://79862895830373"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137051203666181",
+        "name": "crank_geom",
+        "texture": "rbxassetid://71351622330271"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122989386033478",
+        "name": "press_geom",
+        "texture": "rbxassetid://123758393126821"
+      }
+    ]
+  },
+  {
+    "generationId": "8c96b2e2-007f-48b1-898e-c42853ebe026",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A heavy master vault key standing nearly VERTICAL. Charcoal steel long shaft, elaborate open gold bow at the top and thick asymmetrical teeth below. A detached small glowing green cylinder lock floats around the lower bit with visible gap. Mythic: rich gold, steel and green radiance. Tall narrow key silhouette, unlike a horizontal medieval key.",
+    "publishedAssetId": "134290985779216",
+    "tag": "Assistant-b45669cf-5342-46a4-8d75-ff3cd97b7b37",
+    "id": "Bank_VaultKey",
+    "primary": "key_geom",
+    "finishes": {
+      "key": {
+        "material": "Metal"
+      },
+      "lock": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          71,
+          255,
+          134
+        ],
+        "mode": "Orbit",
+        "speed": 0.18
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://95918644908148",
+        "name": "lock_geom",
+        "texture": "rbxassetid://112641091946219"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://115805830426254",
+        "name": "key_geom",
+        "texture": "rbxassetid://138073284821687"
+      }
+    ]
+  },
+  {
+    "generationId": "82793c8b-0444-4607-8884-a778d68e2f42",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Oversized gold coin standing upright on its edge, finely embossed architectural vault emblem, smooth deep violet and blue nebula enamel on parts of the face. Five small gold coins in a generous circular orbit around the central coin, clear gaps between all coins. Cosmic; polished gold, clean star motifs, no noisy texture.",
+    "publishedAssetId": "85170106335080",
+    "tag": "Assistant-96622404-4256-4193-883c-39e0aea69bcb",
+    "id": "Bank_RareCoin",
+    "primary": "coin_geom",
+    "finishes": {
+      "coin": {
+        "material": "Metal"
+      },
+      "satellites": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.27
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://134422270428979",
+        "name": "satellites_geom",
+        "texture": "rbxassetid://73229959153168"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://125616976713108",
+        "name": "coin_geom",
+        "texture": "rbxassetid://90060310099305"
+      }
+    ]
+  },
+  {
+    "generationId": "fca8a498-284c-483c-9220-5301300f4dd1",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A classic trapezoid gold bullion ingot, softly beveled heavy edges and an embossed hallmark on upper face. Two smaller detached bullion bars float ABOVE it at different heights and opposing angles. Cosmic: rich gold with clean navy violet magenta nebula enamel sheen. Low broad ingot plus two separated ingots form distinct layered outline.",
+    "publishedAssetId": "116635368133671",
+    "tag": "Assistant-2d40596c-c5d2-45bf-9450-7213d2ccd5e2",
+    "id": "Bank_GoldBar",
+    "primary": "bar_geom",
+    "authorRotation": "CFrame.Angles(0,math.pi/2,0)",
+    "finishes": {
+      "bar": {
+        "material": "Metal"
+      },
+      "satellites": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.2
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://139908587681120",
+        "name": "satellites_geom",
+        "texture": "rbxassetid://118547707559566"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://107711067671284",
+        "name": "bar_geom",
+        "texture": "rbxassetid://119636777493944"
+      }
+    ]
+  },
+  {
+    "generationId": "683297cf-7ffe-4326-bd7b-af901afcd231",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A luxurious near-black leather briefcase, gold corner guards and clasps, rounded rectangular handle. Lid cracked open at a low angle exposing one intensely luminous green-gold opening, contents hidden. Secret: almost black body and one vivid green light color. Wide low case with thin lifted lid, refined soft leather and precise hardware.",
+    "publishedAssetId": "112710390177395",
+    "tag": "Assistant-32404f6d-8854-4f5e-9f22-e76a0682bcfc",
+    "id": "Bank_BankersBriefcase",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Leather"
+      },
+      "lid": {
+        "material": "Leather"
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          157,
+          255,
+          74
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://83022572745958",
+        "name": "light_geom",
+        "texture": "rbxassetid://123719978111860"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84193023668624",
+        "name": "lid_geom",
+        "texture": "rbxassetid://134022450084965"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137147088822972",
+        "name": "case_geom",
+        "texture": "rbxassetid://75086552791848"
+      }
+    ]
+  },
+  {
+    "generationId": "936ff28f-5b39-4dbc-b82a-9e0fe8772edf",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A PYRAMID STACK of six heavy platinum bullion ingots: three on bottom, two above, one on top. Near-black brushed platinum metal, every stacked edge traced in intense cyan-white emission. Secret. Stepped triangular outline with clear layer gaps, distinct from one bullion bar; precious metal and sharp clean cyan highlights.",
+    "publishedAssetId": "116502120155472",
+    "tag": "Assistant-7c522e05-7a64-4f17-98ea-ae9456afe963",
+    "id": "Bank_PlatinumBullionStack",
+    "primary": "bars_geom",
+    "finishes": {
+      "bars": {
+        "material": "Metal",
+        "color": [
+          35,
+          41,
+          48
+        ]
+      },
+      "edges": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          143,
+          249,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112747464782818",
+        "name": "edges_geom",
+        "texture": "rbxassetid://89105758680271"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://73702209782596",
+        "name": "bars_geom",
+        "texture": "rbxassetid://134457200375660"
+      }
+    ]
+  },
+  {
+    "generationId": "a611a9ce-5f02-4ba0-8b50-5e58149d892c",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A full tall gold vending machine with a glass front and three glowing shelves of miniature bullion bars and cash bundles inside. Rich golden chassis, cash-green side panels, selection buttons and coin slot. Two radiant concentric gold-white rings encircle the body, thin luminous shafts escape the glass. Eternal, absurdly luxurious gold-money dispenser, tallest rectangular outline in its set.",
+    "publishedAssetId": "95559568387895",
+    "tag": "Assistant-1f0ffbf6-7925-43be-bc25-62ad5d5f6858",
+    "id": "Bank_VendingMachine",
+    "primary": "machine_geom",
+    "finishes": {
+      "machine": {
+        "material": "Metal"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.8,
+        "clearTexture": true,
+        "color": [
+          219,
+          252,
+          245
+        ]
+      },
+      "shelves": {
+        "material": "Metal"
+      },
+      "halos": {
+        "material": "Metal"
+      },
+      "shafts": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84609455396306",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://111779813710809"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://76868807194480",
+        "name": "halos_geom",
+        "texture": "rbxassetid://88317479396506"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://72294373792611",
+        "name": "shelves_geom",
+        "texture": "rbxassetid://77873302183048"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://114378297477408",
+        "name": "glass_geom",
+        "texture": "rbxassetid://90050255664425"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://138286011063093",
+        "name": "machine_geom",
+        "texture": "rbxassetid://100884654556921"
+      }
+    ]
+  },
+  {
+    "generationId": "6c732662-f452-4b24-b91f-0a043cbecbfb",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels.  A thick rectangular bundle of crisp green paper banknotes lying horizontally, wrapped with one wide gold paper band. Three loose RECTANGULAR bills fan upward from the top, each has a broad flat rectangular face. This is a solid thick stack of money, not ribbons, not wires, not plants. Realistic rectangular paper proportions, clean simplified printed banknote emblems, bright cash green and cream. Rare premium collectible, no glow.",
+    "publishedAssetId": "128850277445732",
+    "tag": "Assistant-bae6d245-c5a5-40bd-9943-ff7547d30709",
+    "id": "Bank_MoneyStack",
+    "primary": "bills_geom",
+    "finishes": {
+      "bills": {
+        "material": "Cardboard"
+      },
+      "band": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136499775864929",
+        "name": "band_geom",
+        "texture": "rbxassetid://103271987809966"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://110162836431702",
+        "name": "bills_geom",
+        "texture": "rbxassetid://136923803410281"
+      }
+    ]
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "Bank_MoneyStack",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A crisp cash-green bundle of banknotes with a polished gold band. Several loose notes FAN upward and outward from the top at distinct angles, curled corners. Rare, no emission. Bright green, white paper borders and gold. Staggered asymmetric fan outline, not a flat brick.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "The generated banknotes are thin strands rather than readable rectangular paper bills."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Bank_MoneyStack",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels.  A thick rectangular bundle of crisp green paper banknotes lying horizontally, wrapped with one wide gold paper band. Three loose RECTANGULAR bills fan upward from the top, each has a broad flat rectangular face. This is a solid thick stack of money, not ribbons, not wires, not plants. Realistic rectangular paper proportions, clean simplified printed banknote emblems, bright cash green and cream. Rare premium collectible, no glow.",
+    "error": null,
+    "result": {
+      "generationId": "6c732662-f452-4b24-b91f-0a043cbecbfb",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels.  A thick rectangular bundle of crisp green paper banknotes lying horizontally, wrapped with one wide gold paper band. Three loose RECTANGULAR bills fan upward from the top, each has a broad flat rectangular face. This is a solid thick stack of money, not ribbons, not wires, not plants. Realistic rectangular paper proportions, clean simplified printed banknote emblems, bright cash green and cream. Rare premium collectible, no glow.",
+      "publishedAssetId": "128850277445732",
+      "tag": "Assistant-bae6d245-c5a5-40bd-9943-ff7547d30709"
+    },
+    "finalFailure": false
+  }
+]

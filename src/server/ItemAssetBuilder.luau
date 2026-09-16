@@ -19,6 +19,52 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, e20e27e4-a183-4f4f-9af6-00fe739523c1 (2026-09-16).
+	Bank_CashBag = {asset=77206487977847, primary="press_geom", meshes={
+		["slot_geom"]="rbxassetid://124383805408936",
+		["notes_geom"]="rbxassetid://116366412651806",
+		["crank_geom"]="rbxassetid://137051203666181",
+		["press_geom"]="rbxassetid://122989386033478",
+	}, finishes={press_geom={material=Enum.Material.Metal}, crank_geom={material=Enum.Material.Metal}, notes_geom={material=Enum.Material.Cardboard}, slot_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 8c96b2e2-007f-48b1-898e-c42853ebe026 (2026-09-16).
+	Bank_VaultKey = {asset=134290985779216, primary="key_geom", meshes={
+		["lock_geom"]="rbxassetid://95918644908148",
+		["key_geom"]="rbxassetid://115805830426254",
+	}, finishes={key_geom={material=Enum.Material.Metal}, lock_geom={glow=true,clearTexture=true,color=Color3.fromRGB(71,255,134),mode="Orbit",speed=0.18}}},
+	-- Studio MCP generate_mesh, 82793c8b-0444-4607-8884-a778d68e2f42 (2026-09-16).
+	Bank_RareCoin = {asset=85170106335080, primary="coin_geom", meshes={
+		["satellites_geom"]="rbxassetid://134422270428979",
+		["coin_geom"]="rbxassetid://125616976713108",
+	}, finishes={coin_geom={material=Enum.Material.Metal}, satellites_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.27}}},
+	-- Studio MCP generate_mesh, fca8a498-284c-483c-9220-5301300f4dd1 (2026-09-16).
+	Bank_GoldBar = {asset=116635368133671, primary="bar_geom", authorRotation=CFrame.Angles(0,math.pi/2,0), meshes={
+		["satellites_geom"]="rbxassetid://139908587681120",
+		["bar_geom"]="rbxassetid://107711067671284",
+	}, finishes={bar_geom={material=Enum.Material.Metal}, satellites_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.2}}},
+	-- Studio MCP generate_mesh, 683297cf-7ffe-4326-bd7b-af901afcd231 (2026-09-16).
+	Bank_BankersBriefcase = {asset=112710390177395, primary="case_geom", meshes={
+		["light_geom"]="rbxassetid://83022572745958",
+		["lid_geom"]="rbxassetid://84193023668624",
+		["case_geom"]="rbxassetid://137147088822972",
+	}, finishes={case_geom={material=Enum.Material.Leather}, lid_geom={material=Enum.Material.Leather}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(157,255,74)}}},
+	-- Studio MCP generate_mesh, 936ff28f-5b39-4dbc-b82a-9e0fe8772edf (2026-09-16).
+	Bank_PlatinumBullionStack = {asset=116502120155472, primary="bars_geom", meshes={
+		["edges_geom"]="rbxassetid://112747464782818",
+		["bars_geom"]="rbxassetid://73702209782596",
+	}, finishes={bars_geom={material=Enum.Material.Metal,color=Color3.fromRGB(35,41,48)}, edges_geom={glow=true,clearTexture=true,color=Color3.fromRGB(143,249,255)}}},
+	-- Studio MCP generate_mesh, a611a9ce-5f02-4ba0-8b50-5e58149d892c (2026-09-16).
+	Bank_VendingMachine = {asset=95559568387895, primary="machine_geom", meshes={
+		["shafts_geom"]="rbxassetid://84609455396306",
+		["halos_geom"]="rbxassetid://76868807194480",
+		["shelves_geom"]="rbxassetid://72294373792611",
+		["glass_geom"]="rbxassetid://114378297477408",
+		["machine_geom"]="rbxassetid://138286011063093",
+	}, finishes={machine_geom={material=Enum.Material.Metal}, glass_geom={material=Enum.Material.Glass,transparency=0.8,clearTexture=true,color=Color3.fromRGB(219,252,245)}, shelves_geom={material=Enum.Material.Metal}, halos_geom={material=Enum.Material.Metal}, shafts_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 6c732662-f452-4b24-b91f-0a043cbecbfb (2026-09-16).
+	Bank_MoneyStack = {asset=128850277445732, primary="bills_geom", meshes={
+		["band_geom"]="rbxassetid://136499775864929",
+		["bills_geom"]="rbxassetid://110162836431702",
+	}, finishes={bills_geom={material=Enum.Material.Cardboard}, band_geom={material=Enum.Material.Metal}}},
 	-- Studio MCP generate_mesh, 9589fd12-ddd2-47a3-bd7d-213d65cec9a8 (2026-09-16).
 	Gym_Water = {asset=96198588515189, primary="bottle_geom", meshes={
 		["cap_geom"]="rbxassetid://96538009727687",
