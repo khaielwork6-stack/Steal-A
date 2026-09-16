@@ -30,8 +30,12 @@ for i,def in defs do
  local corner=Instance.new("UICorner"); corner.CornerRadius=UDim.new(0,10); corner.Parent=card
  label(card,def.rarity:upper(),0,0.02,1,0.05,12,colors[def.rarity])
  label(card,def.name,0.04,0.52,0.92,0.09,14)
+ if def.retained then label(card,"EXISTING ART",0,0.60,1,0.035,10,Color3.fromRGB(255,190,100)) end
  local source=RS.LootPreviews:FindFirstChild(def.id)
- assert(source,def.id.." missing preview")
+ if not source then
+  label(card,"Existing placeholder\nNo replacement mesh",0.05,0.23,0.90,0.17,12,Color3.fromRGB(255,190,100))
+  continue
+ end
  for row=1,2 do
   local vp=Instance.new("ViewportFrame"); vp.BackgroundTransparency=1; vp.BorderSizePixel=0
   vp.Size=UDim2.fromScale(0.94,if row==1 then 0.44 else 0.30)

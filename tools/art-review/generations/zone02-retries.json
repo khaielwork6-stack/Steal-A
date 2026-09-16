@@ -1,0 +1,38 @@
+[
+  {
+    "id": "Pirate_CaptainsHat",
+    "attempts": [
+      {
+        "prompt": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. Authentic black felt tricorne captain hat, exaggerated three turned-up corners and generous curved brim with worn gold braid trim. Tall elegant crimson feather plume sweeps off to the left, a small cream carved skull badge at front. Clearly a three-corner pirate hat rather than a top hat or flat cap. Common: matte felt, fabric braid and bone badge, NO glow. Smooth sculpted fabric folds and feather silhouette; strong dramatic triangular outline.",
+        "error": "Failed to publish assets with error: Operation failed: Too Many Requests",
+        "jobId": "2a0161cb-884d-4ece-bcec-6ecf43f65396"
+      },
+      {
+        "prompt": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. Authentic black felt tricorne captain hat, exaggerated three turned-up corners and generous curved brim with worn gold braid trim. Tall elegant crimson feather plume sweeps off to the left, a small cream carved skull badge at front. Clearly a three-corner pirate hat rather than a top hat or flat cap. Common: matte felt, fabric braid and bone badge, NO glow. Smooth sculpted fabric folds and feather silhouette; strong dramatic triangular outline.",
+        "jobId": "08a14fba-651c-4f73-9fd7-a04fc2547788",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_CursedCoin",
+    "attempts": [
+      {
+        "prompt": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. A thick ancient gold doubloon hovering upright, frontal face embossed with a clearly sculpted pirate skull and crossed bones. Deep violet and indigo nebula enamel across recessed gold face, tiny clean silver star speckles, no noisy texture. A thin detached purple-black ring of cursed energy surrounds the coin at a slanted angle. Exactly THREE smaller gold coins arranged in separated orbital positions around it, each clearly detached with open air between elements. Cosmic rarity: rich gold with violet glow and cosmic sheen. Main circular coin remains dominant, satellites and ring expand the outline. Three meshes: main coin; detached orbit ring; three satellite coins grouped as one mesh. No stand.",
+        "error": "Mesh generation failed with error: Moderation failed",
+        "jobId": "248638a9-2fe7-495a-88d7-1c2556dbd432"
+      },
+      {
+        "prompt": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. A thick ancient gold doubloon hovering upright, frontal face embossed with a clearly sculpted pirate skull and crossed bones. Deep violet and indigo nebula enamel across recessed gold face, tiny clean silver star speckles, no noisy texture. A thin detached purple-black ring of cursed energy surrounds the coin at a slanted angle. Exactly THREE smaller gold coins arranged in separated orbital positions around it, each clearly detached with open air between elements. Cosmic rarity: rich gold with violet glow and cosmic sheen. Main circular coin remains dominant, satellites and ring expand the outline. Three meshes: main coin; detached orbit ring; three satellite coins grouped as one mesh. No stand.",
+        "error": "Mesh generation failed with error: Moderation failed",
+        "jobId": "bba59e42-3663-4a19-aeab-55586f2e14e2"
+      },
+      {
+        "prompt": "Premium Roblox collectible in stylized realism, real-world metal proportions, smooth crafted surfaces, clean bright gold and deep violet colors, no noisy photo textures. A thick circular antique gold coin floating upright, five studs tall, with an embossed geometric compass-star emblem on its front face, a raised rope-pattern rim and blue-violet enamel recesses with tiny clean silver star speckles. A thin detached indigo-purple energy ring surrounds the coin on a slanted plane. Exactly three smaller gold coins float at separated orbital positions around the main coin, with generous open air gaps. Rich gold polish and luminous purple accents, elegant celestial treasure. Strong round central outline with three small separated circles. No stand, no scene, no text or UI. Three mesh pieces: coin, orbit_ring, satellite_coins. Keep all three satellites grouped as one mesh.",
+        "jobId": "89453662-0bde-4e04-85c9-9fa54f9fd66d",
+        "status": "completed",
+        "neutralRetry": true
+      }
+    ]
+  }
+]

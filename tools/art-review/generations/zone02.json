@@ -1,0 +1,232 @@
+[
+  {
+    "id": "Pirate_TreasureMap",
+    "primary": "parchment_geom",
+    "generationId": "1baae729-1f19-4f15-8052-494100a7ffc0",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. An aged cream parchment treasure map with one thick tightly rolled end rising upright and the other end unfurled into a broad curved S-shaped sheet, never flat. Hand-painted simple sea-green coastline and a single vivid red X on exposed parchment, gently burnt brown irregular edges. Twine loosely binds the curled roll. Common, entirely matte paper and rope, no emission or metal. The rolled parchment and sweeping irregular sheet are the silhouette.",
+    "publishedAssetId": "98242405550902",
+    "tag": "Assistant-2dce9780-ca57-49b0-afd5-81efdb24b2ae",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://107857940895324",
+        "name": "twine_geom",
+        "texture": "rbxassetid://130680267979614"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://110655926491518",
+        "name": "parchment_geom",
+        "texture": "rbxassetid://93506034615768"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_GoldenCompass",
+    "primary": "case_geom",
+    "generationId": "e02998a6-8186-486a-98f7-c1b34a3549e8",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. Beautiful antique brass pocket compass with its round lid hinged upright at 110 degrees behind the round instrument, like an open clamshell. Raised loop at top. Cream dial with chunky dark cardinal marks and prominent bright red needle; clear glass over dial. Two-circle vertically stacked silhouette, front tilted up enough to see dial. Warm polished brass against clean white. Uncommon: one polished brass element, small red accent, no glow. Real curved case and hinge geometry.",
+    "publishedAssetId": "106094860937174",
+    "tag": "Assistant-10d729c7-081f-43d0-8f6b-5fbc42236edd",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112833406656214",
+        "name": "glass_geom",
+        "texture": "rbxassetid://91473852413518"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://76322563704620",
+        "name": "dial_geom",
+        "texture": "rbxassetid://82024526847688"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://92513364634071",
+        "name": "lid_geom",
+        "texture": "rbxassetid://102875746644429"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://114166408168414",
+        "name": "case_geom",
+        "texture": "rbxassetid://123952692125613"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_GoldenHook",
+    "primary": "hook_geom",
+    "generationId": "4b78bf1c-1948-4039-92a8-5cef21ceeab2",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. Pirate prosthetic hook: a generously curved C-shaped polished gold hook curls to a tapering point, mounted vertically in a stout dark brown leather forearm cuff with brass studs. The generous open negative space inside the smooth hooked curve is essential. Rounded leather cuff with visible clean seams, aged brass rim. Rare: shining gold against dark leather, no emission. No extra display stand.",
+    "publishedAssetId": "113406777327550",
+    "tag": "Assistant-88915ee0-cf8e-4163-a627-febee74055b4",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://111390378447011",
+        "name": "cuff_geom",
+        "texture": "rbxassetid://132108739521968"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://140229809317792",
+        "name": "hook_geom",
+        "texture": "rbxassetid://84776812162510"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_TreasureChest",
+    "primary": "chest_geom",
+    "generationId": "81e51636-0618-4ce5-b715-b499624444ca",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. A stout pirate treasure chest in dark warm weathered wood with curved iron straps and chunky brass corner fittings, domed lid OPEN at 55 degrees. The lid must be visibly ajar in silhouette. Spill of thick gold coins, emerald and ruby gems visible above rim and spilling down the right side. Warm orange light from inside, Epic only faint small glow. Genuine sculpted wood chest curves with bevels, NOT a plain block. Four mesh components: chest body and straps, open lid, treasure spill, a small inner_glow surface beneath coins.",
+    "publishedAssetId": "121257547949969",
+    "tag": "Assistant-39f049a1-7cd1-412c-a0d6-5e8cc06e940a",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://73277298214084",
+        "name": "inner_glow_geom",
+        "texture": "rbxassetid://103614416289832"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105732428769684",
+        "name": "treasure_geom",
+        "texture": "rbxassetid://121795325625603"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105207001945124",
+        "name": "lid_geom",
+        "texture": "rbxassetid://83624623297088"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://102672946283675",
+        "name": "chest_geom",
+        "texture": "rbxassetid://70699853518121"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_CaptainsCutlass",
+    "primary": "blade_geom",
+    "generationId": "e1f134ce-6af2-4c13-9f00-a1504271e2d3",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. An elegant pirate cutlass displayed diagonally at 35 degrees from vertical, broad curved polished steel blade flaring toward its rounded point, ornate curved gold basket hand guard, crimson wrapped grip. The sweeping blade and hollow gold basket must both have real smooth curves. Small understated dark mounting foot to support its diagonal stance. Epic rarity: gold inlay and one very small faint ruby glowing pommel accent, no blade glow. The diagonal sabre silhouette is elongated and unmistakable.",
+    "publishedAssetId": "74993511030038",
+    "tag": "Assistant-25fcb048-ed5c-4a2e-b9a5-860801c2e157",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://86202131157637",
+        "name": "mount_geom",
+        "texture": "rbxassetid://96941479489182"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122485389368217",
+        "name": "grip_geom",
+        "texture": "rbxassetid://86370414621510"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://70617068715145",
+        "name": "hilt_geom",
+        "texture": "rbxassetid://80570663429790"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87867377571837",
+        "name": "blade_geom",
+        "texture": "rbxassetid://120405342347932"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_JeweledSkull",
+    "primary": "skull_geom",
+    "generationId": "8e2954f3-d16a-47af-8ee7-9bc147c10321",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. A polished bone-white realistic human skull with stylized softened clean contours, large hollow eye sockets filled by rich glowing emerald green gems. A thick ornate gold brow band with saturated ruby cabochons wraps its forehead. Broad cheekbones, clear nose opening, neatly sculpted teeth and jaw, menacing but valuable. Legendary: rich gold and clear emerald eye glow, deeper jewel tones. Three meshes: complete skull including jaw; two emerald eyes; gold-and-ruby brow band. No pedestal, no neck, no cartoon eyeballs.",
+    "publishedAssetId": "126677246884152",
+    "tag": "Assistant-d5dec41a-c063-413b-b61c-31995b556202",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://129608764982123",
+        "name": "brow_band_geom",
+        "texture": "rbxassetid://80932580288843"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://93591377398186",
+        "name": "eyes_geom",
+        "texture": "rbxassetid://115350151984723"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113400013654251",
+        "name": "skull_geom",
+        "texture": "rbxassetid://108394431755124"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_CaptainsHat",
+    "primary": "hat_geom",
+    "generationId": "0113e8f2-d6bb-46c2-b2cd-c0eaa1179f46",
+    "generationName": "Premium Roblox simulator loot, stylized realism at the quality of a finely made terracotta amphora: real-world proportions, smoothly sculpted curved surfaces, clean bright saturated colors, richly finished, no noisy photographic textures, no scene or room, no labels or UI. Upright collectible about 5 studs tall with a bold distinct outline at 100 pixels. Pirate family palette: weathered warm wood, brass, sea green, rope tan with deep crimson accents. Authentic black felt tricorne captain hat, exaggerated three turned-up corners and generous curved brim with worn gold braid trim. Tall elegant crimson feather plume sweeps off to the left, a small cream carved skull badge at front. Clearly a three-corner pirate hat rather than a top hat or flat cap. Common: matte felt, fabric braid and bone badge, NO glow. Smooth sculpted fabric folds and feather silhouette; strong dramatic triangular outline.",
+    "publishedAssetId": "103102831491969",
+    "tag": "Assistant-3adcc122-e9a1-4987-a5b8-0a5c95983205",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://80945403095686",
+        "name": "skull_badge_geom",
+        "texture": "rbxassetid://94465446475237"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://121235675240437",
+        "name": "feather_geom",
+        "texture": "rbxassetid://128614104863619"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://115345034376823",
+        "name": "hat_geom",
+        "texture": "rbxassetid://104706959998314"
+      }
+    ]
+  },
+  {
+    "id": "Pirate_CursedCoin",
+    "primary": "coin_geom",
+    "generationId": "af420ba9-3f05-4f1e-939a-35ab671c307c",
+    "generationName": "Premium Roblox collectible in stylized realism, real-world metal proportions, smooth crafted surfaces, clean bright gold and deep violet colors, no noisy photo textures. A thick circular antique gold coin floating upright, five studs tall, with an embossed geometric compass-star emblem on its front face, a raised rope-pattern rim and blue-violet enamel recesses with tiny clean silver star speckles. A thin detached indigo-purple energy ring surrounds the coin on a slanted plane. Exactly three smaller gold coins float at separated orbital positions around the main coin, with generous open air gaps. Rich gold polish and luminous purple accents, elegant celestial treasure. Strong round central outline with three small separated circles. No stand, no scene, no text or UI. Three mesh pieces: coin, orbit_ring, satellite_coins. Keep all three satellites grouped as one mesh.",
+    "publishedAssetId": "137142422950433",
+    "tag": "Assistant-5b29f7ec-183a-462c-a406-ca77fc0ff6c3",
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://114479267250456",
+        "name": "satellite_coins_geom",
+        "texture": "rbxassetid://104944250856748"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://97883487796091",
+        "name": "orbit_ring_geom",
+        "texture": "rbxassetid://125652844606218"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://117722438679161",
+        "name": "coin_geom",
+        "texture": "rbxassetid://137521043417416"
+      }
+    ]
+  }
+]

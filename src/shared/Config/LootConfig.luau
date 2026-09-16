@@ -366,6 +366,7 @@ end
 -- no asset in the place and builds a placeholder. Re-run Invoke("lootAudit") after
 -- any art change - the start-up check flags a stale row by name.
 LootConfig.Normalization = {
+	Pirate_CursedCoin = { 1.0000, 7.500, 4.048, 5.866 }, -- Cursed Coin: 7.50 x 4.05 x 5.87 -> 7.50 x 4.05 x 5.87
 	Museum_AncientVase = { 1.0000, 3.485, 5.000, 3.515 }, -- Generated mesh amphora; measured with lootAudit.
 	Museum_RarePainting = { 1.0000, 3.721, 5.000, 1.913 }, -- Generated mesh, lootAudit.
 	Museum_GoldenStatue = { 1.0000, 2.117, 5.000, 2.094 }, -- Generated mesh, lootAudit.
@@ -374,13 +375,13 @@ LootConfig.Normalization = {
 	Museum_GoldenCrown = { 1.0000, 9.154, 4.000, 9.144 }, -- Generated mesh, lootAudit.
 	Museum_Meteorite = { 1.0000, 3.867, 5.000, 4.607 }, -- Generated mesh, live lootAudit
 	Museum_Diamond = { 1.0000, 3.149, 5.000, 3.160 }, -- Generated mesh, lootAudit.
-	Pirate_TreasureMap = { 0.3571, 11.000, 14.000, 2.000 }, -- Treasure Map: 11.00 x 14.00 x 2.00 -> 3.93 x 5.00 x 0.71
-	Pirate_CaptainsHat = { 0.8042, 6.908, 6.217, 3.454 }, -- Captain's Hat: 6.91 x 6.22 x 3.45 -> 5.56 x 5.00 x 2.78
-	Pirate_GoldenCompass = { 2.5011, 2.000, 1.999, 2.000 }, -- Golden Compass: 2.00 x 2.00 x 2.00 -> 5.00 x 5.00 x 5.00
-	Pirate_GoldenHook = { 1.8834, 1.496, 2.655, 1.496 }, -- Golden Hook: 1.50 x 2.65 x 1.50 -> 2.82 x 5.00 x 2.82
-	Pirate_TreasureChest = { 1.8450, 2.830, 2.710, 1.750 }, -- Treasure Chest: 2.83 x 2.71 x 1.75 -> 5.22 x 5.00 x 3.23
-	Pirate_CaptainsCutlass = { 0.2801, 14.329, 17.848, 0.511 }, -- Captain's Cutlass: 14.33 x 17.85 x 0.51 -> 4.01 x 5.00 x 0.14
-	Pirate_JeweledSkull = { 0.4721, 4.694, 10.590, 6.627 }, -- Jeweled Skull: 4.69 x 10.59 x 6.63 -> 2.22 x 5.00 x 3.13
+	Pirate_TreasureMap = { 1.0000, 4.780, 5.000, 3.419 }, -- Treasure Map: 4.78 x 5.00 x 3.42 -> 4.78 x 5.00 x 3.42
+	Pirate_CaptainsHat = { 1.0000, 6.852, 5.000, 6.930 }, -- Captain's Hat: 6.85 x 5.00 x 6.93 -> 6.85 x 5.00 x 6.93
+	Pirate_GoldenCompass = { 1.0000, 4.340, 5.000, 6.512 }, -- Golden Compass: 4.34 x 5.00 x 6.51 -> 4.34 x 5.00 x 6.51
+	Pirate_GoldenHook = { 1.0000, 4.203, 5.000, 1.310 }, -- Golden Hook: 4.20 x 5.00 x 1.31 -> 4.20 x 5.00 x 1.31
+	Pirate_TreasureChest = { 1.0000, 4.410, 5.000, 4.125 }, -- Treasure Chest: 4.41 x 5.00 x 4.12 -> 4.41 x 5.00 x 4.12
+	Pirate_CaptainsCutlass = { 1.0000, 2.925, 5.000, 5.437 }, -- Captain's Cutlass: 2.93 x 5.00 x 5.44 -> 2.93 x 5.00 x 5.44
+	Pirate_JeweledSkull = { 1.0000, 4.319, 5.000, 4.782 }, -- Jeweled Skull: 4.32 x 5.00 x 4.78 -> 4.32 x 5.00 x 4.78
 	Castle_GoldenGoblet = { 0.9449, 3.087, 5.292, 2.865 }, -- Golden Goblet: 3.09 x 5.29 x 2.86 -> 2.92 x 5.00 x 2.71
 	Castle_RoyalPainting = { 0.8000, 9.600, 5.000, 0.050 }, -- Royal Painting: 9.60 x 5.00 x 0.05 -> 7.68 x 4.00 x 0.04
 	Castle_RoyalSeal = { 0.7636, 0.222, 6.548, 8.387 }, -- Royal Seal: 0.22 x 6.55 x 8.39 -> 0.17 x 5.00 x 6.40

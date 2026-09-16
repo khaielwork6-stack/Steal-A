@@ -10,6 +10,55 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, 0113e8f2-d6bb-46c2-b2cd-c0eaa1179f46 (2026-09-16).
+	Pirate_CaptainsHat = {asset=103102831491969, primary="hat_geom", meshes={
+		["skull_badge_geom"]="rbxassetid://80945403095686",
+		["feather_geom"]="rbxassetid://121235675240437",
+		["hat_geom"]="rbxassetid://115345034376823",
+	},finishes={hat_geom={material=Enum.Material.Fabric}, feather_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, af420ba9-3f05-4f1e-939a-35ab671c307c (2026-09-16).
+	Pirate_CursedCoin = {asset=137142422950433, primary="coin_geom", meshes={
+		["satellite_coins_geom"]="rbxassetid://114479267250456",
+		["orbit_ring_geom"]="rbxassetid://97883487796091",
+		["coin_geom"]="rbxassetid://117722438679161",
+	},finishes={coin_geom={material=Enum.Material.Metal}, orbit_ring_geom={glow=true,color=Color3.fromRGB(112,45,215),clearTexture=true,mode="Spin",speed=0.2}, satellite_coins_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.35}}},
+	-- Studio MCP generate_mesh, 1baae729-1f19-4f15-8052-494100a7ffc0 (2026-09-16).
+	Pirate_TreasureMap = {asset=98242405550902, primary="parchment_geom", meshes={
+		["twine_geom"]="rbxassetid://107857940895324",
+		["parchment_geom"]="rbxassetid://110655926491518",
+	}, finishes={parchment_geom={material=Enum.Material.Fabric}, twine_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, e02998a6-8186-486a-98f7-c1b34a3549e8 (2026-09-16).
+	Pirate_GoldenCompass = {asset=106094860937174, primary="case_geom", meshes={
+		["glass_geom"]="rbxassetid://112833406656214",
+		["dial_geom"]="rbxassetid://76322563704620",
+		["lid_geom"]="rbxassetid://92513364634071",
+		["case_geom"]="rbxassetid://114166408168414",
+	}, finishes={case_geom={material=Enum.Material.Metal}, lid_geom={material=Enum.Material.Metal}, glass_geom={material=Enum.Material.Glass, transparency=0.6, clearTexture=true, color=Color3.fromRGB(230,245,255)}}},
+	-- Studio MCP generate_mesh, 4b78bf1c-1948-4039-92a8-5cef21ceeab2 (2026-09-16).
+	Pirate_GoldenHook = {asset=113406777327550, primary="hook_geom", meshes={
+		["cuff_geom"]="rbxassetid://111390378447011",
+		["hook_geom"]="rbxassetid://140229809317792",
+	}, finishes={hook_geom={material=Enum.Material.Metal}, cuff_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, 81e51636-0618-4ce5-b715-b499624444ca (2026-09-16).
+	Pirate_TreasureChest = {asset=121257547949969, primary="chest_geom", meshes={
+		["inner_glow_geom"]="rbxassetid://73277298214084",
+		["treasure_geom"]="rbxassetid://105732428769684",
+		["lid_geom"]="rbxassetid://105207001945124",
+		["chest_geom"]="rbxassetid://102672946283675",
+	}, finishes={chest_geom={material=Enum.Material.Wood}, lid_geom={material=Enum.Material.Wood}, treasure_geom={material=Enum.Material.Metal}, inner_glow_geom={glow=true, clearTexture=true, color=Color3.fromRGB(255,179,60)}}},
+	-- Studio MCP generate_mesh, e1f134ce-6af2-4c13-9f00-a1504271e2d3 (2026-09-16).
+	Pirate_CaptainsCutlass = {asset=74993511030038, primary="blade_geom", meshes={
+		["mount_geom"]="rbxassetid://86202131157637",
+		["grip_geom"]="rbxassetid://122485389368217",
+		["hilt_geom"]="rbxassetid://70617068715145",
+		["blade_geom"]="rbxassetid://87867377571837",
+	}, finishes={blade_geom={material=Enum.Material.Metal}, hilt_geom={material=Enum.Material.Metal}, grip_geom={material=Enum.Material.Fabric}, mount_geom={material=Enum.Material.Slate}}},
+	-- Studio MCP generate_mesh, 8e2954f3-d16a-47af-8ee7-9bc147c10321 (2026-09-16).
+	Pirate_JeweledSkull = {asset=126677246884152, primary="skull_geom", meshes={
+		["brow_band_geom"]="rbxassetid://129608764982123",
+		["eyes_geom"]="rbxassetid://93591377398186",
+		["skull_geom"]="rbxassetid://113400013654251",
+	}, finishes={skull_geom={material=Enum.Material.Marble}, brow_band_geom={material=Enum.Material.Metal}, eyes_geom={glow=true, clearTexture=true, color=Color3.fromRGB(20,255,102)}}},
 	-- Studio MCP generate_mesh, dbb2d898-5d29-462d-961f-2f03b4d0cf10 (2026-09-16).
 	Museum_PharaohMask = {asset=89885023945258, primary="mask_geom", meshes={
 		["headdress_geom"]="rbxassetid://74694780901052",
@@ -121,7 +170,10 @@ local function decorate(model: Model, id: string)
 	local pearl = Color3.fromRGB(255, 248, 216)
 	local purple = Color3.fromRGB(168, 65, 255)
 	local cyan = Color3.fromRGB(131, 236, 255)
-	if id == "Museum_Meteorite" then
+	if id == "Pirate_CaptainsCutlass" then
+		local grip = mesh("grip")
+		accent(model, "RubyPommel", Vector3.one * 0.15, grip.CFrame * CFrame.new(0,-grip.Size.Y*0.5,0), Color3.fromRGB(255,55,65))
+	elseif id == "Museum_Meteorite" then
 		neon(mesh("fissures"), Color3.fromRGB(255, 112, 20))
 		mesh("rock").Material = Enum.Material.Slate
 	elseif id == "Museum_GoldenCrown" then
