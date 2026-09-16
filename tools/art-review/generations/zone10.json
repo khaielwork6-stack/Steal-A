@@ -1,0 +1,399 @@
+[
+  {
+    "generationId": "b1305c82-5a11-4a4a-ba7c-82af5ccdac58",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A beautifully folded deep-red knitted sweater, thick chunky cable knit texture, collar visible at top and one sleeve folded across the front. Cream snowflake pattern band, polished golden buttons and a restrained warm golden seam accent. Legendary. Cozy cloth folds and asymmetric sleeve create a soft rectangular silhouette; rich holly red and warm cream.",
+    "publishedAssetId": "74205462266801",
+    "tag": "Assistant-10ca8a42-66de-4da6-a066-0b8d62ffb533",
+    "id": "Grandma_KnittedSweater",
+    "primary": "sweater_geom",
+    "finishes": {
+      "sweater": {
+        "material": "Fabric"
+      },
+      "buttons": {
+        "material": "Metal"
+      },
+      "accent": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82855031555761",
+        "name": "accent_geom",
+        "texture": "rbxassetid://135455113370965"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://75456316431946",
+        "name": "buttons_geom",
+        "texture": "rbxassetid://70869901029465"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://72498454391945",
+        "name": "sweater_geom",
+        "texture": "rbxassetid://128672521312338"
+      }
+    ]
+  },
+  {
+    "generationId": "282db476-0191-475a-8d4b-c430f78eb05a",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An elegant slim warm walnut walking cane, authentic large curved gold handle with intricate floral carving, brass ferrule on bottom. A small detached pink gemstone hovers above the handle, glowing gold inlay spirals up the wooden shaft. Mythic, graceful hooked outline with a separated jewel. Soft pink, cream and golden warmth.",
+    "publishedAssetId": "122734549309930",
+    "tag": "Assistant-edff2cd3-d8a0-4679-b917-7cf7cd527be1",
+    "id": "Grandma_WalkingCane",
+    "primary": "cane_geom",
+    "finishes": {
+      "cane": {
+        "material": "Wood"
+      },
+      "inlay": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ]
+      },
+      "gem": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          146,
+          195
+        ],
+        "mode": "Hover",
+        "speed": 1.1
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116322740348275",
+        "name": "gem_geom",
+        "texture": "rbxassetid://101723378052056"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://114003071585821",
+        "name": "inlay_geom",
+        "texture": "rbxassetid://128389488503716"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://72914730115848",
+        "name": "cane_geom",
+        "texture": "rbxassetid://94726074003891"
+      }
+    ]
+  },
+  {
+    "generationId": "72589e64-3aa9-479a-a280-5ab80cfff94b",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Rounded polished golden teapot with elegant long curved spout and open loop handle, cream enamel panels painted with simple pink flowers and green leaves. Lid floats clearly above the open mouth, a small detached matching teacup floats beside the spout. Cosmic: deep violet-blue clean nebula sheen in gold panels. Charming luxurious realistic curves, asymmetric teapot silhouette.",
+    "publishedAssetId": "90830424831441",
+    "tag": "Assistant-9fe896ea-a784-4d3a-b724-e881e695db9a",
+    "id": "Grandma_GoldenTeapot",
+    "primary": "pot_geom",
+    "finishes": {
+      "pot": {
+        "material": "Metal"
+      },
+      "lid": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "cup": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.22
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://128706204779432",
+        "name": "cup_geom",
+        "texture": "rbxassetid://110043335571682"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84237060317733",
+        "name": "lid_geom",
+        "texture": "rbxassetid://131088146907359"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87075590136123",
+        "name": "pot_geom",
+        "texture": "rbxassetid://133582819375481"
+      }
+    ]
+  },
+  {
+    "generationId": "fc611cc7-0555-4c37-acca-9f47efd75ac6",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Tall elegant walnut grandfather clock, narrow long case, arched ornate crown, gold pendulum visible through glass lower door, warm cream circular clock face with clear gold hands. Deep violet-blue starfield enamel accents in carved wood panels. Cosmic, polished wood warmth and gold, majestic tall narrow arched silhouette.",
+    "publishedAssetId": "103011275211966",
+    "tag": "Assistant-7c7ceb9f-15be-4fee-8b3f-5fe36f35dc61",
+    "id": "Grandma_AntiqueClock",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Wood"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.85,
+        "clearTexture": true,
+        "color": [
+          236,
+          242,
+          255
+        ]
+      },
+      "pendulum": {
+        "material": "Metal",
+        "mode": "Swing",
+        "axis": "Z",
+        "speed": 1.5
+      },
+      "face": {
+        "material": "Marble"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://91142281155291",
+        "name": "face_geom",
+        "texture": "rbxassetid://76772018835486"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://120503609532488",
+        "name": "pendulum_geom",
+        "texture": "rbxassetid://112666845827449"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://125665921462377",
+        "name": "glass_geom",
+        "texture": "rbxassetid://94078672843182"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://106861223672400",
+        "name": "case_geom",
+        "texture": "rbxassetid://70590992099340"
+      }
+    ]
+  },
+  {
+    "generationId": "b19829f2-a6f8-44a5-89ed-b85eae53e162",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Structured fashionable handbag with near-black quilted leather body, curved opening, gold chain strap making a tall open arch and ornate gold clasp. One intense hot-pink light shines from the OPEN top. Secret, almost-black with saturated pink emission, high contrast and soft premium quilted surface.",
+    "publishedAssetId": "80600785455453",
+    "tag": "Assistant-7941e154-4884-42b8-af98-455159a38719",
+    "id": "Grandma_GrandmasPurse",
+    "primary": "bag_geom",
+    "finishes": {
+      "bag": {
+        "material": "Leather",
+        "color": [
+          29,
+          22,
+          29
+        ]
+      },
+      "chain": {
+        "material": "Metal"
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          33,
+          147
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://95188892302645",
+        "name": "light_geom",
+        "texture": "rbxassetid://119557646804264"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://103803650721304",
+        "name": "chain_geom",
+        "texture": "rbxassetid://125036104481936"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://88017160346893",
+        "name": "bag_geom",
+        "texture": "rbxassetid://105931612241732"
+      }
+    ]
+  },
+  {
+    "generationId": "e2e3109d-632f-453d-a330-6622baffa9c3",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A pastel-pink and cream gift box with ornate gold wrapping, an ENORMOUS detached golden ribbon bow hovering HIGH above the lid with clear gap, long flowing ribbon tails curl outward. Two layered concentric radiant gold-white rings stand behind the box, glowing seam and thin light shafts. Eternal, warm cream pink and gold; tall bow and halos distinguish it from a square red-ribbon holiday present.",
+    "publishedAssetId": "138046899572201",
+    "tag": "Assistant-84354786-0f4b-4fd8-806e-6b34a58d21b3",
+    "id": "Grandma_LegendaryGiftBox",
+    "primary": "box_geom",
+    "finishes": {
+      "box": {
+        "material": "Foil"
+      },
+      "bow": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "halos": {
+        "material": "Metal"
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87328209128799",
+        "name": "light_geom",
+        "texture": "rbxassetid://117929939726792"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://126210125491428",
+        "name": "halos_geom",
+        "texture": "rbxassetid://125496356371119"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://107049205724913",
+        "name": "bow_geom",
+        "texture": "rbxassetid://94224487422422"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://91198245218595",
+        "name": "box_geom",
+        "texture": "rbxassetid://124049599772930"
+      }
+    ]
+  },
+  {
+    "generationId": "0d93cd3f-9485-4536-97ae-8fc45e4e48c9",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Magnificent warm cream ceramic cookie jar with hand-painted simple pink floral pattern and gold rim. Its ornate lid floats WELL ABOVE the open rim, three golden cookies levitate in the gap, brilliant warm gold-white radiance pours out. Two large concentric luminous halos behind and fine shafts rising through the opening. Divine, absurdly opulent, smooth authentic jar curves, complex vertical separated silhouette.",
+    "publishedAssetId": "109723585075023",
+    "tag": "Assistant-00c855b6-0556-4c0c-8457-faadf8cc97b4",
+    "id": "Grandma_CookieJar",
+    "primary": "jar_geom",
+    "finishes": {
+      "jar": {
+        "material": "CeramicTiles"
+      },
+      "lid": {
+        "material": "CeramicTiles",
+        "mode": "Spin",
+        "speed": 0.16
+      },
+      "cookies": {
+        "material": "Sand",
+        "mode": "Orbit",
+        "speed": 0.18
+      },
+      "inner_halo": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ],
+        "mode": "Spin",
+        "speed": 0.16
+      },
+      "outer_halo": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ],
+        "mode": "Spin",
+        "speed": -0.13
+      },
+      "shafts": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87411391168691",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://136387175051579"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116141139467205",
+        "name": "outer_halo_geom",
+        "texture": "rbxassetid://109147655616733"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137960477771871",
+        "name": "inner_halo_geom",
+        "texture": "rbxassetid://115903816492535"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://91597709564420",
+        "name": "cookies_geom",
+        "texture": "rbxassetid://99290996019640"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://129076274321237",
+        "name": "lid_geom",
+        "texture": "rbxassetid://92161313153942"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124211847774371",
+        "name": "jar_geom",
+        "texture": "rbxassetid://119456955723623"
+      }
+    ]
+  }
+]

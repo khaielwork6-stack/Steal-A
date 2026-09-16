@@ -104,6 +104,53 @@ local DEFINITIONS: {[string]: Definition} = {
 		["band_geom"]="rbxassetid://136499775864929",
 		["bills_geom"]="rbxassetid://110162836431702",
 	}, finishes={bills_geom={material=Enum.Material.Cardboard}, band_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, b1305c82-5a11-4a4a-ba7c-82af5ccdac58 (2026-09-16).
+	Grandma_KnittedSweater = {asset=74205462266801, primary="sweater_geom", meshes={
+		["accent_geom"]="rbxassetid://82855031555761",
+		["buttons_geom"]="rbxassetid://75456316431946",
+		["sweater_geom"]="rbxassetid://72498454391945",
+	}, finishes={sweater_geom={material=Enum.Material.Fabric}, buttons_geom={material=Enum.Material.Metal}, accent_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143)}}},
+	-- Studio MCP generate_mesh, 282db476-0191-475a-8d4b-c430f78eb05a (2026-09-16).
+	Grandma_WalkingCane = {asset=122734549309930, primary="cane_geom", meshes={
+		["gem_geom"]="rbxassetid://116322740348275",
+		["inlay_geom"]="rbxassetid://114003071585821",
+		["cane_geom"]="rbxassetid://72914730115848",
+	}, finishes={cane_geom={material=Enum.Material.Wood}, inlay_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143)}, gem_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,146,195),mode="Hover",speed=1.1}}},
+	-- Studio MCP generate_mesh, 72589e64-3aa9-479a-a280-5ab80cfff94b (2026-09-16).
+	Grandma_GoldenTeapot = {asset=90830424831441, primary="pot_geom", meshes={
+		["cup_geom"]="rbxassetid://128706204779432",
+		["lid_geom"]="rbxassetid://84237060317733",
+		["pot_geom"]="rbxassetid://87075590136123",
+	}, finishes={pot_geom={material=Enum.Material.Metal}, lid_geom={material=Enum.Material.Metal,mode="Hover",speed=1}, cup_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.22}}},
+	-- Studio MCP generate_mesh, fc611cc7-0555-4c37-acca-9f47efd75ac6 (2026-09-16).
+	Grandma_AntiqueClock = {asset=103011275211966, primary="case_geom", meshes={
+		["face_geom"]="rbxassetid://91142281155291",
+		["pendulum_geom"]="rbxassetid://120503609532488",
+		["glass_geom"]="rbxassetid://125665921462377",
+		["case_geom"]="rbxassetid://106861223672400",
+	}, finishes={case_geom={material=Enum.Material.Wood}, glass_geom={material=Enum.Material.Glass,transparency=0.85,clearTexture=true,color=Color3.fromRGB(236,242,255)}, pendulum_geom={material=Enum.Material.Metal,mode="Swing",axis="Z",speed=1.5}, face_geom={material=Enum.Material.Marble}}},
+	-- Studio MCP generate_mesh, b19829f2-a6f8-44a5-89ed-b85eae53e162 (2026-09-16).
+	Grandma_GrandmasPurse = {asset=80600785455453, primary="bag_geom", meshes={
+		["light_geom"]="rbxassetid://95188892302645",
+		["chain_geom"]="rbxassetid://103803650721304",
+		["bag_geom"]="rbxassetid://88017160346893",
+	}, finishes={bag_geom={material=Enum.Material.Leather,color=Color3.fromRGB(29,22,29)}, chain_geom={material=Enum.Material.Metal}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,33,147)}}},
+	-- Studio MCP generate_mesh, e2e3109d-632f-453d-a330-6622baffa9c3 (2026-09-16).
+	Grandma_LegendaryGiftBox = {asset=138046899572201, primary="box_geom", meshes={
+		["light_geom"]="rbxassetid://87328209128799",
+		["halos_geom"]="rbxassetid://126210125491428",
+		["bow_geom"]="rbxassetid://107049205724913",
+		["box_geom"]="rbxassetid://91198245218595",
+	}, finishes={box_geom={material=Enum.Material.Foil}, bow_geom={material=Enum.Material.Metal,mode="Hover",speed=1}, halos_geom={material=Enum.Material.Metal}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}}},
+	-- Studio MCP generate_mesh, 0d93cd3f-9485-4536-97ae-8fc45e4e48c9 (2026-09-16).
+	Grandma_CookieJar = {asset=109723585075023, primary="jar_geom", meshes={
+		["shafts_geom"]="rbxassetid://87411391168691",
+		["outer_halo_geom"]="rbxassetid://116141139467205",
+		["inner_halo_geom"]="rbxassetid://137960477771871",
+		["cookies_geom"]="rbxassetid://91597709564420",
+		["lid_geom"]="rbxassetid://129076274321237",
+		["jar_geom"]="rbxassetid://124211847774371",
+	}, finishes={jar_geom={material=Enum.Material.CeramicTiles}, lid_geom={material=Enum.Material.CeramicTiles,mode="Spin",speed=0.16}, cookies_geom={material=Enum.Material.Sand,mode="Orbit",speed=0.18}, inner_halo_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224),mode="Spin",speed=0.16}, outer_halo_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143),mode="Spin",speed=-0.13}, shafts_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}}},
 	-- Studio MCP generate_mesh, 9589fd12-ddd2-47a3-bd7d-213d65cec9a8 (2026-09-16).
 	Gym_Water = {asset=96198588515189, primary="bottle_geom", meshes={
 		["cap_geom"]="rbxassetid://96538009727687",

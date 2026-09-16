@@ -1,0 +1,38 @@
+[
+  {
+    "id": "Grandma_CandyBowl",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A cream ceramic plate holding a tall uneven stack of thick golden-brown chocolate-chip cookies. One large cookie LEANS diagonally against the stack, lumpy soft edges and visible melted chocolate chunks. Epic tiny warm glow accent, appetizing baked texture kept clean and stylized. Cream, warm tan and floral pink plate border; stepped stack plus leaning disc silhouette.",
+    "error": {
+      "status": "Failed",
+      "jobResult": {
+        "content": [
+          {
+            "text": "Mesh generation failed with error: Moderation failed",
+            "type": "text"
+          }
+        ],
+        "isError": true
+      }
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Grandma_CandyBowl",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A cream ceramic plate holding a tall uneven stack of thick golden-brown chocolate-chip cookies. One large cookie LEANS diagonally against the stack, lumpy soft edges and visible melted chocolate chunks. Epic tiny warm glow accent, appetizing baked texture kept clean and stylized. Cream, warm tan and floral pink plate border; stepped stack plus leaning disc silhouette.",
+    "error": {
+      "status": "Failed",
+      "jobResult": {
+        "content": [
+          {
+            "text": "Mesh generation failed with error: Moderation failed",
+            "type": "text"
+          }
+        ],
+        "isError": true
+      }
+    },
+    "result": null,
+    "finalFailure": true
+  }
+]
