@@ -1905,6 +1905,114 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	---        empty profile table and would report a meaningless zero.
 }
 
+--- ONE DISPATCH, TWO DOORS. Both the BindableFunction and the attribute
+--- channel below go through here, so a command cannot behave differently
+--- depending on how it was asked for.
+local function dispatch(command: string, playerName: string?, ...): (boolean, any)
+	local handler = COMMANDS[command]
+	if not handler then
+		local names = {}
+		for name in COMMANDS do
+			table.insert(names, name)
+		end
+		table.sort(names)
+		return false, { error = `unknown command "{command}"`, available = names }
+	end
+
+	local player = firstPlayer(playerName)
+	if not player then
+		return false, { error = "no player in server" }
+	end
+
+	local ok, result = pcall(handler, player, ...)
+	if not ok then
+		return false, { error = tostring(result) }
+	end
+	return true, result
+end
+
+-- ==========================================================
+-- THE ATTRIBUTE CHANNEL
+-- ==========================================================
+--
+-- WHY THIS EXISTS. Studio's MCP plugin (Assistant a67ae17 onward) runs
+-- externally-supplied Luau in a CAPABILITY-RESTRICTED thread. That thread may
+-- read the tree, write attributes and print - but it may NOT `require` a
+-- module, `Invoke` a BindableFunction, or parent a Script anywhere. Overnight
+-- that made the BindableFunction below, and every test runner behind it,
+-- unreachable from outside Studio. Restarting Studio does not help; nothing in
+-- this place is sandboxed, the restriction is on the CALLER's thread.
+--
+-- Attributes still cross that boundary, and this service is an ordinary server
+-- script with full capabilities. So the two sides meet in the middle: the
+-- caller writes a request attribute, this runs the same dispatch, and writes
+-- the answer back where the caller can read it.
+--
+--   ServerStorage:SetAttribute("DebugRequest", HttpService:JSONEncode({
+--       id = "1", command = "traps", player = "Someone", args = {},
+--   }))
+--   -- then poll ServerStorage:GetAttribute("DebugResponse") until .id matches.
+--
+-- The BindableFunction stays: it is still the nicer door from a plain Studio
+-- command bar, which has no such restriction.
+
+local REQUEST_ATTRIBUTE = "DebugRequest"
+local RESPONSE_ATTRIBUTE = "DebugResponse"
+
+--- Attributes carry strings comfortably but not unbounded ones. A reply past
+--- this goes to the console, which has no such limit, and the attribute says
+--- where to look rather than silently arriving half-written.
+local MAX_RESPONSE = 12000
+
+local function respond(id: any, payload: { [string]: any })
+	payload.id = id
+	local encoded
+	local ok = pcall(function()
+		encoded = HttpService:JSONEncode(payload)
+	end)
+	if not ok then
+		encoded = HttpService:JSONEncode({ id = id, ok = false, error = "result is not JSON-encodable" })
+	end
+	if #encoded > MAX_RESPONSE then
+		print(`[DebugBridge] {id} BEGIN`)
+		print(encoded)
+		print(`[DebugBridge] {id} END`)
+		encoded = HttpService:JSONEncode({
+			id = id,
+			ok = payload.ok,
+			oversize = #encoded,
+			note = "full result printed to the console between the BEGIN and END markers",
+		})
+	end
+	ServerStorage:SetAttribute(RESPONSE_ATTRIBUTE, encoded)
+end
+
+local function startAttributeChannel()
+	ServerStorage:SetAttribute(REQUEST_ATTRIBUTE, nil)
+	ServerStorage:SetAttribute(RESPONSE_ATTRIBUTE, nil)
+
+	ServerStorage:GetAttributeChangedSignal(REQUEST_ATTRIBUTE):Connect(function()
+		local raw = ServerStorage:GetAttribute(REQUEST_ATTRIBUTE)
+		-- Clearing the request is not a request.
+		if type(raw) ~= "string" or raw == "" then
+			return
+		end
+
+		local request: any = nil
+		local decoded = pcall(function()
+			request = HttpService:JSONDecode(raw)
+		end)
+		if not decoded or type(request) ~= "table" then
+			respond("?", { ok = false, error = "request is not valid JSON" })
+			return
+		end
+
+		local args = if type(request.args) == "table" then request.args else {}
+		local ok, result = dispatch(request.command, request.player, table.unpack(args))
+		respond(request.id, { ok = ok, result = result })
+	end)
+end
+
 function DebugService.start()
 	if not RunService:IsStudio() then
 		return
@@ -1920,28 +2028,13 @@ function DebugService.start()
 	fn.Parent = ServerStorage
 
 	fn.OnInvoke = function(command: string, playerName: string?, ...)
-		local handler = COMMANDS[command]
-		if not handler then
-			local names = {}
-			for name in COMMANDS do
-				table.insert(names, name)
-			end
-			return { error = `unknown command "{command}"`, available = names }
-		end
-
-		local player = firstPlayer(playerName)
-		if not player then
-			return { error = "no player in server" }
-		end
-
-		local ok, result = pcall(handler, player, ...)
-		if not ok then
-			return { error = tostring(result) }
-		end
+		local _, result = dispatch(command, playerName, ...)
 		return result
 	end
 
-	print("[DebugService] Studio bridge ready at ServerStorage.DebugInvoke")
+	startAttributeChannel()
+
+	print("[DebugService] Studio bridge ready: ServerStorage.DebugInvoke, and the DebugRequest/DebugResponse attributes")
 end
 
 return DebugService
