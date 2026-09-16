@@ -1,0 +1,46 @@
+[
+  {
+    "id": "Gym_CoachsWhistle",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Polished gold sports whistle with authentic bulbous chamber and projecting rectangular mouthpiece. Red-and-white braided lanyard makes a large wide vertical open loop ABOVE it. A small warm glow from mouthpiece. Legendary. Open-loop lanyard is the defining tall outline; rich gold contrast against red and white.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "Visual review: the main body reads as a round pendant; the generated light mesh concealed the whistle mouthpiece."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Gym_GoldenDumbbell",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. PAIR of crossed gold dumbbells making a bold X silhouette, chunky circular gold weight plates and knurled chrome handles, deep-space blue violet magenta starfield enamel on plate faces. One small detached gold circular plate floats beyond the upper right arm. Cosmic, rich polished gold and nebula contrast, athletic trophy.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "Visual review: the generated assembly reads as a weight stand, not a recognizable pair of crossed dumbbells."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Gym_GoldenDumbbell",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Exactly TWO SHORT GOLD DUMBBELLS crossed diagonally in a bold X, displayed in the vertical XY plane facing the viewer. Each dumbbell has a short straight handle between TWO equally large circular weight plates. One slopes bottom-left to top-right; the other slopes top-left to bottom-right. Four sets of golden plates at the FOUR outer corners. Open diamond spaces around the crossing. Knurled chrome grips. Deep blue-violet starfield enamel on plates. A single small loose gold plate floats outside the X. Cosmic premium gym trophy. No stands, no vertical support posts, no kettlebell loops, no long barbell, no background.",
+    "error": null,
+    "result": {
+      "generationId": "f55398d1-99b6-419b-83e4-2a908d96e886",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Exactly TWO SHORT GOLD DUMBBELLS crossed diagonally in a bold X, displayed in the vertical XY plane facing the viewer. Each dumbbell has a short straight handle between TWO equally large circular weight plates. One slopes bottom-left to top-right; the other slopes top-left to bottom-right. Four sets of golden plates at the FOUR outer corners. Open diamond spaces around the crossing. Knurled chrome grips. Deep blue-violet starfield enamel on plates. A single small loose gold plate floats outside the X. Cosmic premium gym trophy. No stands, no vertical support posts, no kettlebell loops, no long barbell, no background.",
+      "publishedAssetId": "86586912211805",
+      "tag": "Assistant-0e3bc2ef-d844-4d90-91d8-96d3b563f077"
+    },
+    "finalFailure": false
+  },
+  {
+    "id": "Gym_CoachsWhistle",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A recognizable polished GOLD SPORTS WHISTLE hanging from a large red-and-white braided lanyard loop. The whistle body is a curved pea chamber attached to a LONG RECTANGULAR HOLLOW MOUTHPIECE protruding to the RIGHT horizontally. The open black slot on top is clear. The body has the real-world outline of a coach's whistle, NOT a round medallion, NOT a bell, NOT a ball. Side view of whistle so its projecting mouthpiece is clearly visible; the lanyard is a large open oval loop in the XY plane ABOVE the whistle. Rich Legendary gold, warm glow inside the hollow mouthpiece only. Highly polished realistic smooth curved metal, bold readable silhouette.",
+    "error": null,
+    "result": {
+      "generationId": "4cf77cbd-495c-45cf-bbd1-ab01fcaa695a",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A recognizable polished GOLD SPORTS WHISTLE hanging from a large red-and-white braided lanyard loop. The whistle body is a curved pea chamber attached to a LONG RECTANGULAR HOLLOW MOUTHPIECE protruding to the RIGHT horizontally. The open black slot on top is clear. The body has the real-world outline of a coach's whistle, NOT a round medallion, NOT a bell, NOT a ball. Side view of whistle so its projecting mouthpiece is clearly visible; the lanyard is a large open oval loop in the XY plane ABOVE the whistle. Rich Legendary gold, warm glow inside the hollow mouthpiece only. Highly polished realistic smooth curved metal, bold readable silhouette.",
+      "publishedAssetId": "124460882028053",
+      "tag": "Assistant-698ede0f-f793-4d87-abc7-d07f8370eb48"
+    },
+    "finalFailure": false
+  }
+]

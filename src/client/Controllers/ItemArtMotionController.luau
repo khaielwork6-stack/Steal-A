@@ -25,6 +25,10 @@ local function pose(model: Model, joint: Joint, now: number, moving: boolean)
 			cf = CFrame.Angles(0, angle, 0) * cf
 		elseif joint.mode == "Spin" then
 			cf *= if joint.axis == "Z" then CFrame.Angles(0, 0, angle) else CFrame.Angles(0, angle, 0)
+		elseif joint.mode == "Swing" then
+			-- A pendulum swings from its top attachment, not its centre.
+			local half=joint.part.Size.Y*0.5
+			cf *= CFrame.new(0,half,0)*CFrame.Angles(0,0,math.sin(angle)*0.18)*CFrame.new(0,-half,0)
 		end
 	end
 	joint.weld.C0 = cf

@@ -6,10 +6,68 @@ local InsertService = game:GetService("InsertService")
 local ServerStorage = game:GetService("ServerStorage")
 local LootModel = require(game:GetService("ReplicatedStorage").Shared.Util.LootModel)
 local Builder = {}
+-- Saved-place aliases remain intact. Unfinished replacements (or a transient
+-- published-asset outage) retain this exact prior art under the durable ID.
+local LEGACY_NAMES: {[string]: string} = {
+	Museum_PharaohMask="Pharaohs Mask", NorthPole_NiceList="Toy Train",
+	Area51_TopSecretFiles="Top Secret Files", Egypt_CanopicJar="Pharaoh’s Golden Scepter",
+	Gym_Creatine="Boxing Gloves", Bank_CashBag="Money Print Machine",
+	SecretLab_SecretFormula="Mutant Specimen", Grandma_CandyBowl="Grandmas Cookie",
+	Airport_FirstClassTicket="Pilots Badge", Airport_VIPPassport="Airplane",
+}
 type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, glow: boolean?,
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, 9589fd12-ddd2-47a3-bd7d-213d65cec9a8 (2026-09-16).
+	Gym_Water = {asset=96198588515189, primary="bottle_geom", meshes={
+		["cap_geom"]="rbxassetid://96538009727687",
+		["water_geom"]="rbxassetid://80745307073043",
+		["bottle_geom"]="rbxassetid://89003574854153",
+	}, finishes={bottle_geom={material=Enum.Material.Glass,transparency=0.7,clearTexture=true,color=Color3.fromRGB(220,243,255)}, water_geom={material=Enum.Material.Glass,transparency=0.3,color=Color3.fromRGB(87,183,255)}, cap_geom={material=Enum.Material.SmoothPlastic}}},
+	-- Studio MCP generate_mesh, c677fe3d-07dd-413b-acaa-a4f1aea00d26 (2026-09-16).
+	Gym_Creatine = {asset=99364783970111, primary="gloves_geom", meshes={
+		["laces_geom"]="rbxassetid://113324348841271",
+		["gloves_geom"]="rbxassetid://105908047844387",
+	}, finishes={gloves_geom={material=Enum.Material.Leather}, laces_geom={material=Enum.Material.Fabric}}},
+	-- Studio MCP generate_mesh, 15be7e1b-c1f0-44e4-a94d-a51a33816475 (2026-09-16).
+	Gym_VanillaMilkshake = {asset=134226222063906, primary="glass_geom", meshes={
+		["cherry_geom"]="rbxassetid://120338609150173",
+		["straw_geom"]="rbxassetid://124903221098482",
+		["shake_geom"]="rbxassetid://112221233988909",
+		["glass_geom"]="rbxassetid://79222005277270",
+	}, finishes={glass_geom={material=Enum.Material.Glass,transparency=0.55,clearTexture=true,color=Color3.fromRGB(236,249,255)}, shake_geom={material=Enum.Material.Marble}, straw_geom={material=Enum.Material.SmoothPlastic}, cherry_geom={mode="Hover",speed=1.3}}},
+	-- Studio MCP generate_mesh, f4d06276-e0c0-4c84-8114-1f782a16db32 (2026-09-16).
+	Gym_Airpods = {asset=99528368303261, primary="case_geom", meshes={
+		["charge_geom"]="rbxassetid://116243522350418",
+		["buds_geom"]="rbxassetid://134800406817604",
+		["lid_geom"]="rbxassetid://115694455532963",
+		["case_geom"]="rbxassetid://116450112765869",
+	}, finishes={case_geom={material=Enum.Material.Metal}, lid_geom={material=Enum.Material.Metal}, buds_geom={material=Enum.Material.Metal,mode="Spin",speed=0.25}, charge_geom={glow=true,clearTexture=true,color=Color3.fromRGB(66,235,255)}}},
+	-- Studio MCP generate_mesh, f3cb2c82-3653-441f-9bae-01fb79bf5960 (2026-09-16).
+	Gym_Trophy = {asset=140067772940326, primary="cup_geom", meshes={
+		["flutes_geom"]="rbxassetid://72539923159002",
+		["base_geom"]="rbxassetid://87555293277470",
+		["cup_geom"]="rbxassetid://112964306592045",
+	}, finishes={cup_geom={material=Enum.Material.Metal,color=Color3.fromRGB(25,23,21)}, base_geom={material=Enum.Material.Marble}, flutes_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}}},
+	-- Studio MCP generate_mesh, 65114891-8594-457c-8c28-01132e1d75fe (2026-09-16).
+	Gym_GoldenBarbell = {asset=92647840220934, primary="barbell_geom", meshes={
+		["radiance_geom"]="rbxassetid://136595901475918",
+		["right_halo_geom"]="rbxassetid://99457159698636",
+		["left_halo_geom"]="rbxassetid://126491042024095",
+		["barbell_geom"]="rbxassetid://82557275086350",
+	}, finishes={barbell_geom={material=Enum.Material.Metal}, left_halo_geom={material=Enum.Material.Metal,color=Color3.fromRGB(231,176,60),clearTexture=true}, right_halo_geom={material=Enum.Material.Metal,color=Color3.fromRGB(231,176,60),clearTexture=true}, radiance_geom={material=Enum.Material.Metal,color=Color3.fromRGB(231,176,60),clearTexture=true}}},
+	-- Studio MCP generate_mesh, f55398d1-99b6-419b-83e4-2a908d96e886 (2026-09-16).
+	Gym_GoldenDumbbell = {asset=86586912211805, primary="left_dumbbell_geom", authorRotation=CFrame.identity, meshes={
+		["orbit_plate_geom"]="rbxassetid://108157156947102",
+		["right_dumbbell_geom"]="rbxassetid://74379116334491",
+		["left_dumbbell_geom"]="rbxassetid://91862468168813",
+	}, finishes={left_dumbbell_geom={material=Enum.Material.Metal}, right_dumbbell_geom={material=Enum.Material.Metal}, orbit_plate_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.25}}},
+	-- Studio MCP generate_mesh, 4cf77cbd-495c-45cf-bbd1-ab01fcaa695a (2026-09-16).
+	Gym_CoachsWhistle = {asset=124460882028053, primary="whistle_geom", authorRotation=CFrame.identity, meshes={
+		["lanyard_geom"]="rbxassetid://113352432198346",
+		["whistle_geom"]="rbxassetid://113872290674784",
+	}, finishes={whistle_geom={material=Enum.Material.Metal}, lanyard_geom={material=Enum.Material.Fabric}}},
 	-- Studio MCP generate_mesh, ebc08536-a0c2-47e0-804d-50a97c68b347 (2026-09-16).
 	Egypt_CanopicJar = {asset=122152560581491, primary="scepter_geom", meshes={
 		["inlay_geom"]="rbxassetid://100894811243168",
@@ -422,6 +480,37 @@ local function decorate(model: Model, id: string)
 		cap.CFrame+=Vector3.new(0,0.5,0)
 		light.Size=Vector3.new(0.18,0.5,0.18)
 		light.CFrame=CFrame.new(pyramid.Position+Vector3.new(0,pyramid.Size.Y*0.5+0.25,0))
+	elseif id == "Gym_CoachsWhistle" then
+		local body,loop=mesh("whistle"),mesh("lanyard")
+		local center=body.Position
+		body.CFrame=CFrame.new(center)*CFrame.Angles(0,math.pi/2,0)
+		loop.CFrame=CFrame.new(center+Vector3.new(0,(body.Size.Y+loop.Size.Z)*0.5,0))*CFrame.Angles(math.pi/2,0,0)
+		accent(model,"WarmMouthGlow",Vector3.one*0.12,body.CFrame*CFrame.new(0,0,body.Size.Z*0.48),gold)
+	elseif id == "Gym_GoldenDumbbell" then
+		local left,right,plate=mesh("left_dumbbell"),mesh("right_dumbbell"),mesh("orbit_plate")
+		local center=(left.Position+right.Position)*0.5
+		-- The two generated meshes arrived parallel. Pose their long axes as
+		-- the authored X; the definition supplies an upright invisible root.
+		left.CFrame=CFrame.new(center+Vector3.new(0,0,0.35))*CFrame.Angles(0,0,math.pi/4)*CFrame.Angles(0,math.pi/2,0)
+		right.CFrame=CFrame.new(center-Vector3.new(0,0,0.35))*CFrame.Angles(0,0,-math.pi/4)*CFrame.Angles(0,math.pi/2,0)
+		plate.CFrame=CFrame.new(center+Vector3.new(left.Size.Z*0.65,0.2,0))
+	elseif id == "Gym_Trophy" then
+		local cup=mesh("cup")
+		cup.TextureID=""
+		for _,child in cup:GetChildren() do if child:IsA("SurfaceAppearance") then child:Destroy() end end
+	elseif id == "Gym_GoldenBarbell" then
+		local bar=mesh("barbell")
+		local diameter=mesh("left_halo").Size.Y*1.35
+		for i,name in {"left_halo","right_halo"} do
+			local plate=mesh(name)
+			local ring=generatedHalo(model,"EternalHalo"..i,CFrame.new(plate.Position+Vector3.new(0,0,-diameter*0.35)),Vector3.new(diameter,diameter,0.12))
+			neon(ring,pearl,true)
+			motion(ring,"Spin",if i==1 then 0.16 else -0.16,"Z")
+		end
+		for i=1,3 do
+			local shaft=accent(model,"BarRadiance"..i,Vector3.new(0.08,0.08,0.8),CFrame.new(bar.Position+Vector3.new((i-2)*bar.Size.X*0.18,0.4,0.2)),pearl)
+			shaft.Shape,shaft.Transparency=Enum.PartType.Block,0.55
+		end
 	elseif id == "Museum_GoldenCrown" then
 		-- Tiny gem only: Epic has a faint accent, not a glowing crown body.
 		neon(mesh("ruby_gems"), Color3.fromRGB(255, 85, 95))
@@ -484,6 +573,76 @@ local function decorate(model: Model, id: string)
 	end
 end
 
+
+-- Segmentation labels from generation are not geometry guarantees. These
+-- reviewed accents are added after material recipes, without replacing bodies.
+local function finalDetails(model: Model, id: string)
+ local function mesh(name: string): MeshPart return model:FindFirstChild(name.."_geom") :: MeshPart end
+ local gold,pearl=Color3.fromRGB(255,209,108),Color3.fromRGB(255,246,215)
+ local function halo(name: string, center: Vector3, diameter: number, tilt: CFrame?, color: Color3?)
+  local p=generatedHalo(model,name,CFrame.new(center)*(tilt or CFrame.identity),Vector3.new(diameter,diameter,0.10))
+  neon(p,color or gold,true); motion(p,"Spin",0.12,"Z"); return p
+ end
+ local function shafts(center: Vector3, spread: number)
+  for i=1,3 do
+   local p=accent(model,"Radiance"..i,Vector3.new(0.06,0.8+i*0.12,0.06),CFrame.new(center+Vector3.new((i-2)*spread,0,0)),pearl)
+   p.Shape=Enum.PartType.Block; p.Transparency=0.4
+  end
+ end
+ if id=="Bank_CashBag" then
+  local body=mesh("slot")
+  local p=accent(model,"PrintSlotGlow",Vector3.new(body.Size.X*0.5,0.09,0.08),CFrame.new(body.Position+Vector3.new(0,body.Size.Y*0.3,body.Size.Z*0.5)),Color3.fromRGB(90,255,145))
+  p.Shape=Enum.PartType.Block
+ elseif id=="Bank_VendingMachine" then
+  local body=mesh("halos")
+  halo("EternalRing1",body.Position+Vector3.new(0,0,-1.1),body.Size.Y*0.9)
+  halo("EternalRing2",body.Position+Vector3.new(0,0,-1.15),body.Size.Y*1.02)
+  shafts(body.Position+Vector3.new(0,body.Size.Y*0.35,0),0.4)
+ elseif id=="SecretLab_EnergyCore" then
+  local body=mesh("halos")
+  for i=1,3 do halo("EternalRing"..i,body.Position+Vector3.new(0,(i-2)*0.65,0),body.Size.X*(1.5+0.15*i),CFrame.Angles(math.pi/2,0,0)) end
+ elseif id=="Grandma_GoldenTeapot" then
+  mesh("lid").CFrame+=Vector3.new(0,0.35,0)
+ elseif id=="Grandma_LegendaryGiftBox" then
+  local body=mesh("box")
+  halo("EternalRing1",body.Position+Vector3.new(0,0,-2),body.Size.Y*1.35)
+  halo("EternalRing2",body.Position+Vector3.new(0,0,-2.1),body.Size.Y*1.55)
+  shafts(body.Position+Vector3.new(0,body.Size.Y*0.5,0),0.65)
+ elseif id=="Grandma_CookieJar" then
+  local lid=mesh("lid")
+  for i=1,3 do halo("DivineRing"..i,lid.Position+Vector3.new(0,(i-2)*0.3,-0.3),lid.Size.X*(1.3+i*0.15),CFrame.Angles(math.rad(65),0,0),if i==2 then pearl else gold) end
+  shafts(lid.Position+Vector3.new(0,0.6,0),0.5)
+ elseif id=="Construction_Blueprints" then
+  mesh("lines").Size*=1.015
+ elseif id=="Construction_RareSafetyVest" then
+  mesh("bands").Size*=1.025
+ elseif id=="Construction_BossLadder" then
+  local p=mesh("halos")
+  for i=-1,1,2 do halo("HingeHalo"..i,p.Position+Vector3.new(i*1.1,0,0),1.2,CFrame.Angles(0,math.pi/4,0)) end
+ elseif id=="Construction_DiamondHammer" then
+  local head=mesh("head")
+  for i=1,3 do halo("DivineRing"..i,head.Position+Vector3.new(0,0,-0.9-i*0.08),head.Size.X*(1.1+i*0.22),nil,if i==2 then pearl else gold) end
+  shafts(head.Position+Vector3.new(0,1,0),0.45)
+  local shard=accent(model,"OrbitingDiamond",Vector3.one*0.3,CFrame.new(head.Position+Vector3.new(2,0.3,0)),Color3.fromRGB(174,225,255))
+  motion(shard,"Orbit",0.25)
+ elseif id=="Airport_UnknownBriefcase" then
+  local body=mesh("case")
+  local glow=accent(model,"InnerAmber",Vector3.new(body.Size.X*0.75,0.10,body.Size.Z*0.65),CFrame.new(body.Position+Vector3.new(0,body.Size.Y*0.45,0)),gold)
+  glow.Shape=Enum.PartType.Block
+ elseif id=="Airport_PrivateJet" then
+  local jet=mesh("jet")
+  for i=1,3 do
+   local position=jet.Position+Vector3.new((i-2)*1.0,0,(i-2)*1.0)
+   halo("DivineRing"..i,position,5.5+i*0.8,CFrame.Angles(0,math.pi/4,0),if i==2 then pearl else gold)
+  end
+  shafts(jet.Position+Vector3.new(0,-1.8,0),1.2)
+  local engine=mesh("engines")
+  for i=-1,1,2 do
+   accent(model,"EngineRadiance"..i,Vector3.one*0.35,CFrame.new(engine.Position+Vector3.new(i*0.5,0,0.5)),Color3.fromRGB(135,230,255))
+  end
+ end
+end
+
 local function construct(id: string, def: Definition): Model
 	local imported = InsertService:LoadAsset(def.asset)
 	local model = Instance.new("Model")
@@ -536,6 +695,7 @@ local function construct(id: string, def: Definition): Model
 			if finish.glow then part.Material = Enum.Material.Neon end
 			if finish.mode then motion(part, finish.mode, finish.speed or 0.5, finish.axis) end
 		end
+		finalDetails(model,id)
 		local min, max = LootModel.visibleExtents(model)
 		assert(min and max, id .. " has no visible art")
 		local fit = LootModel.normalisationFor(max - min)
@@ -571,6 +731,23 @@ function Builder.build()
 	table.sort(ids)
 	local built: {[string]: Model} = {}
 	local failures: {string} = {}
+	local retained: {string} = {}
+	local function retain(id: string)
+		local existing=loot:FindFirstChild(id)
+		local alias=LEGACY_NAMES[id]
+		local source=(alias and loot:FindFirstChild(alias)) or existing
+		if source then
+			if source~=existing then
+				local copy=source:Clone()
+				copy.Name=id
+				if existing then existing:Destroy() end
+				copy.Parent=loot
+				source=copy
+			end
+			source:SetAttribute("ItemArtFallback",true)
+		end
+		table.insert(retained,id)
+	end
 	local nextIndex, finished = 0, 0
 	-- Overlap network waits without flooding InsertService as the catalog grows.
 	local workers = math.min(8, #ids)
@@ -581,6 +758,10 @@ function Builder.build()
 				local id = ids[nextIndex]
 				if not id then break end
 				local ok, result = pcall(construct, id, DEFINITIONS[id])
+				if not ok then
+					task.wait(0.5)
+					ok,result=pcall(construct,id,DEFINITIONS[id])
+				end
 				if ok then built[id] = result else table.insert(failures, id .. ": " .. tostring(result)) end
 			end
 			finished += 1
@@ -589,19 +770,27 @@ function Builder.build()
 	-- No service may publish previews until every worker has finished.
 	while finished < workers do task.wait() end
 	if #failures > 0 then
-		for _, model in built do model:Destroy() end
 		table.sort(failures)
-		error("[ItemAssetBuilder] No loot replaced; mesh loading failed:\n" .. table.concat(failures, "\n"))
+		warn("[ItemAssetBuilder] Retaining previous art after mesh loading failed:\n" .. table.concat(failures, "\n"))
 	end
+	local installed=0
 	for _, id in ids do
-		local previous = loot:FindFirstChild(id)
-		if previous then previous:Destroy() end
-		built[id].Parent = loot
+		if built[id] then
+			local previous = loot:FindFirstChild(id)
+			if previous then previous:Destroy() end
+			built[id].Parent = loot
+			installed+=1
+		else retain(id) end
 	end
+	-- When generation has not succeeded, keep the old alias as a runtime copy;
+	-- the saved-place original is never renamed or deleted.
+	for id in LEGACY_NAMES do if not DEFINITIONS[id] then retain(id) end end
 	local seconds = os.clock() - started
 	loot:SetAttribute("ItemArtLoadSeconds", seconds)
-	loot:SetAttribute("ItemArtLoadedCount", #ids)
-	print(string.format("[ItemAssetBuilder] %d generated-mesh items installed in %.2fs (%d concurrent workers)", #ids, seconds, workers))
+	loot:SetAttribute("ItemArtLoadedCount", installed)
+	loot:SetAttribute("ItemArtLoadFailures", #failures)
+	loot:SetAttribute("ItemArtRetainedIds",table.concat(retained,","))
+	print(string.format("[ItemAssetBuilder] %d generated-mesh items installed in %.2fs (%d concurrent workers); %d retained", installed, seconds, workers, #retained))
 end
 
 return Builder

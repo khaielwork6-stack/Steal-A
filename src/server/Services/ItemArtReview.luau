@@ -45,6 +45,29 @@ function Review.run(player: Player, action: string?): any
 		StateService.pushNow(player)
 		return {temporarySlots=BaseService.unlockedSlots(player),freeSlots=BaseService.freeSlots(player)}
 	end
+	if action=="fixtures" then
+		assert(active and active.player==player,"Begin a protected review first")
+		local baseline={}
+		for _,list in {active.snapshot.DisplayItems,active.snapshot.Inventory} do
+			for _,item in list do baseline[item.InstanceId]=true end
+		end
+		local profile=assert(DataService.get(player),"No profile")
+		local fixtures={}
+		for _,list in {profile.DisplayItems,profile.Inventory} do
+			for _,item in list do
+				if not baseline[item.InstanceId] then
+					table.insert(fixtures,{id=item.InstanceId,itemId=item.ItemId,slot=item.SlotIndex,hatched=item.Hatched})
+				end
+			end
+		end
+		return fixtures
+	end
+	if action=="reducedOn" or action=="reducedOff" then
+		assert(active and active.player==player,"Begin a protected review first")
+		require(script.Parent.SettingsService).apply(player,{ReducedVFX=action=="reducedOn"})
+		StateService.pushNow(player)
+		return {temporaryReducedEffects=action=="reducedOn"}
+	end
 	if action=="restore" then
 		assert(not active or active.player==player,"Another tester owns the review")
 		return restore(true)

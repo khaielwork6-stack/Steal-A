@@ -366,7 +366,6 @@ end
 -- no asset in the place and builds a placeholder. Re-run Invoke("lootAudit") after
 -- any art change - the start-up check flags a stale row by name.
 LootConfig.Normalization = {
-	Pirate_CursedCoin = { 1.0000, 7.500, 4.048, 5.866 }, -- Cursed Coin: 7.50 x 4.05 x 5.87 -> 7.50 x 4.05 x 5.87
 	Museum_AncientVase = { 1.0000, 3.485, 5.000, 3.515 }, -- Generated mesh amphora; measured with lootAudit.
 	Museum_RarePainting = { 1.0000, 3.721, 5.000, 1.913 }, -- Generated mesh, lootAudit.
 	Museum_GoldenStatue = { 1.0000, 2.117, 5.000, 2.094 }, -- Generated mesh, lootAudit.
@@ -382,6 +381,7 @@ LootConfig.Normalization = {
 	Pirate_TreasureChest = { 1.0000, 4.410, 5.000, 4.125 }, -- Treasure Chest: 4.41 x 5.00 x 4.12 -> 4.41 x 5.00 x 4.12
 	Pirate_CaptainsCutlass = { 1.0000, 2.925, 5.000, 5.437 }, -- Captain's Cutlass: 2.93 x 5.00 x 5.44 -> 2.93 x 5.00 x 5.44
 	Pirate_JeweledSkull = { 1.0000, 4.319, 5.000, 4.782 }, -- Jeweled Skull: 4.32 x 5.00 x 4.78 -> 4.32 x 5.00 x 4.78
+	Pirate_CursedCoin = { 1.0000, 7.500, 4.048, 5.866 }, -- Cursed Coin: 7.50 x 4.05 x 5.87 -> 7.50 x 4.05 x 5.87
 	Castle_GoldenGoblet = { 1.0000, 2.798, 5.000, 2.799 }, -- Golden Goblet: 2.80 x 5.00 x 2.80 -> 2.80 x 5.00 x 2.80
 	Castle_RoyalPainting = { 1.0000, 2.372, 5.000, 1.204 }, -- Royal Painting: 2.37 x 5.00 x 1.20 -> 2.37 x 5.00 x 1.20
 	Castle_RoyalSeal = { 1.0000, 5.377, 5.000, 5.304 }, -- Royal Seal: 5.38 x 5.00 x 5.30 -> 5.38 x 5.00 x 5.30
@@ -414,14 +414,14 @@ LootConfig.Normalization = {
 	Egypt_ThroneOfRa = { 1.0000, 2.572, 5.000, 2.703 }, -- Throne of Ra: 2.57 x 5.00 x 2.70 -> 2.57 x 5.00 x 2.70
 	Egypt_NemesMask = { 1.0000, 4.526, 5.000, 3.154 }, -- Nemes Mask: 4.53 x 5.00 x 3.15 -> 4.53 x 5.00 x 3.15
 	Egypt_EgyptianPyramid = { 1.0000, 4.621, 5.000, 3.996 }, -- Egyptian Pyramid: 4.62 x 5.00 x 4.00 -> 4.62 x 5.00 x 4.00
-	Gym_Water = { 0.8581, 3.410, 5.827, 3.468 }, -- Water: 3.41 x 5.83 x 3.47 -> 2.93 x 5.00 x 2.98
-	Gym_Creatine = { 1.2500, 5.000, 4.000, 3.000 }, -- Boxing Gloves: 5.00 x 4.00 x 3.00 -> 6.25 x 5.00 x 3.75
-	Gym_CoachsWhistle = { 0.5349, 9.313, 9.347, 7.634 }, -- Gym Whistle: 9.31 x 9.35 x 7.63 -> 4.98 x 5.00 x 4.08
-	Gym_VanillaMilkshake = { 0.4797, 3.253, 10.424, 3.386 }, -- Vanilla Milkshake: 3.25 x 10.42 x 3.39 -> 1.56 x 5.00 x 1.62
-	Gym_Airpods = { 0.5747, 8.583, 8.700, 4.297 }, -- Airpods: 8.58 x 8.70 x 4.30 -> 4.93 x 5.00 x 2.47
-	Gym_GoldenDumbbell = { 1.7432, 6.280, 2.295, 5.723 }, -- Golden Dumbbells: 6.28 x 2.29 x 5.72 -> 10.95 x 4.00 x 9.98
-	Gym_Trophy = { 0.4577, 2.408, 10.925, 3.772 }, -- Trophy: 2.41 x 10.93 x 3.77 -> 1.10 x 5.00 x 1.73
-	Gym_GoldenBarbell = { 0.2817, 35.297, 14.200, 14.200 }, -- Golden Barbell: 35.30 x 14.20 x 14.20 -> 9.94 x 4.00 x 4.00
+	Gym_Water = { 1.0000, 1.800, 5.000, 1.556 }, -- Water: 1.80 x 5.00 x 1.56 -> 1.80 x 5.00 x 1.56
+	Gym_Creatine = { 1.0000, 4.949, 5.000, 4.157 }, -- Boxing Gloves: 4.95 x 5.00 x 4.16 -> 4.95 x 5.00 x 4.16
+	Gym_CoachsWhistle = { 1.0000, 4.050, 5.000, 1.831 }, -- Gym Whistle: 4.05 x 5.00 x 1.83 -> 4.05 x 5.00 x 1.83
+	Gym_VanillaMilkshake = { 1.0000, 2.621, 5.000, 1.923 }, -- Vanilla Milkshake: 2.62 x 5.00 x 1.92 -> 2.62 x 5.00 x 1.92
+	Gym_Airpods = { 1.0000, 3.461, 5.000, 2.908 }, -- Airpods: 3.46 x 5.00 x 2.91 -> 3.46 x 5.00 x 2.91
+	Gym_GoldenDumbbell = { 1.0000, 5.971, 5.000, 3.203 }, -- Golden Dumbbells: 5.97 x 5.00 x 3.20 -> 5.97 x 5.00 x 3.20
+	Gym_Trophy = { 1.0000, 4.098, 5.000, 2.686 }, -- Trophy: 4.10 x 5.00 x 2.69 -> 4.10 x 5.00 x 2.69
+	Gym_GoldenBarbell = { 1.0000, 8.996, 4.000, 3.058 }, -- Golden Barbell: 9.00 x 4.00 x 3.06 -> 9.00 x 4.00 x 3.06
 	Bank_MoneyStack = { 1.8523, 9.407, 2.159, 5.847 }, -- Money Stack: 9.41 x 2.16 x 5.85 -> 17.42 x 4.00 x 10.83
 	Bank_CashBag = { 1.4286, 5.000, 3.500, 4.000 }, -- Money Print Machine: 5.00 x 3.50 x 4.00 -> 7.14 x 5.00 x 5.71
 	Bank_VaultKey = { 0.5523, 3.461, 9.052, 2.139 }, -- Master Key: 3.46 x 9.05 x 2.14 -> 1.91 x 5.00 x 1.18
@@ -430,9 +430,6 @@ LootConfig.Normalization = {
 	Bank_BankersBriefcase = { 0.9099, 7.060, 5.495, 7.092 }, -- Banker's Briefcase: 7.06 x 5.50 x 7.09 -> 6.42 x 5.00 x 6.45
 	Bank_PlatinumBullionStack = { 0.9136, 8.956, 4.378, 5.495 }, -- Platinum Bullion Stack: 8.96 x 4.38 x 5.50 -> 8.18 x 4.00 x 5.02
 	Bank_VendingMachine = { 0.6944, 6.000, 7.200, 3.400 }, -- Vending Machine: 6.00 x 7.20 x 3.40 -> 4.17 x 5.00 x 2.36
-	-- RE-MEASURED after the art swap. The old row was audited against the
-	-- previous Secret Formula model and left the flask 1.79 studs tall on a
-	-- pedestal built for 5.00; lootAudit reported it "stale" by name.
 	SecretLab_SecretFormula = { 0.8333, 3.500, 6.000, 3.500 }, -- Mutant Specimen: 3.50 x 6.00 x 3.50 -> 2.92 x 5.00 x 2.92
 	SecretLab_ChemicalCylinder = { 0.5928, 5.166, 8.435, 5.166 }, -- Chemical Cylinder: 5.17 x 8.43 x 5.17 -> 3.06 x 5.00 x 3.06
 	SecretLab_ContainmentTank = { 0.8922, 4.588, 5.604, 3.929 }, -- Containment Tank: 4.59 x 5.60 x 3.93 -> 4.09 x 5.00 x 3.51
@@ -482,26 +479,7 @@ LootConfig.Normalization = {
 -- every mutation and size-variant behaviour. Only the display `name` above and
 -- the asset named here changed. The right-hand string must match the model's
 -- name in ServerStorage.GameAssets.Loot EXACTLY, including apostrophes.
-LootConfig.ModelOverrides = {
-	-- Zone 04: same item, same name, better art.
-	-- Zone 05: Nice List -> Toy Train.
-	-- Zone 06: Canopic Jar -> Pharaoh’s Golden Scepter. NOTE: the asset name
-	-- uses a curly apostrophe (U+2019), not an ASCII one; a straight quote here
-	-- will not find it.
-	-- Zone 07: Creatine -> Boxing Gloves.
-	Gym_Creatine = "Boxing Gloves",
-	-- Zone 08: Cash Briefcase -> Money Print Machine.
-	Bank_CashBag = "Money Print Machine",
-	-- Zone 09: Chemical Flask -> Mutant Specimen. (Was overridden to
-	-- "Chemical Flask"; that art is superseded.)
-	SecretLab_SecretFormula = "Mutant Specimen",
-	-- Zone 10: Colorful Bowl -> Grandmas Cookie.
-	Grandma_CandyBowl = "Grandmas Cookie",
-	-- Zone 12: First-Class Ticket -> Pilots Badge.
-	Airport_FirstClassTicket = "Pilots Badge",
-	-- Zone 12: VIP Passport -> Airplane.
-	Airport_VIPPassport = "Airplane",
-} :: { [string]: string }
+LootConfig.ModelOverrides = {} :: { [string]: string }
 
 --- The asset name to look for, which is the item's own id unless overridden.
 function LootConfig.modelNameFor(itemId: string): string

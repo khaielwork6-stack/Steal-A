@@ -380,6 +380,12 @@ export type BuildOptions = {
 --- unlisted item is named once by checkNormalization at start, so build()
 --- itself stays quiet.
 local function normalMultiplier(itemId: string, built: Model): number
+	-- A network fallback intentionally uses prior art. Its old dimensions must
+	-- not be multiplied by the new mesh's audit row; fit that clone once.
+	if built:GetAttribute("ItemArtFallback") then
+		local min,max=LootModel.visibleExtents(built)
+		return if min and max then LootModel.normalisationFor(max-min) else 1
+	end
 	local listed = LootConfig.normalizationFor(itemId)
 	if listed then
 		return listed

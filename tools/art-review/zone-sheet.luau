@@ -3,6 +3,7 @@
 local zone, defs = ...
 assert(zone and defs, "Pass zone index and the eight item metadata rows")
 local RS = game:GetService("ReplicatedStorage")
+local previews=assert(RS:WaitForChild("LootPreviews",30),"Loot previews did not publish")
 local colors={Common=Color3.fromRGB(198,205,216),Uncommon=Color3.fromRGB(96,220,118),Rare=Color3.fromRGB(74,156,255),Epic=Color3.fromRGB(180,106,255),Legendary=Color3.fromRGB(255,178,46),Mythic=Color3.fromRGB(255,95,161),Cosmic=Color3.fromRGB(125,120,255),Secret=Color3.fromRGB(125,255,82),Eternal=Color3.fromRGB(255,236,167),Divine=Color3.new(1,1,1)}
 local pg = game.Players.LocalPlayer.PlayerGui
 local old = pg:FindFirstChild("ArtZoneReview")
@@ -31,10 +32,13 @@ for i,def in defs do
  label(card,def.rarity:upper(),0,0.02,1,0.05,12,colors[def.rarity])
  label(card,def.name,0.04,0.52,0.92,0.09,14)
  if def.retained then label(card,"EXISTING ART",0,0.60,1,0.035,10,Color3.fromRGB(255,190,100)) end
- local source=RS.LootPreviews:FindFirstChild(def.id) or RS.LootPreviews:WaitForChild(def.id,8)
+ local source=previews:FindFirstChild(def.id) or previews:WaitForChild(def.id,8)
  if not source then
   label(card,"Existing placeholder\nNo replacement mesh",0.05,0.23,0.90,0.17,12,Color3.fromRGB(255,190,100))
   continue
+ end
+ if not source:GetAttribute("ProceduralItemArt") and not def.retained then
+  label(card,"EXISTING ART",0,0.60,1,0.035,10,Color3.fromRGB(255,190,100))
  end
  local deadline=os.clock()+5
  repeat

@@ -1,0 +1,385 @@
+[
+  {
+    "generationId": "9589fd12-ddd2-47a3-bd7d-213d65cec9a8",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Clear curved sports water bottle, broad blue flip cap and small chrome neck band, clean water visible at three-quarters full. Subtle sculpted condensation beads, blue grip stripe. Rare, no emission. Slim familiar bottle silhouette with asymmetric flip tab, clean bright sporty design.",
+    "publishedAssetId": "96198588515189",
+    "tag": "Assistant-386505e5-25cf-408f-a378-1a7cddb736a1",
+    "id": "Gym_Water",
+    "primary": "bottle_geom",
+    "finishes": {
+      "bottle": {
+        "material": "Glass",
+        "transparency": 0.7,
+        "clearTexture": true,
+        "color": [
+          220,
+          243,
+          255
+        ]
+      },
+      "water": {
+        "material": "Glass",
+        "transparency": 0.3,
+        "color": [
+          87,
+          183,
+          255
+        ]
+      },
+      "cap": {
+        "material": "SmoothPlastic"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://96538009727687",
+        "name": "cap_geom",
+        "texture": "rbxassetid://107967239258081"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://80745307073043",
+        "name": "water_geom",
+        "texture": "rbxassetid://122972178963509"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://89003574854153",
+        "name": "bottle_geom",
+        "texture": "rbxassetid://70512444654181"
+      }
+    ]
+  },
+  {
+    "generationId": "c677fe3d-07dd-413b-acaa-a4f1aea00d26",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A PAIR of glossy vivid red boxing gloves, plump authentic curved fists and thumbs, cream white cuffs with polished gold trim. White laces tie both together at the top, one glove hanging clearly LOWER than the other. Epic small gold accent; asymmetric paired glove silhouette with open gap, chunky rich red leather.",
+    "publishedAssetId": "99364783970111",
+    "tag": "Assistant-3fcbf358-bdf4-4224-96d1-b4b852f106cc",
+    "id": "Gym_Creatine",
+    "primary": "gloves_geom",
+    "finishes": {
+      "gloves": {
+        "material": "Leather"
+      },
+      "laces": {
+        "material": "Fabric"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113324348841271",
+        "name": "laces_geom",
+        "texture": "rbxassetid://108116485826922"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105908047844387",
+        "name": "gloves_geom",
+        "texture": "rbxassetid://77585504387178"
+      }
+    ]
+  },
+  {
+    "generationId": "15be7e1b-c1f0-44e4-a94d-a51a33816475",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Tall fluted milkshake glass full of thick creamy vanilla, exaggerated whipped-cream spiral mound, a bent red straw off to one side and bright red cherry hovering just above the whip. Mythic luminous cream and floating cherry, appetizing smooth organic curves, pale gold highlights, realistic dessert shape.",
+    "publishedAssetId": "134226222063906",
+    "tag": "Assistant-43838570-fb3f-4d75-b264-7139ef2a32c4",
+    "id": "Gym_VanillaMilkshake",
+    "primary": "glass_geom",
+    "finishes": {
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.55,
+        "clearTexture": true,
+        "color": [
+          236,
+          249,
+          255
+        ]
+      },
+      "shake": {
+        "material": "Marble"
+      },
+      "straw": {
+        "material": "SmoothPlastic"
+      },
+      "cherry": {
+        "mode": "Hover",
+        "speed": 1.3
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://120338609150173",
+        "name": "cherry_geom",
+        "texture": "rbxassetid://91747995051198"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://124903221098482",
+        "name": "straw_geom",
+        "texture": "rbxassetid://114859210360365"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112221233988909",
+        "name": "shake_geom",
+        "texture": "rbxassetid://86601046147304"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://79222005277270",
+        "name": "glass_geom",
+        "texture": "rbxassetid://113255026307523"
+      }
+    ]
+  },
+  {
+    "generationId": "f4d06276-e0c0-4c84-8114-1f782a16db32",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Pearl-white wireless earbud charging case, rounded smooth body, lid visibly OPEN behind it. Two separate white earbuds float above the open case, cyan charging glow inside. Cosmic: clean navy-violet starfield accents across the pearl shell, no noisy texture. Open horizontal case plus two upright floating ear stems make distinct silhouette.",
+    "publishedAssetId": "99528368303261",
+    "tag": "Assistant-162ea545-cac1-47a7-a3dd-18d2b0fa2e4d",
+    "id": "Gym_Airpods",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Metal"
+      },
+      "lid": {
+        "material": "Metal"
+      },
+      "buds": {
+        "material": "Metal",
+        "mode": "Spin",
+        "speed": 0.25
+      },
+      "charge": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          66,
+          235,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116243522350418",
+        "name": "charge_geom",
+        "texture": "rbxassetid://102880012217348"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://134800406817604",
+        "name": "buds_geom",
+        "texture": "rbxassetid://83971876882073"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://115694455532963",
+        "name": "lid_geom",
+        "texture": "rbxassetid://112823747802601"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://116450112765869",
+        "name": "case_geom",
+        "texture": "rbxassetid://137335501885602"
+      }
+    ]
+  },
+  {
+    "generationId": "f3cb2c82-3653-441f-9bae-01fb79bf5960",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Tall two-handled champion trophy cup, graceful broad curved loop handles, narrow stem on a square near-black marble plinth. Cup body almost black polished metal, intensely luminous gold-white lines run up its sculpted flutes and pour from the open bowl. Secret: near-black and one intense warm light color. Distinct open-handled cup outline.",
+    "publishedAssetId": "140067772940326",
+    "tag": "Assistant-1e7e835f-2cca-408e-80bd-a0bc0cbaeb8a",
+    "id": "Gym_Trophy",
+    "primary": "cup_geom",
+    "finishes": {
+      "cup": {
+        "material": "Metal",
+        "color": [
+          25,
+          23,
+          21
+        ]
+      },
+      "base": {
+        "material": "Marble"
+      },
+      "flutes": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://72539923159002",
+        "name": "flutes_geom",
+        "texture": "rbxassetid://113138384187167"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://87555293277470",
+        "name": "base_geom",
+        "texture": "rbxassetid://105725046996033"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112964306592045",
+        "name": "cup_geom",
+        "texture": "rbxassetid://87584888636418"
+      }
+    ]
+  },
+  {
+    "generationId": "65114891-8594-457c-8c28-01132e1d75fe",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Heavy loaded Olympic barbell displayed horizontally, long polished gold bar and big stacks of round gold plates at both ends. Layered concentric radiant rings surround EACH end like luminous wheel halos, sustained gold glow and fine light shafts along the bar. Eternal. The widest silhouette, strong horizontal geometry, electric-blue grip accents.",
+    "publishedAssetId": "92647840220934",
+    "tag": "Assistant-42d18d57-c691-4b4d-bc83-84f4d5b206e7",
+    "id": "Gym_GoldenBarbell",
+    "primary": "barbell_geom",
+    "finishes": {
+      "barbell": {
+        "material": "Metal"
+      },
+      "left_halo": {
+        "material": "Metal",
+        "color": [
+          231,
+          176,
+          60
+        ],
+        "clearTexture": true
+      },
+      "right_halo": {
+        "material": "Metal",
+        "color": [
+          231,
+          176,
+          60
+        ],
+        "clearTexture": true
+      },
+      "radiance": {
+        "material": "Metal",
+        "color": [
+          231,
+          176,
+          60
+        ],
+        "clearTexture": true
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136595901475918",
+        "name": "radiance_geom",
+        "texture": "rbxassetid://125271168708550"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://99457159698636",
+        "name": "right_halo_geom",
+        "texture": "rbxassetid://122897950349552"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://126491042024095",
+        "name": "left_halo_geom",
+        "texture": "rbxassetid://78307345632009"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82557275086350",
+        "name": "barbell_geom",
+        "texture": "rbxassetid://103032278149755"
+      }
+    ]
+  },
+  {
+    "generationId": "f55398d1-99b6-419b-83e4-2a908d96e886",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Exactly TWO SHORT GOLD DUMBBELLS crossed diagonally in a bold X, displayed in the vertical XY plane facing the viewer. Each dumbbell has a short straight handle between TWO equally large circular weight plates. One slopes bottom-left to top-right; the other slopes top-left to bottom-right. Four sets of golden plates at the FOUR outer corners. Open diamond spaces around the crossing. Knurled chrome grips. Deep blue-violet starfield enamel on plates. A single small loose gold plate floats outside the X. Cosmic premium gym trophy. No stands, no vertical support posts, no kettlebell loops, no long barbell, no background.",
+    "publishedAssetId": "86586912211805",
+    "tag": "Assistant-0e3bc2ef-d844-4d90-91d8-96d3b563f077",
+    "id": "Gym_GoldenDumbbell",
+    "primary": "left_dumbbell_geom",
+    "authorRotation": "CFrame.identity",
+    "finishes": {
+      "left_dumbbell": {
+        "material": "Metal"
+      },
+      "right_dumbbell": {
+        "material": "Metal"
+      },
+      "orbit_plate": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.25
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://108157156947102",
+        "name": "orbit_plate_geom",
+        "texture": "rbxassetid://82688114600178"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://74379116334491",
+        "name": "right_dumbbell_geom",
+        "texture": "rbxassetid://84638884560381"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://91862468168813",
+        "name": "left_dumbbell_geom",
+        "texture": "rbxassetid://87455467740560"
+      }
+    ]
+  },
+  {
+    "generationId": "4cf77cbd-495c-45cf-bbd1-ab01fcaa695a",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A recognizable polished GOLD SPORTS WHISTLE hanging from a large red-and-white braided lanyard loop. The whistle body is a curved pea chamber attached to a LONG RECTANGULAR HOLLOW MOUTHPIECE protruding to the RIGHT horizontally. The open black slot on top is clear. The body has the real-world outline of a coach's whistle, NOT a round medallion, NOT a bell, NOT a ball. Side view of whistle so its projecting mouthpiece is clearly visible; the lanyard is a large open oval loop in the XY plane ABOVE the whistle. Rich Legendary gold, warm glow inside the hollow mouthpiece only. Highly polished realistic smooth curved metal, bold readable silhouette.",
+    "publishedAssetId": "124460882028053",
+    "tag": "Assistant-698ede0f-f793-4d87-abc7-d07f8370eb48",
+    "id": "Gym_CoachsWhistle",
+    "primary": "whistle_geom",
+    "authorRotation": "CFrame.identity",
+    "finishes": {
+      "whistle": {
+        "material": "Metal"
+      },
+      "lanyard": {
+        "material": "Fabric"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113352432198346",
+        "name": "lanyard_geom",
+        "texture": "rbxassetid://126844049795944"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://113872290674784",
+        "name": "whistle_geom",
+        "texture": "rbxassetid://84622921566460"
+      }
+    ]
+  }
+]
