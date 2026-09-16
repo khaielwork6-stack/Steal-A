@@ -104,6 +104,58 @@ local DEFINITIONS: {[string]: Definition} = {
 		["band_geom"]="rbxassetid://136499775864929",
 		["bills_geom"]="rbxassetid://110162836431702",
 	}, finishes={bills_geom={material=Enum.Material.Cardboard}, band_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 8d902918-1235-4df4-8832-891e5dcd83aa (2026-09-16).
+	Airport_FirstClassTicket = {asset=101701577550942, primary="badge_geom", meshes={
+		["star_geom"]="rbxassetid://100127402917749",
+		["badge_geom"]="rbxassetid://84313465518548",
+	}, finishes={badge_geom={material=Enum.Material.SmoothPlastic}, star_geom={material=Enum.Material.SmoothPlastic}}},
+	-- Studio MCP generate_mesh, c457dfd6-218b-4284-bbad-4d3655c4289f (2026-09-16).
+	Airport_VIPPassport = {asset=121731400843124, primary="airplane_geom", meshes={
+		["engines_geom"]="rbxassetid://136495987263827",
+		["airplane_geom"]="rbxassetid://117519934939818",
+	}, finishes={airplane_geom={material=Enum.Material.SmoothPlastic}, engines_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 18140b5d-ca1a-4b0c-b255-9474f580f756 (2026-09-16).
+	Airport_PilotsHat = {asset=139936612524803, primary="hat_geom", meshes={
+		["badge_geom"]="rbxassetid://107044563621983",
+		["brim_geom"]="rbxassetid://137434564042463",
+		["hat_geom"]="rbxassetid://84932879528849",
+	}, finishes={hat_geom={material=Enum.Material.Fabric}, brim_geom={material=Enum.Material.Leather}, badge_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, d353f1ed-bfc1-49f6-bec2-399b3ad49789 (2026-09-16).
+	Airport_LostBriefcase = {asset=117260289021527, primary="case_geom", meshes={
+		["clasp_geom"]="rbxassetid://133400372352980",
+		["tags_geom"]="rbxassetid://106878321592931",
+		["case_geom"]="rbxassetid://77393799541876",
+	}, finishes={case_geom={material=Enum.Material.Leather}, tags_geom={material=Enum.Material.Cardboard}, clasp_geom={glow=true,clearTexture=true,color=Color3.fromRGB(100,218,255)}}},
+	-- Studio MCP generate_mesh, 36aca6b8-46ef-4817-af2d-30f8fdc4c83f (2026-09-16).
+	Airport_UnknownBriefcase = {asset=125198735210755, primary="case_geom", meshes={
+		["light_geom"]="rbxassetid://122338407224998",
+		["lid_geom"]="rbxassetid://81900067385978",
+		["case_geom"]="rbxassetid://112308097590575",
+	}, finishes={case_geom={material=Enum.Material.Leather}, lid_geom={material=Enum.Material.Leather}, light_geom={material=Enum.Material.Metal}}},
+	-- Studio MCP generate_mesh, 04cd5e61-fc66-4644-acb3-ae6e03ad4c00 (2026-09-16).
+	Airport_PilotsLuggage = {asset=117126095331567, primary="case_geom", meshes={
+		["tags_geom"]="rbxassetid://98114024287250",
+		["bag_geom"]="rbxassetid://98898796921575",
+		["handle_geom"]="rbxassetid://130865379619974",
+		["case_geom"]="rbxassetid://137853609510070",
+	}, finishes={case_geom={material=Enum.Material.SmoothPlastic}, handle_geom={material=Enum.Material.Metal,mode="Hover",speed=1}, bag_geom={material=Enum.Material.Leather,mode="Hover",speed=0.8}, tags_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,184,63)}}},
+	-- Studio MCP generate_mesh, 7da57c01-5bee-4c91-917e-ffc66f12af85 (2026-09-16).
+	Airport_AirTower = {asset=89320963393606, primary="tower_geom", meshes={
+		["aircraft_geom"]="rbxassetid://85306211301620",
+		["beacon_geom"]="rbxassetid://140489858313292",
+		["glass_geom"]="rbxassetid://104536823112394",
+		["tower_geom"]="rbxassetid://79348114220032",
+	}, finishes={tower_geom={material=Enum.Material.Concrete}, glass_geom={material=Enum.Material.Glass,transparency=0.3}, beacon_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,194,77),mode="Spin",speed=0.3}, aircraft_geom={material=Enum.Material.Metal,mode="Orbit",speed=0.25}}},
+	-- Studio MCP generate_mesh, a33e183e-c9eb-453f-82a3-7bb239fdd28d (2026-09-16).
+	Airport_PrivateJet = {asset=138414525941714, primary="jet_geom", authorRotation=CFrame.Angles(0,math.pi/4,math.rad(-12)), meshes={
+		["wisps_geom"]="rbxassetid://78326777478453",
+		["shafts_geom"]="rbxassetid://93498899762381",
+		["outer_halo_geom"]="rbxassetid://110288078809359",
+		["middle_halo_geom"]="rbxassetid://120662935874314",
+		["inner_halo_geom"]="rbxassetid://82320556606002",
+		["engines_geom"]="rbxassetid://136554491146445",
+		["jet_geom"]="rbxassetid://135407960579630",
+	}, finishes={jet_geom={material=Enum.Material.Metal}, engines_geom={material=Enum.Material.Metal}, inner_halo_geom={material=Enum.Material.Metal}, middle_halo_geom={material=Enum.Material.Metal}, outer_halo_geom={material=Enum.Material.Metal}, shafts_geom={material=Enum.Material.Metal}, wisps_geom={material=Enum.Material.Metal}}},
 	-- Studio MCP generate_mesh, 8b229cca-a65b-4e6a-b826-5eeb32e5c091 (2026-09-16).
 	Construction_Blueprints = {asset=138568158660441, primary="paper_geom", meshes={
 		["lines_geom"]="rbxassetid://117185809553396",

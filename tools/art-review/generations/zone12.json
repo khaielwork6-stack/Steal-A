@@ -1,0 +1,378 @@
+[
+  {
+    "generationId": "8d902918-1235-4df4-8832-891e5dcd83aa",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A Golden Pilot Badge, wide outstretched sculpted feather wings framing a navy enamel round centre, small matte silver star above centre. Common treatment: matte warm gold, no emission or shine. Clean aviation navy, ochre gold and cloud white; unmistakable horizontal wings silhouette.",
+    "publishedAssetId": "101701577550942",
+    "tag": "Assistant-2b52146a-a311-4860-844c-86d56347781a",
+    "id": "Airport_FirstClassTicket",
+    "primary": "badge_geom",
+    "finishes": {
+      "badge": {
+        "material": "SmoothPlastic"
+      },
+      "star": {
+        "material": "SmoothPlastic"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://100127402917749",
+        "name": "star_geom",
+        "texture": "rbxassetid://125102831298443"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84313465518548",
+        "name": "badge_geom",
+        "texture": "rbxassetid://124639149623425"
+      }
+    ]
+  },
+  {
+    "generationId": "c457dfd6-218b-4284-bbad-4d3655c4289f",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Small die-cast passenger airliner, broad white cylindrical fuselage with navy and runway-amber side stripe, large straight wings, polished silver under-wing engines, high vertical tail. Banking gently to one side, nose angled slightly upward. Uncommon, realistic toy airliner proportions, no glow. Broad straight wings and rounded cabin distinguish it from a swept-wing business jet.",
+    "publishedAssetId": "121731400843124",
+    "tag": "Assistant-ed05ada5-b063-4d99-9769-a18f4680c52c",
+    "id": "Airport_VIPPassport",
+    "primary": "airplane_geom",
+    "finishes": {
+      "airplane": {
+        "material": "SmoothPlastic"
+      },
+      "engines": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136495987263827",
+        "name": "engines_geom",
+        "texture": "rbxassetid://134662284754467"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://117519934939818",
+        "name": "airplane_geom",
+        "texture": "rbxassetid://94707421735157"
+      }
+    ]
+  },
+  {
+    "generationId": "18140b5d-ca1a-4b0c-b255-9474f580f756",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Formal navy pilot's peaked cap, crisp tall crown, shiny black curved patent brim, thick polished gold braid across front and small silver winged badge. Rare, no emission. Authentic smooth cloth cap and projecting low visor, aviation navy and gold against silver.",
+    "publishedAssetId": "139936612524803",
+    "tag": "Assistant-89908de3-c4ed-4cb3-a0b8-77d026bb5e27",
+    "id": "Airport_PilotsHat",
+    "primary": "hat_geom",
+    "finishes": {
+      "hat": {
+        "material": "Fabric"
+      },
+      "brim": {
+        "material": "Leather"
+      },
+      "badge": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://107044563621983",
+        "name": "badge_geom",
+        "texture": "rbxassetid://108602800345129"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137434564042463",
+        "name": "brim_geom",
+        "texture": "rbxassetid://116732416775749"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84932879528849",
+        "name": "hat_geom",
+        "texture": "rbxassetid://89728308739372"
+      }
+    ]
+  },
+  {
+    "generationId": "d353f1ed-bfc1-49f6-bec2-399b3ad49789",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Scuffed warm brown leather travel briefcase standing upright, brass reinforced corners and carry handle. A FAN of old cream and amber airline luggage tags hangs asymmetrically from its handle to one side. One small jewel-like cyan clasp with faint glow. Epic, closed lid, characterful worn leather without noisy texture; asymmetric tag fan extends silhouette.",
+    "publishedAssetId": "117260289021527",
+    "tag": "Assistant-93392e5f-e5e5-4e4b-995c-c8432613dc33",
+    "id": "Airport_LostBriefcase",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Leather"
+      },
+      "tags": {
+        "material": "Cardboard"
+      },
+      "clasp": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          100,
+          218,
+          255
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://133400372352980",
+        "name": "clasp_geom",
+        "texture": "rbxassetid://116254425104894"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://106878321592931",
+        "name": "tags_geom",
+        "texture": "rbxassetid://98019137140226"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77393799541876",
+        "name": "case_geom",
+        "texture": "rbxassetid://72975740865478"
+      }
+    ]
+  },
+  {
+    "generationId": "36aca6b8-46ef-4817-af2d-30f8fdc4c83f",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Sleek black executive travel case with rich gold combination dial and hardware. Lid OPEN steeply behind the case, only glowing amber light visible inside, contents concealed by luminous interior. Legendary, smooth refined leather and polished gold. Tall open lid and low body create stepped clamshell silhouette distinctly different from a closed tagged case.",
+    "publishedAssetId": "125198735210755",
+    "tag": "Assistant-29ce6ae5-4ba7-428d-9991-cb3baa3ac309",
+    "id": "Airport_UnknownBriefcase",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Leather"
+      },
+      "lid": {
+        "material": "Leather"
+      },
+      "light": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122338407224998",
+        "name": "light_geom",
+        "texture": "rbxassetid://127668276327151"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://81900067385978",
+        "name": "lid_geom",
+        "texture": "rbxassetid://139172984415692"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112308097590575",
+        "name": "case_geom",
+        "texture": "rbxassetid://90471148791963"
+      }
+    ]
+  },
+  {
+    "generationId": "04cd5e61-fc66-4644-acb3-ae6e03ad4c00",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Navy hard-shell pilot's roller suitcase with rounded vertical grooves, polished silver frame and small wheels. Extended telescoping handle floats slightly separated above suitcase, a small matching navy bag hovers beside it. Glowing amber luggage tags. Mythic, refined aviation design; tall suitcase with open handle and detached side bag.",
+    "publishedAssetId": "117126095331567",
+    "tag": "Assistant-3c65721d-2f17-4347-a362-29409755dcb9",
+    "id": "Airport_PilotsLuggage",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "SmoothPlastic"
+      },
+      "handle": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "bag": {
+        "material": "Leather",
+        "mode": "Hover",
+        "speed": 0.8
+      },
+      "tags": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          184,
+          63
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://98114024287250",
+        "name": "tags_geom",
+        "texture": "rbxassetid://89592970030863"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://98898796921575",
+        "name": "bag_geom",
+        "texture": "rbxassetid://87633350215482"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://130865379619974",
+        "name": "handle_geom",
+        "texture": "rbxassetid://139576620928940"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://137853609510070",
+        "name": "case_geom",
+        "texture": "rbxassetid://121050946346928"
+      }
+    ]
+  },
+  {
+    "generationId": "7da57c01-5bee-4c91-917e-ffc66f12af85",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Airport control tower, tall tapered cloud-grey concrete shaft and broad angular glazed observation crown lit warm amber inside. Navy roof with clean violet-blue starfield accent, bright rotating beacon on top. A tiny silver aircraft floats in orbit beside the crown. Cosmic. Very tall narrow column and wide top silhouette, authentic aviation architecture.",
+    "publishedAssetId": "89320963393606",
+    "tag": "Assistant-9b27c09c-9766-43b5-8f55-dee00f87f953",
+    "id": "Airport_AirTower",
+    "primary": "tower_geom",
+    "finishes": {
+      "tower": {
+        "material": "Concrete"
+      },
+      "glass": {
+        "material": "Glass",
+        "transparency": 0.3
+      },
+      "beacon": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          194,
+          77
+        ],
+        "mode": "Spin",
+        "speed": 0.3
+      },
+      "aircraft": {
+        "material": "Metal",
+        "mode": "Orbit",
+        "speed": 0.25
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://85306211301620",
+        "name": "aircraft_geom",
+        "texture": "rbxassetid://122803193469549"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://140489858313292",
+        "name": "beacon_geom",
+        "texture": "rbxassetid://121825069374647"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://104536823112394",
+        "name": "glass_geom",
+        "texture": "rbxassetid://133195797572542"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://79348114220032",
+        "name": "tower_geom",
+        "texture": "rbxassetid://82339553212485"
+      }
+    ]
+  },
+  {
+    "generationId": "a33e183e-c9eb-453f-82a3-7bb239fdd28d",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. The ultimate luxurious white-and-gold BUSINESS JET, sleek long pointed fuselage, dramatically swept-back wings, rear twin engines with glowing cyan intakes, tall swept tail. Three concentric separated gold-white halo rings encircle fuselage at different angles; brilliant thin light shafts shine from beneath, delicate frozen white contrail wisps curve behind. Divine, breathtaking premium aviation trophy, glossy clean white gold and prismatic crystal accents. Banked slightly, distinctly sleek swept outline rather than a chunky straight-wing airliner.",
+    "publishedAssetId": "138414525941714",
+    "tag": "Assistant-c4466ab0-d94c-417b-89d9-0dc0ac8a9249",
+    "id": "Airport_PrivateJet",
+    "primary": "jet_geom",
+    "authorRotation": "CFrame.Angles(0,math.pi/4,math.rad(-12))",
+    "finishes": {
+      "jet": {
+        "material": "Metal"
+      },
+      "engines": {
+        "material": "Metal"
+      },
+      "inner_halo": {
+        "material": "Metal"
+      },
+      "middle_halo": {
+        "material": "Metal"
+      },
+      "outer_halo": {
+        "material": "Metal"
+      },
+      "shafts": {
+        "material": "Metal"
+      },
+      "wisps": {
+        "material": "Metal"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://78326777478453",
+        "name": "wisps_geom",
+        "texture": "rbxassetid://113405750967374"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://93498899762381",
+        "name": "shafts_geom",
+        "texture": "rbxassetid://114964618326631"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://110288078809359",
+        "name": "outer_halo_geom",
+        "texture": "rbxassetid://89160965091178"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://120662935874314",
+        "name": "middle_halo_geom",
+        "texture": "rbxassetid://131317350951785"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82320556606002",
+        "name": "inner_halo_geom",
+        "texture": "rbxassetid://107174506765898"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://136554491146445",
+        "name": "engines_geom",
+        "texture": "rbxassetid://117103047008014"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://135407960579630",
+        "name": "jet_geom",
+        "texture": "rbxassetid://133894929827282"
+      }
+    ]
+  }
+]

@@ -454,14 +454,14 @@ LootConfig.Normalization = {
 	Construction_GoldenDrill = { 1.0000, 5.823, 5.000, 1.747 }, -- Golden Drill: 5.82 x 5.00 x 1.75 -> 5.82 x 5.00 x 1.75
 	Construction_BossLadder = { 1.0000, 4.478, 5.000, 4.478 }, -- Boss Ladder: 4.48 x 5.00 x 4.48 -> 4.48 x 5.00 x 4.48
 	Construction_DiamondHammer = { 1.0000, 3.429, 5.000, 3.670 }, -- Diamond Hammer: 3.43 x 5.00 x 3.67 -> 3.43 x 5.00 x 3.67
-	Airport_FirstClassTicket = { 1.6000, 6.000, 2.500, 1.000 }, -- Golden Pilot Badge: 6.00 x 2.50 x 1.00 -> 9.60 x 4.00 x 1.60
-	Airport_VIPPassport = { 0.1250, 74.667, 32.000, 85.333 }, -- Airplane: 74.67 x 32.00 x 85.33 -> 9.33 x 4.00 x 10.67
-	Airport_PilotsHat = { 1.6136, 7.175, 2.479, 7.625 }, -- Pilot's Hat: 7.17 x 2.48 x 7.62 -> 11.58 x 4.00 x 12.30
-	Airport_LostBriefcase = { 0.6440, 2.865, 7.245, 11.646 }, -- Lost Briefcase: 2.86 x 7.24 x 11.65 -> 1.85 x 4.67 x 7.50
-	Airport_UnknownBriefcase = { 0.6906, 9.302, 7.240, 9.344 }, -- Unknown Briefcase: 9.30 x 7.24 x 9.34 -> 6.42 x 5.00 x 6.45
-	Airport_PilotsLuggage = { 0.3214, 14.434, 15.557, 2.381 }, -- Pilot's Luggage: 14.43 x 15.56 x 2.38 -> 4.64 x 5.00 x 0.77
-	Airport_AirTower = { 0.0702, 21.314, 71.200, 21.314 }, -- Air Tower: 21.31 x 71.20 x 21.31 -> 1.50 x 5.00 x 1.50
-	Airport_PrivateJet = { 0.3707, 47.438, 10.789, 36.508 }, -- Private Jet: 47.44 x 10.79 x 36.51 -> 17.59 x 4.00 x 13.53
+	Airport_FirstClassTicket = { 1.0000, 7.500, 4.642, 2.844 }, -- Golden Pilot Badge: 7.50 x 4.64 x 2.84 -> 7.50 x 4.64 x 2.84
+	Airport_VIPPassport = { 1.0000, 10.760, 4.000, 10.584 }, -- Airplane: 10.76 x 4.00 x 10.58 -> 10.76 x 4.00 x 10.58
+	Airport_PilotsHat = { 1.0000, 7.198, 4.685, 7.500 }, -- Pilot's Hat: 7.20 x 4.69 x 7.50 -> 7.20 x 4.69 x 7.50
+	Airport_LostBriefcase = { 1.0000, 4.563, 5.000, 2.130 }, -- Lost Briefcase: 4.56 x 5.00 x 2.13 -> 4.56 x 5.00 x 2.13
+	Airport_UnknownBriefcase = { 1.0000, 4.541, 5.000, 4.710 }, -- Unknown Briefcase: 4.54 x 5.00 x 4.71 -> 4.54 x 5.00 x 4.71
+	Airport_PilotsLuggage = { 1.0000, 3.563, 5.000, 1.459 }, -- Pilot's Luggage: 3.56 x 5.00 x 1.46 -> 3.56 x 5.00 x 1.46
+	Airport_AirTower = { 1.0000, 2.197, 5.000, 2.514 }, -- Air Tower: 2.20 x 5.00 x 2.51 -> 2.20 x 5.00 x 2.51
+	Airport_PrivateJet = { 1.0000, 7.500, 4.187, 7.500 }, -- Private Jet: 7.50 x 4.19 x 7.50 -> 7.50 x 4.19 x 7.50
 } :: { [string]: { number } }
 
 -- ==========================================================
