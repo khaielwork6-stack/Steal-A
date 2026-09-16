@@ -10,6 +10,57 @@ type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, 
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
 type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, ebc08536-a0c2-47e0-804d-50a97c68b347 (2026-09-16).
+	Egypt_CanopicJar = {asset=122152560581491, primary="scepter_geom", meshes={
+		["inlay_geom"]="rbxassetid://100894811243168",
+		["scepter_geom"]="rbxassetid://129652639172131",
+	}, finishes={scepter_geom={material=Enum.Material.Metal}, inlay_geom={material=Enum.Material.Glass}}},
+	-- Studio MCP generate_mesh, a0792a8c-61b8-442d-b870-7c0d0f5a7dfe (2026-09-16).
+	Egypt_Shawarma = {asset=113273470724173, primary="wrap_geom", authorRotation=CFrame.Angles(-math.pi/2,0,0), meshes={
+		["foil_geom"]="rbxassetid://73487881122935",
+		["filling_geom"]="rbxassetid://108104201781428",
+		["wrap_geom"]="rbxassetid://79375772861048",
+	}, finishes={wrap_geom={material=Enum.Material.Sand}, foil_geom={material=Enum.Material.Foil}}},
+	-- Studio MCP generate_mesh, 7262c26e-9444-4eb0-a59c-f8cd1cd5a49e (2026-09-16).
+	Egypt_AncientMau = {asset=126944060001505, primary="cat_geom", meshes={
+		["eyes_geom"]="rbxassetid://71349940859395",
+		["collar_geom"]="rbxassetid://112135074054477",
+		["cat_geom"]="rbxassetid://82892874081507",
+	}, finishes={cat_geom={material=Enum.Material.Granite}, collar_geom={material=Enum.Material.Metal}, eyes_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,180,32)}}},
+	-- Studio MCP generate_mesh, 9e1a8a29-a219-4073-b4dd-ca63bab98f47 (2026-09-16).
+	Egypt_AncientScroll = {asset=109898056081088, primary="papyrus_geom", authorRotation=CFrame.Angles(math.pi/2,0,0), meshes={
+		["glyphs_geom"]="rbxassetid://132705105612048",
+		["rods_geom"]="rbxassetid://77491074433181",
+		["papyrus_geom"]="rbxassetid://84603250801962",
+	}, finishes={papyrus_geom={material=Enum.Material.Fabric}, rods_geom={material=Enum.Material.Metal}, glyphs_geom={glow=true,clearTexture=true,color=Color3.fromRGB(48,231,190)}}},
+	-- Studio MCP generate_mesh, 10552504-6335-40ff-9a80-e9fd176ca304 (2026-09-16).
+	Egypt_ThroneOfRa = {asset=132184997346555, primary="throne_geom", meshes={
+		["solar_disc_geom"]="rbxassetid://84129836519924",
+		["falcons_geom"]="rbxassetid://74716538527404",
+		["throne_geom"]="rbxassetid://140063989081048",
+	}, finishes={throne_geom={material=Enum.Material.Granite,color=Color3.fromRGB(22,25,29)}, falcons_geom={material=Enum.Material.Metal}, solar_disc_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,183,50)}}},
+	-- Studio MCP generate_mesh, c18ee980-701f-47a8-acb5-bf00808b4967 (2026-09-16).
+	Egypt_NemesMask = {asset=74512256472323, primary="mask_geom", meshes={
+		["outer_halo_geom"]="rbxassetid://100980557126559",
+		["inner_halo_geom"]="rbxassetid://105679677256974",
+		["cobra_geom"]="rbxassetid://86541433445808",
+		["mask_geom"]="rbxassetid://110603859949046",
+	}, finishes={mask_geom={material=Enum.Material.Metal}, cobra_geom={material=Enum.Material.Metal}, inner_halo_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224),mode="Spin",speed=0.16}, outer_halo_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143),mode="Spin",speed=-0.12}}},
+	-- Studio MCP generate_mesh, a3d3f8bc-49ba-478c-8830-3b8c7b63a33a (2026-09-16).
+	Egypt_EgyptianPyramid = {asset=124616533546449, primary="pyramid_geom", meshes={
+		["light_geom"]="rbxassetid://122624038956508",
+		["halo_geom"]="rbxassetid://105017350275623",
+		["glyphs_geom"]="rbxassetid://77268328600938",
+		["capstone_geom"]="rbxassetid://90707946406901",
+		["pyramid_geom"]="rbxassetid://119526199827778",
+	}, finishes={pyramid_geom={material=Enum.Material.Limestone}, capstone_geom={material=Enum.Material.Metal,mode="Hover",speed=1}, glyphs_geom={glow=true,clearTexture=true,color=Color3.fromRGB(66,235,255)}, halo_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,225,143),mode="Spin",speed=0.15}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,248,224)}}},
+	-- Studio MCP generate_mesh, 23bfc050-8595-472a-9f19-18e5edef3cf4 (2026-09-16).
+	Egypt_Mummy = {asset=80002288302281, primary="case_geom", meshes={
+		["bandage_geom"]="rbxassetid://74375928853172",
+		["light_geom"]="rbxassetid://134720229451561",
+		["lid_geom"]="rbxassetid://133510748974232",
+		["case_geom"]="rbxassetid://93205377195513",
+	}, finishes={case_geom={material=Enum.Material.Metal}, lid_geom={material=Enum.Material.Metal,mode="Hover",speed=0.8}, light_geom={glow=true,clearTexture=true,color=Color3.fromRGB(255,168,40)}, bandage_geom={material=Enum.Material.Fabric}}},
 	-- Studio MCP generate_mesh, 08b1ef06-cdc1-4a1d-be08-acf94c139ad1 (2026-09-16).
 	NorthPole_NiceList = {asset=112981394859159, primary="train_geom", authorRotation=CFrame.Angles(0,math.pi/2,0), meshes={
 		["smoke_geom"]="rbxassetid://108557422657389",
@@ -283,6 +334,20 @@ local function accent(model: Model, name: string, size: Vector3, cf: CFrame, col
 	return part
 end
 
+-- Reusable generated halo accent from the Nemes Mask (Studio generate_mesh,
+-- fc853e38 job / model 74512256472323); never a primitive replacement body.
+local function generatedHalo(model: Model, name: string, cf: CFrame, size: Vector3): MeshPart
+	local imported = InsertService:LoadAsset(74512256472323)
+	local ring = imported:FindFirstChild("outer_halo_geom", true)
+	assert(ring and ring:IsA("MeshPart") and ring.MeshId=="rbxassetid://100980557126559", "Generated halo mesh changed")
+	ring.Parent = model
+	imported:Destroy()
+	ring.Name, ring.CFrame, ring.Size = name, cf, size
+	for _,child in ring:GetChildren() do child:Destroy() end
+	configure(ring,false)
+	return ring
+end
+
 local function decorate(model: Model, id: string)
 	local function mesh(name: string): MeshPart return model:FindFirstChild(name .. "_geom") :: MeshPart end
 	local gold = Color3.fromRGB(255, 211, 112)
@@ -340,6 +405,23 @@ local function decorate(model: Model, id: string)
 		light.CFrame = CFrame.new(sack.Position + Vector3.new(0,sack.Size.Y*0.37,0))
 		sack.TextureID, sack.Color = "", Color3.fromRGB(65,10,22)
 		for _,child in sack:GetChildren() do if child:IsA("SurfaceAppearance") then child:Destroy() end end
+	elseif id == "Egypt_NemesMask" then
+		local face, outer = mesh("mask"), mesh("outer_halo")
+		mesh("inner_halo"):Destroy()
+		outer.Size = Vector3.new(face.Size.X*1.6,face.Size.Y*1.05,0.16)
+		outer.CFrame = CFrame.new(face.Position + Vector3.new(0,0.05,-face.Size.Z*0.6))
+		local inner=outer:Clone()
+		inner.Name, inner.Size = "inner_halo_geom", outer.Size*Vector3.new(0.82,0.82,1)
+		inner.CFrame=outer.CFrame*CFrame.new(0,0,0.08)
+		inner.Parent=model
+	elseif id == "Egypt_EgyptianPyramid" then
+		local pyramid, cap, light=mesh("pyramid"),mesh("capstone"),mesh("light")
+		mesh("halo"):Destroy()
+		local diameter=pyramid.Size.X*1.35
+		generatedHalo(model,"halo_geom",CFrame.new(pyramid.Position+Vector3.new(0,(diameter-pyramid.Size.Y)*0.5,-pyramid.Size.Z*0.65)),Vector3.new(diameter,diameter,0.12))
+		cap.CFrame+=Vector3.new(0,0.5,0)
+		light.Size=Vector3.new(0.18,0.5,0.18)
+		light.CFrame=CFrame.new(pyramid.Position+Vector3.new(0,pyramid.Size.Y*0.5+0.25,0))
 	elseif id == "Museum_GoldenCrown" then
 		-- Tiny gem only: Epic has a faint accent, not a glowing crown body.
 		neon(mesh("ruby_gems"), Color3.fromRGB(255, 85, 95))

@@ -1,0 +1,409 @@
+[
+  {
+    "generationId": "ebc08536-a0c2-47e0-804d-50a97c68b347",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Pharaoh's paired gold crook and flail, bound together as an upright scepter. Generous curved crook loop, sculpted falcon head at its top, lapis-blue inlay bands and turquoise accents. Rare polished gold, no emission. Sand-gold and lapis Egyptian family, graceful narrow crossed hooked silhouette.",
+    "publishedAssetId": "122152560581491",
+    "tag": "Assistant-6363f62e-b8cc-455b-aedf-b36c4982eb94",
+    "id": "Egypt_CanopicJar",
+    "primary": "scepter_geom",
+    "finishes": {
+      "scepter": {
+        "material": "Metal"
+      },
+      "inlay": {
+        "material": "Glass"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://100894811243168",
+        "name": "inlay_geom",
+        "texture": "rbxassetid://138095910804095"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://129652639172131",
+        "name": "scepter_geom",
+        "texture": "rbxassetid://125672674349896"
+      }
+    ]
+  },
+  {
+    "generationId": "a0792a8c-61b8-442d-b870-7c0d0f5a7dfe",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An appetizing wrapped shawarma tilted slightly upright, real soft pita wrap tapering to a narrow bottom and open broad top showing browned roasted meat, white sauce and fresh green herbs. Silver foil half-peeled around lower half, tiny warm highlight. Epic. Rich toasted cream, copper brown, vivid herbs; delicious premium food collectible, natural organic curved folds.",
+    "publishedAssetId": "113273470724173",
+    "tag": "Assistant-a6d2f015-7060-4210-bd46-672546ba9e6a",
+    "id": "Egypt_Shawarma",
+    "primary": "wrap_geom",
+    "authorRotation": "CFrame.Angles(-math.pi/2,0,0)",
+    "finishes": {
+      "wrap": {
+        "material": "Sand"
+      },
+      "foil": {
+        "material": "Foil"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://73487881122935",
+        "name": "foil_geom",
+        "texture": "rbxassetid://100082848328708"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://108104201781428",
+        "name": "filling_geom",
+        "texture": "rbxassetid://81661476409451"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://79375772861048",
+        "name": "wrap_geom",
+        "texture": "rbxassetid://110620855281618"
+      }
+    ]
+  },
+  {
+    "generationId": "7262c26e-9444-4eb0-a59c-f8cd1cd5a49e",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A seated Egyptian cat statue, tall pointed ears, graceful slender upright neck and curled tail around paws, smooth near-black granite body. Rich golden collar and gold ear rings, luminous amber eyes. Legendary. Recognisable elegant feline seated outline, no base plinth.",
+    "publishedAssetId": "126944060001505",
+    "tag": "Assistant-b73f4ed2-cac7-4700-981f-f3bc081c3632",
+    "id": "Egypt_AncientMau",
+    "primary": "cat_geom",
+    "finishes": {
+      "cat": {
+        "material": "Granite"
+      },
+      "collar": {
+        "material": "Metal"
+      },
+      "eyes": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          180,
+          32
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://71349940859395",
+        "name": "eyes_geom",
+        "texture": "rbxassetid://99989200194931"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://112135074054477",
+        "name": "collar_geom",
+        "texture": "rbxassetid://131298185420059"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://82892874081507",
+        "name": "cat_geom",
+        "texture": "rbxassetid://108772430385565"
+      }
+    ]
+  },
+  {
+    "generationId": "9e1a8a29-a219-4073-b4dd-ca63bab98f47",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Ancient papyrus partly unrolled between two golden rods, upright broad rippling cream sheet with frayed irregular edges. Clean bold Egyptian pictograms in faintly glowing turquoise across the paper; rich gold roller ends. Legendary. Rectangular scroll silhouette with curled sides, gold, cream and lapis accents.",
+    "publishedAssetId": "109898056081088",
+    "tag": "Assistant-aa6ccf6d-9b06-4727-a540-a226497f41fe",
+    "id": "Egypt_AncientScroll",
+    "primary": "papyrus_geom",
+    "authorRotation": "CFrame.Angles(math.pi/2,0,0)",
+    "finishes": {
+      "papyrus": {
+        "material": "Fabric"
+      },
+      "rods": {
+        "material": "Metal"
+      },
+      "glyphs": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          48,
+          231,
+          190
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://132705105612048",
+        "name": "glyphs_geom",
+        "texture": "rbxassetid://122679035190693"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77491074433181",
+        "name": "rods_geom",
+        "texture": "rbxassetid://97571556566830"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84603250801962",
+        "name": "papyrus_geom",
+        "texture": "rbxassetid://73178515724675"
+      }
+    ]
+  },
+  {
+    "generationId": "10552504-6335-40ff-9a80-e9fd176ca304",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An imposing Egyptian throne carved from near-black granite, wide squared high back and heavy feet, sculpted gold falcon heads form both armrests. A huge brilliant solar disc hangs behind the backrest, warm amber-white as the single intense emission source. Secret. Heavy angular seated-furniture outline with circular sun above, no working seat mechanism.",
+    "publishedAssetId": "132184997346555",
+    "tag": "Assistant-8ea7bf08-f870-454d-8e86-ee02381ab1fa",
+    "id": "Egypt_ThroneOfRa",
+    "primary": "throne_geom",
+    "finishes": {
+      "throne": {
+        "material": "Granite",
+        "color": [
+          22,
+          25,
+          29
+        ]
+      },
+      "falcons": {
+        "material": "Metal"
+      },
+      "solar_disc": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          183,
+          50
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://84129836519924",
+        "name": "solar_disc_geom",
+        "texture": "rbxassetid://98127414158755"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://74716538527404",
+        "name": "falcons_geom",
+        "texture": "rbxassetid://71662485832374"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://140063989081048",
+        "name": "throne_geom",
+        "texture": "rbxassetid://88269483394002"
+      }
+    ]
+  },
+  {
+    "generationId": "c18ee980-701f-47a8-acb5-bf00808b4967",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Full glorious pharaonic gold mask with broad lapis striped nemes headdress and an exaggerated rearing uraeus cobra rising HIGH above the brow. Two separated concentric radiant gold-white halo rings behind the head. Eternal. Heavy sculpted gold, lapis stripes, large cobra and halos make a wide circular outline distinctly unlike a plain funerary bust.",
+    "publishedAssetId": "74512256472323",
+    "tag": "Assistant-c56ba902-cafd-4ee6-be17-7274d69339f3",
+    "id": "Egypt_NemesMask",
+    "primary": "mask_geom",
+    "finishes": {
+      "mask": {
+        "material": "Metal"
+      },
+      "cobra": {
+        "material": "Metal"
+      },
+      "inner_halo": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ],
+        "mode": "Spin",
+        "speed": 0.16
+      },
+      "outer_halo": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ],
+        "mode": "Spin",
+        "speed": -0.12
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://100980557126559",
+        "name": "outer_halo_geom",
+        "texture": "rbxassetid://110074456441809"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105679677256974",
+        "name": "inner_halo_geom",
+        "texture": "rbxassetid://114251861929351"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://86541433445808",
+        "name": "cobra_geom",
+        "texture": "rbxassetid://109162352571859"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://110603859949046",
+        "name": "mask_geom",
+        "texture": "rbxassetid://128373373999173"
+      }
+    ]
+  },
+  {
+    "generationId": "a3d3f8bc-49ba-478c-8830-3b8c7b63a33a",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Monumental stepped limestone Egyptian pyramid, broad square base tapering through clean stone courses. Detached gold capstone floats above the apex with a visible gap and thin radiant light column joining them. Glowing turquoise pictogram bands on each face, large prismatic halo floating behind pyramid. Eternal, gold-white radiance and sand-gold stone with lapis accents; unmistakable triangular outline.",
+    "publishedAssetId": "124616533546449",
+    "tag": "Assistant-dcf5bd70-7bdf-4ac6-80c2-0dc7eafa0ae6",
+    "id": "Egypt_EgyptianPyramid",
+    "primary": "pyramid_geom",
+    "finishes": {
+      "pyramid": {
+        "material": "Limestone"
+      },
+      "capstone": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 1
+      },
+      "glyphs": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          66,
+          235,
+          255
+        ]
+      },
+      "halo": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          225,
+          143
+        ],
+        "mode": "Spin",
+        "speed": 0.15
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          248,
+          224
+        ]
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://122624038956508",
+        "name": "light_geom",
+        "texture": "rbxassetid://123629546896261"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://105017350275623",
+        "name": "halo_geom",
+        "texture": "rbxassetid://122143490359543"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://77268328600938",
+        "name": "glyphs_geom",
+        "texture": "rbxassetid://71718711044625"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://90707946406901",
+        "name": "capstone_geom",
+        "texture": "rbxassetid://118736493160875"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://119526199827778",
+        "name": "pyramid_geom",
+        "texture": "rbxassetid://87085874509720"
+      }
+    ]
+  },
+  {
+    "generationId": "23bfc050-8595-472a-9f19-18e5edef3cf4",
+    "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A TALL UPRIGHT ANTHROPOID EGYPTIAN SARCOPHAGUS, like a slender standing human-shaped coffin 5 units tall and only 1.8 units wide, rounded head at TOP, gently tapering long torso down to joined feet at BOTTOM. Gold and lapis-blue striped pharaoh face carved directly into the FULL-HEIGHT FRONT LID. Lid is the SAME tall human-shaped outline as the case, separated slightly FORWARD to reveal a narrow warm amber glow gap. Cream cloth ribbon at one side. Mythic museum treasure. Entire object stands VERTICALLY like a statue. NOT a treasure chest, NOT a box with a separate head on top, NOT furniture, NOT sitting.",
+    "publishedAssetId": "80002288302281",
+    "tag": "Assistant-dff9dbf6-660a-4fd1-97cc-a355864a5888",
+    "id": "Egypt_Mummy",
+    "primary": "case_geom",
+    "finishes": {
+      "case": {
+        "material": "Metal"
+      },
+      "lid": {
+        "material": "Metal",
+        "mode": "Hover",
+        "speed": 0.8
+      },
+      "light": {
+        "glow": true,
+        "clearTexture": true,
+        "color": [
+          255,
+          168,
+          40
+        ]
+      },
+      "bandage": {
+        "material": "Fabric"
+      }
+    },
+    "parts": [
+      {
+        "up": 1,
+        "mesh": "rbxassetid://74375928853172",
+        "name": "bandage_geom",
+        "texture": "rbxassetid://73273701889849"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://134720229451561",
+        "name": "light_geom",
+        "texture": "rbxassetid://115244500868416"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://133510748974232",
+        "name": "lid_geom",
+        "texture": "rbxassetid://73109999101523"
+      },
+      {
+        "up": 1,
+        "mesh": "rbxassetid://93205377195513",
+        "name": "case_geom",
+        "texture": "rbxassetid://110664905664961"
+      }
+    ]
+  }
+]

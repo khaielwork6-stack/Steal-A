@@ -406,14 +406,14 @@ LootConfig.Normalization = {
 	NorthPole_MagicSnowGlobe = { 1.0000, 4.835, 5.000, 4.194 }, -- Magic Snow Globe: 4.83 x 5.00 x 4.19 -> 4.83 x 5.00 x 4.19
 	NorthPole_SantasGiftSack = { 1.0000, 4.855, 5.000, 4.854 }, -- Santa's Gift Sack: 4.86 x 5.00 x 4.85 -> 4.86 x 5.00 x 4.85
 	NorthPole_ChristmasStar = { 1.0000, 3.525, 5.000, 2.790 }, -- Christmas Star: 3.53 x 5.00 x 2.79 -> 3.53 x 5.00 x 2.79
-	Egypt_CanopicJar = { 0.8333, 4.800, 6.000, 1.200 }, -- Pharaoh's Golden Scepter: 4.80 x 6.00 x 1.20 -> 4.00 x 5.00 x 1.00
-	Egypt_Shawarma = { 1.0910, 6.874, 3.925, 4.577 }, -- Shawarma: 6.87 x 3.92 x 4.58 -> 7.50 x 4.28 x 4.99
-	Egypt_AncientMau = { 0.2778, 4.485, 18.000, 5.437 }, -- Ancient Mau: 4.49 x 18.00 x 5.44 -> 1.25 x 5.00 x 1.51
-	Egypt_AncientScroll = { 1.1466, 6.541, 3.537, 3.233 }, -- Ancient Scroll: 6.54 x 3.54 x 3.23 -> 7.50 x 4.06 x 3.71
-	Egypt_Mummy = { 0.2778, 8.679, 18.000, 7.671 }, -- Mummy: 8.68 x 18.00 x 7.67 -> 2.41 x 5.00 x 2.13
-	Egypt_ThroneOfRa = { 0.4245, 8.200, 11.778, 8.105 }, -- Throne of Ra: 8.20 x 11.78 x 8.10 -> 3.48 x 5.00 x 3.44
-	Egypt_NemesMask = { 0.7143, 7.000, 7.000, 7.000 }, -- Nemes Mask: 7.00 x 7.00 x 7.00 -> 5.00 x 5.00 x 5.00
-	Egypt_EgyptianPyramid = { 0.0781, 84.000, 52.000, 96.000 }, -- Egyptian Pyramid: 84.00 x 52.00 x 96.00 -> 6.56 x 4.06 x 7.50
+	Egypt_CanopicJar = { 1.0000, 2.548, 5.000, 0.664 }, -- Pharaoh's Golden Scepter: 2.55 x 5.00 x 0.66 -> 2.55 x 5.00 x 0.66
+	Egypt_Shawarma = { 1.0000, 1.940, 5.000, 2.005 }, -- Shawarma: 1.94 x 5.00 x 2.01 -> 1.94 x 5.00 x 2.01
+	Egypt_AncientMau = { 1.0000, 2.322, 5.000, 3.230 }, -- Ancient Mau: 2.32 x 5.00 x 3.23 -> 2.32 x 5.00 x 3.23
+	Egypt_AncientScroll = { 1.0000, 3.349, 5.000, 1.169 }, -- Ancient Scroll: 3.35 x 5.00 x 1.17 -> 3.35 x 5.00 x 1.17
+	Egypt_Mummy = { 1.0000, 2.207, 5.000, 2.101 }, -- Mummy: 2.21 x 5.00 x 2.10 -> 2.21 x 5.00 x 2.10
+	Egypt_ThroneOfRa = { 1.0000, 2.572, 5.000, 2.703 }, -- Throne of Ra: 2.57 x 5.00 x 2.70 -> 2.57 x 5.00 x 2.70
+	Egypt_NemesMask = { 1.0000, 4.526, 5.000, 3.154 }, -- Nemes Mask: 4.53 x 5.00 x 3.15 -> 4.53 x 5.00 x 3.15
+	Egypt_EgyptianPyramid = { 1.0000, 4.621, 5.000, 3.996 }, -- Egyptian Pyramid: 4.62 x 5.00 x 4.00 -> 4.62 x 5.00 x 4.00
 	Gym_Water = { 0.8581, 3.410, 5.827, 3.468 }, -- Water: 3.41 x 5.83 x 3.47 -> 2.93 x 5.00 x 2.98
 	Gym_Creatine = { 1.2500, 5.000, 4.000, 3.000 }, -- Boxing Gloves: 5.00 x 4.00 x 3.00 -> 6.25 x 5.00 x 3.75
 	Gym_CoachsWhistle = { 0.5349, 9.313, 9.347, 7.634 }, -- Gym Whistle: 9.31 x 9.35 x 7.63 -> 4.98 x 5.00 x 4.08
@@ -488,7 +488,6 @@ LootConfig.ModelOverrides = {
 	-- Zone 06: Canopic Jar -> Pharaoh’s Golden Scepter. NOTE: the asset name
 	-- uses a curly apostrophe (U+2019), not an ASCII one; a straight quote here
 	-- will not find it.
-	Egypt_CanopicJar = "Pharaoh’s Golden Scepter",
 	-- Zone 07: Creatine -> Boxing Gloves.
 	Gym_Creatine = "Boxing Gloves",
 	-- Zone 08: Cash Briefcase -> Money Print Machine.

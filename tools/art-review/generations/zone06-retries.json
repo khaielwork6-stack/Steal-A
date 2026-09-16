@@ -1,0 +1,24 @@
+[
+  {
+    "id": "Egypt_Mummy",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. Upright Egyptian sarcophagus, elongated anthropomorphic golden case with lapis blue stripes and a beautifully sculpted pharaonic face on the lid. Lid floats slightly FORWARD off the case with a visible gap of glowing amber light. Two loose cream bandage ribbons hang separated beside the case. Mythic, luxurious gold-lapis and amber radiance, tall tapered anthropomorphic outline.",
+    "error": {
+      "status": "VisualRejected",
+      "error": "Visual review: generated a squat treasure chest with a mask head rather than an upright anthropoid sarcophagus."
+    },
+    "result": null,
+    "finalFailure": false
+  },
+  {
+    "id": "Egypt_Mummy",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A TALL UPRIGHT ANTHROPOID EGYPTIAN SARCOPHAGUS, like a slender standing human-shaped coffin 5 units tall and only 1.8 units wide, rounded head at TOP, gently tapering long torso down to joined feet at BOTTOM. Gold and lapis-blue striped pharaoh face carved directly into the FULL-HEIGHT FRONT LID. Lid is the SAME tall human-shaped outline as the case, separated slightly FORWARD to reveal a narrow warm amber glow gap. Cream cloth ribbon at one side. Mythic museum treasure. Entire object stands VERTICALLY like a statue. NOT a treasure chest, NOT a box with a separate head on top, NOT furniture, NOT sitting.",
+    "error": null,
+    "result": {
+      "generationId": "23bfc050-8595-472a-9f19-18e5edef3cf4",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A TALL UPRIGHT ANTHROPOID EGYPTIAN SARCOPHAGUS, like a slender standing human-shaped coffin 5 units tall and only 1.8 units wide, rounded head at TOP, gently tapering long torso down to joined feet at BOTTOM. Gold and lapis-blue striped pharaoh face carved directly into the FULL-HEIGHT FRONT LID. Lid is the SAME tall human-shaped outline as the case, separated slightly FORWARD to reveal a narrow warm amber glow gap. Cream cloth ribbon at one side. Mythic museum treasure. Entire object stands VERTICALLY like a statue. NOT a treasure chest, NOT a box with a separate head on top, NOT furniture, NOT sitting.",
+      "publishedAssetId": "80002288302281",
+      "tag": "Assistant-dff9dbf6-660a-4fd1-97cc-a355864a5888"
+    },
+    "finalFailure": false
+  }
+]
