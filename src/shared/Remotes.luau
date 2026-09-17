@@ -124,6 +124,24 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==========================================================
+	-- TRADING / GIFTING / BOARDS (trading-gifting-boards pass)
+	-- ==========================================================
+	-- client -> server. Every trade intent: ("request", userId),
+	-- ("respond", userId, "accept"|"decline"|"block"), ("add"|"remove",
+	-- instanceId), ("cash", amount), ("ready", bool), ("confirm"),
+	-- ("cancel"), ("sync"). Validated and rate-limited in TradeService; the
+	-- server re-checks ownership of every item before the swap.
+	"TradeRequest",
+	-- server -> client. ("request", {fromUserId, fromName, expiresAt}),
+	-- ("requestGone", {fromUserId}), ("session", view), ("closed", {reason,
+	-- completed}). Display only.
+	"TradeUpdate",
+	-- client -> server. (recipientUserId, giftProductKey): remember who the
+	-- gift is for, then open the Robux dialog. Grants nothing; ProcessReceipt
+	-- does. See GiftService.
+	"GiftRequest",
 }
 
 local folder: Folder

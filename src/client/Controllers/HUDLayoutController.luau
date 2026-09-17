@@ -73,6 +73,13 @@ local ACCENTS: { [string]: Accent } = {
 		bottom = Color3.fromRGB(240, 140, 30),
 		ring = Color3.fromRGB(255, 226, 160),
 	},
+	-- [trading-gifting-boards] The Trade opener (TradeController).
+	Trade = {
+		plate = Color3.fromRGB(112, 30, 150),
+		top = Color3.fromRGB(214, 130, 255),
+		bottom = Color3.fromRGB(156, 64, 226),
+		ring = Color3.fromRGB(236, 200, 255),
+	},
 }
 
 local STAT_ROWS = {
@@ -503,9 +510,14 @@ local TOUCH_BLOCK_CENTRE = 0.56
 --- short label in a tall row does not balloon.
 local TOUCH_PANEL_MAX_TEXT = 26
 
---- The grid's two rows, as laid out (without the bottom row's captions).
+--- Rows in the block: two for the original four tiles. [trading-gifting-
+--- boards] A fifth tile (Trade) makes it three; fitTouchRail sets this from
+--- the buttons actually in the rail before it measures.
+local menuRows = 2
+
+--- The grid's rows, as laid out (without the bottom row's captions).
 local function blockHeight(tile: number): number
-	return tile * 2 + TOUCH_TILE_LABEL_GAP
+	return tile * menuRows + TOUCH_TILE_LABEL_GAP * (menuRows - 1)
 end
 
 --- How much screen the block really covers, captions included.
@@ -563,7 +575,7 @@ local function fitBlock(ceiling: number, floor: number, hudHeight: number): (num
 
 	local available = floor - ceiling
 	-- 2. The biggest tile that fits, down to the finger-size floor.
-	local tile = math.floor((available - TOUCH_TILE_LABEL_GAP - TOUCH_CAPTION_DROP) / 2)
+	local tile = math.floor((available - TOUCH_TILE_LABEL_GAP * (menuRows - 1) - TOUCH_CAPTION_DROP) / menuRows)
 	if tile >= TOUCH_TILE_MIN then
 		return math.min(tile, TOUCH_TILE), 1, ceiling
 	end
@@ -578,7 +590,7 @@ HUDLayoutController.fitBlock = fitBlock
 --- rather than trusted to whoever created each button: Upgrades and Storage
 --- are cloned in later by their own controllers, and the pack's Shop and
 --- Index carry whatever LayoutOrder the pack shipped with.
-local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4 }
+local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4, Trade = 5 }
 
 --- Lays the four menu tiles out as a two-by-two block sized for THIS screen.
 --- Safe to call again at any time: it recomputes from live measurements and
@@ -593,6 +605,15 @@ local function fitTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
 	if hudUiScale and hudUiScale.Scale > 0 then
 		hudScale = hudUiScale.Scale
 	end
+
+	-- [trading-gifting-boards] Rows from the tiles actually present.
+	local tiles = 0
+	for _, child in left:GetChildren() do
+		if MENU_ORDER[child.Name] and child:IsA("GuiObject") then
+			tiles += 1
+		end
+	end
+	menuRows = math.max(2, math.ceil(tiles / 2))
 
 	-- In the HUD's local pixels, before its UIScale.
 	local ceiling = ((statBottom(ui) or 120) + TOUCH_BLOCK_MARGIN) / hudScale

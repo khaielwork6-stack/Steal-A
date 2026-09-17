@@ -467,6 +467,13 @@ OfflineService.start()
 -- the Data debug commands find it running.
 MailboxService.start()
 
+-- TRADING / GIFTING (trading-gifting-boards pass). After MonetizationService
+-- (policy, the gift receipt branch) and MailboxService (gift delivery), and
+-- before DebugService so DebugCommands/Trade finds them running. The new
+-- world boards are part of LeaderboardService above.
+require(Services.TradeService).start()
+require(Services.GiftService).start()
+
 DebugService.start()
 
 -- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the

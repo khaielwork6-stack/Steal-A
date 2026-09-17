@@ -49,6 +49,14 @@ function EconomyService.onChanged(callback: (Player) -> ())
 	table.insert(listeners, callback)
 end
 
+--- [trading-gifting-boards] (player, profile, amount, source) after every
+--- award. Must not yield: award runs inside the income tick and receipts.
+local awardListeners: { (Player, DataService.Profile, number, string) -> () } = {}
+
+function EconomyService.onAwarded(callback: (Player, DataService.Profile, number, string) -> ())
+	table.insert(awardListeners, callback)
+end
+
 local function notify(player: Player)
 	for _, callback in listeners do
 		task.spawn(callback, player)
@@ -174,6 +182,14 @@ function EconomyService.award(player: Player, amount: number, source: CashSource
 	profile.Cash += amount
 	profile.Lifetime.CashEarned += amount
 	tally(player, source or "other", amount)
+	-- [trading-gifting-boards] The weekly board counts gameplay sources only;
+	-- the listener decides which. Called inline (no yield), after the Cash is in.
+	for _, listener in awardListeners do
+		local ok, err = (pcall :: any)(listener, player, profile, amount, source or "other")
+		if not ok then
+			warn(`[EconomyService] award listener failed: {err}`)
+		end
+	end
 	notify(player)
 end
 

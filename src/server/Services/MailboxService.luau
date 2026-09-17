@@ -51,21 +51,47 @@ local StateService = require(script.Parent.StateService)
 
 local MailboxService = {}
 
+--- `id` (optional, [trading-gifting-boards]): a caller-chosen, stable entry
+--- Id instead of a fresh GUID. A send whose Id is already in the mailbox is a
+--- no-op success, and an Id already in the recipient's DeliveredMail is only
+--- removed, never granted again - so a sender that may retry (a gift receipt
+--- replayed after a crash) can pass the same id and deliver exactly once.
 export type MailEntry = {
 	kind: "item",
 	item: DataService.DisplayItem,
 	note: string?,
+	id: string?,
 } | {
 	kind: "cash",
 	amount: number,
 	source: string,
 	note: string?,
+	id: string?,
 } | {
 	kind: "speed",
 	amount: number,
 	source: string,
 	note: string?,
+	id: string?,
 }
+
+--- [trading-gifting-boards] The caller's stable id, when it is usable.
+local function stableId(entry: any): string?
+	local id = if type(entry) == "table" then entry.id else nil
+	if type(id) == "string" and #id > 0 and #id <= 100 then
+		return id
+	end
+	return nil
+end
+
+local function boxHasId(list: { any }, id: string): boolean
+	for _, existing in list do
+		if type(existing) == "table" and existing.Id == id then
+			return true
+		end
+	end
+	return false
+end
 
 local STORE_NAME = "Mailbox_v1"
 --- Attempts `send` makes before reporting failure.
@@ -76,6 +102,8 @@ local store: DataStore? = nil
 local memoryBoxes: { [number]: { any } } = {}
 --- Players with a delivery pass running, so the poll and the join never overlap.
 local delivering: { [Player]: boolean } = {}
+--- Players who were sent mail while their delivery pass was running.
+local rerun: { [Player]: boolean } = {}
 --- Players already told this session that mail is waiting on a full storage.
 local toldStorageFull: { [Player]: boolean } = {}
 
@@ -140,7 +168,8 @@ function MailboxService.send(userId: number, entry: MailEntry): boolean
 		warn(`[MailboxService] refused mail for {userId}: {reason}`)
 		return false
 	end
-	stored.Id = HttpService:GenerateGUID(false)
+	local fixedId = stableId(entry)
+	stored.Id = fixedId or HttpService:GenerateGUID(false)
 	stored.SentAt = os.time()
 
 	local sent = false
@@ -148,7 +177,9 @@ function MailboxService.send(userId: number, entry: MailEntry): boolean
 		warn("[MailboxService] no DataStore (Studio API access off) - mail kept in memory for this server only")
 		local box = memoryBoxes[userId] or {}
 		memoryBoxes[userId] = box
-		if #box < GameConfig.MAILBOX_CAPACITY then
+		if fixedId and boxHasId(box, fixedId) then
+			sent = true
+		elseif #box < GameConfig.MAILBOX_CAPACITY then
 			table.insert(box, stored)
 			sent = true
 		end
@@ -163,6 +194,10 @@ function MailboxService.send(userId: number, entry: MailEntry): boolean
 				target:UpdateAsync(mailKey(userId), function(list: any): any
 					full = false
 					local entries = if type(list) == "table" then list else {}
+					-- A retried send with a stable id that is already queued.
+					if fixedId and boxHasId(entries, fixedId) then
+						return nil
+					end
 					if #entries >= GameConfig.MAILBOX_CAPACITY then
 						full = true
 						return nil
@@ -383,17 +418,30 @@ end
 --- One delivery pass for `player`. Yields. Returns how many entries were
 --- granted. Safe to call at any time; overlapping calls are dropped.
 function MailboxService.deliver(player: Player): number
-	if delivering[player] or not DataService.get(player) then
+	if not DataService.get(player) then
+		return 0
+	end
+	if delivering[player] then
+		-- [trading-gifting-boards] Mail sent while a pass is running (a gift
+		-- to a player whose join delivery is still going) gets one more pass
+		-- straight after, instead of waiting for the 30-second poll.
+		rerun[player] = true
 		return 0
 	end
 	delivering[player] = true
-	local ok, result = pcall(deliverNow, player)
+	local total = 0
+	repeat
+		rerun[player] = nil
+		local ok, result = pcall(deliverNow, player)
+		if not ok then
+			warn(`[MailboxService] delivery to {player.Name} failed: {result}`)
+		else
+			total += result
+		end
+	until not rerun[player] or not player.Parent
+	rerun[player] = nil
 	delivering[player] = nil
-	if not ok then
-		warn(`[MailboxService] delivery to {player.Name} failed: {result}`)
-		return 0
-	end
-	return result
+	return total
 end
 
 --- STUDIO TEST SUPPORT: the raw mailbox, or nil when it cannot be read.
