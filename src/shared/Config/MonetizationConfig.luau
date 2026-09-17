@@ -539,6 +539,13 @@ function MonetizationConfig.allGamePassIds(): { number }
 		table.insert(ids, pass.gamePassId)
 	end
 	table.insert(ids, MonetizationConfig.SlapPass.gamePassId)
+	-- [fusion-autoreveal-bases] Auto Reveal and the Robux base themes. Only
+	-- configured ids: a placeholder 0 is never sent to UserOwnsGamePassAsync.
+	for _, pass in MonetizationConfig.featurePasses() do
+		if pass.gamePassId > 0 then
+			table.insert(ids, pass.gamePassId)
+		end
+	end
 	return ids
 end
 
@@ -556,5 +563,44 @@ end
 
 MonetizationConfig.MAX_SPEED_MULTIPLIER =
 	MonetizationConfig.SpeedMultiplierPasses[#MonetizationConfig.SpeedMultiplierPasses].multiplier
+
+-- ==========================================================
+-- AUTO REVEAL AND BASE THEMES (fusion-autoreveal-bases)
+-- ==========================================================
+--
+-- PLACEHOLDERS: every id here is 0 until the owner creates the Game Pass on
+-- the Creator Dashboard and pastes its id in. While an id is 0 the feature
+-- it unlocks is hidden (outside Studio) and never prompted. `robux` is the
+-- SUGGESTED price, a display fallback only (see the handoff note).
+--
+-- Neither pass sells anything random: Auto Reveal only saves a click on a
+-- reveal the player gets for free anyway, and a theme is a fixed cosmetic.
+-- Item FUSION (which has a random mutation roll) is deliberately NOT here
+-- and must never be sold for Robux.
+
+--- Sealed containers reveal themselves when their timer ends while the
+--- owner is online (AutoRevealService). Suggested 199 R$.
+MonetizationConfig.AutoRevealPass = { key = "AutoReveal", gamePassId = 0, robux = 199, label = "Auto Reveal" } :: SimplePass
+
+--- Robux-exclusive base themes (BaseThemeConfig rows name these by key).
+MonetizationConfig.ThemePasses = {
+	-- Suggested 149 R$ each.
+	{ key = "ThemeNeonNight", gamePassId = 0, robux = 149, label = "Neon Night Theme" },
+	{ key = "ThemeRoyalGold", gamePassId = 0, robux = 149, label = "Royal Gold Theme" },
+} :: { SimplePass }
+
+MonetizationConfig.ThemePassByKey = {} :: { [string]: SimplePass }
+for _, pass in MonetizationConfig.ThemePasses do
+	MonetizationConfig.ThemePassByKey[pass.key] = pass
+end
+
+--- Every pass this area adds, for the ownership warm-up.
+function MonetizationConfig.featurePasses(): { SimplePass }
+	local out = { MonetizationConfig.AutoRevealPass }
+	for _, pass in MonetizationConfig.ThemePasses do
+		table.insert(out, pass)
+	end
+	return out
+end
 
 return MonetizationConfig

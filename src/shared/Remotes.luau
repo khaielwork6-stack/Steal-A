@@ -164,6 +164,23 @@ Remotes.NAMES = {
 	-- Grappling Hook and is re-validated with the server's own raycast from
 	-- the player's verified position. Rate limited in GadgetService.
 	"GadgetRequest",
+
+	-- ==========================================================
+	-- FUSION / AUTO REVEAL / BASE THEMES (fusion-autoreveal-bases)
+	-- ==========================================================
+	-- client -> server. ("fuse", itemId, { instanceId x3 }). The server
+	-- re-checks ownership, storage, reveal state and the price, and rolls the
+	-- result itself. See FusionService.
+	"FusionRequest",
+	-- server -> the fusing client only. Sent AFTER the fusion is committed and
+	-- saved in memory: what was consumed and what was made, for the animation.
+	"FusionResult",
+	-- client -> server. ("buy") opens the Auto Reveal Game Pass prompt. The
+	-- on/off switch rides SettingsRequest (AutoRevealOff). See AutoRevealService.
+	"AutoRevealRequest",
+	-- client -> server. ("buy" | "equip" | "buyPass", key). Keys only; prices
+	-- and pass ids are looked up server-side. See BaseThemeService.
+	"BaseThemeRequest",
 }
 
 local folder: Folder

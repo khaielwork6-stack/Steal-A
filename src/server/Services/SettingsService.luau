@@ -74,6 +74,13 @@ function SettingsService.apply(player: Player, request: any): boolean
 		anySettings.LowGraphics = request.LowGraphics
 		changed = true
 	end
+	-- [fusion-autoreveal-bases] The Auto Reveal pass's off switch. Stored
+	-- inverted so a missing key (every save before it) reads as ON. Harmless
+	-- for a player without the pass: AutoRevealService checks ownership first.
+	if type(request.AutoRevealOff) == "boolean" and request.AutoRevealOff ~= (anySettings.AutoRevealOff == true) then
+		anySettings.AutoRevealOff = request.AutoRevealOff
+		changed = true
+	end
 
 	if changed then
 		StateService.markDirty(player)

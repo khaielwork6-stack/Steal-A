@@ -189,10 +189,19 @@ local function findItem(profile: DataService.Profile, instanceId: string): DataS
 	return nil
 end
 
+--- [fusion-autoreveal-bases] How a commit was asked for. Nil (every player
+--- action) is the full reveal. `auto` marks an Auto Reveal; `quick` skips the
+--- camera fly-in and roulette - the client plays a small pop and the server
+--- swaps and unlocks on HatchConfig.QuickReveal's shorter beats.
+export type CommitOptions = {
+	auto: boolean?,
+	quick: boolean?,
+}
+
 --- Fired the moment a reveal is committed so the owner's client can start the
 --- animation. Overridden by init.server to send the remote; kept injectable
 --- so this service can be tested without a client.
-function HatchService.onHatched(_player: Player, _item: DataService.DisplayItem) end
+function HatchService.onHatched(_player: Player, _item: DataService.DisplayItem, _options: CommitOptions?) end
 
 --- Fired when a reveal lock lifts, so the slot prompt comes back as "Store".
 --- The swap rebuild runs while the lock is still held, so without this the
@@ -203,7 +212,7 @@ function HatchService.onLockLifted(_player: Player) end
 
 --- THE ONE PLACE a container becomes an item. Returns false plus a
 --- player-facing reason; never throws, never pays twice.
-function HatchService.commit(player: Player, instanceId: string): (boolean, string?)
+function HatchService.commit(player: Player, instanceId: string, options: CommitOptions?): (boolean, string?)
 	local profile = DataService.get(player)
 	if not profile then
 		return false, "Your data is still loading."
@@ -241,7 +250,11 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	-- reveal until the item has landed.
 	-- Rarity-aware: the silhouette roulette runs longer for a better prize,
 	-- so the lock has to cover the sequence this particular item will play.
-	revealingUntil[instanceId] = os.clock() + HatchConfig.lockSeconds(item.Rarity)
+	-- A quick (auto, away-from-base) reveal plays the short pop instead.
+	local quick = options ~= nil and options.quick == true
+	local swapDelay = if quick then HatchConfig.QuickReveal.swapAt else HatchConfig.swapAt(item.Rarity)
+	local lockDelay = if quick then HatchConfig.QuickReveal.lock else HatchConfig.lockSeconds(item.Rarity)
+	revealingUntil[instanceId] = os.clock() + lockDelay
 
 	-- The income starts NOW - exactly once, because recalculate reads Hatched
 	-- and this is the only flip. The prompt on the slot is disabled by the
@@ -261,7 +274,7 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	-- START THE ANIMATION on the owner's client. An injected callback that
 	-- touches a remote; if it throws, the reward is already the player's and
 	-- the swap below still happens.
-	local cued, cueError = pcall(HatchService.onHatched, player, item)
+	local cued, cueError = pcall(HatchService.onHatched, player, item, options)
 	if not cued then
 		warn(`[HatchService] reveal cue failed for {player.Name}: {cueError}`)
 	end
@@ -269,7 +282,7 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	-- THE SWAP, on the pop frame. The pedestal keeps showing the container
 	-- until then; the rebuild replaces it with the item and its label in one
 	-- pass, and the client reveals exactly what it finds on that frame.
-	task.delay(HatchConfig.swapAt(item.Rarity), function()
+	task.delay(swapDelay, function()
 		if player.Parent then
 			-- Only the revealed pad: its "Trophy" is replaced exactly as a full
 			-- rebuild would (the client waits for that ChildAdded). rebuildSlot
@@ -277,7 +290,7 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 			BaseService.rebuildSlot(player, item.SlotIndex)
 		end
 	end)
-	task.delay(HatchConfig.lockSeconds(item.Rarity), function()
+	task.delay(lockDelay, function()
 		revealingUntil[instanceId] = nil
 		if player.Parent then
 			HatchService.onLockLifted(player)

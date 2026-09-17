@@ -1187,6 +1187,133 @@ local function playReveal(slot: BasePart, reveal: any, token: number)
 end
 
 -- ==========================================================
+-- THE QUICK POP (fusion-autoreveal-bases)
+-- ==========================================================
+--
+-- An Auto Reveal committed while the owner is away from their base arrives
+-- with `skipCamera`. No camera, no roulette, no focus: the container squeezes
+-- and fades on its pedestal, the item bounces in on the server's swap
+-- (HatchConfig.QuickReveal.swapAt), and a ring marks the spot. Reduced
+-- Effects drops the ring, the fragments and the bounce: the swap alone.
+
+local function playQuickReveal(slot: BasePart, reveal: any, token: number)
+	local container = slot:FindFirstChild("Trophy")
+	if not container or not container:IsA("Model") then
+		return
+	end
+	local sealedModel = container :: Model
+	local card = slot:FindFirstChild("RevealCard")
+	if card and card:IsA("BillboardGui") then
+		card.Enabled = false
+	end
+	local accent = if reveal and typeof(reveal.rarityColor) == "Color3" then reveal.rarityColor else WHITE
+	local mutationColor = if reveal and typeof(reveal.mutationColor) == "Color3"
+		then reveal.mutationColor
+		else MysteryConfig.MYSTERY_TINT
+	local q = HatchConfig.QuickReveal
+	local cfg = HatchConfig.Reveal
+
+	local clone = sealedModel:Clone()
+	clone.Name = "RevealVisual"
+	for _, d in clone:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+		elseif d:IsA("BillboardGui") then
+			d:Destroy()
+		end
+	end
+	clone.Parent = workspace
+	local sealedPaused = conceal(sealedModel)
+
+	local incoming: Model? = nil
+	local incomingPaused: { Instance } = {}
+	local arrival = slot.ChildAdded:Connect(function(child)
+		if child:IsA("Model") and child.Name == "Trophy" and child ~= sealedModel and not incoming then
+			incoming = child
+			child:SetAttribute("RevealHold", true)
+			incomingPaused = conceal(child)
+		end
+	end)
+
+	local base = clone:GetPivot()
+	local _, size = clone:GetBoundingBox()
+	local span = math.max(size.X, size.Y, size.Z)
+	local pedestalTop = CFrame.new(base.Position.X, base.Position.Y - size.Y / 2, base.Position.Z)
+	local rest = clone:GetScale()
+
+	local function alive(): boolean
+		return token == revealToken and slot.Parent ~= nil
+	end
+
+	task.spawn(function()
+		-- The squeeze: shrink and fade the container up to the swap.
+		drive(q.swapAt, Enum.EasingStyle.Quad, Enum.EasingDirection.In, function(t)
+			if clone.Parent then
+				clone:ScaleTo(rest * (1 - 0.35 * t))
+				clone:PivotTo(base)
+				for _, d in clone:GetDescendants() do
+					if d:IsA("BasePart") then
+						d.LocalTransparencyModifier = t
+					end
+				end
+			end
+		end)
+		clone:Destroy()
+
+		local deadline = os.clock() + 1.2
+		while not incoming and os.clock() < deadline and alive() do
+			task.wait()
+		end
+		arrival:Disconnect()
+
+		if not reducedEffects then
+			ring(pedestalTop, accent, span * 1.1, 0.45)
+			burstFragments(pedestalTop * CFrame.new(0, size.Y / 2, 0), mutationColor, math.max(span * 0.6, 3))
+		end
+		playCycleTick(1, true)
+
+		local item = incoming
+		if item and not ItemArtReady.waitFor(item, 1) then
+			unconceal(item, incomingPaused)
+			item:SetAttribute("RevealHold", nil)
+			item = nil
+		end
+		if item and item.Parent and alive() and not reducedEffects then
+			local itemRest = tonumber(item:GetAttribute("BuiltScale")) or item:GetScale()
+			item:ScaleTo(itemRest * cfg.item.from)
+			unconceal(item, incomingPaused)
+			drive(cfg.item.grow, Enum.EasingStyle.Back, Enum.EasingDirection.Out, function(t)
+				if item.Parent then
+					item:ScaleTo(itemRest * (cfg.item.from + (cfg.item.overshoot - cfg.item.from) * t))
+				end
+			end)
+			drive(cfg.item.settle, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, function(t)
+				if item.Parent then
+					item:ScaleTo(itemRest * (cfg.item.overshoot + (1 - cfg.item.overshoot) * t))
+				end
+			end)
+			if item.Parent then
+				item:ScaleTo(itemRest)
+			end
+		end
+		-- Whatever stands on the pedestal now is shown, however this ended.
+		if sealedModel.Parent then
+			unconceal(sealedModel, sealedPaused)
+		end
+		if item and item.Parent then
+			unconceal(item, incomingPaused)
+			item:SetAttribute("RevealHold", nil)
+		elseif incoming and incoming.Parent then
+			unconceal(incoming, incomingPaused)
+			incoming:SetAttribute("RevealHold", nil)
+		end
+	end)
+end
+
+-- ==========================================================
 -- START
 -- ==========================================================
 
@@ -1252,7 +1379,13 @@ function HatchController.start()
 		-- happen (the server refuses it), and one for another container while
 		-- this plays takes over: the abandoned one checks its token and stops.
 		revealToken += 1
-		playReveal(slot, payload, revealToken)
+		-- [fusion-autoreveal-bases] An Auto Reveal away from the base: a small
+		-- pop on the pedestal, the camera stays with the player.
+		if payload.skipCamera == true then
+			playQuickReveal(slot, payload, revealToken)
+		else
+			playReveal(slot, payload, revealToken)
+		end
 	end)
 
 	RunService.Heartbeat:Connect(repaintCards)

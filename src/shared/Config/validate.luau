@@ -1092,6 +1092,74 @@ return function(): Report
 		check(PatrolConfig.WAYPOINT_REACH > 0 and PatrolConfig.CORNER_PAUSE >= 0, "patrol arrival and pause are sane")
 	end
 
+	-- ==========================================================
+	-- FUSION / AUTO REVEAL / BASE THEMES (fusion-autoreveal-bases)
+	-- ==========================================================
+	do
+		local FusionConfig = require(script.Parent.FusionConfig)
+		local BaseThemeConfig = require(script.Parent.BaseThemeConfig)
+		check(FusionConfig.INPUTS == 3, "fusion takes exactly three copies")
+		local oddsTotal = 0
+		local lastRank = -1
+		for _, row in FusionConfig.MutationOdds do
+			check(RarityConfig.MutationById[row.id] ~= nil, `fusion odds name unknown mutation "{row.id}"`)
+			check(row.chance >= 0, `fusion odds for {row.id} must not be negative`)
+			local rank = RarityConfig.mutationRank(row.id)
+			check(rank > lastRank, "fusion odds must list mutations weakest first, once each")
+			lastRank = rank
+			oddsTotal += row.chance
+		end
+		check(near(oddsTotal, 100, 1e-6), `fusion mutation odds must sum to 100, sum to {oddsTotal}`)
+		-- The floor never downgrades, and the shown odds still sum to 100.
+		for _, mutation in RarityConfig.Mutations do
+			local shown = 0
+			for _, row in FusionConfig.mutationOutcomes(mutation.id) do
+				shown += row.chance
+				check(RarityConfig.mutationRank(row.id) >= RarityConfig.mutationRank(mutation.id), "fusion outcomes must not fall below the floor")
+			end
+			check(near(shown, 100, 1e-6), `fusion outcomes above {mutation.id} must sum to 100`)
+			check(RarityConfig.mutationRank(FusionConfig.rollMutation(mutation.id, 0)) >= RarityConfig.mutationRank(mutation.id), `a fusion roll must never drop below {mutation.id}`)
+		end
+		check(FusionConfig.targetClass(#ScaleConfig.Variants) == #ScaleConfig.Variants, "fusion must cap at the largest size")
+		check(FusionConfig.targetClass(1) == 2, "fusion must step one size class up")
+		check(FusionConfig.scaleFor(#ScaleConfig.Variants, 0, ScaleConfig.MAX_SCALE) == ScaleConfig.MAX_SCALE, "a capped fusion must never shrink the best input")
+		check(FusionConfig.costFor(0, 1) == FusionConfig.MIN_COST, "fusion must cost at least MIN_COST")
+		check(FusionConfig.costFor(1e6, 3) > FusionConfig.costFor(10, 3), "fusion cost must follow income")
+		check(FusionConfig.REQUESTS_PER_SECOND > 0 and BaseThemeConfig.REQUESTS_PER_SECOND > 0, "feature request budgets must be positive")
+
+		-- Auto Reveal pacing.
+		check(HatchConfig.QuickReveal.lock > HatchConfig.QuickReveal.swapAt, "the quick reveal lock must outlast its swap")
+		check(HatchConfig.AUTO_REVEAL_POLL > 0 and HatchConfig.AUTO_REVEAL_NEAR_STUDS > 0, "auto reveal poll and range must be positive")
+		check(HatchConfig.autoRevealSpacing("Divine", false) > HatchConfig.lockSeconds("Divine"), "auto reveals must not overlap the full sequence")
+		check(MonetizationConfig.AutoRevealPass.gamePassId >= 0, "Auto Reveal pass id must be 0 (placeholder) or a real id")
+
+		-- Themes and pedestals: one key namespace, known passes, a free default.
+		local keys: { [string]: boolean } = {}
+		local function unique(key: string)
+			check(not keys[key], `base theme / pedestal key "{key}" is used twice`)
+			keys[key] = true
+		end
+		check(BaseThemeConfig.ThemeByKey[BaseThemeConfig.DEFAULT_THEME] ~= nil, "the default theme must exist")
+		check(BaseThemeConfig.PedestalByKey[BaseThemeConfig.DEFAULT_PEDESTAL] ~= nil, "the default pedestal must exist")
+		for _, theme in BaseThemeConfig.Themes do
+			unique(theme.key)
+			check(theme.cash >= 0, `theme {theme.key} has a negative price`)
+			if theme.passKey then
+				check(MonetizationConfig.ThemePassByKey[theme.passKey] ~= nil, `theme {theme.key} names unknown pass {theme.passKey}`)
+				check(theme.cash == 0, `Robux theme {theme.key} must not also have a Cash price`)
+			end
+		end
+		for _, skin in BaseThemeConfig.Pedestals do
+			unique(skin.key)
+			check(skin.cash >= 0, `pedestal {skin.key} has a negative price`)
+			if skin.passKey then
+				check(MonetizationConfig.ThemePassByKey[skin.passKey] ~= nil, `pedestal {skin.key} names unknown pass {skin.passKey}`)
+			end
+		end
+		local defaultTheme = BaseThemeConfig.ThemeByKey[BaseThemeConfig.DEFAULT_THEME]
+		check(defaultTheme ~= nil and defaultTheme.cash == 0 and defaultTheme.passKey == nil, "the default theme must be free")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
