@@ -1436,6 +1436,22 @@ return function(): Report
 		check(CrewConfig.BONUS_FRACTION <= 1, "the crew bonus is a fraction of the item's income")
 	end
 
+	-- ==========================================================
+	-- REWARD REVEALS (RewardUiConfig; docs/handoff-parts/round3-ui-rewards.md)
+	-- ==========================================================
+	do
+		local RewardUiConfig = require(script.Parent.RewardUiConfig)
+		for _, key in { "RAYS_IMAGE", "FLAME_ICON", "GRAND_PRIZE_ICON", "COIN_ICON", "CASH_PILE_ICON" } do
+			local value = (RewardUiConfig :: any)[key]
+			check(type(value) == "string" and string.match(value, "^rbxassetid://%d+$") ~= nil, `RewardUiConfig.{key} must be an rbxassetid:// id (0 = placeholder)`)
+		end
+		check(RewardUiConfig.COIN_COUNT >= 0 and RewardUiConfig.COIN_COUNT <= 24, "RewardUiConfig.COIN_COUNT must be 0-24")
+		check(RewardUiConfig.CONFETTI_COUNT >= 0 and RewardUiConfig.CONFETTI_COUNT <= 40, "RewardUiConfig.CONFETTI_COUNT must be 0-40")
+		check(RewardUiConfig.RAYS_TURN_SECONDS >= 4, "RewardUiConfig.RAYS_TURN_SECONDS must be at least 4 (a slow turn)")
+		check(RewardUiConfig.OFFLINE_COUNT_SECONDS > 0 and RewardUiConfig.OFFLINE_COUNT_SECONDS <= 3, "RewardUiConfig.OFFLINE_COUNT_SECONDS must be (0, 3]")
+		check(not RewardUiConfig.hasArt(RewardUiConfig.NO_ART), "RewardUiConfig.hasArt must treat NO_ART as no art")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
