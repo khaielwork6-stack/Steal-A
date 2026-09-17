@@ -91,6 +91,11 @@ end
 
 --- A clean Cash amount for an offer, or nil when it is not a usable number.
 function TradeLogic.cleanCash(value: any): number?
+	-- Strict: Validate.integer FLOORS fractions, which would let an offer of 0.5
+	-- pass the checks as 0 while the swap moved the raw 0.5. Only whole amounts.
+	if type(value) ~= "number" or value % 1 ~= 0 then
+		return nil
+	end
 	return Validate.integer(value, 0, TradeConfig.MAX_CASH)
 end
 

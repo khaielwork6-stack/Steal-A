@@ -56,8 +56,13 @@ function Layout.locate(position: Vector3): (number?, number?)
 			return index, if position.X < 0 then 1 else 2
 		end
 	end
-	-- Vaults sit in the unused wings, outside every room's span.
-	local vault = Layout.inVault(position)
+	-- Vaults sit in the unused wings, outside every room's span. Like a room,
+	-- a vault also claims the 3-stud strip of corridor in front of its door
+	-- (the rooms get it from the CORRIDOR_HALF - 3 test above): without it a
+	-- walker leaving a vault stopped being "in the vault" while still level
+	-- with the facade, skipped the line-up with the door and cut diagonally
+	-- into the wall beside it (museumTests "vault route 2/3").
+	local vault = Layout.inVault(position) or Layout.atVaultDoor(position)
 	if vault then
 		return vault, Layout.VAULT_ROOM
 	end
@@ -202,6 +207,25 @@ function Layout.inVault(position: Vector3): number?
 		if position.Z >= box.z0 and position.Z <= box.z1 and math.sign(position.X) == box.side then
 			local at = box.frame:PointToObjectSpace(position)
 			if at.Z > 1 and at.Z < Layout.DEPTH - 1 and math.abs(at.X) < box.length / 2 - 1 then
+				return zone
+			end
+		end
+	end
+	return nil
+end
+
+--- The zone whose vault doorway strip contains `position`: the band of
+--- corridor within 3 studs of the facade, across the vault's own span, plus
+--- the vault interior itself. Routing only; interior tests use inVault.
+function Layout.atVaultDoor(position: Vector3): number?
+	if math.abs(position.X) <= Layout.CORRIDOR_HALF - 3 then
+		return nil
+	end
+	for zone = 1, Map.ZONE_COUNT do
+		local box = vaultBox(zone)
+		if position.Z >= box.z0 and position.Z <= box.z1 and math.sign(position.X) == box.side then
+			local at = box.frame:PointToObjectSpace(position)
+			if at.Z < Layout.DEPTH - 1 and math.abs(at.X) < box.length / 2 - 1 then
 				return zone
 			end
 		end
