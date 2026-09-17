@@ -921,6 +921,8 @@ function HeistService.deposit(player: Player, loot: LootService.LootInstance, sl
 	release(pending)
 	BaseGuardianService.stopHunt(player)
 	lastRobbedAt[pending.ownerUserId] = os.clock()
+	-- [social pass] A completed base heist (badges / quests listen).
+	require(script.Parent.ProgressEvents).fire(player, "heist")
 
 	BaseService.rebuildDisplays(player)
 	EconomyService.recalculate(player)

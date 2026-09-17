@@ -124,6 +124,19 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==========================================================
+	-- SOCIAL PASS (invites, boosts, badges, announcements)
+	-- ==========================================================
+	-- client -> server. ("prompted", "favorite" | "notifications"): the
+	-- one-time favourite / notification opt-in prompt has been shown to this
+	-- account, so it is never shown again. Grants nothing; validated and
+	-- rate-limited in SocialService.
+	"SocialRequest",
+	-- server -> every client. A Mythic-or-better reveal, sent at the SWAP
+	-- moment (HatchConfig.swapAt) so it never spoils the revealer's roulette.
+	-- Display only: { userId, name, itemName, rarity, mutation }.
+	"RevealAnnounce",
 }
 
 local folder: Folder

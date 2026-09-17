@@ -939,6 +939,57 @@ return function(): Report
 		check(SecurityConfig.SPEED_HISTORY_SECONDS >= 60, "the speed history must cover a whole run")
 	end
 
+	-- ==========================================================
+	-- SOCIAL PASS (SocialConfig, BadgeConfig)
+	-- ==========================================================
+	do
+		local SocialConfig = require(script.Parent.SocialConfig)
+		local BadgeConfig = require(script.Parent.BadgeConfig)
+		for _, key in {
+			"REFERRAL_MIN_PLAY_SECONDS", "REFERRAL_DAILY_CAP", "REFERRAL_CASH_MINUTES", "REFERRAL_CASH_FLOOR",
+			"REFERRAL_SPEED_GATE_FRACTION", "REFERRAL_SPEED_FLOOR", "REFERRAL_TICK_SECONDS",
+			"ANNOUNCE_BANNER_SECONDS", "ANNOUNCE_QUEUE_MAX", "NOTIFY_MIN_GAP_SECONDS", "NOTIFY_POLL_SECONDS",
+			"NOTIFY_BATCH", "NOTIFY_MAX_LATE_SECONDS", "OWNER_COMMAND_COOLDOWN", "OWNER_NIGHT_COOLDOWN",
+		} do
+			local value = (SocialConfig :: any)[key]
+			check(type(value) == "number" and value > 0 and value == value, `SocialConfig.{key} must be a positive number`)
+		end
+		check(SocialConfig.REFERRAL_CASH_MAX >= SocialConfig.REFERRAL_CASH_FLOOR, "the referral Cash ceiling must be above its floor")
+		check(SocialConfig.REFERRAL_SPEED_MAX >= SocialConfig.REFERRAL_SPEED_FLOOR, "the referral Speed ceiling must be above its floor")
+		-- A referral must stay a small nudge, never a way past a zone gate.
+		check(SocialConfig.REFERRAL_SPEED_GATE_FRACTION <= 0.05, "a referral must pay at most 5% of the next zone gate")
+		check(
+			SocialConfig.FRIEND_BOOST_PER_FRIEND >= 0 and SocialConfig.FRIEND_BOOST_CAP >= 0 and SocialConfig.PREMIUM_BOOST >= 0,
+			"social boosts must not be negative"
+		)
+		check(SocialConfig.multiplier(0, false) == 1, "no friends and no Premium must be exactly 1x")
+		check(
+			SocialConfig.multiplier(99, true) <= 1 + SocialConfig.FRIEND_BOOST_CAP + SocialConfig.PREMIUM_BOOST + 1e-9,
+			"the friend boost must be capped"
+		)
+		check(RarityConfig.Rank[SocialConfig.ANNOUNCE_REVEAL_MIN_RARITY] ~= nil, "ANNOUNCE_REVEAL_MIN_RARITY must be a rarity")
+		check(SocialConfig.NOTIFY_POLL_SECONDS >= 30, "the notification queue must not be polled faster than every 30s")
+		for kind, id in SocialConfig.NOTIFICATION_TEMPLATES do
+			check(type(id) == "string", `SocialConfig.NOTIFICATION_TEMPLATES.{kind} must be a string ("" = off)`)
+		end
+
+		check(#BadgeConfig.ZONE_BADGE_IDS == ZoneConfig.COUNT, "one zone badge per zone")
+		local seenIds: { [number]: string } = {}
+		for _, def in BadgeConfig.List do
+			check(type(def.id) == "number" and def.id >= 0 and def.id % 1 == 0, `badge {def.key} id must be a whole number (0 = not created)`)
+			if def.id ~= 0 then
+				check(seenIds[def.id] == nil, `badge id {def.id} is used by both {seenIds[def.id]} and {def.key}`)
+				seenIds[def.id] = def.key
+			end
+		end
+		for _, key in { "FirstSteal", "FirstEscape", "FirstReveal", "FirstMythicReveal", "FirstSecretReveal", "IndexZoneComplete", "IndexComplete", "FirstHeist", "Streak7" } do
+			check(BadgeConfig.ByKey[key] ~= nil, `BadgeConfig is missing {key}`)
+		end
+		for _, milestone in BadgeConfig.STEAL_MILESTONES do
+			check(BadgeConfig.ByKey[milestone.key] ~= nil, `steal milestone badge {milestone.key} is missing`)
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
