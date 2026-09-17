@@ -35,8 +35,15 @@
 	Cash has the same split: `CashPass` (2x) multiplies GAMEPLAY EARNINGS only,
 	while `CashProducts` grant their advertised amount untouched - doubling a
 	purchased currency pack would be selling the player something they did not
-	buy.
+	buy. (Since the 2026-09-17 monetization pass the advertised amount SCALES
+	with the buyer's income - see CASH PACKS - but the shop shows that exact
+	figure before the purchase, and the pass still never touches it.)
 ]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local MonetizationConfig = {}
 
@@ -200,6 +207,9 @@ export type ProductDef = {
 	--- Reveal products only: the longest remaining wait, in seconds, this
 	--- tier covers. The cheapest tier that covers the wait is the one offered.
 	maxRemainingSeconds: number?,
+	--- Cash products only: the pack pays at least this many minutes of the
+	--- buyer's base income (see CASH PACKS). `amount` is the floor.
+	incomeMinutes: number?,
 }
 
 --- INSTANT REVEAL, priced by how long is LEFT on the container - never by the
@@ -258,14 +268,101 @@ MonetizationConfig.SpeedProducts = {
 	{ key = "Speed1B", productId = 3711390523, robux = 2549, kind = "Speed", amount = 1e9, label = "1B" },
 } :: { ProductDef }
 
---- Cash packs. Granted at face value; the 2x Cash pass does NOT touch these.
+-- ==========================================================
+-- CASH PACKS (income-scaled; monetization pass 2026-09-17)
+-- ==========================================================
+--
+-- WHY THEY SCALE. The packs used to be flat: $24K-$8M. Treadmill tier 5 costs
+-- $120M and the late trails cost trillions, so after the first hour every
+-- pack was worth nothing and the shop's whole Cash section was dead weight.
+-- Each pack now pays
+--
+--     max( amount, baseIncome x incomeMinutes x 60 )
+--
+-- where `amount` is the floor a brand-new player (income ~0) still gets, and
+-- `baseIncome` is MonetizationConfig.baseIncome - the player's $/s with the
+-- 2x Cash pass and the temporary/server boosts DIVIDED BACK OUT. So:
+--   * the 2x pass still never doubles a purchased pack (the rule in the
+--     header), and
+--   * a weekend earnings event does not make packs briefly twice as good
+--     (and then "worse" the next day for the same Robux).
+-- The income is read at RECEIPT time, which is also what the shop shows live
+-- (StatePush `shop.cashPacks`, computed by the same function on the server).
+--
+-- VALUE PER ROBUX RISES WITH SIZE, in both regimes, so a bigger pack is never
+-- the worse deal:
+--     floor  $/R$ : 75K/45=1,667   200K/85=2,353   800K/215=3,721   4M/425=9,412   8M/679=11,782
+--     income s/R$ : 600/45=13.3    1800/85=21.2    7200/215=33.5    21600/425=50.8 43200/679=63.6
+-- The 24K floor was 533 $/R$ - a quarter of the 200K pack's value - and is
+-- now 75K (validate pins the monotonic order). The painted card still prints
+-- "24K"; the live ribbon ShopController lays over it shows the real figure,
+-- and the art should be re-exported (see docs/handoff-parts/monetization.md).
+-- Product ids and prices are unchanged: the ids exist on Roblox.
+
+--- Cash packs. The 2x Cash pass does NOT touch these (see above).
 MonetizationConfig.CashProducts = {
-	{ key = "Cash24K", productId = 3711390597, robux = 45, kind = "Cash", amount = 24e3, label = "24K" },
-	{ key = "Cash200K", productId = 3711390623, robux = 85, kind = "Cash", amount = 200e3, label = "200K" },
-	{ key = "Cash800K", productId = 3711390659, robux = 215, kind = "Cash", amount = 800e3, label = "800K" },
-	{ key = "Cash4M", productId = 3711390692, robux = 425, kind = "Cash", amount = 4e6, label = "4M" },
-	{ key = "Cash8M", productId = 3711390722, robux = 679, kind = "Cash", amount = 8e6, label = "8M" },
+	-- 10 minutes of income, floor $75K (was a flat $24K).
+	{ key = "Cash24K", productId = 3711390597, robux = 45, kind = "Cash", amount = 75e3, label = "75K", incomeMinutes = 10 },
+	-- 30 minutes of income, floor $200K.
+	{ key = "Cash200K", productId = 3711390623, robux = 85, kind = "Cash", amount = 200e3, label = "200K", incomeMinutes = 30 },
+	-- 2 hours of income, floor $800K.
+	{ key = "Cash800K", productId = 3711390659, robux = 215, kind = "Cash", amount = 800e3, label = "800K", incomeMinutes = 120 },
+	-- 6 hours of income, floor $4M.
+	{ key = "Cash4M", productId = 3711390692, robux = 425, kind = "Cash", amount = 4e6, label = "4M", incomeMinutes = 360 },
+	-- 12 hours of income, floor $8M.
+	{ key = "Cash8M", productId = 3711390722, robux = 679, kind = "Cash", amount = 8e6, label = "8M", incomeMinutes = 720 },
 } :: { ProductDef }
+
+--- The income every scaled grant is measured in: the live $/s with the 2x
+--- Cash pass and the server/temporary earnings boosts divided back out.
+--- `income` is EconomyService.getIncome, `cashMultiplier` the pass factor
+--- (1 or 2). Shared by the Cash packs, the receipt fallback and the spin
+--- wheel's Cash wedges, so all three read the same number.
+function MonetizationConfig.baseIncome(income: number, cashMultiplier: number): number
+	local boosts = GameConfig.SERVER_EARNINGS_BOOST * GameConfig.TEMPORARY_EARNINGS_BOOST
+	local divisor = math.max(cashMultiplier, 1) * math.max(boosts, 1e-6)
+	local value = (tonumber(income) or 0) / divisor
+	if value ~= value or value == math.huge or value < 0 then
+		return 0
+	end
+	return value
+end
+
+--- What a Cash pack pays a player whose base income is `baseIncome`. Whole
+--- dollars; never below the pack's floor.
+function MonetizationConfig.cashPackAmount(product: ProductDef, baseIncome: number): number
+	local scaled = baseIncome * (product.incomeMinutes or 0) * 60
+	return math.floor(math.max(product.amount, scaled))
+end
+
+-- ==========================================================
+-- UNDELIVERABLE RECEIPTS
+-- ==========================================================
+--
+-- A paid Steal / Reveal / Treadmill tier that can NEVER be delivered (the
+-- item is gone for good, the treadmill is already maxed) used to be left
+-- OPEN forever: Roblox kept the Robux and the player got nothing. It is now
+-- converted to Cash and consumed. The conversion is deliberately a little
+-- more generous than the Cash packs' small end - it is an apology:
+--
+--     fallback = max( robuxPaid x FALLBACK_CASH_PER_ROBUX,
+--                     baseIncome x robuxPaid x FALLBACK_INCOME_SECONDS_PER_ROBUX )
+--
+-- i.e. a minute of base income per Robux (a 599 R$ Divine steal -> 10 hours,
+-- next to the 679 R$ pack's 12), and never less than $2,500 per Robux (just
+-- above the 200K pack's 2,353). `robuxPaid` is the receipt's CurrencySpent
+-- when Roblox reports one, else the live price, else the config price.
+
+MonetizationConfig.FALLBACK_CASH_PER_ROBUX = 2500
+MonetizationConfig.FALLBACK_INCOME_SECONDS_PER_ROBUX = 60
+
+function MonetizationConfig.fallbackCash(robuxPaid: number, baseIncome: number): number
+	local robux = math.max(tonumber(robuxPaid) or 0, 0)
+	return math.floor(math.max(
+		robux * MonetizationConfig.FALLBACK_CASH_PER_ROBUX,
+		baseIncome * robux * MonetizationConfig.FALLBACK_INCOME_SECONDS_PER_ROBUX
+	))
+end
 
 --- The pre-existing treadmill TIER products (phase 11). Unchanged ids; they now
 --- live in the same table as everything else so ProcessReceipt has exactly one
@@ -285,7 +382,9 @@ MonetizationConfig.TreadmillProducts = {
 -- BOSS-LOSS OFFER
 -- ==========================================================
 
---- Which Speed product a zone offers after its guardian catches you.
+--- The LARGEST Speed product a zone may offer after its guardian catches you.
+--- The pack actually offered is `bossOfferFor` below: the cheapest pack up to
+--- this ceiling that closes a meaningful share of the player's gap.
 ---
 --- ZONE 12 IS DELIBERATELY ABSENT. Its value was not specified, and inventing a
 --- price for real money is not a gap to fill with a guess - the offer simply
@@ -297,13 +396,60 @@ MonetizationConfig.BossOfferByZone = {
 	[9] = "Speed1B", [10] = "Speed1B", [11] = "Speed1B",
 } :: { [number]: string }
 
+--- "Meaningfully helps": the offered pack must cover at least this share of
+--- the gap between the player's Speed and the caught zone's recommendation.
+---
+--- Before 2026-09-17 zones 9-11 could only ever offer the 2,549 R$ 1B pack,
+--- even to a player 3M short of the Secret Lab. Now a player a little short
+--- is offered the small pack that actually gets them there, and a player
+--- hundreds of millions short still sees the 1B pack - nothing smaller would
+--- help, and pretending otherwise is the worse sale. 10%: a pack worth less
+--- than a tenth of the gap is not an answer to "you were too slow".
+MonetizationConfig.BOSS_OFFER_GAP_FRACTION = 0.10
+
+--- The Speed product to offer a player with `speedPower` who was caught in
+--- `zoneIndex`, or nil when the zone has no offer (zone 12). Walks the Speed
+--- packs cheapest first, never past the zone's ceiling:
+---   * already at or above the gate (caught anyway): the cheapest pack;
+---   * otherwise the cheapest pack whose amount >= GAP_FRACTION x gap;
+---   * none big enough: the ceiling itself.
+function MonetizationConfig.bossOfferFor(zoneIndex: number, speedPower: number): ProductDef?
+	local ceilingKey = MonetizationConfig.BossOfferByZone[zoneIndex]
+	local ceiling = if ceilingKey then MonetizationConfig.ProductByKey[ceilingKey] else nil
+	if not ceiling then
+		return nil
+	end
+	local zone = ZoneConfig.Zones[zoneIndex]
+	local gate = if zone then zone.recommendedSpeed else 0
+	local gap = gate - (tonumber(speedPower) or 0)
+
+	local candidates: { ProductDef } = {}
+	for _, product in MonetizationConfig.SpeedProducts do
+		if product.robux <= ceiling.robux then
+			table.insert(candidates, product)
+		end
+	end
+	table.sort(candidates, function(a, b)
+		return a.robux < b.robux
+	end)
+	if gap <= 0 then
+		return candidates[1] or ceiling
+	end
+	local wanted = gap * MonetizationConfig.BOSS_OFFER_GAP_FRACTION
+	for _, product in candidates do
+		if product.amount >= wanted then
+			return product
+		end
+	end
+	return ceiling
+end
+
 --- Seconds before the same player can be shown another loss offer.
 ---
---- ZERO ON PURPOSE: every catch shows the offer. The card is small, sits at the
---- top of the screen, blocks nothing and re-texts in place rather than stacking,
---- so a second loss re-punches the one card instead of piling up prompts. Raise
---- this if it ever starts to read as nagging.
-MonetizationConfig.BOSS_OFFER_COOLDOWN = 0
+--- Was ZERO (every catch offered). A bad run is several catches a minute, and
+--- a purchase card on every one of them reads as nagging at exactly the moment
+--- the player is most annoyed - so one offer per 90 seconds (2026-09-17).
+MonetizationConfig.BOSS_OFFER_COOLDOWN = 90
 
 -- ==========================================================
 -- LOOKUPS (built once at require time)

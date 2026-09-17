@@ -129,5 +129,10 @@ SpinWheelController.start()
 -- The three-row beginner checklist, bottom-right. Renders StatePush.starter
 -- and disappears for good when the server stops sending it.
 StarterTaskController.start()
+-- [monetization pass] The free spin's AFK pause needs to hear that a human is
+-- at the controls; and Instant Reveal is hidden where PolicyService restricts
+-- paid random items (the server refuses it there too).
+require(script.Controllers.ActivityController).start()
+require(script.Controllers.PurchasePolicyController).start()
 
 print("[Client] controllers started")

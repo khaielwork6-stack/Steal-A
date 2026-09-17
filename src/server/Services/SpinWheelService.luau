@@ -12,12 +12,23 @@
 
 	WHAT THE SERVER OWNS
 	  * The clock. `Profile.SpinProgress` is seconds of ACTUAL PLAY, folded in
-	    once a second from real elapsed time while the player is in the server.
-	    Nothing accrues while they are away, and the five minutes cannot be
-	    served by leaving.
+	    once a second from real elapsed time while the player is in the server
+	    AND ACTIVE (SpinWheelConfig THE AFK PAUSE: a recent ActivityPing, or
+	    the character seen moving). Nothing accrues while they are away or
+	    idle, and the five minutes cannot be served by leaving or by parking.
 	  * The roll. `SpinWheelConfig.roll` against a Random this module owns.
-	  * The prize. Decided at the roll, PAID WHEN THE WHEEL HAS LANDED.
-	The client is sent one number - which segment won - and draws that.
+	  * The prize. Decided at the roll - WEDGE AND AMOUNT, the amount scaled to
+	    the player's progress (SpinWheelConfig ZONE-SCALED PRIZES) - and PAID
+	    WHEN THE WHEEL HAS LANDED.
+	The client is sent the winning segment and the finished prize line, and
+	draws that. The live wedge labels ride StatePush as `spinWheel`, computed
+	by the same function, so the wedge the player reads is the amount paid.
+
+	THE PRIZE IS DURABLE FROM THE MOMENT THE SPIN IS SPENT. The spend and the
+	pending prize (`Profile.PendingSpinPrize`) are saved together; the prize
+	is paid and the field cleared when the wheel lands. A server that dies in
+	between leaves the prize in the save, and the next join pays it once
+	(`payLeftover`, from the clock tick).
 
 	WHY THE PRIZE WAITS
 	It used to be granted on the trigger, before the client had drawn a frame.
@@ -58,6 +69,7 @@ local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local SpinWheelConfig = require(ReplicatedStorage.Shared.Config.SpinWheelConfig)
@@ -95,10 +107,37 @@ local rng = Random.new()
 --- throttled server therefore under-counts nothing and over-counts nothing.
 local lastAccrual: { [Player]: number } = {}
 
+--- A rolled prize: the wedge, and the amount it pays THIS player, fixed at
+--- the moment of the roll.
+type Prize = {
+	segment: SpinWheelConfig.Segment,
+	amount: number,
+	--- The banner line for `amount`, e.g. "$3.2M".
+	won: string,
+}
+
 --- Prizes rolled but not yet paid: the wheel is still turning. At most one per
 --- player, because the wheel's lock outlasts the wait (validate pins it).
 --- Cleared BEFORE the payout runs, so no path can pay the same spin twice.
-local pending: { [Player]: SpinWheelConfig.Segment } = {}
+--- Mirrored in `Profile.PendingSpinPrize` so a crash cannot lose it.
+local pending: { [Player]: Prize } = {}
+
+-- THE AFK PAUSE (SpinWheelConfig). All os.clock() stamps.
+--- Last moment this player was seen active (ping or movement).
+local lastActive: { [Player]: number } = {}
+--- Last ActivityPing ACCEPTED, for the server-side rate limit.
+local lastPingAt: { [Player]: number } = {}
+--- Where the character stood on the previous tick.
+local lastPosition: { [Player]: Vector3 } = {}
+--- Whether the published clock currently says "paused".
+local pausedNow: { [Player]: boolean } = {}
+--- Studio only: pins a player idle or active regardless of input.
+local forcedActivity: { [Player]: "idle" | "active" } = {}
+--- os.clock() the tick first saw this player's profile. A leftover prize
+--- from a crashed server is paid a moment after that, not mid-load.
+local profileSeenAt: { [Player]: number } = {}
+--- Seconds after the profile appears before a leftover prize is paid.
+local LEFTOVER_DELAY = 3
 
 -- ==========================================================
 -- ATTRIBUTES  (what the client reads)
@@ -107,6 +146,10 @@ local pending: { [Player]: SpinWheelConfig.Segment } = {}
 local ATTR_OWNER = "OwnerUserId"
 local ATTR_READY_AT = "SpinReadyAt"
 local ATTR_SPINNING = "Spinning"
+--- Seconds still owed while the clock is PAUSED for inactivity; 0 while it
+--- runs. The absolute ReadyAt stamp cannot express a stopped clock, so the
+--- client shows this frozen figure instead whenever it is non-zero.
+local ATTR_PAUSED_REMAINING = "SpinPausedRemaining"
 
 --- Seconds of play still owed before this profile's next spin.
 local function remainingFor(profile: DataService.Profile): number
@@ -120,12 +163,19 @@ end
 --- player is here: progress and wall-clock advance together for as long as
 --- the wheel is theirs, so the two can never disagree. The moment they leave,
 --- the wheel is unowned and the stamp is cleared rather than left running.
-local function publishClock(wheel: Wheel, profile: DataService.Profile?)
+---
+--- PAUSED is the one exception: while the owner is idle the stamp would run
+--- ahead of the progress, so the frozen remainder is published beside it and
+--- the client shows that. Resuming re-stamps from the real progress.
+local function publishClock(wheel: Wheel, profile: DataService.Profile?, paused: boolean?)
 	if not profile then
 		wheel.model:SetAttribute(ATTR_READY_AT, 0)
+		wheel.model:SetAttribute(ATTR_PAUSED_REMAINING, 0)
 		return
 	end
-	wheel.model:SetAttribute(ATTR_READY_AT, workspace:GetServerTimeNow() + remainingFor(profile))
+	local remaining = remainingFor(profile)
+	wheel.model:SetAttribute(ATTR_READY_AT, workspace:GetServerTimeNow() + remaining)
+	wheel.model:SetAttribute(ATTR_PAUSED_REMAINING, if paused and remaining > 0 then remaining else 0)
 end
 
 --- Makes the wheel agree with who holds its plot. Cheap enough to call on a
@@ -142,7 +192,7 @@ local function refreshOwner(wheel: Wheel)
 	-- A wheel that changes hands is not mid-spin for its new owner.
 	wheel.lockedUntil = 0
 	wheel.model:SetAttribute(ATTR_SPINNING, false)
-	publishClock(wheel, if owner then DataService.get(owner) else nil)
+	publishClock(wheel, if owner then DataService.get(owner) else nil, if owner then pausedNow[owner] else nil)
 end
 
 local function wheelFor(player: Player): Wheel?
@@ -166,7 +216,7 @@ function SpinWheelService.refresh(player: Player)
 		return
 	end
 	refreshOwner(wheel)
-	publishClock(wheel, DataService.get(player))
+	publishClock(wheel, DataService.get(player), pausedNow[player])
 end
 
 -- ==========================================================
@@ -180,7 +230,76 @@ end
 --- `announce` is false only when paying a player who is leaving: the prize
 --- still goes into the profile that is about to be saved, but there is nobody
 --- left to show a toast to.
-local function grant(player: Player, profile: DataService.Profile, segment: SpinWheelConfig.Segment, announce: boolean)
+--- What `player` would be paid by each wedge right now. The one place the
+--- scaled amounts are computed: the StatePush labels, the roll and the debug
+--- report all read it.
+local function prizeContext(player: Player, profile: DataService.Profile): SpinWheelConfig.PrizeContext
+	return {
+		-- Base income: the 2x pass and the boosts divided out, the same basis
+		-- the Cash packs use, so the wheel never pays pass owners double.
+		baseIncome = MonetizationConfig.baseIncome(EconomyService.getIncome(player), EconomyService.cashMultiplierFor(player)),
+		highestZone = profile.HighestZoneReached,
+	}
+end
+
+local function prizeFor(segment: SpinWheelConfig.Segment, context: SpinWheelConfig.PrizeContext): Prize
+	local amount = SpinWheelConfig.amountFor(segment, context)
+	local _, won = SpinWheelConfig.labelFor(segment, amount)
+	return { segment = segment, amount = amount, won = won }
+end
+
+--- The twelve live wedge labels for `player`, in segment order. Rides
+--- StatePush as `spinWheel.labels`; the client overlays any that differ from
+--- the printed art. nil until the profile has loaded.
+function SpinWheelService.summarise(player: Player): { [string]: any }?
+	local profile = DataService.get(player)
+	if not profile then
+		return nil
+	end
+	local context = prizeContext(player, profile)
+	local labels = table.create(SpinWheelConfig.SEGMENT_COUNT)
+	for _, segment in SpinWheelConfig.Segments do
+		local label = SpinWheelConfig.labelFor(segment, SpinWheelConfig.amountFor(segment, context))
+		table.insert(labels, label)
+	end
+	return { labels = labels }
+end
+
+--- The durable copy of a pending prize, as saved in the profile.
+local function encodePrize(prize: Prize): { [string]: any }
+	return {
+		Index = prize.segment.index,
+		Kind = prize.segment.kind,
+		Amount = prize.amount,
+		GuardianKey = prize.segment.guardianKey,
+		At = os.time(),
+	}
+end
+
+--- Reads a saved prize back, or nil if it is not a prize this wheel could
+--- have rolled. The segment is re-read from the config by index and must
+--- still be the same kind; the amount must be a finite number no larger
+--- than that wedge can ever pay.
+local function decodePrize(saved: any): Prize?
+	if type(saved) ~= "table" then
+		return nil
+	end
+	local segment = SpinWheelConfig.segment(tonumber(saved.Index) or 0)
+	if not segment or segment.kind ~= saved.Kind then
+		return nil
+	end
+	local amount = tonumber(saved.Amount) or 0
+	if amount ~= amount or amount < 0 or amount == math.huge then
+		return nil
+	end
+	local ceiling = math.max(segment.amount, segment.maxAmount or math.huge)
+	amount = math.min(amount, ceiling)
+	local _, won = SpinWheelConfig.labelFor(segment, amount)
+	return { segment = segment, amount = amount, won = won }
+end
+
+local function grant(player: Player, profile: DataService.Profile, prize: Prize, announce: boolean): boolean
+	local segment = prize.segment
 	local function tell(message: string)
 		if announce then
 			StateService.notify(player, "success", message, "levelup")
@@ -188,19 +307,19 @@ local function grant(player: Player, profile: DataService.Profile, segment: Spin
 	end
 
 	if segment.kind == "cash" then
-		-- EXACTLY what the wedge says. Not `earn`: that applies the 2x Cash
-		-- pass, and a wheel promising $1,500 must pay $1,500 to everybody.
-		EconomyService.award(player, segment.amount, "other")
-		tell(`FREE SPIN: {NumberFormat.cash(segment.amount)}!`)
+		-- EXACTLY what the wedge said at the roll. Not `earn`: that applies the
+		-- 2x Cash pass, and the wedge's figure is already the whole prize.
+		EconomyService.award(player, prize.amount, "other")
+		tell(`FREE SPIN: {NumberFormat.cash(prize.amount)}!`)
 	elseif segment.kind == "speed" then
 		-- Added to the saved total, never multiplied into it. The Speed pass
-		-- multiplies TRAINING GAIN and nothing else (see SpeedService), so a
-		-- flat prize stays flat for everyone.
-		profile.SpeedPower += segment.amount
+		-- multiplies TRAINING GAIN and nothing else (see SpeedService), so the
+		-- prize is exactly the figure the wedge showed.
+		profile.SpeedPower += prize.amount
 		if announce then
 			SpeedService.applyMovement(player)
 		end
-		tell(`FREE SPIN: +{NumberFormat.short(segment.amount)} SPEED!`)
+		tell(`FREE SPIN: +{NumberFormat.short(prize.amount)} SPEED!`)
 	elseif segment.kind == "guardian" and segment.guardianKey then
 		local key = segment.guardianKey
 		-- `grantWon` is idempotent and answers false when the player already
@@ -219,6 +338,8 @@ local function grant(player: Player, profile: DataService.Profile, segment: Spin
 			)
 		end
 	end
+	-- An explicit result so `pcall(grant, ...)` type-checks as (ok, value).
+	return true
 end
 
 --- Pays a player's pending prize, if they have one. Two callers:
@@ -228,19 +349,23 @@ end
 ---     mid-spin, paid into the profile before the leave-save writes it
 --- Whichever comes first pays; the other finds nothing pending and returns.
 function SpinWheelService.settle(player: Player, announce: boolean)
-	local segment = pending[player]
-	if not segment then
+	local prize = pending[player]
+	if not prize then
 		return
 	end
-	-- Cleared BEFORE paying: a yield or an error inside the payout can never
-	-- leave it pending for the other caller to pay a second time.
+	-- Cleared BEFORE paying, in memory AND in the profile: a yield or an error
+	-- inside the payout can never leave it pending for the other caller (or
+	-- the next join) to pay a second time. Both are cleared in the same
+	-- non-yielding step as the Cash/Speed below lands, so any save that
+	-- captures one captures the other.
 	pending[player] = nil
 
 	local profile = DataService.get(player)
 	if not profile then
 		return
 	end
-	local ok, err = pcall(grant, player, profile, segment, announce)
+	profile.PendingSpinPrize = nil
+	local ok, err = pcall(grant, player, profile, prize, announce)
 	if not ok then
 		warn(`[SpinWheelService] payout failed for {player.Name}: {err}`)
 		return
@@ -253,6 +378,40 @@ function SpinWheelService.settle(player: Player, announce: boolean)
 			task.spawn(DataService.save, player)
 		end
 	end
+end
+
+--- A prize that was spent and saved but never paid - the server went down
+--- while the wheel was turning. Paid ONCE, a moment after the profile loads,
+--- and only when no spin of this session is pending (that one is settled by
+--- its own timer). Returns what was paid, for the debug bridge.
+function SpinWheelService.payLeftover(player: Player): { [string]: any }?
+	if pending[player] then
+		return nil
+	end
+	local profile = DataService.get(player)
+	if not profile or profile.PendingSpinPrize == nil then
+		return nil
+	end
+	local prize = decodePrize(profile.PendingSpinPrize)
+	-- Cleared first, whether or not it decoded: a corrupt entry must not be
+	-- retried every tick, and a good one must not be paid twice.
+	profile.PendingSpinPrize = nil
+	if not prize then
+		warn(`[SpinWheelService] dropped an unreadable pending spin prize for {player.Name}`)
+		return nil
+	end
+	local ok, err = pcall(grant, player, profile, prize, true)
+	if not ok then
+		warn(`[SpinWheelService] leftover payout failed for {player.Name}: {err}`)
+		return nil
+	end
+	StateService.notify(player, "info", "Your last free spin was interrupted - here is its prize.")
+	StateService.pushNow(player)
+	if DataService.isPersistent() then
+		task.spawn(DataService.save, player)
+	end
+	print(`[SpinWheelService] paid {player.Name} a leftover spin prize: {prize.won}`)
+	return { index = prize.segment.index, amount = prize.amount, won = prize.won }
 end
 
 -- ==========================================================
@@ -294,41 +453,50 @@ local function onTriggered(player: Player, wheel: Wheel)
 		return
 	end
 
+	-- A prize from a crashed server that the tick has not paid yet goes
+	-- first, so the new spin can never overwrite it in the profile.
+	SpinWheelService.payLeftover(player)
+
 	-- LOCK AND SPEND, with no yield between them. From here the spin has
 	-- happened: the progress is gone even if everything below fails, which is
 	-- the safe direction - a lost spin is recoverable in five minutes, a
 	-- double-paid one is not.
-	wheel.lockedUntil = os.clock() + SpinWheelConfig.LOCK_SECONDS
-	wheel.model:SetAttribute(ATTR_SPINNING, true)
-	profile.SpinProgress = 0
-	lastAccrual[player] = os.clock()
-	publishClock(wheel, profile)
-
 	local index = SpinWheelConfig.roll(rng)
 	local segment = SpinWheelConfig.segment(index)
 	if not segment then
 		return
 	end
+	wheel.lockedUntil = os.clock() + SpinWheelConfig.LOCK_SECONDS
+	wheel.model:SetAttribute(ATTR_SPINNING, true)
+	profile.SpinProgress = 0
+	lastAccrual[player] = os.clock()
+	publishClock(wheel, profile, pausedNow[player])
 
-	-- DECIDED NOW, PAID AT THE LANDING. The prize is held here while the wheel
-	-- turns; nothing about it - no toast, no Cash, no Speed - reaches the
-	-- player until the disc has stopped on it. See WHY THE PRIZE WAITS.
-	pending[player] = segment
+	-- DECIDED NOW, PAID AT THE LANDING. The wedge AND its amount are fixed
+	-- here - the same figure the wedge label showed - and held while the
+	-- wheel turns; nothing about it - no toast, no Cash, no Speed - reaches
+	-- the player until the disc has stopped on it. See WHY THE PRIZE WAITS.
+	--
+	-- The profile gets a copy in the SAME step as the spend, so the save
+	-- below makes both durable together (THE PRIZE IS DURABLE ...).
+	local prize = prizeFor(segment, prizeContext(player, profile))
+	pending[player] = prize
+	profile.PendingSpinPrize = encodePrize(prize)
 
-	-- The animation is told which wedge to land on. One number: the client
-	-- reads the rest out of the shared config, and there is nothing in the
-	-- payload that could be replayed into a second prize.
+	-- The animation is told which wedge to land on, plus the finished banner
+	-- line so the win card names the amount actually paid. Presentation only:
+	-- the payout is the server's `pending`, and nothing here can be replayed
+	-- into a second prize.
 	local ok, err = pcall(function()
-		Remotes.get("SpinResult"):FireClient(player, index)
+		Remotes.get("SpinResult"):FireClient(player, index, { won = prize.won, amount = prize.amount })
 	end)
 	if not ok then
 		warn(`[SpinWheelService] result cue failed for {player.Name}: {err}`)
 	end
 
-	-- The spend is durable now; the prize is saved the moment it is paid. If
-	-- the server went down in the four seconds between, the spin is lost and
-	-- comes back in five minutes - the safe direction, where the alternative
-	-- is a prize paid twice.
+	-- The spend and the pending prize are durable together now; the prize is
+	-- paid (and the pending copy cleared) at the landing. If the server goes
+	-- down in the four seconds between, the next join pays it once.
 	if DataService.isPersistent() then
 		task.spawn(DataService.save, player)
 	end
@@ -344,7 +512,7 @@ local function onTriggered(player: Player, wheel: Wheel)
 		end
 	end)
 
-	print(`[SpinWheelService] {player.Name} spun {segment.label} (segment {index})`)
+	print(`[SpinWheelService] {player.Name} spun {prize.won} (segment {index})`)
 end
 
 --- "9:59", "0:07". The countdown's own formatting, matched to what the
@@ -358,6 +526,37 @@ end
 -- THE CLOCK
 -- ==========================================================
 
+--- The server's own sighting of activity: the character's root moved more
+--- than MOVE_ACTIVITY_STUDS horizontally since the last tick. Vertical
+--- motion (idle bob, a jump in place) is ignored on purpose.
+local function observeMovement(player: Player, now: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		lastPosition[player] = nil
+		return
+	end
+	local position = root.Position
+	local previous = lastPosition[player]
+	lastPosition[player] = position
+	if previous then
+		local moved = Vector3.new(position.X - previous.X, 0, position.Z - previous.Z).Magnitude
+		if moved > SpinWheelConfig.MOVE_ACTIVITY_STUDS then
+			lastActive[player] = now
+		end
+	end
+end
+
+--- Whether `player`'s spin clock may run right now.
+local function isActive(player: Player, now: number): boolean
+	local forced = forcedActivity[player]
+	if forced then
+		return forced == "active"
+	end
+	local seen = lastActive[player]
+	return seen ~= nil and now - seen <= SpinWheelConfig.IDLE_SECONDS
+end
+
 local function accrue()
 	local now = os.clock()
 	for _, player in Players:GetPlayers() do
@@ -366,8 +565,26 @@ local function accrue()
 			-- Still loading: start their clock when the profile lands, not at
 			-- the moment they connected, so a slow load is not free progress.
 			lastAccrual[player] = now
+			-- And count the join itself as activity: nobody is AFK in the
+			-- first two minutes of a session, and the client's first ping may
+			-- simply not have arrived yet.
+			lastActive[player] = now
+			profileSeenAt[player] = nil
 			continue
 		end
+
+		-- A prize from a server that died mid-spin: paid once, shortly after
+		-- the profile appeared (see payLeftover).
+		local seenAt = profileSeenAt[player]
+		if not seenAt then
+			profileSeenAt[player] = now
+			-- A profile that loaded between two ticks gets the same join grace.
+			lastActive[player] = lastActive[player] or now
+		elseif now - seenAt >= LEFTOVER_DELAY and profile.PendingSpinPrize ~= nil and not pending[player] then
+			SpinWheelService.payLeftover(player)
+		end
+
+		observeMovement(player, now)
 		local previous = lastAccrual[player]
 		lastAccrual[player] = now
 		if not previous then
@@ -375,8 +592,30 @@ local function accrue()
 		end
 		local progress = tonumber(profile.SpinProgress) or 0
 		if progress >= SpinWheelConfig.PLAY_SECONDS then
+			if pausedNow[player] then
+				-- Ready is ready: nothing left to pause.
+				pausedNow[player] = nil
+				SpinWheelService.refresh(player)
+			end
 			continue
 		end
+
+		-- THE AFK PAUSE. An idle player's clock simply does not advance; the
+		-- sign is told once, on the change, so nothing replicates per tick.
+		local active = isActive(player, now)
+		local wasPaused = pausedNow[player] == true
+		if active == wasPaused then
+			if active then
+				pausedNow[player] = nil
+			else
+				pausedNow[player] = true
+			end
+			SpinWheelService.refresh(player)
+		end
+		if not active then
+			continue
+		end
+
 		-- Real elapsed seconds, clamped: a server that hitched for a minute
 		-- pays a minute, and one that resumed from a suspended machine does
 		-- not hand out a spin for time nobody played.
@@ -509,6 +748,7 @@ local function prepare(model: Model): Wheel?
 	model:SetAttribute(ATTR_OWNER, 0)
 	model:SetAttribute(ATTR_READY_AT, 0)
 	model:SetAttribute(ATTR_SPINNING, false)
+	model:SetAttribute(ATTR_PAUSED_REMAINING, 0)
 
 	local wheel: Wheel = {
 		model = model,
@@ -570,9 +810,32 @@ function SpinWheelService.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastAccrual[player] = nil
+		lastActive[player] = nil
+		lastPingAt[player] = nil
+		lastPosition[player] = nil
+		pausedNow[player] = nil
+		forcedActivity[player] = nil
+		profileSeenAt[player] = nil
 		-- The plot is released on this same event; the accrual tick below
 		-- notices and clears the wheel either way.
 	end)
+
+	-- THE AFK PAUSE's client half. Carries nothing and is trusted for nothing
+	-- but "this client saw input recently": a tampered client can keep its
+	-- own clock running while AFK, which is no worse than a macro jiggling
+	-- the mouse, and gains no spin faster than an honest active player.
+	Remotes.get("ActivityPing").OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		local last = lastPingAt[player]
+		if last and now - last < SpinWheelConfig.ACTIVITY_PING_MIN_GAP then
+			return
+		end
+		lastPingAt[player] = now
+		lastActive[player] = now
+	end)
+
+	-- The live wedge labels ride the push.
+	StateService.addProvider("spinWheel", SpinWheelService.summarise)
 
 	task.spawn(function()
 		while true do
@@ -618,14 +881,81 @@ function SpinWheelService.inspect(player: Player): { [string]: any }
 		readyAt = if wheel then wheel.model:GetAttribute(ATTR_READY_AT) else nil,
 		locked = if wheel then os.clock() < wheel.lockedUntil else nil,
 		--- The prize rolled but not yet paid, while the wheel is still turning.
-		pendingPrize = if pending[player] then pending[player].label else nil,
+		pendingPrize = if pending[player] then pending[player].won else nil,
+		--- The durable copy of it (and of a leftover from a crashed server).
+		savedPendingPrize = if profile then profile.PendingSpinPrize else nil,
 		guardiansWon = if profile then profile.GuardiansWon else nil,
+		active = isActive(player, os.clock()),
+		paused = pausedNow[player] == true,
+		forcedActivity = forcedActivity[player],
+		secondsSinceActive = if lastActive[player] then os.clock() - lastActive[player] else nil,
 	}
 end
 
+--- Studio only: pins the caller "idle" or "active" for the spin clock, or
+--- "auto" (anything else) to go back to real input and movement.
+function SpinWheelService.debugSetActivity(player: Player, mode: string?): { [string]: any }
+	if mode == "idle" or mode == "active" then
+		forcedActivity[player] = mode
+	else
+		forcedActivity[player] = nil
+	end
+	return SpinWheelService.inspect(player)
+end
+
+--- Studio only: the caller's live wedge amounts beside the printed ones.
+function SpinWheelService.debugLabels(player: Player): { [string]: any }
+	local profile = DataService.get(player)
+	if not profile then
+		return { error = "no profile" }
+	end
+	local context = prizeContext(player, profile)
+	local rows = {}
+	for _, segment in SpinWheelConfig.Segments do
+		local amount = SpinWheelConfig.amountFor(segment, context)
+		local label = SpinWheelConfig.labelFor(segment, amount)
+		table.insert(rows, {
+			index = segment.index,
+			printed = segment.label,
+			live = label,
+			amount = amount,
+			overlaid = label ~= segment.label,
+		})
+	end
+	return {
+		baseIncome = context.baseIncome,
+		highestZone = context.highestZone,
+		nextGate = SpinWheelConfig.nextGate(context.highestZone),
+		rows = rows,
+	}
+end
+
+--- Studio only: THE CRASH, simulated. Spends a spin exactly as a real one
+--- does - the prize rolled (or forced to `index`), written to the profile,
+--- the progress zeroed - but never starts the landing timer and never keeps
+--- the in-memory copy, which is precisely the state a server that died
+--- mid-spin leaves in the save. `payLeftover` is then the reload path.
+function SpinWheelService.debugSpendWithoutLanding(player: Player, index: number?): { [string]: any }
+	local profile = DataService.get(player)
+	if not profile then
+		return { error = "no profile" }
+	end
+	if pending[player] then
+		return { error = "a real spin is still turning" }
+	end
+	local segment = SpinWheelConfig.segment(index or SpinWheelConfig.roll(rng))
+	if not segment then
+		return { error = "no such segment" }
+	end
+	local prize = prizeFor(segment, prizeContext(player, profile))
+	profile.SpinProgress = 0
+	profile.PendingSpinPrize = encodePrize(prize)
+	return { spent = true, saved = profile.PendingSpinPrize }
+end
+
 --- Studio only: pays out ONE named segment through the same `grant` a real
---- spin uses, so the rare wedges can be tested without waiting for a 1-in-200
---- roll. It deliberately skips the gate rather than reimplementing it - the
+--- spin uses (at the caller's live scaled amount), so the rare wedges can be
+--- tested without waiting for a 1-in-1,250 roll. It deliberately skips the gate rather than reimplementing it - the
 --- thing under test is the payout, and a second copy of the payout would test
 --- nothing.
 function SpinWheelService.debugGrant(player: Player, index: number): { [string]: any }
@@ -635,10 +965,12 @@ function SpinWheelService.debugGrant(player: Player, index: number): { [string]:
 		return { error = "no profile or no such segment" }
 	end
 	local before = { cash = profile.Cash, speed = profile.SpeedPower, equipped = profile.EquippedGuardian }
-	grant(player, profile, segment, true)
+	local prize = prizeFor(segment, prizeContext(player, profile))
+	grant(player, profile, prize, true)
 	StateService.pushNow(player)
 	return {
 		segment = segment.label,
+		paid = prize.won,
 		before = before,
 		after = { cash = profile.Cash, speed = profile.SpeedPower, equipped = profile.EquippedGuardian },
 		guardiansWon = profile.GuardiansWon,

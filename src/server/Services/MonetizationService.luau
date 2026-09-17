@@ -29,7 +29,21 @@
 	4. A purchase is never silently lost.
 	   If the player has already advanced past the tier they bought - they earned
 	   it with Cash while the receipt was in flight - they are granted their next
-	   eligible tier instead of nothing.
+	   eligible tier instead of nothing. And a purchase that can NEVER be
+	   delivered (a maxed treadmill, a steal target that is gone for good, a
+	   reveal whose container no longer exists) is converted to Cash and
+	   consumed rather than left open forever - see UNDELIVERABLE RECEIPTS.
+
+	5. The client only ever opens Cash and Speed products directly.
+	   Steal, Reveal and Treadmill products are prompted by the server paths
+	   that reserve what they pay for (HeistService, HatchService,
+	   promptTreadmillUpgrade). Opening one of those from `promptProduct` would
+	   take Robux with nothing reserved to deliver.
+
+	6. Paid random items respect PolicyService.
+	   Instant Reveal pays to open a container whose content the player does
+	   not know yet, so it is withheld from players whose policy restricts paid
+	   random items. See POLICY.
 
 	WHY THE GRANT IS SAVED BEFORE REPORTING SUCCESS
 	Returning PurchaseGranted tells Roblox to consume the receipt permanently. If
@@ -42,6 +56,7 @@
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
+local PolicyService = game:GetService("PolicyService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
@@ -270,8 +285,16 @@ end
 --- Delivers a `Steal` receipt against the exact reserved item; installed by
 --- init (setStealHandler, below). Declared here because processReceipt,
 --- further down, reads it.
-local stealHandler: ((Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)? = nil
-local revealHandler: ((Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)? = nil
+---
+--- THE CONTRACT: returns `(delivered, outcome)`. `outcome` is "retry" (leave
+--- the receipt open, it may still be deliverable) or "undeliverable" (it
+--- never will be - convert it to Cash). A handler that still returns a
+--- single boolean is read as "retry", which is the old behaviour, so this
+--- file works on either side of the HeistService/HatchService change.
+--- Typed `...any` for the same reason: both shapes must be assignable.
+type DeliveryHandler = (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> ...any
+local stealHandler: DeliveryHandler? = nil
+local revealHandler: DeliveryHandler? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -396,8 +419,191 @@ function MonetizationService.promptTreadmillUpgrade(player: Player): (boolean, s
 end
 
 -- ==========================================================
+-- POLICY
+-- ==========================================================
+--
+-- PolicyService answers per player, from Roblox, what this account may be
+-- sold in its region. It is a web call: fetched once on join in pcall and
+-- cached. UNTIL IT ANSWERS - and if it never does - the player is treated
+-- as the MOST restricted, which only ever hides a purchase; it can never
+-- sell something a region forbids.
+--
+--   ArePaidRandomItemsRestricted  Instant Reveal pays to open a container
+--                                 whose content is unknown to the player:
+--                                 treated as a paid random item and withheld
+--                                 (HatchService refuses the prompt; the
+--                                 client hides it). Paid base steals target
+--                                 an item the player can SEE, so they stay.
+--   IsPaidItemTradingAllowed      Nothing trades yet. Exposed through
+--                                 `policy(player)` for the trading feature.
+
+--- The shape every caller reads. Only the fields this game uses are copied;
+--- the full answer is kept in `raw` for the debug bridge.
+export type Policy = {
+	known: boolean,
+	paidRandomItemsRestricted: boolean,
+	paidItemTradingAllowed: boolean,
+	raw: { [string]: any }?,
+}
+
+local RESTRICTIVE_POLICY: Policy = table.freeze({
+	known = false,
+	paidRandomItemsRestricted = true,
+	paidItemTradingAllowed = false,
+	raw = nil,
+})
+
+local policies: { [Player]: Policy } = {}
+--- Seconds between retries of a failed lookup, and how many are tried.
+local POLICY_RETRY_SECONDS = 15
+local POLICY_ATTEMPTS = 4
+
+--- The cached policy for `player`, or the most restrictive one while it is
+--- unknown. Never yields.
+function MonetizationService.policy(player: Player): Policy
+	return policies[player] or RESTRICTIVE_POLICY
+end
+
+--- True when paid random purchases (Instant Reveal) must not be offered.
+function MonetizationService.paidRandomRestricted(player: Player): boolean
+	return MonetizationService.policy(player).paidRandomItemsRestricted
+end
+
+local function fetchPolicy(player: Player)
+	for attempt = 1, POLICY_ATTEMPTS do
+		if not player.Parent then
+			return
+		end
+		local ok, info = pcall(function()
+			return PolicyService:GetPolicyInfoForPlayerAsync(player)
+		end)
+		if ok and type(info) == "table" then
+			if not player.Parent then
+				return -- left while the call was out; nothing to cache for
+			end
+			policies[player] = {
+				known = true,
+				-- Anything but an explicit `false` reads as restricted.
+				paidRandomItemsRestricted = info.ArePaidRandomItemsRestricted ~= false,
+				-- Anything but an explicit `true` reads as not allowed.
+				paidItemTradingAllowed = info.IsPaidItemTradingAllowed == true,
+				raw = info,
+			}
+			StateService.markDirty(player)
+			return
+		end
+		warn(`[MonetizationService] policy lookup {attempt}/{POLICY_ATTEMPTS} failed for {player.Name}: {info}`)
+		task.wait(POLICY_RETRY_SECONDS)
+	end
+end
+
+--- STUDIO TESTING ONLY: pins a player's policy so the restricted path can be
+--- seen from an unrestricted account. `nil` re-fetches the real answer.
+function MonetizationService.setPolicyForTesting(player: Player, restricted: boolean?)
+	if restricted == nil then
+		policies[player] = nil
+		task.spawn(fetchPolicy, player)
+	else
+		policies[player] = {
+			known = true,
+			paidRandomItemsRestricted = restricted,
+			paidItemTradingAllowed = not restricted,
+			raw = { testing = true },
+		}
+	end
+	StateService.pushNow(player)
+end
+
+-- ==========================================================
+-- SCALED AMOUNTS
+-- ==========================================================
+
+--- The player's base income: $/s with the 2x pass and boosts divided out.
+function MonetizationService.baseIncome(player: Player): number
+	return MonetizationConfig.baseIncome(EconomyService.getIncome(player), MonetizationService.cashMultiplier(player))
+end
+
+--- What a Cash pack pays THIS player right now. The same number the shop
+--- shows and the receipt grants.
+function MonetizationService.cashPackAmount(player: Player, product: MonetizationConfig.ProductDef): number
+	return MonetizationConfig.cashPackAmount(product, MonetizationService.baseIncome(player))
+end
+
+--- What the client needs to render the shop and hide what it may not sell.
+--- Rides StatePush as `shop`.
+function MonetizationService.summarise(player: Player): { [string]: any }
+	local packs: { [string]: number } = {}
+	for _, product in MonetizationConfig.CashProducts do
+		packs[product.key] = MonetizationService.cashPackAmount(player, product)
+	end
+	local policy = MonetizationService.policy(player)
+	return {
+		cashPacks = packs,
+		policy = {
+			known = policy.known,
+			paidRandomRestricted = policy.paidRandomItemsRestricted,
+			paidTradingAllowed = policy.paidItemTradingAllowed,
+		},
+	}
+end
+
+-- ==========================================================
 -- PROCESS RECEIPT
 -- ==========================================================
+
+--- The Robux a receipt actually cost: Roblox's own CurrencySpent when it is
+--- a positive number, else the live price, else the config price.
+local function robuxPaid(receiptInfo: any, product: MonetizationConfig.ProductDef): number
+	local spent = tonumber(receiptInfo.CurrencySpent)
+	if spent and spent > 0 then
+		return spent
+	end
+	return MonetizationService.liveProductPrice(product.productId) or product.robux
+end
+
+--- UNDELIVERABLE RECEIPTS. Converts a purchase that can never be delivered
+--- into Cash (MonetizationConfig.fallbackCash), records the receipt like any
+--- other grant, and tells the player what happened. The caller then saves
+--- and returns PurchaseGranted exactly as for a normal grant, so the
+--- conversion is as replay-safe as everything else (rule 2).
+function MonetizationService.grantFallback(
+	player: Player,
+	profile: DataService.Profile,
+	product: MonetizationConfig.ProductDef,
+	purchaseId: string,
+	receiptInfo: any,
+	why: string
+): number
+	local amount = MonetizationConfig.fallbackCash(robuxPaid(receiptInfo, product), MonetizationService.baseIncome(player))
+	EconomyService.award(player, amount, "product")
+	rememberGrant(profile, purchaseId)
+	warn(`[MonetizationService] receipt {purchaseId} ({product.key}) for {player.Name} is undeliverable ({why}) - converted to {amount} Cash`)
+	StateService.notify(
+		player,
+		"success",
+		`Your purchase couldn't be completed, so you received {NumberFormat.cash(amount)} instead.`,
+		"levelup"
+	)
+	return amount
+end
+
+--- Runs a delivery handler and reads its answer under either contract.
+--- Returns "delivered", "undeliverable" or "retry". A handler that throws is
+--- a retry: the receipt stays open and nothing is lost.
+local function deliver(handler: DeliveryHandler, player: Player, profile: DataService.Profile, product: MonetizationConfig.ProductDef, purchaseId: string): string
+	local ok, delivered, outcome = pcall(handler, player, profile, product, purchaseId)
+	if not ok then
+		warn(`[MonetizationService] {product.key} handler errored for {player.Name}: {delivered} - left open`)
+		return "retry"
+	end
+	if delivered == true then
+		return "delivered"
+	end
+	if outcome == "undeliverable" then
+		return "undeliverable"
+	end
+	return "retry"
+end
 
 --- Public so the Studio debug bridge can deliver a synthetic receipt: a real
 --- Robux purchase cannot be made in Studio, and the replay/unconfigured/
@@ -440,15 +646,24 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		return pending
 	end
 
+	-- Set when the purchase was converted to Cash instead of delivered, so the
+	-- card-flash below does not celebrate a thing the player did not get.
+	local convertedTo: number? = nil
+	-- For the save-failure warning at the bottom: what was granted.
+	local grantedWhat = product.key
+
 	-- The grant itself. Dispatched on the product's own `kind`, so adding a
 	-- product is a config row rather than another branch in ProcessReceipt.
 	if product.kind == "Cash" then
-		-- FACE VALUE. The 2x Cash pass multiplies EARNINGS, never a purchased
-		-- pack - doubling this would be handing the player something they did
-		-- not buy, and halving the value of the pass they might buy later.
-		EconomyService.award(player, product.amount, "product")
+		-- SCALED TO INCOME, read NOW (MonetizationConfig CASH PACKS) - the
+		-- same function the shop card showed. The 2x Cash pass is divided
+		-- OUT of that income and never applied on top: it multiplies
+		-- EARNINGS, never a purchased pack.
+		local amount = MonetizationService.cashPackAmount(player, product)
+		EconomyService.award(player, amount, "product")
 		rememberGrant(profile, purchaseId)
-		StateService.notify(player, "success", `+{NumberFormat.short(product.amount)} CASH!`, "levelup")
+		grantedWhat = `{product.key} ({amount} Cash)`
+		StateService.notify(player, "success", `+{NumberFormat.short(amount)} CASH!`, "levelup")
 
 	elseif product.kind == "Speed" then
 		-- A DIRECT GRANT, not a rate. Never scaled by the permanent multiplier
@@ -464,52 +679,45 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		-- still gives them something.
 		local level = resolveGrantLevel(profile.TreadmillLevel)
 		if not level then
-			warn(
-				`[MonetizationService] {player.Name} bought tier {product.amount} while already maxed. `
-					.. `Receipt left OPEN rather than consumed.`
+			-- Genuinely maxed: there is no tier left to give, now or on any
+			-- retry. Converted to Cash and consumed (UNDELIVERABLE RECEIPTS)
+			-- rather than left open forever with the Robux spent.
+			convertedTo = MonetizationService.grantFallback(player, profile, product, purchaseId, receiptInfo, "treadmill already maxed")
+		else
+			if not SpeedService.grantTreadmillTier(player, level) then
+				warn(`[MonetizationService] grant of tier {level} refused for {player.Name} - receipt left open.`)
+				return pending
+			end
+			rememberGrant(profile, purchaseId)
+			grantedWhat = `{product.key} (tier {level})`
+			local tier = TreadmillConfig.tier(level)
+			StateService.notify(
+				player,
+				"success",
+				`Treadmill {if tier then tier.name else level}! Thanks for the support.`,
+				"levelup"
 			)
-			StateService.notify(player, "error", "You are already fully upgraded - contact support.")
-			return pending
 		end
-		if not SpeedService.grantTreadmillTier(player, level) then
-			warn(`[MonetizationService] grant of tier {level} refused for {player.Name} - receipt left open.`)
-			return pending
-		end
-		rememberGrant(profile, purchaseId)
-		local tier = TreadmillConfig.tier(level)
-		StateService.notify(
-			player,
-			"success",
-			`Treadmill {if tier then tier.name else level}! Thanks for the support.`,
-			"levelup"
-		)
 
-	elseif product.kind == "Reveal" then
-		-- Delivered only against the container the buyer selected. A receipt
-		-- with nothing to deliver yet is left OPEN for Roblox to retry rather
-		-- than consumed for nothing (HatchService.fulfil explains each case).
-		if not revealHandler then
-			warn(`[MonetizationService] reveal receipt from {player.Name} with no handler installed - left open.`)
+	elseif product.kind == "Reveal" or product.kind == "Steal" then
+		-- Delivered only against the exact container / item the buyer
+		-- selected (HatchService.fulfil / HeistService.fulfil explain each
+		-- case). "retry" - nothing to deliver YET - leaves the receipt OPEN
+		-- for Roblox to try again; "undeliverable" - it never will be - is
+		-- converted to Cash and consumed.
+		local handler = if product.kind == "Reveal" then revealHandler else stealHandler
+		if not handler then
+			warn(`[MonetizationService] {product.kind} receipt from {player.Name} with no handler installed - left open.`)
 			return pending
 		end
-		if not revealHandler(player, profile, product, purchaseId) then
+		local outcome = deliver(handler, player, profile, product, purchaseId)
+		if outcome == "undeliverable" then
+			convertedTo = MonetizationService.grantFallback(player, profile, product, purchaseId, receiptInfo, `{product.kind} target gone`)
+		elseif outcome ~= "delivered" then
 			return pending
+		else
+			rememberGrant(profile, purchaseId)
 		end
-		rememberGrant(profile, purchaseId)
-
-	elseif product.kind == "Steal" then
-		-- Delivered only against the exact item the buyer reserved. Anything
-		-- less - target gone, wrong rarity, no reservation - leaves the receipt
-		-- OPEN for Roblox to retry rather than consuming a paid purchase for
-		-- nothing (HeistService.fulfil explains each case as it happens).
-		if not stealHandler then
-			warn(`[MonetizationService] steal receipt from {player.Name} with no handler installed - left open.`)
-			return pending
-		end
-		if not stealHandler(player, profile, product, purchaseId) then
-			return pending
-		end
-		rememberGrant(profile, purchaseId)
 
 	else
 		warn(`[MonetizationService] product "{product.key}" has unknown kind "{product.kind}" - receipt left open.`)
@@ -520,15 +728,22 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 
 	-- Tell the UI which card just paid off, so it can flash the right one. Sent
 	-- only from here - the single path that actually granted something - so the
-	-- animation cannot fire on a cancelled or failed purchase.
-	Remotes.get("PurchaseFeedback"):FireClient(player, product.key)
+	-- animation cannot fire on a cancelled or failed purchase. Not for a
+	-- conversion: the card's own thing was NOT delivered.
+	if not convertedTo then
+		Remotes.get("PurchaseFeedback"):FireClient(player, product.key)
+	else
+		grantedWhat = `{product.key} converted to {convertedTo} Cash`
+	end
 
 	-- Only report success once the grant is durable.
 	if not DataService.isPersistent() or DataService.save(player) then
 		return granted
 	end
 
-	warn(`[MonetizationService] granted tier {level} to {player.Name} but the save failed; will retry.`)
+	-- (This used to interpolate `level`, which only exists inside the
+	-- TreadmillTier branch - a static-check error on every other kind.)
+	warn(`[MonetizationService] granted {grantedWhat} to {player.Name} but the save failed; will retry.`)
 	return pending
 end
 
@@ -541,6 +756,12 @@ end
 -- cannot make the game prompt for an arbitrary product or gamepass.
 
 --- A Cash or Speed Developer Product, by config key.
+---
+--- ONLY Cash and Speed (rule 5). Steal, Reveal and TreadmillTier products are
+--- opened by the server paths that reserve what they pay for - HeistService
+--- .begin, HatchService.promptInstantReveal and promptTreadmillUpgrade above -
+--- and a client naming one of their keys here would otherwise open a real
+--- purchase with nothing reserved behind it.
 function MonetizationService.promptProduct(player: Player, key: string): (boolean, string?)
 	if not promptLimiter:consume(player) then
 		return false, "Slow down!"
@@ -548,6 +769,11 @@ function MonetizationService.promptProduct(player: Player, key: string): (boolea
 	local product = MonetizationConfig.ProductByKey[key]
 	if not product or product.productId <= 0 then
 		return false, "That item is not available yet."
+	end
+	if product.kind ~= "Cash" and product.kind ~= "Speed" then
+		-- Silent to the player: no legitimate UI sends this.
+		warn(`[MonetizationService] {player.Name} asked to prompt {product.kind} product "{key}" directly - refused`)
+		return false
 	end
 	local ok, err = pcall(function()
 		MarketplaceService:PromptProductPurchase(player, product.productId)
@@ -674,15 +900,21 @@ end
 -- variable itself is declared up with the ownership helpers, ahead of
 -- processReceipt, which reads it.)
 
-function MonetizationService.setStealHandler(fn: (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)
+function MonetizationService.setStealHandler(fn: DeliveryHandler)
 	stealHandler = fn
 end
 
 --- A `Reveal` product is delivered by HatchService, which knows which exact
 --- container the buyer selected. Injected for the same reason as the steal
---- handler.
-function MonetizationService.setRevealHandler(fn: (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> boolean)
+--- handler. Same `(delivered, "retry" | "undeliverable")` contract.
+function MonetizationService.setRevealHandler(fn: DeliveryHandler)
 	revealHandler = fn
+end
+
+--- Studio only: the installed handlers, so a test can swap one for a stub
+--- and put the real one back.
+function MonetizationService.debugHandlers(): (DeliveryHandler?, DeliveryHandler?)
+	return stealHandler, revealHandler
 end
 
 --- MarketplaceService.PromptProductPurchaseFinished, forwarded. NOTHING IS
@@ -704,18 +936,21 @@ function MonetizationService.onProductPromptClosed(_player: Player, _productId: 
 
 local lastOfferAt: { [Player]: number } = {}
 
+--- Studio only: forgets the offer cooldown so `offer` can be fired twice.
+function MonetizationService.debugResetOfferCooldown(player: Player)
+	lastOfferAt[player] = nil
+end
+
 --- Fires the contextual offer for `zoneIndex`, if there is one and the player is
 --- not still inside the cooldown.
 function MonetizationService.offerAfterCatch(player: Player, zoneIndex: number)
-	local key = MonetizationConfig.BossOfferByZone[zoneIndex]
-	if not key then
-		-- No configured offer for this zone. Zone 12 is deliberately in this
-		-- state: no price was specified for it, and inventing one for real money
-		-- is not a gap to fill with a guess.
-		return
-	end
-
-	local product = MonetizationConfig.ProductByKey[key]
+	-- WHICH pack: the cheapest one, up to the zone's ceiling, that closes a
+	-- meaningful share of this player's gap (MonetizationConfig.bossOfferFor).
+	-- nil for a zone with no offer - Zone 12 is deliberately in this state: no
+	-- price was specified for it, and inventing one for real money is not a
+	-- gap to fill with a guess.
+	local profile = DataService.get(player)
+	local product = MonetizationConfig.bossOfferFor(zoneIndex, if profile then profile.SpeedPower else 0)
 	if not product or product.productId <= 0 then
 		return
 	end
@@ -723,7 +958,7 @@ function MonetizationService.offerAfterCatch(player: Player, zoneIndex: number)
 	local now = os.clock()
 	local last = lastOfferAt[player]
 	if last and now - last < MonetizationConfig.BOSS_OFFER_COOLDOWN then
-		return -- caught again straight away; the offer is least welcome now
+		return -- caught again inside the cooldown; the offer would read as nagging
 	end
 	lastOfferAt[player] = now
 
@@ -793,9 +1028,15 @@ function MonetizationService.start()
 		end
 	end)
 
-	-- Warm ownership once per player rather than asking Roblox on demand.
+	-- The live Cash-pack amounts and the policy flags ride the push as
+	-- `shop`, so the cards and the Instant Reveal prompt never need to ask.
+	StateService.addProvider("shop", MonetizationService.summarise)
+
+	-- Warm ownership (and the regional policy) once per player rather than
+	-- asking Roblox on demand.
 	local function warm(player: Player)
 		task.spawn(MonetizationService.refreshOwnership, player)
+		task.spawn(fetchPolicy, player)
 	end
 	for _, player in Players:GetPlayers() do
 		warm(player)
@@ -804,6 +1045,7 @@ function MonetizationService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		ownership[player] = nil
 		lastOfferAt[player] = nil
+		policies[player] = nil
 		promptLimiter:release(player)
 	end)
 

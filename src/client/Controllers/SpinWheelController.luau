@@ -28,6 +28,17 @@
 	frame-perfect on the owner's screen instead of a stutter of replicated
 	positions - and it means the animation cannot land on the wrong wedge,
 	because which wedge won arrived first.
+
+	THE WEDGES SHOW WHAT THIS PLAYER WOULD WIN (monetization pass). Cash and
+	Speed prizes scale with progress, but the picture prints fixed figures.
+	The server sends the live labels in StatePush (`spinWheel.labels`) and
+	this covers every printed wedge whose figure differs with a small plate
+	carrying the real one - the wheel's own text is the fallback whenever no
+	labels have arrived. The win banner names the amount the server rolled.
+
+	THE CLOCK CAN BE PAUSED. An idle player's spin clock stops server-side;
+	the wheel then publishes the frozen remainder (SpinPausedRemaining) and
+	the sign says so instead of counting down to a spin that is not coming.
 ]]
 
 local Players = game:GetService("Players")
@@ -50,6 +61,7 @@ local player = Players.LocalPlayer
 
 local ATTR_OWNER = "OwnerUserId"
 local ATTR_READY_AT = "SpinReadyAt"
+local ATTR_PAUSED_REMAINING = "SpinPausedRemaining"
 
 --- Every wheel this client knows about. `hidden` is what we last applied, so
 --- the show/hide pass is idempotent and costs nothing when nothing changed.
@@ -267,10 +279,28 @@ local tooEarlyUntil = 0
 --- gone before the player tries again.
 local TOO_EARLY_SECONDS = 3
 
+--- The frozen remainder while the server has paused this player's clock for
+--- inactivity, or nil while it is running.
+local function pausedRemaining(): number?
+	local wheel = owned
+	if not wheel then
+		return nil
+	end
+	local frozen = wheel.model:GetAttribute(ATTR_PAUSED_REMAINING)
+	if type(frozen) == "number" and frozen > 0 then
+		return frozen
+	end
+	return nil
+end
+
 local function remainingSeconds(): number
 	local wheel = owned
 	if not wheel then
 		return math.huge
+	end
+	local frozen = pausedRemaining()
+	if frozen then
+		return frozen
 	end
 	local readyAt = wheel.model:GetAttribute(ATTR_READY_AT)
 	if type(readyAt) ~= "number" or readyAt <= 0 then
@@ -285,6 +315,11 @@ local function mmss(seconds: number): string
 end
 
 local function clockText(seconds: number): string
+	if pausedRemaining() then
+		-- Said plainly, so a player who comes back knows why it stopped and
+		-- that moving again is all it takes.
+		return "SPIN PAUSED (AFK) " .. mmss(seconds)
+	end
 	return "FREE SPIN IN " .. mmss(seconds)
 end
 
@@ -424,7 +459,9 @@ local function buildBanner(): ScreenGui
 	return gui
 end
 
-local function showBanner(segment: SpinWheelConfig.Segment)
+--- `won` is the server's line for the amount it rolled ("$3.2M"); the
+--- config's static line is only the fallback for a result that came without.
+local function showBanner(segment: SpinWheelConfig.Segment, won: string?)
 	local gui = buildBanner()
 	local card, prize, stroke = bannerCard, bannerPrize, bannerStroke
 	if not card or not prize or not bannerTitle then
@@ -433,7 +470,7 @@ local function showBanner(segment: SpinWheelConfig.Segment)
 	local tint = SpinWheelConfig.TierColors[segment.tier] or SpinWheelConfig.TierColors.normal
 
 	bannerTitle.Text = if segment.tier == "jackpot" then "JACKPOT!" else "YOU WON"
-	prize.Text = segment.won
+	prize.Text = won or segment.won
 	prize.TextColor3 = tint
 	if stroke then
 		stroke.Color = tint
@@ -482,7 +519,7 @@ local function flickTicker(wheel: Wheel)
 	end
 end
 
-local function runSpin(wheel: Wheel, index: number)
+local function runSpin(wheel: Wheel, index: number, won: string?)
 	local segment = SpinWheelConfig.segment(index)
 	if not segment then
 		return
@@ -576,7 +613,7 @@ local function runSpin(wheel: Wheel, index: number)
 					end)
 				end
 			end
-			showBanner(segment)
+			showBanner(segment, won)
 
 			task.delay(SpinWheelConfig.RESULT_SECONDS + 0.3, function()
 				if token == spinToken then
@@ -621,6 +658,117 @@ local function runSpin(wheel: Wheel, index: number)
 end
 
 -- ==========================================================
+-- THE LIVE WEDGE LABELS
+-- ==========================================================
+--
+-- The printed wheel says "$1,500" / "250 Speed" / "1B SPEED"; a Zone 8
+-- player's wedges pay far more (or, for the jackpot, a Zone 1 player's pays
+-- less). Every wedge whose live figure differs from its print gets a plate
+-- over the printed text with the real figure on it. The plates live inside
+-- the disc's own SurfaceGui, so they turn with the disc for free and hide
+-- with the wheel (setHidden toggles the SurfaceGui).
+--
+-- GEOMETRY. The art is square and drawn upright with segment 12 at the top,
+-- numbered clockwise; a wedge's centre sits at SpinWheelConfig.angleFor(i)
+-- clockwise from the top. The plates are laid out in a square frame that
+-- matches the ImageLabel's Fit, at LABEL_RADIUS of its width from the hub,
+-- turned to read along the radius and never upside down. LABEL_RADIUS and
+-- LABEL_ROTATION are the two knobs to line them up with the print - they
+-- are estimates until checked against the rendered wheel in Studio.
+
+--- Fraction of the wheel's width from the hub to the centre of a plate.
+local LABEL_RADIUS = 0.3
+--- Added to the radial angle, in degrees. 0 reads outward along the radius;
+--- 90 would lay the text across it.
+local LABEL_ROTATION = 0
+local LABEL_SIZE = UDim2.fromScale(0.26, 0.075)
+local LABEL_CASH = Color3.fromRGB(126, 255, 148)
+local LABEL_SPEED = Color3.fromRGB(120, 220, 255)
+local LABEL_PLATE = Color3.fromRGB(18, 16, 38)
+
+--- index -> the live label the server last sent. Empty = show the print.
+local liveLabels: { [number]: string } = {}
+--- The overlay frame currently mounted, and the wheel it is on.
+local overlay: Frame? = nil
+
+local function clearLabels()
+	if overlay then
+		overlay:Destroy()
+		overlay = nil
+	end
+end
+
+local function paintLabels()
+	clearLabels()
+	local wheel = owned
+	if not wheel then
+		return
+	end
+	local face = wheel.disc:FindFirstChildOfClass("SurfaceGui")
+	if not face then
+		return
+	end
+	local art = face:FindFirstChildOfClass("ImageLabel")
+	local baseZ = if art then art.ZIndex else 1
+
+	local frame = Instance.new("Frame")
+	frame.Name = "LiveWedgeLabels"
+	frame.BackgroundTransparency = 1
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.fromScale(0.5, 0.5)
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.ZIndex = baseZ + 1
+	local square = Instance.new("UIAspectRatioConstraint")
+	square.AspectRatio = 1
+	square.Parent = frame
+
+	local any = false
+	for _, segment in SpinWheelConfig.Segments do
+		local text = liveLabels[segment.index]
+		if not text or text == segment.label or segment.kind == "guardian" then
+			continue
+		end
+		any = true
+		local degrees = math.deg(SpinWheelConfig.angleFor(segment.index))
+		local radians = math.rad(degrees)
+		local plate = Instance.new("TextLabel")
+		plate.Name = `Wedge{segment.index}`
+		plate.AnchorPoint = Vector2.new(0.5, 0.5)
+		plate.Position = UDim2.fromScale(0.5 + math.sin(radians) * LABEL_RADIUS, 0.5 - math.cos(radians) * LABEL_RADIUS)
+		plate.Size = LABEL_SIZE
+		-- Along the radius, flipped on the left half so it never reads upside down.
+		local rotation = (degrees - 90 + LABEL_ROTATION) % 360
+		if rotation > 90 and rotation < 270 then
+			rotation -= 180
+		end
+		plate.Rotation = rotation
+		plate.BackgroundColor3 = LABEL_PLATE
+		plate.BackgroundTransparency = 0.08
+		plate.BorderSizePixel = 0
+		plate.Font = Enum.Font.FredokaOne
+		plate.TextScaled = true
+		plate.Text = text
+		plate.TextColor3 = if segment.kind == "cash" then LABEL_CASH else LABEL_SPEED
+		plate.ZIndex = baseZ + 2
+		plate.Parent = frame
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.3, 0)
+		corner.Parent = plate
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0.06, 0)
+		pad.PaddingRight = UDim.new(0.06, 0)
+		pad.Parent = plate
+	end
+
+	if any then
+		frame.Parent = face
+		overlay = frame
+	else
+		frame:Destroy()
+	end
+end
+
+-- ==========================================================
 -- OWNERSHIP
 -- ==========================================================
 
@@ -630,6 +778,8 @@ local function adoptOwned(wheel: Wheel?)
 	end
 	owned = wheel
 	announcedReady = false
+	-- The plates belong to the wheel they were painted on.
+	paintLabels()
 
 	local gui = buildBillboard()
 	if not wheel then
@@ -778,12 +928,33 @@ function SpinWheelController.start()
 		Audio.play("UiDenied")
 	end)
 
-	Remotes.get("SpinResult").OnClientEvent:Connect(function(index)
+	Remotes.get("SpinResult").OnClientEvent:Connect(function(index, info)
 		local wheel = owned
 		if not wheel or type(index) ~= "number" then
 			return
 		end
-		runSpin(wheel, index)
+		local won = if type(info) == "table" and type(info.won) == "string" then info.won else nil
+		runSpin(wheel, index, won)
+	end)
+
+	-- The live wedge figures. Painted only when they change.
+	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+		local spin = if type(state) == "table" then state.spinWheel else nil
+		local labels = if type(spin) == "table" then spin.labels else nil
+		if type(labels) ~= "table" then
+			return
+		end
+		local changed = false
+		for index = 1, SpinWheelConfig.SEGMENT_COUNT do
+			local text = labels[index]
+			if type(text) == "string" and liveLabels[index] ~= text then
+				liveLabels[index] = text
+				changed = true
+			end
+		end
+		if changed then
+			paintLabels()
+		end
 	end)
 
 	-- ONE frame loop for the countdown, the rainbow and the prompt gate. At

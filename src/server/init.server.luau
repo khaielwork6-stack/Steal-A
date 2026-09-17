@@ -232,6 +232,11 @@ end
 MonetizationService.setGuardianSaleProvider(GuardianShopService.onSaleKeys)
 MonetizationService.setStealHandler(HeistService.fulfil)
 MonetizationService.setRevealHandler(HatchService.fulfil)
+-- [monetization pass] Instant Reveal is a paid random item: withheld from
+-- players whose PolicyService answer restricts those (unknown = restricted).
+HatchService.canOfferInstantReveal = function(player)
+	return not MonetizationService.paidRandomRestricted(player)
+end
 HatchService.onLockLifted = PlacementService.refreshPrompts
 -- Both services only ever use a CANCELLED dialog to release what they were
 -- holding; a completed one is ignored by both, because ProcessReceipt is the
