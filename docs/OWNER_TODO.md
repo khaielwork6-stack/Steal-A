@@ -18,7 +18,30 @@ missing id/asset falls back to a placeholder or hides the feature.
       game is balanced for **7** players (plots, wheels, guards); Studio shows
       60.
 
-## 2. Creator Dashboard: create these, paste the ids
+## 2. Creator Dashboard
+
+**Done on 2026-09-17 (ids are already in the config):**
+
+- Game passes: Season Pass Premium 1982246812 (199 R$), Auto Reveal
+  1985618401 (199 R$), Neon Night Theme 1986506321 and Royal Gold Theme
+  1985804347 (149 R$ each).
+- The nine gift developer products (3713252836 to 3713252877), same prices as
+  the packs they gift.
+- Five free badges: Sticky Fingers, What's Inside?, Myth Maker, Career Thief,
+  Regular. Their art is a placeholder (`assets/badges/`); swap the images on
+  the dashboard when Codex delivers. The other 18 badges stay off (100 R$ each
+  beyond the 5 free per day).
+
+**Still yours (Roblox has no API for these):**
+
+- Engagement > Notifications: create the two notification strings and send me
+  (or paste) their ids for `SocialConfig.NOTIFICATION_TEMPLATES`.
+- Open Cloud > API Keys: a key with User Notification write access, saved as
+  the secret `OPEN_CLOUD_NOTIFICATIONS` (Game Settings > Security), and turn on
+  Allow HTTP Requests.
+
+Original list, for reference:
+
 
 | What | Type | Price (suggested) | Paste into |
 |---|---|---|---|
@@ -45,7 +68,7 @@ filled in.
 
 ## 4. Decisions to review (current defaults in brackets)
 
-- Offline earnings pay **50%** of live income (was 100%). `GameConfig.OFFLINE_EFFICIENCY`
+- Offline earnings pay **25%** of live income, capped at 6 hours (owner, 2026-09-17). `GameConfig.OFFLINE_EFFICIENCY`
 - Free spin every **5 min** of *active* play; AFK pauses the clock after 120 s;
   jackpot/Tiger/Panda weights lowered (8 / 15 / 50 of 10,000); prizes scale
   with your zone. `SpinWheelConfig`
