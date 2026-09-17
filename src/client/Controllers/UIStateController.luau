@@ -42,6 +42,10 @@ local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
 local HUD_SCREENS = { "HotbarUI" }
+--- Claims a screen stays up for (round3-gameplay): a carrier keeps the
+--- hotbar so the gadgets on 3-5 stay usable (HotbarController shows only the
+--- gadget slots during a carry). Any OTHER claim still hides it.
+local SCREEN_KEEP: { [string]: { [string]: true } } = { HotbarUI = { carry = true } }
 
 --- Claims tied to the character's life, released on respawn. Everything else
 --- (panel claims) is released by its panel.
@@ -103,6 +107,38 @@ local function anyClaim(): boolean
 	return false
 end
 
+--- Whether some held claim hides this screen (one not in its keep list).
+local function screenSuppressed(screen: ScreenGui): boolean
+	local keep = SCREEN_KEEP[screen.Name]
+	for reason, held in claims do
+		if held and not (keep and keep[reason]) then
+			return true
+		end
+	end
+	return false
+end
+
+--- Screens are settled on EVERY claim change, not only on the first claim
+--- and the last release: a screen kept up for one claim must still go when
+--- another claim joins, and come back when that one leaves.
+local function refreshScreens()
+	for _, screen in screens() do
+		local hide = screenSuppressed(screen)
+		if hide then
+			if remembered[screen] == nil then
+				remembered[screen] = screen.Enabled
+			end
+			screen.Enabled = false
+		elseif remembered[screen] ~= nil then
+			local was = remembered[screen]
+			remembered[screen] = nil
+			if was == true then
+				screen.Enabled = true
+			end
+		end
+	end
+end
+
 local function applyHidden()
 	for _, element in elements() do
 		if remembered[element] == nil then
@@ -122,12 +158,7 @@ local function applyHidden()
 			end)
 		end
 	end
-	for _, screen in screens() do
-		if remembered[screen] == nil then
-			remembered[screen] = screen.Enabled
-		end
-		screen.Enabled = false
-	end
+	refreshScreens()
 end
 
 local function applyRestored()
@@ -143,13 +174,7 @@ local function applyRestored()
 			UIAnim.popIn(element, 0.85)
 		end
 	end
-	for _, screen in screens() do
-		local was = remembered[screen]
-		remembered[screen] = nil
-		if was == true then
-			screen.Enabled = true
-		end
-	end
+	refreshScreens()
 end
 
 --- Hides the normal HUD for as long as `reason` is held.
@@ -161,6 +186,8 @@ function UIStateController.claim(reason: string)
 	claims[reason] = true
 	if not wasSuppressed then
 		applyHidden()
+	else
+		refreshScreens()
 	end
 end
 
@@ -172,6 +199,8 @@ function UIStateController.release(reason: string)
 	claims[reason] = nil
 	if not anyClaim() then
 		applyRestored()
+	else
+		refreshScreens()
 	end
 end
 
@@ -201,6 +230,8 @@ function UIStateController.start()
 		end
 		if dropped and not anyClaim() then
 			applyRestored()
+		elseif dropped then
+			refreshScreens()
 		end
 	end)
 end

@@ -262,6 +262,12 @@ startLater("CrewController", function()
 	require(script.Controllers.CrewController).start()
 end)
 
+-- [round3-gameplay] The lobby GADGETS stand: its "Shop" prompt opens the
+-- gadget panel, and its three displays turn (still under Reduced Effects).
+startLater("GadgetStoreController", function()
+	require(script.Controllers.GadgetStoreController).start()
+end)
+
 print("[Client] controllers started")
 -- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.
 game:GetService("Players").LocalPlayer:SetAttribute("ClientReady", true)

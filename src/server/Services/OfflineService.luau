@@ -85,11 +85,19 @@ function OfflineService.settle(player: Player)
 	if left > 0 and rate > 0 then
 		local offlineSeconds = math.clamp(now - left, 0, GameConfig.OFFLINE_EARNINGS_MAX_SECONDS)
 		-- OFFLINE_EFFICIENCY is the share of the live rate paid per offline
-		-- second (GameConfig): 0.5, the owner's choice of 2026-09-17.
+		-- second (GameConfig): 0.25, the owner's choice of 2026-09-17.
 		local offlineCash = math.floor(rate * offlineSeconds * GameConfig.OFFLINE_EFFICIENCY)
 		if offlineCash > 0 then
-			profile.PendingOfflineCash += offlineCash
-			print(`[OfflineService] {player.Name} away {offlineSeconds}s at ${rate}/s -> +${offlineCash} pending`)
+			-- The six-hour cap covers the WAITING total too, not just this
+			-- absence: a player who leaves again before claiming would
+			-- otherwise stack one capped window per rejoin. The pending sum
+			-- never exceeds one full window at the current rate, and an
+			-- amount already held (perhaps earned at a higher rate) is
+			-- never reduced.
+			local window = math.floor(rate * GameConfig.OFFLINE_EARNINGS_MAX_SECONDS * GameConfig.OFFLINE_EFFICIENCY)
+			local held = profile.PendingOfflineCash
+			profile.PendingOfflineCash = math.max(held, math.min(held + offlineCash, window))
+			print(`[OfflineService] {player.Name} away {offlineSeconds}s at ${rate}/s -> +${profile.PendingOfflineCash - held} pending`)
 		end
 	end
 

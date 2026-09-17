@@ -126,6 +126,15 @@ type Guardian = {
 	pauseUntil: number,
 	--- os.clock at which a Searching guard gives up and takes its next job.
 	searchUntil: number,
+	--- Who a Smoke Bomb took from this guard, and what that chase was, so the
+	--- chase resumes the moment the smoke expires (round3-gameplay; see
+	--- GuardianService.confuse). Nil unless Searching after a smoke.
+	smokeTarget: Player?,
+	smokeLootId: string?,
+	smokeAlarm: boolean?,
+	--- Seconds of the laser leash already used when the smoke hit, so a
+	--- resumed laser chase neither loses nor gains leash time to the smoke.
+	smokeAlarmElapsed: number?,
 	--- A Vault Guardian's tuning (vaults-crews; room Layout.VAULT_ROOM). Nil
 	--- for the room guards. Same state machine, scaled numbers.
 	profile: VaultConfig.GuardProfile?,
@@ -141,11 +150,19 @@ local nextDoorwayCheck = 0
 local exitedLoot: { [string]: boolean } = {}
 
 -- SMOKE (gadgets-patrols area; GuardianService.confuse). A smoked player can
--- not be taken as a target by any museum guard until `confusedUntil`, and
--- loot a smoked carrier held outside its room is "shaken": no longer in
--- `exitedLoot`, and the doorway check ignores it until that carrier walks
--- back into the loot's room. So after the smoke only the doorway rule (a new
--- exit) or the laser rule can start a chase on them again.
+-- not be taken as a target by any museum guard until `confusedUntil`.
+--
+-- OWNER RULE (round3-gameplay, 2026-09-17): a guard the smoke took a target
+-- from REMEMBERS who it was chasing (Guardian.smokeTarget) and, the moment
+-- the smoke expires, resumes that chase at once - no wake beat, no new
+-- doorway or laser trigger - unless the player is behind the safe line by
+-- then (the same `isBehindSafeLine` test stepChase's escape uses). See
+-- stepSearch / resumeAfterSmoke.
+--
+-- Loot a smoked carrier held outside its room with NO guard on them is still
+-- "shaken": no longer in `exitedLoot`, and the doorway check ignores it until
+-- that carrier walks back into the loot's room. So slipping out of a room
+-- under smoke is still a clean exit; a resumed chase un-shakes its loot.
 local confusedUntil: { [Player]: number } = {}
 local shakenLoot: { [string]: Player } = {}
 
@@ -1197,8 +1214,17 @@ local function standUp(guardian: Guardian)
 	Audio.stopLoop("Snoring", root)
 end
 
+--- Forgets a remembered smoke chase (round3-gameplay).
+local function clearSmokeMemory(guardian: Guardian)
+	guardian.smokeTarget = nil
+	guardian.smokeLootId = nil
+	guardian.smokeAlarm = nil
+	guardian.smokeAlarmElapsed = nil
+end
+
 local function releaseTarget(guardian: Guardian)
 	local previous = guardian.target
+	clearSmokeMemory(guardian)
 	guardian.target = nil
 	guardian.lootId = nil
 	guardian.alarm = nil
@@ -1325,9 +1351,16 @@ local function enterRest(guardian: Guardian, snap: boolean)
 	end
 end
 
---- Lost the target in the smoke: stand and look around for `seconds`.
+--- Lost the target in the smoke: stand and look around for `seconds`, then
+--- resume the chase that was lost (stepSearch). The chase is captured BEFORE
+--- releaseTarget clears it.
 local function enterSearch(guardian: Guardian, seconds: number)
+	local target, lootId, alarm, alarmStartedAt = guardian.target, guardian.lootId, guardian.alarm, guardian.alarmStartedAt
 	releaseTarget(guardian)
+	guardian.smokeTarget = target
+	guardian.smokeLootId = lootId
+	guardian.smokeAlarm = alarm
+	guardian.smokeAlarmElapsed = if alarmStartedAt then os.clock() - alarmStartedAt else nil
 	guardian.state = "Searching"
 	guardian.searchUntil = os.clock() + seconds
 	resetSteering(guardian)
@@ -1386,10 +1419,12 @@ end
 --- THE SMOKE BOMB. Every museum guard currently chasing `player` (Waking or
 --- Chasing) loses them and stands Searching for `searchSeconds` (default
 --- `seconds`); for `seconds` nobody can take the player as a target (no
---- doorway alert, no laser wake, no vision, no scan). Loot they carry outside
---- its room is shaken (see SMOKE at the top). Returns how many guards lost
---- the player. The doorway grace, the laser leash and everything else in the
---- chase are untouched: this only ends chases through releaseTarget.
+--- doorway alert, no laser wake, no vision, no scan). When the search ends
+--- each of those guards resumes the chase at once unless the player is
+--- behind the safe line (stepSearch). Loot they carry outside its room is
+--- shaken (see SMOKE at the top) until a resumed chase takes it back. Returns
+--- how many guards lost the player. The doorway grace, the laser leash and
+--- the rest of the chase are untouched.
 function GuardianService.confuse(player: Player, seconds: number, searchSeconds: number?): number
 	if type(seconds) ~= "number" or seconds ~= seconds or seconds <= 0 then
 		return 0
@@ -1419,6 +1454,8 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 		return
 	end
 	local previous = guardian.target
+	-- Any new chase supersedes a remembered smoke chase.
+	clearSmokeMemory(guardian)
 	guardian.target = carrier.player
 	guardian.lootId = if carrier.loot then carrier.loot.id else nil
 	guardian.alarm = carrier.alarm == true
@@ -2077,11 +2114,71 @@ local function stepPatrol(guardian: Guardian, humanoid: Humanoid, root: BasePart
 	end
 end
 
---- Searching: stand, look left and right, then the next job (usually home).
+--- The smoke has cleared (round3-gameplay, owner rule): the guard takes back
+--- the player it lost, straight into Chasing - no wake beat, no new doorway
+--- or laser trigger - unless that player is behind the safe line by now (the
+--- escape test stepChase uses, and the escape is credited the same way).
+--- Returns false when there is nothing to resume; the caller takes nextJob.
+local function resumeAfterSmoke(guardian: Guardian): boolean
+	local player = guardian.smokeTarget
+	local lootId, alarm, alarmElapsed = guardian.smokeLootId, guardian.smokeAlarm == true, guardian.smokeAlarmElapsed
+	clearSmokeMemory(guardian)
+	local root = guardian.root
+	if not player or not player.Parent or not root or LootService.isClosed() then
+		return false
+	end
+	local character = player.Character
+	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
+	local targetHumanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not targetRoot or not targetRoot:IsA("BasePart") or not targetHumanoid or targetHumanoid.Health <= 0 then
+		return false
+	end
+	local loot = if lootId then LootService.get(lootId) else nil
+	local holding = loot ~= nil and loot.state == "Carried" and loot.carrier == player
+	if isBehindSafeLine(targetRoot.Position) then
+		-- Escaped under the smoke: the same credit as an escape mid-chase.
+		if holding and loot then
+			onEscape(loot, player)
+			ProgressEvents.fire(player, "chaseEscape", 1, { lootId = loot.id, zone = loot.zoneIndex })
+		end
+		return false
+	end
+	-- A loot chase needs the loot still in the thief's hands (dropped,
+	-- delivered or caught by someone else ends it, exactly as stepChase would).
+	if not alarm and not holding then
+		return false
+	end
+	local chased = if holding then loot else nil
+	if chased and (not alarm or shakenLoot[chased.id] == player) then
+		-- The loot had left its room before the smoke: it is chaseable again.
+		exitedLoot[chased.id] = true
+		shakenLoot[chased.id] = nil
+	end
+	beginChase(guardian, {
+		player = player,
+		root = targetRoot,
+		loot = chased,
+		alarm = alarm,
+		distance = flatDistance(root.Position, targetRoot.Position),
+	}, false)
+	if alarm and alarmElapsed then
+		guardian.alarmStartedAt = os.clock() - alarmElapsed
+	end
+	return true
+end
+
+--- Searching: stand and look left and right. When the smoke clears, resume
+--- the lost chase (resumeAfterSmoke), else the next job (usually home).
 local SEARCH_TURN_RATE = 1.8
 local function stepSearch(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
-	if now >= guardian.searchUntil then
-		nextJob(guardian)
+	local lost = guardian.smokeTarget
+	-- A second smoke on the same player keeps the guard searching until the
+	-- LATER one clears.
+	local stillSmoked = lost ~= nil and GuardianService.isConfused(lost)
+	if now >= guardian.searchUntil and not stillSmoked then
+		if not resumeAfterSmoke(guardian) then
+			nextJob(guardian)
+		end
 		return
 	end
 	humanoid:Move(Vector3.zero, false)
@@ -2583,6 +2680,9 @@ function GuardianService.inspect(zoneIndex: number, roomIndex: number?): { [stri
 		rooted = guardian.humanoid and guardian.humanoid:GetAttribute("Rooted") == true,
 		patrolActive = patrolActive(guardian),
 		searching = guardian.state == "Searching",
+		smokeTarget = if guardian.smokeTarget then guardian.smokeTarget.Name else nil,
+		alarm = guardian.alarm == true,
+		wakeAt = guardian.wakeAt,
 	}
 end
 

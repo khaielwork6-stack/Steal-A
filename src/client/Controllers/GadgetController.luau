@@ -31,13 +31,19 @@ local player = Players.LocalPlayer
 
 --- A local debounce only for feel; the server's cooldowns are the real ones.
 local LOCAL_DEBOUNCE = 0.3
---- How far along the pointer ray to look for a surface. The server enforces
---- the real range from the player, not from the camera.
-local AIM_DISTANCE = 300
+--- How far PAST the character the pointer ray looks for a surface: the hook's
+--- range plus the tolerance (round3-gameplay: 80 studs). The ray starts at the
+--- camera, so the camera's distance from the character is added on top; the
+--- server enforces the real range from the player's verified position.
+local AIM_REACH = GadgetConfig.GRAPPLE_RANGE + GadgetConfig.GRAPPLE_TARGET_TOLERANCE
 
 local aimParams: RaycastParams? = nil
+local lastPress: { [string]: number } = {}
 
-local function aimPoint(): Vector3?
+--- `atCenter`: aim through the middle of the screen instead of the pointer.
+--- Used when a hotbar SLOT was tapped or clicked - the pointer is then on the
+--- slot itself, which is not where the player means to go.
+local function aimPoint(atCenter: boolean?): Vector3?
 	local camera = workspace.CurrentCamera
 	local map = workspace:FindFirstChild("Map")
 	if not camera or not map then
@@ -52,10 +58,51 @@ local function aimPoint(): Vector3?
 		aimParams = built
 		params = built
 	end
-	local mouse = player:GetMouse()
-	local ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
-	local hit = workspace:Raycast(ray.Origin, ray.Direction * AIM_DISTANCE, params)
+	local ray
+	if atCenter then
+		local size = camera.ViewportSize
+		ray = camera:ViewportPointToRay(size.X / 2, size.Y / 2)
+	else
+		local mouse = player:GetMouse()
+		ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local cameraGap = if root and root:IsA("BasePart") then (ray.Origin - root.Position).Magnitude else 0
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * (cameraGap + AIM_REACH), params)
 	return if hit then hit.Position else nil
+end
+
+--- Sends one use of `key` (debounced for feel). Shared by a held Tool's
+--- Activated and the hotbar's quick use.
+local function fire(key: string, atCenter: boolean?)
+	local now = os.clock()
+	if now - (lastPress[key] or 0) < LOCAL_DEBOUNCE then
+		return
+	end
+	lastPress[key] = now
+	if key == "Grapple" then
+		local point = aimPoint(atCenter)
+		if not point then
+			return -- aimed at the sky or out of reach: nothing to send
+		end
+		Remotes.get("GadgetRequest"):FireServer("use", key, point)
+	else
+		Remotes.get("GadgetRequest"):FireServer("use", key)
+	end
+end
+
+--- QUICK USE (round3-gameplay). While carrying loot the hotbar keys 3-5 use
+--- a gadget WITHOUT equipping its Tool, so the carry and whatever is in the
+--- hand are never disturbed. The server accepts a use without the Tool in
+--- hand only from a player it knows is carrying (GadgetService.use).
+--- `fromSlot`: the slot was tapped/clicked, so the hook aims at the screen
+--- centre rather than at the pointer (which is on the slot).
+function GadgetController.quickUse(key: string, fromSlot: boolean?)
+	if not GadgetConfig.Gadgets[key] then
+		return
+	end
+	fire(key, fromSlot)
 end
 
 local function hookTool(tool: Tool)
@@ -66,22 +113,8 @@ local function hookTool(tool: Tool)
 	end
 	-- Tools move between Backpack and Character on every equip: hook ONCE.
 	tool:SetAttribute("_GadgetHooked", true)
-	local lastPress = 0
 	tool.Activated:Connect(function()
-		local now = os.clock()
-		if now - lastPress < LOCAL_DEBOUNCE then
-			return
-		end
-		lastPress = now
-		if def.key == "Grapple" then
-			local point = aimPoint()
-			if not point then
-				return -- aimed at the sky: nothing to send
-			end
-			Remotes.get("GadgetRequest"):FireServer("use", def.key, point)
-		else
-			Remotes.get("GadgetRequest"):FireServer("use", def.key)
-		end
+		fire(def.key, false)
 	end)
 end
 

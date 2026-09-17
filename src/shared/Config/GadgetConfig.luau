@@ -13,9 +13,8 @@
 	            (LaserService.jam - a server-owned, time-limited state).
 	    Grapple pulls the player to a surface point within GRAPPLE_RANGE; the
 	            anti-cheat budget is widened for the pull
-	            (MovementService.allowBurst). NOT usable while carrying loot
-	            (GRAPPLE_WHILE_CARRYING): it would be a guaranteed escape tool
-	            that skips the chase the whole game is built around.
+	            (MovementService.allowBurst). Usable while carrying loot since
+	            round3-gameplay (owner, 2026-09-17; GRAPPLE_WHILE_CARRYING).
 
 	PRICE = basePrice x ZONE_PRICE_MULTIPLIER[the player's HighestZoneReached],
 	so a gadget costs a similar number of seconds of income at every stage of
@@ -60,7 +59,8 @@ GadgetConfig.Gadgets = {
 		key = "Smoke",
 		toolName = "SmokeBomb",
 		label = "Smoke Bomb",
-		description = "Guards chasing you lose your trail.",
+		-- round3-gameplay: the chase resumes when the smoke clears.
+		description = "Guards lose you briefly. Reach the red line before it clears!",
 		basePrice = 250,
 		maxCarried = 3,
 		cooldown = 10,
@@ -90,7 +90,8 @@ GadgetConfig.Gadgets = {
 		key = "Grapple",
 		toolName = "GrapplingHook",
 		label = "Grappling Hook",
-		description = "Zip to a surface up to 40 studs away. Not while carrying.",
+		-- The number must match GRAPPLE_RANGE (validate checks it).
+		description = "Zip to a surface up to 80 studs away.",
 		basePrice = 300,
 		maxCarried = 3,
 		cooldown = 6,
@@ -134,10 +135,15 @@ end
 
 --- Smoke: how long a guard chasing the user loses them (and stands
 --- "Searching"), and how long the cloud is on screen.
+--- When the confusion ends, every guard it took a target from resumes that
+--- chase at once unless the player is behind the safe line (round3-gameplay).
 GadgetConfig.SMOKE_CONFUSE_SECONDS = 2.5
 GadgetConfig.SMOKE_CLOUD_SECONDS = 3.5
---- Visual radius of the cloud, studs.
-GadgetConfig.SMOKE_RADIUS = 9
+--- Visual radius of the cloud, studs. 27 since round3-gameplay (3x the first
+--- pass's 9): a cloud that genuinely hides a player and a guard.
+GadgetConfig.SMOKE_RADIUS = 27
+--- The cloud's thinning-out after SMOKE_CLOUD_SECONDS (visual only).
+GadgetConfig.SMOKE_FADE_SECONDS = 1.5
 --- Particle textures. The engine's own smoke/sparkle sheets until Codex
 --- uploads dedicated ones (docs/codex-prompts/gadgets-patrols.md).
 GadgetConfig.SMOKE_TEXTURE = "rbxasset://textures/particles/smoke_main.dds"
@@ -148,7 +154,7 @@ GadgetConfig.JAM_SECONDS = 4
 
 --- Grapple: the farthest surface point, the pull time, and how far the
 --- server's own raycast hit may be from the point the client asked for.
-GadgetConfig.GRAPPLE_RANGE = 40
+GadgetConfig.GRAPPLE_RANGE = 80 -- owner, 2026-09-17 (was 40)
 GadgetConfig.GRAPPLE_PULL_SECONDS = 0.6
 GadgetConfig.GRAPPLE_TARGET_TOLERANCE = 4
 --- Where the pull stops, short of the surface, so the player lands against it
@@ -157,8 +163,23 @@ GadgetConfig.GRAPPLE_STANDOFF = 2.5
 --- Extra studs/s the anti-cheat budget allows on top of the pull speed
 --- (network batching of the fast frames).
 GadgetConfig.GRAPPLE_BURST_SLACK = 20
---- Decision (see header): the grapple is refused while carrying loot.
-GadgetConfig.GRAPPLE_WHILE_CARRYING = false
+--- Owner, 2026-09-17: the grapple works while carrying loot (it was refused
+--- in the first pass). The burst budget and the server raycast still apply,
+--- and the pull's distance is credited to the delivery timer.
+GadgetConfig.GRAPPLE_WHILE_CARRYING = true
+
+-- ==========================================================
+-- LOBBY STORE (round3-gameplay)
+-- ==========================================================
+
+--- The physical gadget stand in the lobby (GadgetStoreService). The position
+--- is the LobbyLayout free spot unless the place has a part named
+--- STORE_MARKER under workspace.LobbyMarkers (like the leaderboards).
+GadgetConfig.STORE_MARKER = "GadgetStore"
+--- Hold time of the "Shop" prompt.
+GadgetConfig.STORE_PROMPT_HOLD = 0.3
+--- Degrees per second the display models turn (0 under Reduced Effects).
+GadgetConfig.STORE_SPIN_SPEED = 40
 
 -- ==========================================================
 -- LIMITS

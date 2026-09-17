@@ -7,7 +7,15 @@
 	    Laser Jammer   LaserService.jam: the detector ignores the user.
 	    Grappling Hook a server-applied pull to a surface the SERVER found
 	                   with its own raycast, paid for in the anti-cheat budget
-	                   by MovementService.allowBurst. Refused while carrying.
+	                   by MovementService.allowBurst. Allowed while carrying
+	                   since round3-gameplay (owner, 2026-09-17).
+
+	WHILE CARRYING (round3-gameplay). The loot is welded to the root outside
+	the character (CarryService.attach), so nothing here touches it; but the
+	client does NOT equip a gadget Tool while carrying - the hotbar keys send
+	a direct "use" instead, and the held-tool requirement is waived for a
+	player the server knows is carrying. Everything else is validated exactly
+	as for a held tool.
 
 	SERVER-AUTHORITATIVE, LIKE THE BAT. The client sends a gadget KEY (and, for
 	the hook, an aim point it may lie about). Everything else is decided here:
@@ -250,6 +258,40 @@ local function buildTool(def: GadgetConfig.GadgetDef): Tool
 	return tool
 end
 
+--- The same model as `key`'s Tool, as a loose anchored display Model (the
+--- lobby stand, GadgetStoreService). Welds are dropped; every part keeps its
+--- offset from the handle. Nil for an unknown key.
+function GadgetService.buildDisplay(key: string): Model?
+	local def = GadgetConfig.Gadgets[key]
+	if not def then
+		return nil
+	end
+	local tool = buildTool(def)
+	local display = Instance.new("Model")
+	display.Name = def.toolName
+	local handle = tool:FindFirstChild("Handle")
+	for _, descendant in tool:GetDescendants() do
+		if descendant:IsA("JointInstance") or descendant:IsA("WeldConstraint") then
+			descendant:Destroy()
+		end
+	end
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") then
+			child.Anchored = true
+			child.CanCollide = false
+			child.CanQuery = false
+			child.CanTouch = false
+			child.Massless = false
+			child.Parent = display
+		end
+	end
+	if handle and handle:IsA("BasePart") then
+		display.PrimaryPart = handle
+	end
+	tool:Destroy()
+	return display
+end
+
 --- Brings the Backpack in line with the profile: a Tool per gadget the
 --- player holds at least one of, labelled with the count; none otherwise.
 local function syncTools(player: Player)
@@ -309,7 +351,9 @@ local function spawnSmoke(at: Vector3)
 	marker:SetAttribute("Radius", GadgetConfig.SMOKE_RADIUS)
 	marker:SetAttribute("EndsAt", workspace:GetServerTimeNow() + GadgetConfig.SMOKE_CLOUD_SECONDS)
 	marker.Parent = folder()
-	Debris:AddItem(marker, GadgetConfig.SMOKE_CLOUD_SECONDS + 1)
+	-- Kept a little past EndsAt so a client that streams it in late still
+	-- reads the attributes; the clients clean up their own cloud and fade.
+	Debris:AddItem(marker, GadgetConfig.SMOKE_CLOUD_SECONDS + GadgetConfig.SMOKE_FADE_SECONDS + 1)
 end
 
 --- Ends a pull early (arrival timer, death, a steal mid-pull, leaving).
@@ -377,6 +421,9 @@ local function startPull(player: Player, root: BasePart, stop: Vector3, anchorAt
 	-- Paid for in the anti-cheat budget for the pull, plus the tail of late
 	-- packets; anything beyond it is still a strike.
 	MovementService.allowBurst(player, speed + GadgetConfig.GRAPPLE_BURST_SLACK, seconds + 0.6)
+	-- And in the delivery timer: a carrier may now grapple, and the pull's
+	-- distance is ground no run on foot could have covered in that time.
+	MovementService.creditDistance(player, distance)
 
 	-- Everything the pull made lives under one holder, so one Destroy ends it.
 	local holder = Instance.new("Folder")
@@ -432,15 +479,26 @@ local function startPull(player: Player, root: BasePart, stop: Vector3, anchorAt
 	end)
 
 	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local started = os.clock()
+	-- The carry the pull began with (nil or the loot already on the back). A
+	-- carrier may grapple; what still ends the pull is picking something UP
+	-- mid-flight. A drop mid-flight (or a catch, which also ragdolls) is the
+	-- carry ending, and CarryService handles it off the root's position as
+	-- usual - the weld lives on the loot, not on anything made here.
+	local carriedAtStart = CarryService.getCarried(player)
 	local watch: RBXScriptConnection? = nil
 	watch = RunService.Heartbeat:Connect(function()
+		local carried = CarryService.getCarried(player)
 		local done = os.clock() - started >= seconds
 			or pulling[player] ~= holder
 			or not holder.Parent
 			or player.Character ~= character
 			or not root.Parent
-			or CarryService.getCarried(player) ~= nil
+			or (carried ~= nil and carried ~= carriedAtStart)
+			-- A catch launches the ragdoll (RagdollService sets PlatformStand);
+			-- the rope must not fight the throw.
+			or (humanoid ~= nil and (humanoid.PlatformStand or humanoid.Health <= 0))
 			or (root.Position - stop).Magnitude < 1.5
 		if done then
 			if watch then
@@ -485,7 +543,10 @@ end
 -- USE AND BUY
 -- ==========================================================
 
---- One use. `requireHeld`: the Tool must be in the hand (the remote path).
+--- One use. `requireHeld`: the Tool must be in the hand (the remote path) -
+--- except for a player the SERVER says is carrying loot, whose hotbar keys
+--- use a gadget without equipping it (round3-gameplay). The Tool must still
+--- exist (in the Backpack or the hand), i.e. the count is above zero.
 function GadgetService.use(player: Player, key: string, target: Vector3?, requireHeld: boolean?): (boolean, string?)
 	local def = GadgetConfig.Gadgets[key]
 	if not def then
@@ -506,7 +567,12 @@ function GadgetService.use(player: Player, key: string, target: Vector3?, requir
 		return false, "You can't use that right now."
 	end
 	if requireHeld and not character:FindFirstChild(def.toolName) then
-		return false, `Hold the {def.label} to use it.`
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		local quickUse = CarryService.getCarried(player) ~= nil
+			and backpack ~= nil and backpack:FindFirstChild(def.toolName) ~= nil
+		if not quickUse then
+			return false, `Hold the {def.label} to use it.`
+		end
 	end
 	local now = os.clock()
 	local mine = lastUse[player]

@@ -22,8 +22,15 @@
 	(EquipTool / UnequipTools). The server still owns what the tools do;
 	CombatController still owns the swing and the trap placement - this is
 	only which tool is in the hand.
+
+	WHILE CARRYING (round3-gameplay). The carry HUD claim no longer hides this
+	bar (UIStateController.SCREEN_KEEP). During a carry only the gadget slots
+	(3-5) are shown, lifted above the DROP button, and pressing or tapping one
+	USES the gadget directly (GadgetController.quickUse) instead of equipping
+	its Tool, so nothing about the carry or the hand changes.
 ]]
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
@@ -56,11 +63,23 @@ local BOTTOM_INSET = 14
 --- one of them (Storage > WEAPONS picks which); anything else fills the
 --- remaining slots by name.
 local FIXED_SLOTS: { [string]: number } = { Bat = 1, Slap = 1, Trap = 2 }
+--- The slot indices that belong to gadgets (shown during a carry).
+local GADGET_SLOTS: { [number]: boolean } = {}
 -- Gadgets keep their own keys (GadgetConfig.hotbarSlot), so "3 is smoke"
 -- stays true whether or not the player holds the other two.
 for _, gadget in require(ReplicatedStorage.Shared.Config.GadgetConfig).Gadgets do
 	FIXED_SLOTS[gadget.toolName] = gadget.hotbarSlot
+	GADGET_SLOTS[gadget.hotbarSlot] = true
 end
+
+--- The server's word (StatePush `carrying`) that the player holds loot.
+local carrying = false
+local DEFAULT_POSITION = UDim2.new(0.5, 0, 1, -BOTTOM_INSET)
+--- During a carry the bar's bottom edge sits this far above the DROP button
+--- (measured once it has slid in), or at this screen fraction until then.
+local CARRY_GAP = 8
+local CARRY_FALLBACK_Y = 0.74
+local placeToken = 0
 local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
 	[Enum.KeyCode.Two] = 2,
@@ -268,11 +287,29 @@ local function labelOf(tool: Tool): string
 	return if type(label) == "string" then label else tool.Name
 end
 
-local function toggle(index: number)
+--- `fromSlot`: the press was a tap/click on the slot rather than a key.
+local function toggle(index: number, fromSlot: boolean?)
 	local tool = assignment[index]
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
 	if not tool or not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	-- Carrying: a gadget slot is a direct use, never an equip.
+	local gadget = tool:GetAttribute("Gadget")
+	if carrying and GADGET_SLOTS[index] and type(gadget) == "string" then
+		local slot = slots[index]
+		if slot then
+			local pulse = TweenService:Create(slot.scale, LIFT, { Scale = 0.92 })
+			pulse:Play()
+			pulse.Completed:Once(function()
+				slot.scale.Scale = if slot.lifted then 1.08 else 1
+			end)
+		end
+		require(script.Parent.GadgetController).quickUse(gadget, fromSlot)
+		return
+	end
+	if carrying and GADGET_SLOTS[index] then
 		return
 	end
 	if equippedTool() == tool then
@@ -291,6 +328,11 @@ local function render()
 	local held = equippedTool()
 	for index, slot in slots do
 		local tool = assignment[index]
+		-- A carry shows only the gadget slots (see the header).
+		local visible = not carrying or GADGET_SLOTS[index] == true
+		if slot.button.Visible ~= visible then
+			slot.button.Visible = visible
+		end
 		local changed = slot.tool ~= tool
 		slot.tool = tool
 		if changed then
@@ -350,11 +392,67 @@ local function applySize()
 		return
 	end
 	local pixels = slotPixels()
-	local count = math.max(#slots, 1)
+	local shown = 0
+	for index in slots do
+		if not carrying or GADGET_SLOTS[index] then
+			shown += 1
+		end
+	end
+	local count = math.max(shown, 1)
 	bar.Size = UDim2.fromOffset(count * pixels + (count - 1) * SLOT_GAP, pixels + 8)
 	for _, slot in slots do
 		slot.button.Size = UDim2.fromOffset(pixels, pixels)
 	end
+end
+
+--- The DROP button's top edge in this ScreenGui's space (IgnoreGuiInset),
+--- or nil while it is not on screen.
+local function dropButtonTop(): number?
+	local playerGui = player:FindFirstChild("PlayerGui")
+	local ui = playerGui and playerGui:FindFirstChild("MainUI")
+	local drop = ui and ui:FindFirstChild("DROP BUTTON NEW", true)
+	if not ui or not ui:IsA("ScreenGui") or not drop or not drop:IsA("GuiObject") or not drop.Visible then
+		return nil
+	end
+	local inset = if ui.IgnoreGuiInset then 0 else GuiService:GetGuiInset().Y
+	return drop.AbsolutePosition.Y + inset
+end
+
+--- Where the bar sits: the bottom centre normally; during a carry, just above
+--- the DROP button (which owns the bottom centre then), so the two never
+--- overlap on a short phone screen.
+local function place()
+	local bar = barFrame
+	if not bar then
+		return
+	end
+	placeToken += 1
+	if not carrying then
+		bar.Position = DEFAULT_POSITION
+		return
+	end
+	local token = placeToken
+	bar.Position = UDim2.fromScale(0.5, CARRY_FALLBACK_Y)
+	-- DropController slides the button in over ~0.3 s: measure once it rests.
+	task.delay(0.5, function()
+		if token ~= placeToken or not carrying then
+			return
+		end
+		local top = dropButtonTop()
+		if top and top > 80 then
+			bar.Position = UDim2.fromOffset(0, top - CARRY_GAP) + UDim2.fromScale(0.5, 0)
+		end
+	end)
+end
+
+local function setCarrying(now: boolean)
+	if now == carrying then
+		return
+	end
+	carrying = now
+	applySize()
+	place()
+	queueRender()
 end
 
 -- ==========================================================
@@ -436,7 +534,7 @@ local function build(): boolean
 		end
 
 		button.Activated:Connect(function()
-			toggle(index)
+			toggle(index, true)
 		end)
 	end
 
@@ -517,7 +615,31 @@ function HotbarController.start()
 	-- Slot size follows the device if it changes mid-session.
 	Device.onTouchChanged(function()
 		applySize()
+		place()
 	end)
+
+	-- The carry layout (round3-gameplay): gadget slots only, above DROP.
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
+		if type(state) == "table" then
+			setCarrying(state.carrying ~= nil)
+		end
+	end)
+	player.CharacterAdded:Connect(function()
+		-- A respawn ends any carry; StatePush confirms it shortly after.
+		setCarrying(false)
+	end)
+	local function watchViewport()
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				if carrying then
+					place()
+				end
+			end)
+		end
+	end
+	watchViewport()
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(watchViewport)
 
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then

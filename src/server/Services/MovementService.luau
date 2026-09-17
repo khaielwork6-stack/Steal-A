@@ -231,6 +231,41 @@ local function burstExtraSince(player: Player, since: number): number
 	return burst.extra
 end
 
+--- DISTANCE CREDIT (round3-gameplay). A carrier may now grapple, and the
+--- delivery timer (CarryService) assumes every stud was run on foot. The pull
+--- logs the exact distance the SERVER chose; `creditSince` sums what was
+--- logged after a given moment, so the timer can take it off the run.
+type Credit = { at: number, studs: number }
+local credits: { [Player]: { Credit } } = {}
+local CREDIT_KEEP = 600
+
+function MovementService.creditDistance(player: Player, studs: number)
+	if type(studs) ~= "number" or studs ~= studs or studs <= 0 then
+		return
+	end
+	local now = os.clock()
+	local list = credits[player] or {}
+	credits[player] = list
+	table.insert(list, { at = now, studs = math.min(studs, 500) })
+	while #list > 0 and (now - list[1].at > CREDIT_KEEP or #list > 32) do
+		table.remove(list, 1)
+	end
+end
+
+--- Studs credited since `since` (os.clock).
+function MovementService.creditSince(player: Player, since: number): number
+	local list = credits[player]
+	local total = 0
+	if list then
+		for _, entry in list do
+			if entry.at >= since then
+				total += entry.studs
+			end
+		end
+	end
+	return total
+end
+
 --- Studio only (ignored live, like LaserService.setExempt): the test runners
 --- move the character around with PivotTo and MoveTo and must not be judged.
 function MovementService.setExempt(player: Player, on: boolean)
@@ -554,6 +589,7 @@ function MovementService.start()
 		ownPivotUntil[player] = nil
 		violationsByPlayer[player] = nil
 		bursts[player] = nil
+		credits[player] = nil
 	end)
 
 	local accumulated = 0

@@ -545,6 +545,9 @@ LeaderboardService.start()
 GuardianShopService.start()
 SlapDisplayService.start()
 PortalService.start()
+-- [round3-gameplay] The lobby GADGETS stand. Last of the lobby props: with no
+-- LobbyMarkers.GadgetStore part it looks for a spot none of the above took.
+require(Services.GadgetStoreService).start()
 
 -- The Night cycle owns the world refresh, the guardian reset and the return to
 -- the lobby, so it starts once every one of those systems is up.

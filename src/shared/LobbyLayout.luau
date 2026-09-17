@@ -24,6 +24,14 @@
 	  LeaderboardMoney  the Money board (turned to face the Spawn marker)
 	  LeaderboardSpeed  the Speed board
 	  GuardianShop      the rotating Guardian pedestal (its front is +Z local)
+
+	OPTIONAL OVERRIDES (never stamped: without one the service finds its own
+	free spot, so these are only created by the owner, by hand):
+	  Leaderboard<Key>  a new leaderboard (BoardConfig; e.g. LeaderboardSteals)
+	  GadgetStore       the GADGETS stand (round3-gameplay, GadgetStoreService):
+	                    the stall's front - the counter and its "Shop" prompt -
+	                    faces the marker's LookVector; Y is ignored (the floor).
+	                    Any anchored part named GadgetStore under this folder.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

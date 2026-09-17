@@ -446,11 +446,12 @@ GameConfig.OFFLINE_EARNINGS_MAX_SECONDS = 6 * 60 * 60
 --- The share of the live $/s paid per offline second (1 = the full online
 --- rate). The reference game pays substantially less than its online rate
 --- while away; its exact coefficient was never traced, so this is a DESIGN
---- choice rather than a measured one: the owner chose 50% on 2026-09-17
---- (genre-typical, and it keeps playing clearly better than idling).
---- OFFLINE_STATUS is VERIFIED because the owner signed the number off, not
---- because it was matched against the reference.
-GameConfig.OFFLINE_EFFICIENCY = 0.5
+--- choice rather than a measured one. Owner, 2026-09-17: 25% of the live
+--- income (was 50% earlier the same day), paid for at most
+--- OFFLINE_EARNINGS_MAX_SECONDS (6h) of absence, so playing stays far better
+--- than idling. OFFLINE_STATUS is VERIFIED because the owner signed the
+--- number off, not because it was matched against the reference.
+GameConfig.OFFLINE_EFFICIENCY = 0.25
 GameConfig.OFFLINE_STATUS = "VERIFIED"
 --- Below this the reward is not worth a modal; it is still paid, silently.
 GameConfig.OFFLINE_EARNINGS_MIN_TO_SHOW = 1

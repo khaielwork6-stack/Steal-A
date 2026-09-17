@@ -140,22 +140,37 @@ local function build(): boolean
 	return true
 end
 
+--- What one gadget card shows for StatePush `gadgets` (shared with the lobby
+--- stand's panel, GadgetStoreController): the ShopKit options, how many the
+--- player holds, and a signature that changes only when the card must repaint.
+function GadgetShopController.cardFor(key: string, gadgets: any): (ShopKit.CardOptions, number, string)
+	local def = GadgetConfig.Gadgets[key]
+	local data = if type(gadgets) == "table" then gadgets else {}
+	local counts = if type(data.counts) == "table" then data.counts else {}
+	local prices = if type(data.prices) == "table" then data.prices else {}
+	local limits = if type(data.max) == "table" then data.max else {}
+	local have = tonumber(counts[key]) or 0
+	local limit = tonumber(limits[key]) or def.maxCarried
+	local price = tonumber(prices[key])
+	local full = have >= limit
+	local priceText = if full then "FULL" elseif price then NumberFormat.cash(price) else "..."
+	local description = `{def.description}  (have {have}/{limit})`
+	local options: ShopKit.CardOptions = {
+		title = def.label,
+		description = description,
+		price = priceText,
+		color = def.color,
+		accent = def.accent,
+	}
+	return options, have, priceText .. "|" .. description
+end
+
 local function paint(gadgets: any)
 	if type(gadgets) ~= "table" then
 		return
 	end
-	local counts = if type(gadgets.counts) == "table" then gadgets.counts else {}
-	local prices = if type(gadgets.prices) == "table" then gadgets.prices else {}
-	local limits = if type(gadgets.max) == "table" then gadgets.max else {}
 	for key, card in cards do
-		local def = GadgetConfig.Gadgets[key]
-		local have = tonumber(counts[key]) or 0
-		local limit = tonumber(limits[key]) or def.maxCarried
-		local price = tonumber(prices[key])
-		local full = have >= limit
-		local priceText = if full then "FULL" elseif price then NumberFormat.cash(price) else "..."
-		local description = `{def.description}  (have {have}/{limit})`
-		local signature = priceText .. "|" .. description
+		local options, have, signature = GadgetShopController.cardFor(key, gadgets)
 		if shown[key] == signature then
 			continue
 		end
@@ -164,13 +179,7 @@ local function paint(gadgets: any)
 		local grew = before ~= nil and have > before
 		shown[key] = signature
 		shownCount[key] = have
-		ShopKit.fillCard(card, {
-			title = def.label,
-			description = description,
-			price = priceText,
-			color = def.color,
-			accent = def.accent,
-		})
+		ShopKit.fillCard(card, options)
 		if grew then
 			ShopKit.shine(card)
 		end

@@ -2,9 +2,11 @@
 --[[
 	CarryUIController
 	While the player is carrying loot, the HUD gets out of the way: the only
-	custom button left is DROP. Everything else - menu, stats, hotbar, offers,
-	the Night timer, toasts, the interact prompt - comes back the moment the
-	carry ends, however it ends.
+	custom controls left are DROP and the gadget slots of the hotbar (keys
+	3-5, round3-gameplay: UIStateController keeps HotbarUI up for this claim
+	and HotbarController hides the other slots). Everything else - menu,
+	stats, offers, the Night timer, toasts, the interact prompt - comes back
+	the moment the carry ends, however it ends.
 
 	ONE SOURCE OF TRUTH. `carrying` on StatePush is the server's word (set by
 	CarryService the frame a steal lands, cleared on escape, catch, drop,

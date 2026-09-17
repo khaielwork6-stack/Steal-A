@@ -896,7 +896,10 @@ local function tooSoon(player: Player, origin: Pickup, home: Vector3, now: numbe
 		return false
 	end
 	local speed = MovementService.peakSpeedSince(player, origin.at, true) * SecurityConfig.DELIVERY_SPEED_TOLERANCE
-	local needed = flatDistance(origin.position, home) / math.max(speed, 1) - SecurityConfig.DELIVERY_SLACK_SECONDS
+	-- A grapple pull covered ground no run did (round3-gameplay: carriers may
+	-- grapple); the server logged its exact distance.
+	local onFoot = math.max(0, flatDistance(origin.position, home) - MovementService.creditSince(player, origin.at))
+	local needed = onFoot / math.max(speed, 1) - SecurityConfig.DELIVERY_SLACK_SECONDS
 	return now - origin.at < needed
 end
 

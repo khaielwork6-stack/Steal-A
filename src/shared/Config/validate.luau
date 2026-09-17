@@ -1175,7 +1175,12 @@ return function(): Report
 		check(#GadgetConfig.Order == 3, "three gadgets")
 		check(GadgetConfig.SMOKE_CONFUSE_SECONDS > 0 and GadgetConfig.SMOKE_CONFUSE_SECONDS <= 5, "smoke confuse time is in (0, 5]")
 		check(GadgetConfig.JAM_SECONDS > 0 and GadgetConfig.JAM_SECONDS <= 8, "laser jam time is in (0, 8]")
-		check(GadgetConfig.GRAPPLE_RANGE > 0 and GadgetConfig.GRAPPLE_RANGE <= 60, "grapple range is in (0, 60]")
+		-- round3-gameplay: the owner's range is 80; the shop text states it.
+		check(GadgetConfig.GRAPPLE_RANGE > 0 and GadgetConfig.GRAPPLE_RANGE <= 100, "grapple range is in (0, 100]")
+		check(string.find(GadgetConfig.Gadgets.Grapple.description, tostring(GadgetConfig.GRAPPLE_RANGE), 1, true) ~= nil, "the grapple description states GRAPPLE_RANGE")
+		check(GadgetConfig.SMOKE_RADIUS >= 9 and GadgetConfig.SMOKE_RADIUS <= 60 and GadgetConfig.SMOKE_FADE_SECONDS >= 0, "smoke cloud size and fade are sane")
+		check(GadgetConfig.SMOKE_CLOUD_SECONDS >= GadgetConfig.SMOKE_CONFUSE_SECONDS, "the smoke cloud lasts at least as long as the confusion")
+		check(type(GadgetConfig.STORE_MARKER) == "string" and GadgetConfig.STORE_PROMPT_HOLD >= 0 and GadgetConfig.STORE_SPIN_SPEED >= 0, "gadget store settings are sane")
 		check(GadgetConfig.GRAPPLE_PULL_SECONDS > 0 and GadgetConfig.GRAPPLE_PULL_SECONDS <= 1.5, "grapple pull is in (0, 1.5]")
 		check(GadgetConfig.GRAPPLE_STANDOFF >= 0 and GadgetConfig.GRAPPLE_STANDOFF < GadgetConfig.GRAPPLE_RANGE, "grapple standoff is inside the range")
 		check(GadgetConfig.GRAPPLE_TARGET_TOLERANCE > 0 and GadgetConfig.GRAPPLE_BURST_SLACK >= 0, "grapple tolerances are sane")
