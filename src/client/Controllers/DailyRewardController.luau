@@ -569,7 +569,9 @@ local function layoutTiles()
 	end
 	local oneW, oneH = fit(7.5, 6, 1)
 	local twoW, twoH = fit(4, 3, 2)
-	local oneRow = not Device.isPhone() and oneW * oneH >= 0.55 * twoW * twoH
+	-- One row only when its tiles are genuinely big: at the pack panel's size
+	-- one row made ~50 px tiles with clipped text (seen in Studio).
+	local oneRow = not Device.isPhone() and oneW >= 118 and oneW * oneH >= twoW * twoH
 
 	local rows: { LayoutRow }
 	local unitW: number, tileH: number
@@ -910,6 +912,21 @@ local function restyleTop(top: Instance)
 	local title = top:FindFirstChild("Title", true)
 	if title and title:IsA("TextLabel") then
 		title.Text = "DAILY REWARDS"
+	end
+	-- The cloned Index header carries the Index BOOK icon; a calendar of
+	-- streaks wants the flame instead.
+	for _, item in top:GetDescendants() do
+		if item:IsA("ImageLabel") and item.Visible and not (item.Name == "Close" or item:FindFirstAncestor("Close")) then
+			local box = item.AbsoluteSize
+			if box.X > 8 and math.abs(box.X - box.Y) <= math.max(box.X, box.Y) * 0.35 and item.Parent then
+				item.ImageTransparency = 1
+				local flame = RewardFx.flame(item, item.ZIndex + 1)
+				flame.Size = UDim2.fromScale(0.9, 0.9)
+				flame.AnchorPoint = Vector2.new(0.5, 0.5)
+				flame.Position = UDim2.fromScale(0.5, 0.5)
+				break
+			end
+		end
 	end
 end
 

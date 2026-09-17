@@ -119,9 +119,11 @@ end
 local function buildCard(ui: Instance)
 	local card = Instance.new("Frame")
 	card.Name = "CrewCard"
-	card.AnchorPoint = Vector2.new(1, 0.5)
-	card.Position = UDim2.new(1, -10, if Device.isTouch() then 0.3 else 0.4, 0)
-	card.Size = UDim2.fromOffset(230, 0)
+	-- Top right, under the QUESTS button: at mid-height it covered the offer
+	-- rail (guardian sale / Slap cards) - seen in Studio.
+	card.AnchorPoint = Vector2.new(1, 0)
+	card.Position = UDim2.new(1, -10, 0, if Device.isTouch() then 58 else 72)
+	card.Size = UDim2.fromOffset(if Device.isTouch() then 150 else 190, 0)
 	card.AutomaticSize = Enum.AutomaticSize.Y
 	card.BackgroundColor3 = PANEL
 	card.BackgroundTransparency = 0.25

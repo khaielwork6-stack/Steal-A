@@ -290,9 +290,11 @@ local function buildPills(ui: ScreenGui): (Pill?, Pill?)
 	local strip = Instance.new("Frame")
 	strip.Name = "SocialBoosts"
 	strip.BackgroundTransparency = 1
+	-- To the RIGHT of the stat card, bottom-aligned: above it the left rail
+	-- (now five buttons tall with Trade) ran into the pills (seen in Studio).
 	strip.AnchorPoint = Vector2.new(0, 1)
-	strip.Position = UDim2.fromOffset(0, -8)
-	strip.Size = UDim2.new(1, 0, 0, PILL_HEIGHT)
+	strip.Position = UDim2.new(1, 8, 1, 0)
+	strip.Size = UDim2.fromOffset(260, PILL_HEIGHT)
 	strip.ZIndex = 6
 	strip.Parent = anchor
 	local list = Instance.new("UIListLayout")

@@ -392,37 +392,49 @@ function RewardFx.glow(parent: Instance, name: string, color: Color3, z: number,
 	return disc
 end
 
---- A diagonal highlight strip clipped to `parent` (which should have a
---- UICorner-free rectangle or be small enough that the corners don't show).
+--- A diagonal highlight sweep over `parent`. NOT a rotated bar: Roblox does
+--- not clip rotated GuiObjects, so a tilted strip drew right out of its tile
+--- and panel (seen in Studio). Instead a full-size, unrotated overlay carries
+--- the diagonal in a rotated UIGradient, and the sweep slides the gradient.
 --- Sweep it with RewardFx.sweep.
 function RewardFx.sheen(parent: Instance, z: number): Frame
-	local clip = RewardFx.box(parent, "SheenClip", z)
-	clip.ClipsDescendants = true
 	local bar = Instance.new("Frame")
 	bar.Name = "Sheen"
 	bar.BackgroundColor3 = RewardFx.WHITE
+	bar.BackgroundTransparency = 0
 	bar.BorderSizePixel = 0
 	bar.ZIndex = z
-	bar.AnchorPoint = Vector2.new(0.5, 0.5)
-	bar.Position = UDim2.fromScale(-0.35, 0.5)
-	bar.Size = UDim2.fromScale(0.16, 2)
-	bar.Rotation = 20
+	bar.Size = UDim2.fromScale(1, 1)
+	bar.Active = false
+	local corner = (parent :: Instance):FindFirstChildOfClass("UICorner")
+	if corner then
+		corner:Clone().Parent = bar
+	end
 	local fade = Instance.new("UIGradient")
+	fade.Name = "SheenGradient"
+	fade.Rotation = 20
 	fade.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.44, 1),
 		NumberSequenceKeypoint.new(0.5, 0.45),
+		NumberSequenceKeypoint.new(0.56, 1),
 		NumberSequenceKeypoint.new(1, 1),
 	})
+	fade.Offset = Vector2.new(-1, 0)
 	fade.Parent = bar
-	bar.Parent = clip
+	bar.Parent = parent
 	return bar
 end
 
---- One pass of a sheen across its clip. Yields until it has crossed.
+--- One pass of a sheen across its parent. Yields until it has crossed.
 function RewardFx.sweep(bar: Frame, seconds: number?)
-	bar.Position = UDim2.fromScale(-0.35, 0.5)
-	local tween = TweenService:Create(bar, TweenInfo.new(seconds or 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-		Position = UDim2.fromScale(1.35, 0.5),
+	local fade = bar:FindFirstChild("SheenGradient") :: UIGradient?
+	if not fade then
+		return
+	end
+	fade.Offset = Vector2.new(-1, 0)
+	local tween = TweenService:Create(fade, TweenInfo.new(seconds or 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+		Offset = Vector2.new(1, 0),
 	})
 	tween:Play()
 	tween.Completed:Wait()
