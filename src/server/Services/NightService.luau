@@ -52,6 +52,7 @@ local EconomyService = require(script.Parent.EconomyService)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
+local MovementService = require(script.Parent.MovementService)
 
 local NightService = {}
 
@@ -160,6 +161,8 @@ local function returnEveryone()
 		local angle = (index - 1) / count * math.pi * 2
 		local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * NightConfig.LOBBY_RING_RADIUS
 		local at = centre + offset + Vector3.new(0, 4, 0)
+		-- A legitimate server move: not a movement violation (security pass B1).
+		MovementService.allowTeleport(entry.player)
 		entry.character:PivotTo(CFrame.lookAt(at, Vector3.new(at.X, at.Y, at.Z + 50)))
 	end
 

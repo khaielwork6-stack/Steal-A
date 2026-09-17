@@ -88,6 +88,9 @@ type Guardian = {
 	huntTarget: Player?,
 	huntUntil: number,
 	attackUntil: number,
+	--- The state (or "Attack") the ShellMotor rest pose was last written for;
+	--- the moving pose itself is animated on the clients (pass B8b).
+	poseState: string?,
 }
 
 local guardians: { [Guardian]: boolean } = {}
@@ -111,11 +114,11 @@ local SIDESTEP_STRENGTH = 1.1
 --- A hunted thief is followed this far from the bay, no further.
 local HUNT_RANGE = 260
 
--- Cartoon run for the jointless costumes (gentler than the bosses').
-local RUN_CYCLE_SPEED = 14
-local RUN_BOB = 0.5
-local RUN_ROLL = math.rad(12)
-local RUN_YAW = math.rad(8)
+-- Cartoon run for the jointless costumes (gentler than the bosses'). Since
+-- security pass B8b the cycle plays on the clients: its speed (14 rad/s), bob
+-- (0.5), roll (12 deg) and yaw (8 deg) live in GuardianFxController
+-- (BASE_POSE), as do the idle sway, the alert shake and the attack lunge.
+-- Only the leans remain here, for the rest pose.
 local RUN_LEAN = math.rad(-16)
 local WALK_LEAN = math.rad(-6)
 local ATTACK_SECONDS = 0.35
@@ -556,10 +559,12 @@ end
 -- SPAWN / DESPAWN
 -- ==========================================================
 
-local function setChased(player: Player?, on: boolean)
-	if player and player.Parent then
-		player:SetAttribute("Chased", on)
-	end
+--- The RUN!! flag goes through GuardianService's counted writer, with THIS
+--- guardian as the source (security pass B9). Writing the attribute directly
+--- let a base guardian giving up clear the warning in the middle of a museum
+--- chase, and one of two base guardians clear it under the other.
+local function setChased(g: Guardian, player: Player?, on: boolean)
+	GuardianService.setChasedBy(player, g, on)
 end
 
 local function publish(g: Guardian)
@@ -571,7 +576,7 @@ local function despawn(g: Guardian)
 	if g.owner and byOwner[g.owner] == g then
 		byOwner[g.owner] = nil
 	end
-	setChased(g.target, false)
+	setChased(g, g.target, false)
 	g.model:Destroy()
 	setBayLabel(g.plot, "GUARDIAN", "Equip a Guardian", MapPalette.SlotNeonEmpty)
 end
@@ -618,6 +623,8 @@ local function spawnFor(owner: Player?, ownerUserId: number, plot: Instance, def
 	root.Anchored = true
 
 	local walk, idle, perRate = GuardianService.prepareWalk(model)
+	-- Which moving pose the client animator plays (see GuardianService).
+	model:SetAttribute("PoseWalkTrack", walk ~= nil)
 	BaseGuardianService.applyAura(root, def.key, 0.15, 0.6)
 
 	-- Materialise: a burst off the bay's own energy emitter.
@@ -884,12 +891,12 @@ end
 
 local function beginAlert(g: Guardian, target: Player, now: number)
 	standUp(g)
-	setChased(g.target, false)
+	setChased(g, g.target, false)
 	g.state = "Alert"
 	g.target = target
 	g.alertAt = now + BaseGuardianConfig.ALERT_DELAY
 	resetSteering(g)
-	setChased(target, true)
+	setChased(g, target, true)
 	publish(g)
 	Audio.playAt("PoliceWhistle", g.root)
 	local root = rootOf(target)
@@ -910,7 +917,7 @@ local function beginChase(g: Guardian, now: number)
 end
 
 local function goHome(g: Guardian)
-	setChased(g.target, false)
+	setChased(g, g.target, false)
 	g.target = nil
 	g.state = "Returning"
 	resetSteering(g)
@@ -924,6 +931,8 @@ local function hit(g: Guardian, target: Player, now: number)
 	end
 	Audio.playAt("NpcCatch", g.root)
 	g.attackUntil = now + ATTACK_SECONDS
+	-- The swipe plays on the clients from this one replicated stamp (B8b).
+	g.model:SetAttribute("AttackAt", workspace:GetServerTimeNow())
 
 	-- OUTWARD FROM THE BASE CENTRE, never a fixed world direction: the launch
 	-- always carries the intruder off the plot.
@@ -939,7 +948,7 @@ local function hit(g: Guardian, target: Player, now: number)
 		g.huntTarget = nil
 		g.huntUntil = 0
 	end
-	setChased(target, false)
+	setChased(g, target, false)
 	notify(target, "error", `The {g.def.name} Guardian caught you!`)
 	notify(g.owner, "success", `Your {g.def.name} Guardian sent {target.DisplayName} flying!`)
 end
@@ -1006,6 +1015,17 @@ end
 -- ANIMATION
 -- ==========================================================
 
+--- Poses the costume. THE POSE ITSELF IS CLIENT-SIDE (security pass B8b):
+--- writing ShellMotor.C0 every frame from here replicated a property change
+--- per guardian per frame for a cosmetic sway. GuardianFxController animates
+--- the sway, shake, run cycle and the swipe (from the `AttackAt` attribute
+--- `hit` stamps) locally; the server writes only a REST pose when the state
+--- changes, and keeps the Animator walk / idle tracks, which replicate on
+--- their own and are only started, stopped and re-paced when the rate moves.
+local ATTACK_REST = CFrame.new(0, 0.2, -0.9) * CFrame.Angles(math.rad(-34), 0, 0)
+local ALERT_REST = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), 0, 0)
+local WALK_RATE_EPSILON = 0.05
+
 local function animate(g: Guardian, now: number)
 	local motor = g.shellMotor
 	if not motor then
@@ -1013,11 +1033,18 @@ local function animate(g: Guardian, now: number)
 	end
 	local track, idle = g.walkTrack, g.idleTrack
 
-	-- The swipe: a hard lunge forward, held for the length of the hit.
-	if now < g.attackUntil then
-		local t = 1 - (g.attackUntil - now) / ATTACK_SECONDS
-		local lunge = math.sin(math.min(1, t * 1.6) * math.pi)
-		motor.C0 = CFrame.new(0, 0.2 * lunge, -0.9 * lunge) * CFrame.Angles(math.rad(-34) * lunge, 0, 0)
+	local attacking = now < g.attackUntil
+	local poseKey = if attacking then "Attack" else g.state
+	if g.poseState ~= poseKey then
+		g.poseState = poseKey
+		motor.C0 = if attacking
+			then ATTACK_REST
+			elseif g.state == "Idle" then CFrame.new()
+			elseif g.state == "Alert" then ALERT_REST
+			elseif track then CFrame.Angles(WALK_LEAN, 0, 0)
+			else CFrame.Angles(RUN_LEAN, 0, 0)
+	end
+	if attacking then
 		return
 	end
 
@@ -1028,8 +1055,6 @@ local function animate(g: Guardian, now: number)
 		if idle and not idle.IsPlaying then
 			idle:Play(0.4)
 		end
-		local breathe = math.sin(now * 1.6) * 0.06
-		motor.C0 = CFrame.new(0, breathe, 0) * CFrame.Angles(math.sin(now * 0.8) * math.rad(1.5), 0, 0)
 		return
 	end
 
@@ -1041,8 +1066,6 @@ local function animate(g: Guardian, now: number)
 		if track and track.IsPlaying then
 			track:Stop(0.1)
 		end
-		local shake = math.sin(now * 46) * math.rad(6)
-		motor.C0 = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
 		return
 	end
 
@@ -1052,16 +1075,11 @@ local function animate(g: Guardian, now: number)
 		end
 		local velocity = g.root.AssemblyLinearVelocity
 		local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-		track:AdjustSpeed(math.clamp(speed / g.walkSpeedPerRate, GuardianService.WALK_RATE_MIN, GuardianService.WALK_RATE_MAX))
-		motor.C0 = CFrame.Angles(WALK_LEAN, 0, 0)
-		return
+		local rate = math.clamp(speed / g.walkSpeedPerRate, GuardianService.WALK_RATE_MIN, GuardianService.WALK_RATE_MAX)
+		if math.abs(track.Speed - rate) > WALK_RATE_EPSILON then
+			track:AdjustSpeed(rate)
+		end
 	end
-
-	local t = now * RUN_CYCLE_SPEED
-	local bob = math.abs(math.sin(t)) * RUN_BOB
-	local roll = math.sin(t * 0.5) * RUN_ROLL
-	local yaw = math.sin(t * 0.5 + 1.1) * RUN_YAW
-	motor.C0 = CFrame.new(0, bob, 0) * CFrame.Angles(RUN_LEAN, yaw, roll)
 end
 
 -- ==========================================================
@@ -1109,9 +1127,9 @@ local function step(dt: number)
 			if not target or not targetRoot or not isValidTarget(g, target, now) then
 				local next = findTarget(g, now)
 				if next then
-					setChased(g.target, false)
+					setChased(g, g.target, false)
 					g.target = next
-					setChased(next, true)
+					setChased(g, next, true)
 					g.chaseStartedAt = now
 				else
 					goHome(g)
@@ -1133,9 +1151,9 @@ local function step(dt: number)
 					local current = flatDistance(g.root.Position, targetRoot.Position)
 					local candidate = flatDistance(g.root.Position, nearestRoot.Position)
 					if candidate < current * 0.7 and current - candidate > 6 then
-						setChased(target, false)
+						setChased(g, target, false)
 						g.target = nearest
-						setChased(nearest, true)
+						setChased(g, nearest, true)
 						continue
 					end
 				end
@@ -1147,7 +1165,7 @@ local function step(dt: number)
 				local next = findTarget(g, now)
 				if next then
 					g.target = next
-					setChased(next, true)
+					setChased(g, next, true)
 					g.chaseStartedAt = now
 				else
 					goHome(g)

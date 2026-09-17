@@ -13,7 +13,14 @@
 
 local Players = game:GetService("Players")
 
+-- A leaf (config only), so no cycle.
+local MovementService = require(script.Parent.MovementService)
+
 local RagdollService = {}
+
+--- Seconds after a launch hands the body back to its client during which the
+--- movement check re-bases instead of measuring (the tail of the arc).
+local STAND_UP_GRACE = 1.5
 
 export type LaunchOptions = {
 	knockback: number,
@@ -100,6 +107,9 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 	end
 
 	RagdollService.grantImmunity(player, options.immunity)
+	-- The launch itself is a server move; MovementService also re-bases while
+	-- the server owns the body, this covers the frames either side of that.
+	MovementService.allowTeleport(player, options.stun + STAND_UP_GRACE)
 
 	local flat = Vector3.new(root.Position.X - fromPosition.X, 0, root.Position.Z - fromPosition.Z)
 	local direction = if flat.Magnitude > 0.1 then flat.Unit else root.CFrame.LookVector
@@ -140,6 +150,10 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 		if not humanoid.Parent or humanoid.Health <= 0 then
 			return
 		end
+		-- Ownership goes back to the client while the body may still be
+		-- carrying the launch's speed: the rest of that arc is the server's
+		-- doing, not a speed hack (security pass B1).
+		MovementService.allowTeleport(player, STAND_UP_GRACE)
 		humanoid.PlatformStand = false
 		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		pcall(function()

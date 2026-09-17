@@ -26,6 +26,8 @@ local cooldown: { [Player]: { [number]: number } } = {}
 --- Studio test hook: players the detector ignores (see setExempt).
 local exempt: { [Player]: boolean } = {}
 local metrics = { queries = 0, narrowChecks = 0, trips = 0, lastStepMs = 0, maxStepMs = 0 }
+local overlap = OverlapParams.new()
+overlap.FilterType = Enum.RaycastFilterType.Include
 
 local function validBody(player: Player): (Model?, BasePart?, Humanoid?)
 	local character = player.Character
@@ -33,6 +35,16 @@ local function validBody(player: Player): (Model?, BasePart?, Humanoid?)
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not character or not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then return nil, nil, nil end
 	return character, root, humanoid
+end
+
+--- Re-derives the player's WalkSpeed after an accepted crouch changes.
+--- Injected by init (SpeedService.applyMovement) to keep this file off the
+--- movement chain; the crouch cost itself is applied there (security pass B13).
+LaserService.onPostureChanged = function(_player: Player) end
+
+--- Whether the server currently holds this player crouched.
+function LaserService.isCrouched(player: Player): boolean
+	return crouched[player] == true
 end
 
 function LaserService.setCrouched(player: Player, wanted: boolean): boolean
@@ -43,8 +55,18 @@ function LaserService.setCrouched(player: Player, wanted: boolean): boolean
 		and not humanoid.Sit and not humanoid.PlatformStand and not humanoid:GetAttribute("Rooted")
 		and not GuardianService.isStunned(player)
 	local value = wanted and allowed
+	local was = crouched[player] == true
 	crouched[player] = if value then true else nil
 	if character and character:GetAttribute("LaserCrouched") ~= value then character:SetAttribute("LaserCrouched", value) end
+	-- Only on a real change: `step` re-confirms a held crouch ten times a
+	-- second, and each of those must not re-derive the speed.
+	if was ~= value then
+		local ok, err = pcall(function()
+			LaserService.onPostureChanged(player)
+			return true
+		end)
+		if not ok then warn(`[LaserService] posture refresh failed for {player.Name}: {err}`) end
+	end
 	return value
 end
 
@@ -62,7 +84,8 @@ local function step()
 		if exempt[player] then previous[player] = nil; continue end
 		if crouched[player] then LaserService.setCrouched(player, true) end
 		-- Feet follow the actual rig, so jumping clears low beams. Crouching
-		-- changes only this laser silhouette; movement/carry speed is untouched.
+		-- changes this laser silhouette AND costs walk speed (applied through
+		-- CarryService.applyMovement; SecurityConfig.CROUCH_SPEED_MULTIPLIER).
 		local leg = if humanoid.RigType == Enum.HumanoidRigType.R6 then 2 else 0
 		local feet = root.Position.Y - humanoid.HipHeight - root.Size.Y / 2 - leg
 		local height = if crouched[player] then 2.6 else 5.2
@@ -86,8 +109,9 @@ local function step()
 			end
 		end
 		if #containers == 0 then continue end
-		local params = OverlapParams.new()
-		params.FilterType = Enum.RaycastFilterType.Include
+		-- ONE OverlapParams, re-pointed per query (security pass B13b), rather
+		-- than a fresh one for every player on every tick.
+		local params = overlap
 		params.FilterDescendantsInstances = containers
 		local delta = center - from
 		local size = Vector3.new(math.abs(delta.X), math.abs(delta.Y), math.abs(delta.Z)) + half * 2 + Vector3.one * 0.2
@@ -145,7 +169,12 @@ function LaserService.start()
 		if type(wanted) == "boolean" and limiter:consume(player) then LaserService.setCrouched(player, wanted) end
 	end)
 	local function watch(player: Player)
-		player.CharacterAdded:Connect(function() previous[player], crouched[player], cooldown[player] = nil, nil, nil end)
+		player.CharacterAdded:Connect(function()
+			local wasCrouched = crouched[player]
+			previous[player], crouched[player], cooldown[player] = nil, nil, nil
+			-- A crouch does not survive a respawn, and neither may its speed cost.
+			if wasCrouched then task.defer(LaserService.onPostureChanged, player) end
+		end)
 	end
 	for _, player in Players:GetPlayers() do watch(player) end
 	Players.PlayerAdded:Connect(watch)

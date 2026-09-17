@@ -374,10 +374,32 @@ function HatchService.onPromptClosed(player: Player, productId: number, purchase
 	end
 end
 
+--- The second value `fulfil` returns alongside `false`. Same meaning as
+--- HeistService.FulfilResult.
+export type FulfilResult = "retry" | "undeliverable"
+
 --- The receipt landed. Resolves the exact container the buyer selected, marks
---- it ready, saves, and commits it - which starts the reveal. Returns false to
---- leave the receipt OPEN for Roblox to retry (nothing to deliver yet).
-function HatchService.fulfil(player: Player, profile: DataService.Profile, product: MonetizationConfig.ProductDef, purchaseId: string): boolean
+--- it ready, saves, and commits it - which starts the reveal.
+---
+--- THE CONTRACT (security pass B2), shared with HeistService.fulfil:
+---   true                    the container is revealed (or revealing).
+---   false, "undeliverable"  there is nothing this receipt can ever be spent
+---                           on: no pending reveal matches it, the container
+---                           is no longer on the base, or it was already
+---                           revealed before the receipt landed. The pending
+---                           reveal is cleared; the caller grants its fallback.
+---   false, "retry"          reserved for a delivery that may still happen.
+---                           No current path returns it - every case above is
+---                           final - but callers must treat it as "leave the
+---                           receipt OPEN".
+--- Never a second container: the purchase is honoured against the one the
+--- buyer selected or not at all.
+function HatchService.fulfil(
+	player: Player,
+	profile: DataService.Profile,
+	product: MonetizationConfig.ProductDef,
+	purchaseId: string
+): (boolean, FulfilResult?)
 	local pending = pendingByBuyer[player]
 	local saved = profile.PendingReveal
 	local instanceId: string? = nil
@@ -387,30 +409,29 @@ function HatchService.fulfil(player: Player, profile: DataService.Profile, produ
 		instanceId = saved.instanceId
 	end
 	if not instanceId then
-		warn(`[HatchService] receipt {purchaseId} ({product.key}) from {player.Name} matches no pending reveal - left OPEN`)
-		return false
+		warn(`[HatchService] receipt {purchaseId} ({product.key}) from {player.Name} matches no pending reveal - undeliverable`)
+		return false, "undeliverable"
 	end
 
 	local item = findItem(profile, instanceId)
-	if not item then
-		-- Stored between the prompt and the receipt. Storing a sealed
-		-- container is refused, so this is a container that was robbed or a
-		-- profile that changed under us: keep the receipt open and try again.
-		warn(`[HatchService] receipt {purchaseId}: container {instanceId} is not on {player.Name}'s base - left OPEN`)
-		return false
+	if not item or item.Hatched ~= false then
+		-- Storing or selling a sealed container is refused and a sealed one
+		-- cannot be robbed, so a missing container is a profile that changed
+		-- under us. An already revealed one was revealed by hand (its timer ran
+		-- out while the dialog was open). Either way there is nothing left to
+		-- spend this purchase on, and there never will be.
+		warn(`[HatchService] receipt {purchaseId}: container {instanceId} on {player.Name}'s base is {if item then "already revealed" else "gone"} - undeliverable`)
+		pendingByBuyer[player] = nil
+		profile.PendingReveal = nil
+		return false, "undeliverable"
 	end
 
-	-- The purchase is honoured against THIS container and no other. If its
-	-- timer ran out while the dialog was open, or the player revealed it by
-	-- hand meanwhile, the container is revealed and the purchase is spent on
-	-- exactly what it was for. Never a second container.
+	-- The purchase is honoured against THIS container and no other.
 	pendingByBuyer[player] = nil
 	profile.PendingReveal = nil
-	if item.Hatched == false then
-		item.HatchEndsAt = os.time()
-		HatchService.commit(player, instanceId)
-	end
-	return true
+	item.HatchEndsAt = os.time()
+	HatchService.commit(player, instanceId)
+	return true, nil
 end
 
 -- ==========================================================
@@ -427,16 +448,29 @@ local READY_SWEEP_SECONDS = 2
 local announced: { [string]: boolean } = {}
 
 local function sweep()
+	-- Every id that is still a ready, sealed container on somebody's base this
+	-- pass. Anything in `announced` that is not is gone - revealed, or its
+	-- owner left - and is forgotten, so the set cannot grow for the life of
+	-- the server (security pass B17).
+	local stillReady: { [string]: boolean } = {}
 	for _, player in Players:GetPlayers() do
 		local profile = DataService.get(player)
 		if not profile then
 			continue
 		end
 		for _, item in profile.DisplayItems do
-			if item.Hatched == false and HatchService.remaining(item) <= 0 and not announced[item.InstanceId] then
-				announced[item.InstanceId] = true
-				StateService.markDirty(player)
+			if item.Hatched == false and HatchService.remaining(item) <= 0 then
+				stillReady[item.InstanceId] = true
+				if not announced[item.InstanceId] then
+					announced[item.InstanceId] = true
+					StateService.markDirty(player)
+				end
 			end
+		end
+	end
+	for instanceId in announced do
+		if not stillReady[instanceId] then
+			announced[instanceId] = nil
 		end
 	end
 end

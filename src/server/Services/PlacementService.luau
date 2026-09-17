@@ -44,6 +44,13 @@ local PlacementService = {}
 local placeLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.PlaceLootRequest)
 local sellLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.SellLootRequest)
 local upgradeLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.BaseUpgradeRequest)
+--- The slot prompt as a whole (security pass B16). store/equip/place carry
+--- their own limiters, but the reveal and Instant Reveal branches had none: a
+--- held key or an auto-clicker reached HatchService.promptInstantReveal and
+--- commit on every trigger.
+local slotPromptLimiter = RateLimiter.new(
+	require(ReplicatedStorage.Shared.Config.SecurityConfig).SLOT_PROMPT_PER_SECOND
+)
 
 local function notify(player: Player, kind: string, message: string, detail: string?)
 	StateService.notify(player, kind, message, detail)
@@ -69,9 +76,14 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 		return false, "You are not carrying anything."
 	end
 
-	-- Must be home. The safe zone is what makes a steal a success.
-	if not BaseService.isInOwnSafeZone(player) then
-		return false, "Get back to your base first!"
+	-- Must be home. The safe zone is what makes a steal a success. Asked of
+	-- CarryService rather than BaseService directly (security pass B1): home
+	-- means the live position AND the last movement-checked position are on
+	-- this plot, and the run took at least as long as the distance allows. A
+	-- delivery that could not have been run is taken away inside that call.
+	local home, homeReason = CarryService.deliveryReady(player)
+	if not home then
+		return false, homeReason
 	end
 
 	local unlocked = BaseService.unlockedSlots(player)
@@ -797,6 +809,12 @@ function PlacementService.start()
 			return
 		end
 
+		-- Silently dropped: the prompt is a hold, so a real player never gets
+		-- near this rate, and a toast per spammed trigger is spam of its own.
+		if not slotPromptLimiter:consume(player) then
+			return
+		end
+
 		-- Ownership: the prompt lives on a plot, and only its owner may use it.
 		local plot = slot.Parent and slot.Parent.Parent
 		if not plot or BaseService.getPlot(player) ~= plot then
@@ -893,6 +911,7 @@ function PlacementService.start()
 		placeLimiter:release(player)
 		sellLimiter:release(player)
 		upgradeLimiter:release(player)
+		slotPromptLimiter:release(player)
 	end)
 
 	-- Catch-up: if any player was already assigned a plot before this service

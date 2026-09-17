@@ -19,14 +19,22 @@ local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local SecurityConfig = require(ReplicatedStorage.Shared.Config.SecurityConfig)
 
 local LootService = require(script.Parent.LootService)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
+-- A leaf (config only): the server-side movement record. See MovementService.
+local MovementService = require(script.Parent.MovementService)
 
 local CarryService = {}
 
 local carrying: { [Player]: LootService.LootInstance } = {}
+--- Where and when (os.clock) THIS carrier took hold of what they carry: the
+--- steal, the grab of a drop, or the hand-over of a base steal. One of the two
+--- delivery timings in deliveryCheck (security pass B1).
+type Pickup = { position: Vector3, at: number }
+local pickups: { [Player]: Pickup } = {}
 local stealLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.StealRequest)
 local dropLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.DropLootRequest)
 
@@ -122,6 +130,13 @@ function CarryService.trailMultiplierFor(_player: Player): number
 	return 1
 end
 
+--- 1, or SecurityConfig.CROUCH_SPEED_MULTIPLIER while LaserService has
+--- accepted a crouch (security pass B13). Overridden by init so this service
+--- need not require LaserService, which already requires half the world.
+function CarryService.crouchMultiplierFor(_player: Player): number
+	return 1
+end
+
 --- Applies the carry penalty on top of the compressed Speed formula. Bigger
 --- loot demands a real Speed buffer rather than being free to haul.
 function CarryService.applyMovement(player: Player)
@@ -152,7 +167,8 @@ function CarryService.applyMovement(player: Player)
 	-- equipping and unequipping a trail can never inflate the saved stat. And it
 	-- is the ONLY place a trail is applied; training gain is a separate formula.
 	local effective = profile.SpeedPower * CarryService.trailMultiplierFor(player)
-	local speed = GameConfig.walkSpeedFromPower(effective)
+	local unencumbered = GameConfig.walkSpeedFromPower(effective)
+	local speed = unencumbered
 
 	local loot = carrying[player]
 	if loot then
@@ -162,7 +178,19 @@ function CarryService.applyMovement(player: Player)
 		end
 	end
 
+	-- CROUCHING COSTS SPEED (security pass B13). A crouch is what gets a
+	-- player under a high beam; for free, a client could simply stay crouched
+	-- for the whole run. Applied here, on the server's own WalkSpeed, so the
+	-- movement check below records the slower value too.
+	local crouch = CarryService.crouchMultiplierFor(player)
+	if crouch > 0 and crouch < 1 then
+		speed *= crouch
+	end
+
 	humanoid.WalkSpeed = speed
+	-- The ONE record of what the server allowed. MovementService never reads
+	-- Humanoid.WalkSpeed, which the client can change locally.
+	MovementService.noteSpeed(player, speed, unencumbered)
 end
 
 -- ==========================================================
@@ -380,17 +408,36 @@ local function clearCarry(player: Player)
 		attachment:Destroy()
 	end
 	carrying[player] = nil
+	pickups[player] = nil
 	CarryService.applyMovement(player)
 	onCarryChanged(player)
+end
+
+--- Remembers where this carrier took hold of their item (see `pickups`).
+--- Measured from the server's verified position, never a raw client claim.
+local function notePickup(player: Player, loot: LootService.LootInstance, root: BasePart)
+	local position = MovementService.verifiedPosition(player) or root.Position
+	local now = os.clock()
+	pickups[player] = { position = position, at = now }
+	-- The run's origin is set once, by whoever first takes it out of its
+	-- socket (or is handed a base steal), and survives drops and re-grabs.
+	if not loot.stolenAt then
+		loot.stolenFrom = position
+		loot.stolenAt = now
+		loot.stolenBy = player
+	end
 end
 
 -- ==========================================================
 -- STEAL
 -- ==========================================================
 
---- Server-side validation for a steal attempt. Returns nil on success, or a
---- player-facing reason string.
-local function validateSteal(player: Player, loot: LootService.LootInstance): string?
+--- Server-side validation for taking hold of world loot: a steal from a
+--- socket (`expected` = "Spawned") or a grab of a drop (`expected` =
+--- "Dropped"). ONE validator for both (security pass B4): the grab used to
+--- skip the alive, distance, rate-limit and tutorial-reservation checks a
+--- steal makes. Returns nil on success, or a player-facing reason string.
+local function validatePickup(player: Player, loot: LootService.LootInstance, expected: LootService.LootState): string?
 	if not stealLimiter:consume(player) then
 		return "Slow down!"
 	end
@@ -410,8 +457,14 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 		return LootService.closedReason()
 	end
 
-	if loot.state ~= "Spawned" then
-		return "Someone beat you to it!"
+	if loot.state ~= expected then
+		return if expected == "Dropped" then "Someone grabbed it first!" else "Someone beat you to it!"
+	end
+
+	-- A stale reference (retired by the Night, rerolled, placed) is not world
+	-- loot any more, whatever its state field still says.
+	if not LootService.isLive(loot) then
+		return "That item is gone."
 	end
 
 	if not CarryService.mayTakeLoot(player, loot) then
@@ -427,7 +480,10 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 	-- Never trust the prompt's own distance check alone. Measured to the same
 	-- part the prompt sits on, with the same range the prompt was given, so a
 	-- giant's ground anchor and its wide footprint count the same way here.
-	local distance = (root.Position - reach.Position).Magnitude
+	-- From the VERIFIED position: a client that teleported next to the item
+	-- is measured from where it last legitimately was (MovementService).
+	local from = MovementService.verifiedPosition(player) or (root :: BasePart).Position
+	local distance = (from - reach.Position).Magnitude
 	if distance > loot.interactRange * 1.6 then
 		return "Too far away."
 	end
@@ -443,7 +499,7 @@ local function validateSteal(player: Player, loot: LootService.LootInstance): st
 end
 
 function CarryService.trySteal(player: Player, loot: LootService.LootInstance): boolean
-	local reason = validateSteal(player, loot)
+	local reason = validatePickup(player, loot, "Spawned")
 	if reason then
 		notify(player, "error", reason)
 		return false
@@ -453,6 +509,11 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	LootService.setState(loot, "Reserved")
 
 	if not attach(player, loot) then
+		-- EMPTY THE SOCKET FIRST (security pass B7). returnToOrigin only
+		-- rebuilds into an EMPTY socket; with the socket still pointing at this
+		-- instance it retired it instead and the socket stayed "occupied" by a
+		-- dead item until the next Night.
+		LootService.detach(loot)
 		LootService.returnToOrigin(loot)
 		notify(player, "error", "Could not pick that up.")
 		return false
@@ -460,6 +521,11 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 
 	loot.carrier = player
 	carrying[player] = loot
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		notePickup(player, loot, root)
+	end
 	LootService.setState(loot, "Carried")
 	-- The socket is now EMPTY and stays empty until the global refresh (or, in
 	-- Zone 1 only, its own 60-90s respawn - see LootService.detach). If the
@@ -567,6 +633,11 @@ local function dropLoose(loot: LootService.LootInstance, position: Vector3?, flo
 	end
 
 	loot.droppedAt = os.clock()
+	-- THIS drop's generation (security pass B5). Grabbed and dropped again,
+	-- the item is on its second drop, and the first drop's timers must not
+	-- send it home 8 seconds into the second one.
+	local generation = (loot.dropGeneration or 0) + 1
+	loot.dropGeneration = generation
 	LootService.setState(loot, "Dropped")
 
 	if not model or not position then
@@ -575,13 +646,19 @@ local function dropLoose(loot: LootService.LootInstance, position: Vector3?, flo
 		return
 	end
 
+	-- Every timer re-checks three things when it fires: the item is still
+	-- lying on the ground, from THIS drop, and still live world loot (the
+	-- Night retires loose drops; see LootService.retireLoose).
+	local function stillThisDrop(): boolean
+		return loot.state == "Dropped" and loot.dropGeneration == generation and LootService.isLive(loot)
+	end
 	task.delay(GameConfig.DROPPED_RECLAIM_WINDOW, function()
-		if loot.state == "Dropped" and not canRecover(loot) then
+		if stillThisDrop() and not canRecover(loot) then
 			LootService.returnToOrigin(loot)
 		end
 	end)
 	task.delay(GameConfig.DROPPED_ORPHAN_TIMEOUT, function()
-		if loot.state == "Dropped" then
+		if stillThisDrop() then
 			LootService.returnToOrigin(loot)
 		end
 	end)
@@ -644,27 +721,19 @@ function CarryService.forceDrop(loot: LootService.LootInstance)
 	notify(player, "error", `You dropped the {loot.name}!`)
 end
 
---- Picking a dropped item back up. Same validation as a fresh steal minus the
---- state check, which must be Dropped rather than Spawned.
+--- Picking a dropped item back up. The SAME validation as a fresh steal
+--- (validatePickup) except that the state must be Dropped rather than Spawned.
 function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInstance): boolean
-	if loot.state ~= "Dropped" then
-		return false
-	end
-	if carrying[player] then
-		notify(player, "error", "You are already carrying something!")
-		return false
-	end
-	if LootService.isClosed() then
-		notify(player, "error", LootService.closedReason())
-		return false
-	end
-	if BaseService.isFull(player) then
-		notify(player, "error", "BASE FULL - sell something or upgrade your base.")
+	local reason = validatePickup(player, loot, "Dropped")
+	if reason then
+		notify(player, "error", reason)
 		return false
 	end
 
 	LootService.setState(loot, "Reserved")
 	if not attach(player, loot) then
+		-- A dropped item is already out of its socket, so returnToOrigin can
+		-- put it straight back.
 		LootService.returnToOrigin(loot)
 		return false
 	end
@@ -672,6 +741,11 @@ function CarryService.tryGrabDropped(player: Player, loot: LootService.LootInsta
 	loot.carrier = player
 	loot.droppedAt = nil
 	carrying[player] = loot
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		notePickup(player, loot, root)
+	end
 	LootService.setState(loot, "Carried")
 	CarryService.applyMovement(player)
 	onCarryChanged(player)
@@ -699,6 +773,12 @@ function CarryService.beginCarry(player: Player, loot: LootService.LootInstance)
 	loot.carrier = player
 	loot.state = "Carried"
 	carrying[player] = loot
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		-- The delivery timer starts at the victim's pad (HeistService.fulfil
+		-- has already checked the buyer is standing there).
+		notePickup(player, loot, root)
+	end
 	CarryService.applyMovement(player)
 	onCarryChanged(player)
 	return true
@@ -788,14 +868,117 @@ end
 -- DELIVERY
 -- ==========================================================
 
+local function flatDistance(a: Vector3, b: Vector3): number
+	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+--- Whether a carry that has only just begun could legally be home already.
+--- `origin` is where and when a run began; the straight line from there to
+--- `home` at the fastest unencumbered speed this player had since is the
+--- least time any real run can take. Waived only for Studio debug teleports
+--- (MovementService.serverMovedSince, always false live).
+local function tooSoon(player: Player, origin: Pickup, home: Vector3, now: number): boolean
+	if MovementService.serverMovedSince(player, origin.at) then
+		return false
+	end
+	local speed = MovementService.peakSpeedSince(player, origin.at, true) * SecurityConfig.DELIVERY_SPEED_TOLERANCE
+	local needed = flatDistance(origin.position, home) / math.max(speed, 1) - SecurityConfig.DELIVERY_SLACK_SECONDS
+	return now - origin.at < needed
+end
+
+export type DeliveryVerdict = "home" | "away" | "early"
+
+--- IS THIS CARRIER REALLY HOME? (security pass B1)
+---   "away"  not in their own safe zone - by the live position OR by the last
+---           position the movement check trusted. Both must agree.
+---   "early" home, but sooner than any legal run from where the item was
+---           taken: a teleport the movement check missed.
+---   "home"  delivered.
+--- Two runs are timed: THIS carrier's own pickup, and - when they are also
+--- the player who first took it out of its socket - the whole run since, so
+--- dropping an item at home and re-grabbing it does not reset the clock.
+local function deliveryCheck(player: Player, loot: LootService.LootInstance): DeliveryVerdict
+	if not BaseService.isInOwnSafeZone(player) then
+		return "away"
+	end
+	local trusted = MovementService.trustedPosition(player)
+	local plot = BaseService.getPlot(player)
+	if not trusted or not plot or BaseService.plotAt(trusted) ~= (plot :: Instance) then
+		return "away"
+	end
+	if MovementService.isExempt(player) then
+		return "home"
+	end
+	local now = os.clock()
+	local pickup = pickups[player]
+	if pickup and tooSoon(player, pickup, trusted, now) then
+		return "early"
+	end
+	local from, at = loot.stolenFrom, loot.stolenAt
+	if loot.stolenBy == player and from and at and tooSoon(player, { position = from, at = at }, trusted, now) then
+		return "early"
+	end
+	return "home"
+end
+
+--- A delivery nobody could have run: the item is taken away, never left on
+--- the floor at the base (where the same player could simply grab it again).
+--- World loot goes straight back to its socket; a base steal goes back to its
+--- owner through its own loss path. Then the character is snapped back.
+local function confiscate(player: Player, loot: LootService.LootInstance)
+	if loot.heist then
+		CarryService.forceDrop(loot)
+	else
+		detach(loot)
+		clearCarry(player)
+		loot.carrier = nil
+		loot.droppedAt = nil
+		LootService.returnToOrigin(loot)
+	end
+	notify(player, "error", `The {loot.name} went back - that was too fast!`)
+	MovementService.flag(player, `delivered {loot.name} faster than any legal run`)
+end
+
+--- For PlacementService.place: may this player hand their carry to the base
+--- right now? Returns false plus a player-facing reason. An impossible
+--- delivery is confiscated here, exactly as the watcher below does.
+function CarryService.deliveryReady(player: Player): (boolean, string?)
+	local loot = carrying[player]
+	if not loot then
+		return false, "You are not carrying anything."
+	end
+	local verdict = deliveryCheck(player, loot)
+	if verdict == "early" then
+		confiscate(player, loot)
+		return false, nil
+	elseif verdict == "away" then
+		return false, "Get back to your base first!"
+	end
+	return true
+end
+
 --- Watches carriers for entry into their own safe zone. Once home, the guardian
 --- is cleared permanently for that item (simplest MVP rule from the GDD).
 local function watchDelivery()
 	while true do
 		task.wait(0.2)
 		for player, loot in carrying do
-			if loot.state == "Carried" and BaseService.isInOwnSafeZone(player) then
-				onDelivered(player, loot)
+			-- One player's failure must not stop delivery for everyone else
+			-- (security pass B11).
+			local ok, err = pcall(function()
+				if loot.state ~= "Carried" then
+					return true
+				end
+				local verdict = deliveryCheck(player, loot)
+				if verdict == "home" then
+					onDelivered(player, loot)
+				elseif verdict == "early" then
+					confiscate(player, loot)
+				end
+				return true
+			end)
+			if not ok then
+				warn(`[CarryService] delivery check failed for {player.Name}: {err}`)
 			end
 		end
 	end

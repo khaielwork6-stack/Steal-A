@@ -29,6 +29,8 @@ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
+-- A leaf (config only), so no cycle: every server teleport below tells it.
+local MovementService = require(script.Parent.MovementService)
 
 local BaseService = {}
 
@@ -1161,6 +1163,7 @@ function BaseService.assign(player: Player): (Model | Folder)?
 			local character = player.Character
 			local spawn = BaseService.homeSpawn(player)
 			if spawn and character then
+				MovementService.allowTeleport(player)
 				character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 			end
 
@@ -1219,6 +1222,13 @@ function BaseService.unassign(player: Player)
 	assignments[player] = nil
 end
 
+--- Whether the player is carrying anything. Overridden by init with
+--- CarryService.getCarried (CarryService requires this module, so it cannot
+--- be required back). The default refuses nobody.
+function BaseService.isCarrying(_player: Player): boolean
+	return false
+end
+
 --- The HUD's BASE button. Rate-limited by a simple cooldown, and refused while
 --- carrying so it cannot be used to skip an escape.
 local lastTeleport: { [Player]: number } = {}
@@ -1227,6 +1237,13 @@ function BaseService.teleportHome(player: Player): (boolean, string?)
 	local now = os.clock()
 	if now - (lastTeleport[player] or 0) < 3 then
 		return false, "Wait a moment."
+	end
+
+	-- REFUSED WHILE CARRYING, here and not only in the caller (security pass
+	-- B15). The portal checked; the function itself did not, so any future
+	-- caller was one line away from a free escape.
+	if BaseService.isCarrying(player) then
+		return false, "You can't travel while carrying loot - run!"
 	end
 
 	local plot = assignments[player]
@@ -1242,6 +1259,8 @@ function BaseService.teleportHome(player: Player): (boolean, string?)
 	end
 
 	lastTeleport[player] = now
+	-- A legitimate server move: not a movement violation.
+	MovementService.allowTeleport(player)
 	character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 	return true
 end

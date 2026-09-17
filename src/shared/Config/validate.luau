@@ -735,6 +735,55 @@ return function(): Report
 		check(StarterTaskConfig.isComplete(seen), "a checklist with every key must read as complete")
 	end
 
+	-- ==========================================================
+	-- SECURITY PASS (SecurityConfig; docs/handoff-parts/security-gameplay.md)
+	-- ==========================================================
+	do
+		local SecurityConfig = require(script.Parent.SecurityConfig)
+		check(type(SecurityConfig.MOVEMENT_ENABLED) == "boolean", "SecurityConfig.MOVEMENT_ENABLED must be a boolean")
+		-- Below 1 the check would flag a player moving at exactly the speed
+		-- the server gave them; the delivery timer likewise.
+		check(SecurityConfig.MOVEMENT_SPEED_TOLERANCE >= 1, "movement tolerance must be at least 1")
+		check(SecurityConfig.DELIVERY_SPEED_TOLERANCE >= 1, "delivery tolerance must be at least 1")
+		check(
+			SecurityConfig.MOVEMENT_SAMPLE_INTERVAL > 0 and SecurityConfig.MOVEMENT_SAMPLE_INTERVAL <= 0.5,
+			"movement sample interval must be in (0, 0.5]"
+		)
+		-- The burst must cover more than one sample, or every sample is judged
+		-- with no room for a late packet.
+		check(
+			SecurityConfig.MOVEMENT_BURST_SECONDS > SecurityConfig.MOVEMENT_SAMPLE_INTERVAL,
+			"movement burst must be longer than one sample"
+		)
+		for _, key in {
+			"MOVEMENT_SLACK_STUDS", "MOVEMENT_RISE_SPEED", "MOVEMENT_RISE_SLACK_STUDS", "MOVEMENT_STRIKE_STUDS",
+			"MOVEMENT_STRIKE_LIMIT", "MOVEMENT_STRIKE_DECAY", "MOVEMENT_SPAWN_GRACE", "MOVEMENT_TELEPORT_GRACE",
+			"MOVEMENT_SNAP_SETTLE", "SPEED_HISTORY_SECONDS", "DELIVERY_SLACK_SECONDS", "LASER_CHASE_TIMEOUT",
+			"HEIST_PENDING_EXPIRY", "HEIST_DELIVERY_RANGE_FACTOR", "HEIST_PRUNE_INTERVAL",
+			"TRAIL_SYNC_PER_SECOND", "SLOT_PROMPT_PER_SECOND",
+		} do
+			local value = (SecurityConfig :: any)[key]
+			check(type(value) == "number" and value > 0, `SecurityConfig.{key} must be a positive number`)
+		end
+		check(
+			SecurityConfig.MOVEMENT_DEFAULT_SPEED >= GameConfig.WALKSPEED_MIN,
+			"the assumed default speed must not be below the slowest real WalkSpeed"
+		)
+		-- A jump (about 7.2 studs) must never cost a strike on its own.
+		check(SecurityConfig.MOVEMENT_RISE_SLACK_STUDS >= 8, "the rise slack must cover a full jump")
+		check(
+			SecurityConfig.CROUCH_SPEED_MULTIPLIER > 0 and SecurityConfig.CROUCH_SPEED_MULTIPLIER <= 1,
+			"the crouch speed multiplier must be in (0, 1]"
+		)
+		-- The saved steal reservation must outlive the live prompt it backs up.
+		check(
+			SecurityConfig.HEIST_PENDING_EXPIRY > require(script.Parent.HeistConfig).RESERVATION_TIMEOUT,
+			"a saved steal reservation must outlive the live one"
+		)
+		check(SecurityConfig.HEIST_DELIVERY_RANGE_FACTOR >= 1.8, "the steal delivery range must not be tighter than the hold's own range")
+		check(SecurityConfig.SPEED_HISTORY_SECONDS >= 60, "the speed history must cover a whole run")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

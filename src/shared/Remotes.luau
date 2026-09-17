@@ -16,9 +16,11 @@ local Remotes = {}
 Remotes.NAMES = {
 	"CrouchRequest", -- boolean intent; LaserService owns the accepted posture
 	-- client -> server requests
-	"StealRequest",
+	-- (StealRequest and SellLootRequest were removed by the security pass: no
+	-- handler ever listened to them. A steal is a ProximityPrompt; selling goes
+	-- through InventoryRequest. Their RATE_LIMITS rows are still used as the
+	-- steal / store limiters and stay in GameConfig.)
 	"PlaceLootRequest",
-	"SellLootRequest",
 	"InventoryRequest",
 	"BaseUpgradeRequest",
 	"TreadmillUpgradeRequest",
