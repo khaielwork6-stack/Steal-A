@@ -174,7 +174,9 @@ export type Profile = {
 	DisplayItems: { DisplayItem },
 	Inventory: { DisplayItem }, -- stored, not earning; SlotIndex is unused here
 	StorageTier: number,
-	Lifetime: { Steals: number, PvPSteals: number, Secrets: number, CashEarned: number },
+	-- [trading-gifting-boards] PlaySeconds: seconds spent in game, accrued by
+	-- LeaderboardService for the Time Played board (reconcile adds it).
+	Lifetime: { Steals: number, PvPSteals: number, Secrets: number, CashEarned: number, PlaySeconds: number },
 	--- The Settings panel. Volumes are 0-1 mixer levels; Shadows drives
 	--- Lighting.GlobalShadows on the client; ReducedVFX is the Reduced Effects
 	--- switch (no pop-ins, bobbing, breathing, sparkles or lighting tweens).
@@ -331,6 +333,10 @@ export type Profile = {
 	Quests: { [string]: any },
 	Season: { [string]: any },
 	Titles: { [string]: boolean },
+	-- [trading-gifting-boards] Gameplay Cash earned in the ISO week `Week`
+	-- ("2026W38"), for the weekly board. A different week in the save means
+	-- the count starts again from 0. Written only by LeaderboardService.
+	WeeklyEarned: { Week: string, Amount: number },
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -385,7 +391,7 @@ local function defaultProfile(): Profile
 		DisplayItems = {},
 		Inventory = {},
 		StorageTier = 0,
-		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0 },
+		Lifetime = { Steals = 0, PvPSteals = 0, Secrets = 0, CashEarned = 0, PlaySeconds = 0 },
 		Settings = { ReducedVFX = false, ScreenShake = true, MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true },
 		ProcessedReceipts = {},
 		TutorialBridgeGranted = false,
@@ -433,6 +439,8 @@ local function defaultProfile(): Profile
 		Quests = {},
 		Season = {},
 		Titles = {},
+		-- [trading-gifting-boards] Nothing earned yet, in no particular week.
+		WeeklyEarned = { Week = "", Amount = 0 },
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -1156,6 +1164,20 @@ local function reconcile(profile: Profile): Profile
 		end
 		profile.Titles = titles
 	end
+	-- [trading-gifting-boards] Board stats. The fill-in loop above only adds
+	-- MISSING top-level keys, so an old save's Lifetime table (which has no
+	-- PlaySeconds) is repaired here. Both are finite, non-negative numbers.
+	if type(profile.Lifetime) ~= "table" then
+		profile.Lifetime = defaults.Lifetime
+	end
+	profile.Lifetime.PlaySeconds = math.floor(finite(profile.Lifetime.PlaySeconds))
+	if type(profile.WeeklyEarned) ~= "table" then
+		profile.WeeklyEarned = defaults.WeeklyEarned
+	end
+	if type(profile.WeeklyEarned.Week) ~= "string" then
+		profile.WeeklyEarned.Week = ""
+	end
+	profile.WeeklyEarned.Amount = math.floor(finite(profile.WeeklyEarned.Amount))
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile

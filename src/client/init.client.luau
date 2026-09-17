@@ -245,6 +245,12 @@ end)
 startLater("QuestController", function()
 	require(script.Controllers.QuestController).start()
 end)
+-- [trading-gifting-boards] The Trade panel + HUD opener, the world "Trade"
+-- prompt, the request popup and the trade window. After Index/Storage/
+-- Upgrades (it clones the Index panel's shell and button).
+startLater("TradeController", function()
+	require(script.Controllers.TradeController).start()
+end)
 
 print("[Client] controllers started")
 -- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.

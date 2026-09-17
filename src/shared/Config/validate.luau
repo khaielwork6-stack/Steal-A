@@ -1330,6 +1330,76 @@ return function(): Report
 		check(MonetizationConfig.SeasonPremiumPass.gamePassId >= 0, "the season premium pass id must be 0 (placeholder) or real")
 	end
 
+	-- ==========================================================
+	-- TRADING / GIFTING / BOARDS (TradeConfig, BoardConfig, gift packs)
+	-- ==========================================================
+	do
+		local TradeConfig = require(script.Parent.TradeConfig)
+		local BoardConfig = require(script.Parent.BoardConfig)
+		for _, key in {
+			"MAX_ITEMS", "COUNTDOWN_SECONDS", "SESSION_IDLE_SECONDS", "SESSION_CHECK_SECONDS", "MAX_CASH",
+			"REQUEST_TIMEOUT", "REQUEST_COOLDOWN", "MAX_PENDING_PER_TARGET", "JOIN_GRACE_SECONDS",
+			"TRADES_PER_WINDOW", "TRADE_WINDOW_SECONDS", "REMOTE_PER_SECOND", "REMOTE_BURST",
+			"LOPSIDED_RATIO", "LOPSIDED_MIN_INCOME", "PROMPT_DISTANCE", "PROMPT_HOLD_SECONDS",
+			"GIFT_INTENT_SECONDS", "GIFT_PER_SECOND", "GIFT_BURST", "TRADE_LOG_PER_USER",
+		} do
+			local value = (TradeConfig :: any)[key]
+			check(type(value) == "number" and value > 0, `TradeConfig.{key} must be a positive number`)
+		end
+		check(TradeConfig.MAX_ITEMS == math.floor(TradeConfig.MAX_ITEMS) and TradeConfig.MAX_ITEMS <= 12, "trade item cap must be a whole number <= 12")
+		check(TradeConfig.MAX_CASH <= 2 ^ 53, "trade Cash cap must stay an exact double")
+		check(TradeConfig.SESSION_CHECK_SECONDS <= 1, "an open trade must be re-checked at least every second")
+		check(TradeConfig.REQUEST_COOLDOWN < TradeConfig.REQUEST_TIMEOUT, "a request cooldown longer than its timeout would read as a dead button")
+		check(TradeConfig.LOPSIDED_RATIO > 1, "the lopsided warning ratio must be above 1")
+		-- A gift intent must outlive a slow Robux dialog.
+		check(TradeConfig.GIFT_INTENT_SECONDS >= 120, "the gift recipient must be remembered for at least two minutes")
+
+		-- One gift per Cash / Speed pack, same price, same amount, unique ids.
+		local giftIds: { [number]: boolean } = {}
+		local gifted: { [string]: boolean } = {}
+		for _, gift in MonetizationConfig.GiftProducts do
+			local pack = if gift.giftOf then MonetizationConfig.ProductByKey[gift.giftOf] else nil
+			check(gift.kind == "Gift", `{gift.key} must be kind Gift`)
+			check(pack ~= nil and (pack.kind == "Cash" or pack.kind == "Speed"), `{gift.key}.giftOf must name a Cash or Speed pack`)
+			if pack then
+				check(gift.robux == pack.robux, `{gift.key} must cost the same as {pack.key}`)
+				check(gift.amount == pack.amount, `{gift.key} must show the same floor amount as {pack.key}`)
+				gifted[pack.key] = true
+			end
+			if gift.productId > 0 then
+				check(not giftIds[gift.productId], `{gift.key} reuses a gift product id`)
+				check(MonetizationConfig.ProductById[gift.productId] == gift, `{gift.key}'s id collides with another product`)
+				giftIds[gift.productId] = true
+			end
+		end
+		for _, list in { MonetizationConfig.CashProducts, MonetizationConfig.SpeedProducts } do
+			for _, pack in list do
+				check(gifted[pack.key] == true, `{pack.key} has no gift product`)
+			end
+		end
+
+		-- Boards.
+		local keys: { [string]: boolean } = {}
+		for _, def in BoardConfig.Boards do
+			check(not keys[def.key], `board {def.key} is listed twice`)
+			keys[def.key] = true
+			check(def.besides == "Money" or def.besides == "Speed", `board {def.key} must stand beside Money or Speed`)
+			check(def.side == 1 or def.side == -1, `board {def.key}.side must be 1 or -1`)
+			check(def.slot >= 1, `board {def.key}.slot must be at least 1`)
+			check(type(BoardConfig.STORE_KEYS[def.key]) == "string", `board {def.key} has no store name`)
+		end
+		for _, key in { "GAP", "EDGE_CLEARANCE", "PLAYTIME_TICK_SECONDS", "PLAYTIME_SUBMIT_SECONDS", "MIN_WRITE_BUDGET" } do
+			local value = (BoardConfig :: any)[key]
+			check(type(value) == "number" and value > 0, `BoardConfig.{key} must be a positive number`)
+		end
+		-- ISO weeks: 2026-09-17 is 2026-W38; 2021-01-01 belongs to 2020-W53;
+		-- 2024-12-30 to 2025-W01.
+		check(BoardConfig.isoWeek(1789646400) == "2026W38", "isoWeek(2026-09-17) must be 2026W38")
+		check(BoardConfig.isoWeek(1609502400) == "2020W53", "isoWeek(2021-01-01) must be 2020W53")
+		check(BoardConfig.isoWeek(1735560000) == "2025W01", "isoWeek(2024-12-30) must be 2025W01")
+		check(BoardConfig.WEEKLY_SOURCES.product ~= true and BoardConfig.WEEKLY_SOURCES.debug ~= true, "purchases and debug grants must not count as weekly earnings")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

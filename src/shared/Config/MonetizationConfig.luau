@@ -212,7 +212,7 @@ export type ProductDef = {
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
 	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
 	--- item of the matching rarity (HeistService) and carries no amount.
-	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal",
+	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift",
 	amount: number,
 	label: string,
 	--- Steal products only: the rarity this product pays for.
@@ -223,6 +223,9 @@ export type ProductDef = {
 	--- Cash products only: the pack pays at least this many minutes of the
 	--- buyer's base income (see CASH PACKS). `amount` is the floor.
 	incomeMinutes: number?,
+	--- Gift products only: the key of the Cash or Speed pack this buys FOR
+	--- another player (trading-gifting-boards pass; see GIFT PACKS).
+	giftOf: string?,
 }
 
 --- INSTANT REVEAL, priced by how long is LEFT on the container - never by the
@@ -476,6 +479,50 @@ for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProduc
 		MonetizationConfig.ProductByKey[product.key] = product
 		MonetizationConfig.ProductById[product.productId] = product
 	end
+end
+
+-- ==========================================================
+-- GIFT PACKS (trading-gifting-boards pass)
+-- ==========================================================
+--
+-- One Developer Product per Cash / Speed pack, same price, bought FOR another
+-- player in the server. `giftOf` names the pack the recipient receives; the
+-- Cash amount is the RECIPIENT's scaled amount at receipt time (or, if they
+-- have left, the amount the buyer was shown). Granted by GiftService through
+-- ProcessReceipt only.
+--
+-- productId 0 = not created on the Creator Dashboard yet. Such a product is
+-- in ProductByKey (so the shop can list it as "coming soon" / hide it) but
+-- deliberately NOT in ProductById: every unset gift shares the id 0, and a
+-- receipt can never carry it anyway. The Gift section of the shop stays
+-- hidden until at least one id is set.
+MonetizationConfig.GiftProducts = {
+	{ key = "GiftCash24K", productId = 0, robux = 45, kind = "Gift", amount = 75e3, label = "75K", giftOf = "Cash24K" },
+	{ key = "GiftCash200K", productId = 0, robux = 85, kind = "Gift", amount = 200e3, label = "200K", giftOf = "Cash200K" },
+	{ key = "GiftCash800K", productId = 0, robux = 215, kind = "Gift", amount = 800e3, label = "800K", giftOf = "Cash800K" },
+	{ key = "GiftCash4M", productId = 0, robux = 425, kind = "Gift", amount = 4e6, label = "4M", giftOf = "Cash4M" },
+	{ key = "GiftCash8M", productId = 0, robux = 679, kind = "Gift", amount = 8e6, label = "8M", giftOf = "Cash8M" },
+	{ key = "GiftSpeed150K", productId = 0, robux = 69, kind = "Gift", amount = 150e3, label = "150K", giftOf = "Speed150K" },
+	{ key = "GiftSpeed1M", productId = 0, robux = 215, kind = "Gift", amount = 1e6, label = "1M", giftOf = "Speed1M" },
+	{ key = "GiftSpeed10M", productId = 0, robux = 595, kind = "Gift", amount = 10e6, label = "10M", giftOf = "Speed10M" },
+	{ key = "GiftSpeed1B", productId = 0, robux = 2549, kind = "Gift", amount = 1e9, label = "1B", giftOf = "Speed1B" },
+} :: { ProductDef }
+
+for _, product in MonetizationConfig.GiftProducts do
+	MonetizationConfig.ProductByKey[product.key] = product
+	if product.productId > 0 then
+		MonetizationConfig.ProductById[product.productId] = product
+	end
+end
+
+--- The gift product that buys `packKey` for someone else, or nil.
+function MonetizationConfig.giftFor(packKey: string): ProductDef?
+	for _, product in MonetizationConfig.GiftProducts do
+		if product.giftOf == packKey then
+			return product
+		end
+	end
+	return nil
 end
 
 --- Steal product by the rarity it pays for.

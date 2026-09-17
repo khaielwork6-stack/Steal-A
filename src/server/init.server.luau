@@ -614,6 +614,14 @@ do
 		QuestService.markDirty(player)
 	end
 end
+-- TRADING / GIFTING (trading-gifting-boards pass). After MonetizationService
+-- (policy, the gift receipt branch) and MailboxService (gift delivery), and
+-- before DebugService so DebugCommands/Trade finds them running. The new
+-- world boards are part of LeaderboardService above.
+require(Services.TradeService).start()
+-- An item in an open trade offer cannot be fused (FusionService.isLocked).
+require(Services.FusionService).isLocked = require(Services.TradeService).isOffered
+require(Services.GiftService).start()
 
 DebugService.start()
 

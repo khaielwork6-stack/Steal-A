@@ -420,6 +420,12 @@ local function buildShop()
 		return `+{product.label}`
 	end)
 
+	-- [trading-gifting-boards] GIFT: packs bought for another player. Its own
+	-- module; hidden until a gift product id is configured.
+	for _, card in require(script.Parent.GiftShopSection).build(list, 40) do
+		table.insert(cards, card)
+	end
+
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.CanvasSize = UDim2.fromScale(0, 0)
 	list.ScrollBarThickness = 6
@@ -495,6 +501,7 @@ function ShopController.start()
 		refreshOwnership(state.monetization)
 		if built then
 			paintCashAmounts(state.shop)
+			require(script.Parent.GiftShopSection).update(state) -- [trading-gifting-boards]
 		end
 
 		-- Ownership is binary and permanent, so a false -> true flip is a real

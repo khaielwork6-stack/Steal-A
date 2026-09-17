@@ -295,6 +295,10 @@ end
 type DeliveryHandler = (Player, DataService.Profile, MonetizationConfig.ProductDef, string) -> ...any
 local stealHandler: DeliveryHandler? = nil
 local revealHandler: DeliveryHandler? = nil
+--- [trading-gifting-boards] Delivers a `Gift` receipt to the recipient the
+--- buyer picked (GiftService). Same contract; a gift is never undeliverable
+--- (no recipient on record = the buyer gets it), so only "retry" matters.
+local giftHandler: DeliveryHandler? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -434,8 +438,10 @@ end
 --                                 (HatchService refuses the prompt; the
 --                                 client hides it). Paid base steals target
 --                                 an item the player can SEE, so they stay.
---   IsPaidItemTradingAllowed      Nothing trades yet. Exposed through
---                                 `policy(player)` for the trading feature.
+--   IsPaidItemTradingAllowed      TradeService disables trading entirely
+--                                 for a player where this is not `true`
+--                                 (anything bought with Robux can end up in
+--                                 an offer, so no finer rule is attempted).
 
 --- The shape every caller reads. Only the fields this game uses are copied;
 --- the full answer is kept in `raw` for the debug bridge.
@@ -719,6 +725,20 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			rememberGrant(profile, purchaseId)
 		end
 
+	elseif product.kind == "Gift" then
+		-- [trading-gifting-boards] A pack bought FOR someone else. The
+		-- handler grants it to the remembered recipient (durably, through the
+		-- mailbox) or to the buyer when nobody is remembered; the receipt is
+		-- recorded here, on the BUYER's profile, like any other.
+		if not giftHandler then
+			warn(`[MonetizationService] Gift receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		if deliver(giftHandler, player, profile, product, purchaseId) ~= "delivered" then
+			return pending
+		end
+		rememberGrant(profile, purchaseId)
+
 	else
 		warn(`[MonetizationService] product "{product.key}" has unknown kind "{product.kind}" - receipt left open.`)
 		return pending
@@ -927,6 +947,37 @@ end
 --- handler. Same `(delivered, "retry" | "undeliverable")` contract.
 function MonetizationService.setRevealHandler(fn: DeliveryHandler)
 	revealHandler = fn
+end
+
+--- [trading-gifting-boards] A `Gift` product is delivered by GiftService,
+--- which remembers who each buyer is buying for. Injected like the two above.
+function MonetizationService.setGiftHandler(fn: DeliveryHandler)
+	giftHandler = fn
+end
+
+--- [trading-gifting-boards] Opens the Robux dialog for a GIFT product. Only
+--- GiftService calls this, after it has recorded the recipient; the client's
+--- PurchaseRequest path (promptProduct) still refuses every non Cash/Speed
+--- key, so a gift can never be bought without a recipient check first.
+function MonetizationService.promptGiftProduct(player: Player, key: string): (boolean, string?)
+	if not promptLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+	local product = MonetizationConfig.ProductByKey[key]
+	if not product or product.kind ~= "Gift" then
+		return false
+	end
+	if product.productId <= 0 then
+		return false, "Gifting is not available yet."
+	end
+	local ok, err = pcall(function()
+		MarketplaceService:PromptProductPurchase(player, product.productId)
+	end)
+	if not ok then
+		warn(`[MonetizationService] PromptProductPurchase (gift) failed for {player.Name}: {err}`)
+		return false, "Could not open the purchase."
+	end
+	return true
 end
 
 --- Studio only: the installed handlers, so a test can swap one for a stub
