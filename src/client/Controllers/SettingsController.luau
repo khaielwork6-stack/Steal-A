@@ -65,6 +65,9 @@ local HatchController = require(script.Parent.HatchController)
 local SpinWheelController = require(script.Parent.SpinWheelController)
 local CodesController = require(script.Parent.CodesController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
+local SettingsPresentation = require(script.Parent.SettingsPresentation)
 local SettingsController = {}
 
 local player = Players.LocalPlayer
@@ -233,8 +236,9 @@ local function bindSlider(row: Instance, initial: number, onChange: (number) -> 
 	hit.BackgroundTransparency = 1
 	hit.Text = ""
 	hit.AutoButtonColor = false
-	hit.Size = UDim2.fromScale(1, 1.6)
-	hit.Position = UDim2.fromScale(0, -0.3)
+	hit.AnchorPoint = Vector2.new(0, 0.5)
+	hit.Size = UDim2.new(1, 0, 0, 48 / ClipSafe.scaleChain(track))
+	hit.Position = UDim2.fromScale(0, 0.5)
 	hit.ZIndex = 9
 	hit.Active = true
 	hit:SetAttribute("_UIHandlerSetup", true) -- the pack must not animate it
@@ -422,6 +426,7 @@ local function arrange(panel: GuiObject, list: ScrollingFrame, codesTemplate: Gu
 
 	-- ---------- order + layout ----------
 	for row in ratios do
+		SettingsPresentation.row(row)
 		local order = ROW_ORDER[row.Name]
 		row.LayoutOrder = order or (100 + row.LayoutOrder)
 		-- The height is ours now; an aspect lock would fight it.
@@ -464,8 +469,8 @@ local function arrange(panel: GuiObject, list: ScrollingFrame, codesTemplate: Gu
 	holder.Name = "SettingsBody"
 	holder.BackgroundTransparency = 1
 	holder.AnchorPoint = inner.AnchorPoint
-	holder.Position = inner.Position
-	holder.Size = inner.Size
+	holder.Position = UDim2.fromScale(0.5, 0.57)
+	holder.Size = UDim2.fromScale(0.98, 0.82)
 	holder.ZIndex = inner.ZIndex
 	holder.Parent = inner.Parent
 	inner.AnchorPoint = Vector2.zero
@@ -507,14 +512,14 @@ local function arrange(panel: GuiObject, list: ScrollingFrame, codesTemplate: Gu
 		for row, ratio in ratios do
 			if row.Parent == list then
 				local widthPx = window * row.Size.X.Scale + row.Size.X.Offset * factor
-				local height = math.floor(math.max(widthPx / ratio, minRow) / factor + 0.5)
+				local height = math.floor(math.clamp(widthPx / ratio, math.max(minRow, 72), 82) / factor + 0.5)
 				heights[row] = height
 				table.insert(parts, height)
 			end
 		end
 		local shadowsHeight = if shadowsRow and heights[shadowsRow] then heights[shadowsRow] * factor else minRow
 		local minCodes = if touch then MIN_CODES_TOUCH else MIN_CODES_DESKTOP
-		local codesHeight = math.floor(math.max(shadowsHeight * CODES_HEIGHT, minCodes) / factor + 0.5)
+		local codesHeight = math.floor(math.max(math.min(shadowsHeight * CODES_HEIGHT, 100), minCodes) / factor + 0.5)
 		table.insert(parts, codesHeight)
 		local signature = table.concat(parts, ",")
 		if signature == lastSignature then
@@ -665,6 +670,7 @@ function SettingsController.start()
 
 	-- [round3-ui-base-settings] Order, sizes, canvas, CODES bar, clip guard.
 	local settingsPanel = panel :: GuiObject
+	if settingsPanel:IsA("Frame") then PanelStyle.window(settingsPanel, 760, 620) end
 	local settingsList = list :: ScrollingFrame
 	task.spawn(function()
 		local ok, err = pcall(function()

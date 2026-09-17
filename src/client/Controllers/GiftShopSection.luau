@@ -24,6 +24,9 @@ local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local TradeConfig = require(ReplicatedStorage.Shared.Config.TradeConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+
 local GiftShopSection = {}
 
 local player = Players.LocalPlayer
@@ -92,9 +95,11 @@ local function fit()
 	if not layout or width <= 0 then
 		return
 	end
-	local cellWidth = width * CELL_WIDTH
-	local cellHeight = cellWidth / CARD_ASPECT
-	local rows = math.max(1, math.ceil(#MonetizationConfig.GiftProducts / 2))
+	local factor = ClipSafe.scaleChain(list)
+	local columns = if width < 540 then 1 else 2
+	local cellWidth = width * (if columns == 1 then 0.94 else CELL_WIDTH) / factor
+	local cellHeight = math.max(190 / factor, cellWidth / CARD_ASPECT)
+	local rows = math.max(1, math.ceil(#MonetizationConfig.GiftProducts / columns))
 	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
 	g.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
 end
@@ -198,6 +203,7 @@ function GiftShopSection.build(list: ScrollingFrame, order: number): { GuiObject
 		if not card or not pack then
 			continue
 		end
+		PanelStyle.productCard(card)
 		card.Name = `Card_{product.key}`
 		card.LayoutOrder = index
 		card.Parent = g

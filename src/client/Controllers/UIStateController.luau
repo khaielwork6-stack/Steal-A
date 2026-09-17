@@ -41,11 +41,11 @@ local player = Players.LocalPlayer
 local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "CrewCard" }
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
-local HUD_SCREENS = { "HotbarUI" }
+local HUD_SCREENS = { "HotbarUI", "TouchGui" }
 --- Claims a screen stays up for (round3-gameplay): a carrier keeps the
 --- hotbar so the gadgets on 3-5 stay usable (HotbarController shows only the
 --- gadget slots during a carry). Any OTHER claim still hides it.
-local SCREEN_KEEP: { [string]: { [string]: true } } = { HotbarUI = { carry = true } }
+local SCREEN_KEEP: { [string]: { [string]: true } } = { HotbarUI = { carry = true }, TouchGui = { carry = true } }
 
 --- Claims tied to the character's life, released on respawn. Everything else
 --- (panel claims) is released by its panel.
@@ -213,6 +213,26 @@ function UIStateController.hasClaim(reason: string): boolean
 end
 
 function UIStateController.start()
+	-- A pack panel is a modal too: hotbar/cash/night HUD must not cover its controls.
+	task.spawn(function()
+		local pg = player:WaitForChild("PlayerGui")
+		local ui = pg:WaitForChild("MainUI", 30)
+		local frames = ui and ui:WaitForChild("Frames", 30)
+		if not frames then return end
+		local function watch(frame: Instance)
+			if not frame:IsA("GuiObject") then return end
+			local reason = "panel:" .. frame.Name
+			local function sync()
+				if frame.Parent == frames and frame.Visible then UIStateController.claim(reason)
+				else UIStateController.release(reason) end
+			end
+			frame:GetPropertyChangedSignal("Visible"):Connect(sync)
+			frame.AncestryChanged:Connect(sync)
+			sync()
+		end
+		for _,frame in frames:GetChildren() do watch(frame) end
+		frames.ChildAdded:Connect(watch)
+	end)
 	-- A respawn rebuilds nothing here (MainUI has ResetOnSpawn = false), but a
 	-- claim held across one would leave the HUD hidden with the thing that
 	-- claimed it gone. Only the claims that belong to the CHARACTER are

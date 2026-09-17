@@ -45,6 +45,11 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 -- [fusion-autoreveal-bases] draws the FUSE page.
 local FusionController = require(script.Parent.FusionController)
 
+local InventoryPresentation = require(script.Parent.InventoryPresentation)
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+
 local InventoryController = {}
 
 local player = Players.LocalPlayer
@@ -600,24 +605,27 @@ local builtSignature: string? = nil
 -- On top of that the whole list was torn down and re-cloned on any change,
 -- so even the cards that had not changed flickered.
 --
--- Now each card lives inside a CanvasGroup of FIXED size that the layout
+-- Now each card lives inside a Frame of FIXED size that the layout
 -- positions. The card's entrance is a fade on the group - no scale, no
 -- overshoot, nothing the layout can see. And cards are keyed by what they
 -- show, so a refresh reuses the ones that are still there and only adds or
 -- removes the ones that changed.
 
-local slotsByKey: { [string]: CanvasGroup } = {}
+local slotsByKey: { [string]: Frame } = {}
 
-local function fadeIn(group: CanvasGroup)
-	group.GroupTransparency = 1
-	game:GetService("TweenService"):Create(group, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		GroupTransparency = 0,
-	}):Play()
+local function fadeIn(group: Frame)
+	if Effects.isReduced() then return end
+	local card = group:FindFirstChildOfClass("Frame")
+	local body = card and card:FindFirstChild("Frame")
+	if body and body:IsA("Frame") then
+		body.BackgroundTransparency = 0.4
+		game:GetService("TweenService"):Create(body, TweenInfo.new(0.18, Enum.EasingStyle.Quad), { BackgroundTransparency = 0 }):Play()
+	end
 end
 
 --- Wraps a freshly built card in its fixed slot and parents it to the list.
-local function mountCard(card: Frame, key: string, index: number): CanvasGroup
-	local group = Instance.new("CanvasGroup")
+local function mountCard(card: Frame, key: string, index: number): Frame
+	local group = Instance.new("Frame")
 	group.Name = "Slot_" .. key
 	group.BackgroundTransparency = 1
 	group.BorderSizePixel = 0
@@ -632,6 +640,7 @@ local function mountCard(card: Frame, key: string, index: number): CanvasGroup
 	if stray then
 		stray:Destroy()
 	end
+	InventoryPresentation.card(card)
 	card.Parent = group
 	group.Parent = scroll
 	slotsByKey[key] = group
@@ -649,7 +658,7 @@ local rowSignatureByKey: { [string]: string } = {}
 
 --- Swaps the card inside an existing slot, in place: no fade, no layout
 --- shift, the slot keeps its position in the list.
-local function replaceCard(group: CanvasGroup, card: Frame)
+local function replaceCard(group: Frame, card: Frame)
 	for _, child in group:GetChildren() do
 		if child:IsA("GuiObject") then
 			child:Destroy()
@@ -662,6 +671,7 @@ local function replaceCard(group: CanvasGroup, card: Frame)
 	if stray then
 		stray:Destroy()
 	end
+	InventoryPresentation.card(card)
 	card.Parent = group
 end
 
@@ -734,6 +744,12 @@ local function refresh(state: any)
 
 	local used = state.storageUsed or 0
 	local capacity = state.storageCapacity or 10
+	local meter = frame:FindFirstChild("CapacityMeter", true)
+	if meter and meter:IsA("Frame") then
+		meter.Visible = activeTab == "Items" or activeTab == "Fuse"
+		local fill = meter:FindFirstChild("Fill")
+		if fill and fill:IsA("Frame") then fill.Size = UDim2.fromScale(math.clamp(used / math.max(capacity, 1), 0, 1), 1) end
+	end
 	local guardians = if type(state.guardians) == "table" then state.guardians else nil
 	local weapons = if type(state.weapons) == "table" then state.weapons else nil
 
@@ -979,9 +995,7 @@ local function styleTabs()
 			label.TextTransparency = if selected then 0 else 0.2
 		end
 		local scale = UIAnim.scaleOf(button)
-		if scale then
-			game:GetService("TweenService"):Create(scale, UIAnim.POP, { Scale = if selected then 1.05 else 1 }):Play()
-		end
+		if scale then scale.Scale = 1 end
 	end
 end
 
@@ -1055,6 +1069,14 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 			round.CornerRadius = UDim.new(0.3, 0)
 			round.Parent = button
 		end
+		PanelStyle.corner(button, 24)
+		for _,d in button:GetDescendants() do
+			if d:IsA("ImageLabel") then d.ImageTransparency = 1
+			elseif d:IsA("GuiObject") and d.Name == "Frame" then
+				d.AnchorPoint, d.Position, d.Size = Vector2.zero, UDim2.new(), UDim2.fromScale(1, 1)
+				PanelStyle.corner(d, 24)
+			end
+		end
 		button.Name = `Tab{name}`
 		button.LayoutOrder = order
 		button.AnchorPoint = Vector2.new(0, 0)
@@ -1079,6 +1101,17 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		end
 	end)
 	bar.Parent = built
+	local function fitControls()
+		local factor = ClipSafe.scaleChain(built)
+		local header = built:FindFirstChild("Top")
+		local topHeight = if header and header:IsA("GuiObject") then header.AbsoluteSize.Y / factor else 60 / factor
+		local short = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y < 500
+		bar.Position = UDim2.new(0.5, 0, 0, topHeight + (if short then 8 else 12) / factor)
+		bar.Size = UDim2.new(0.96, 0, 0, (if short then 46 else 52) / factor)
+		list.Size = UDim2.new(0.98, 0, 1, -(topHeight + (if short then 66 else 82) / factor))
+	end
+	built:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitControls)
+	task.defer(fitControls)
 	styleTabs()
 end
 
@@ -1144,6 +1177,18 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 		count.Position = UDim2.fromScale(0.50, 0.5)
 		count.Parent = header
 		countLabel = count
+		local meter = Instance.new("Frame")
+		meter.Name = "CapacityMeter"
+		meter.Position, meter.Size = UDim2.fromScale(0.43, 0.80), UDim2.fromScale(0.14, 0.09)
+		meter.BackgroundColor3, meter.BorderSizePixel = Color3.fromRGB(17, 28, 59), 0
+		PanelStyle.corner(meter, 8)
+		meter.Parent = header
+		local fill = Instance.new("Frame")
+		fill.Name, fill.BorderSizePixel = "Fill", 0
+		fill.BackgroundColor3 = Color3.fromRGB(113, 250, 175)
+		fill.Size = UDim2.fromScale(0, 1)
+		PanelStyle.corner(fill, 8)
+		fill.Parent = meter
 	end
 
 	local upgrade = header:FindFirstChild("SellAll")
@@ -1263,6 +1308,8 @@ local function buildPanel(ui: ScreenGui, template: Frame)
 
 	-- ITEMS / GUARDIANS / WEAPONS, under the header.
 	buildTabs(built, list, upgradeButton)
+	InventoryPresentation.grid(list)
+	PanelStyle.window(built, 920, 590)
 
 	-- Rows are only built while open, so build them the moment the pack opens it.
 	built:GetPropertyChangedSignal("Visible"):Connect(function()

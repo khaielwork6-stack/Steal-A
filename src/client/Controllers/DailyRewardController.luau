@@ -85,6 +85,8 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local AudioController = require(script.Parent.AudioController)
 local UIStateController = require(script.Parent.UIStateController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
 local DailyRewardController = {}
 
 local player = Players.LocalPlayer
@@ -1202,6 +1204,7 @@ local function buildPanel(ui: ScreenGui): boolean
 	end)
 
 	frame.Parent = frames
+	PanelStyle.window(frame, 980, 610)
 	panel = frame
 	-- Where it rests, once the pack and the touch layout have both had their
 	-- deferred pass at it.

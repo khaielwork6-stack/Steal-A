@@ -46,6 +46,8 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local UIStateController = require(script.Parent.UIStateController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
 local TradeController = {}
 
 local player = Players.LocalPlayer
@@ -842,6 +844,7 @@ local function buildPanel(ui: ScreenGui)
 	panelList = list
 
 	frame.Parent = frames
+	PanelStyle.window(frame, 860, 560)
 	panelFrame = frame
 	frame:GetPropertyChangedSignal("Visible"):Connect(function()
 		if frame.Visible then

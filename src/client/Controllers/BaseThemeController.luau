@@ -62,6 +62,8 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local ToastController = require(script.Parent.ToastController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
 local BaseThemeController = {}
 
 local player = Players.LocalPlayer
@@ -1324,6 +1326,7 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 	end)
 	task.defer(layoutGrid)
 
+	PanelStyle.window(panel, 940, 620)
 	selectTab("Treadmill")
 
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()

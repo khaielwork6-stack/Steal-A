@@ -46,6 +46,8 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local ToastController = require(script.Parent.ToastController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
 local CodesController = {}
 
 local WHITE = Color3.fromRGB(255, 255, 255)
@@ -241,6 +243,12 @@ function CodesController.attach(bar: Frame, template: GuiObject?): boolean
 		stroke.Color = INK
 		stroke.Parent = plain
 		row, body = plain, plain
+	end
+	body.BackgroundColor3, body.BackgroundTransparency = Color3.new(1, 1, 1), 0
+	PanelStyle.corner(body, 12)
+	PanelStyle.gradient(body, Color3.fromRGB(91, 65, 162), Color3.fromRGB(42, 35, 95))
+	for _,texture in body:GetChildren() do
+		if texture:IsA("ImageLabel") then texture.ImageTransparency = 0.96 end
 	end
 	local z = math.max(body.ZIndex, row.ZIndex) + 1
 

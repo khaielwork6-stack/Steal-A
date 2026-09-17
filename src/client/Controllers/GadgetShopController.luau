@@ -24,6 +24,9 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+
 local GadgetShopController = {}
 
 local SECTION_ORDER = 40
@@ -63,9 +66,11 @@ local function fit()
 	if width <= 0 then
 		return
 	end
-	local cellWidth = width * CELL_WIDTH
-	local cellHeight = cellWidth / CARD_ASPECT
-	local rows = math.max(1, math.ceil(#GadgetConfig.Order / 2))
+	local factor = ClipSafe.scaleChain(list)
+	local columns = if width < 540 then 1 else 2
+	local cellWidth = width * (if columns == 1 then 0.94 else CELL_WIDTH) / factor
+	local cellHeight = math.max(190 / factor, cellWidth / CARD_ASPECT)
+	local rows = math.max(1, math.ceil(#GadgetConfig.Order / columns))
 	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
 	frame.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
 end
@@ -114,6 +119,7 @@ local function build(): boolean
 		if not card then
 			continue
 		end
+		PanelStyle.productCard(card)
 		card.Name = `Gadget_{key}`
 		card.LayoutOrder = index
 		card.Parent = holder

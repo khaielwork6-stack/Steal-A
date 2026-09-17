@@ -43,6 +43,9 @@ local SeasonPassConfig = require(ReplicatedStorage.Shared.Config.SeasonPassConfi
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+
 local QuestController = {}
 
 local player = Players.LocalPlayer
@@ -381,9 +384,11 @@ local function fitSection(grid: Frame, count: number)
 	if width <= 0 then
 		return
 	end
-	local cellWidth = width * CELL_WIDTH
-	local cellHeight = cellWidth / CARD_ASPECT
-	local rows = math.max(1, math.ceil(count / 2))
+	local factor = ClipSafe.scaleChain(list)
+	local cols = if width < 540 then 1 else 2
+	local cellWidth = width * (if cols == 1 then 0.94 else CELL_WIDTH) / factor
+	local cellHeight = math.max(190 / factor, cellWidth / CARD_ASPECT)
+	local rows = math.max(1, math.ceil(count / cols))
 	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
 	grid.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
 end
@@ -396,6 +401,10 @@ local function buildSection(list: ScrollingFrame, period: string, title: string,
 		local text = header:FindFirstChild("Title")
 		if text and text:IsA("TextLabel") then
 			text.Text = title
+			text.AnchorPoint = Vector2.new(0, 0.5)
+			text.Position = UDim2.fromScale(0.02, 0.5)
+			text.Size = UDim2.fromScale(0.54, 0.78)
+			text.TextXAlignment = Enum.TextXAlignment.Left
 		end
 	else
 		headerFrame = Instance.new("Frame")
@@ -488,6 +497,7 @@ local function buildQuestCard(period: string, row: any): QuestRow?
 	if not grid or not card then
 		return nil
 	end
+	PanelStyle.productCard(card)
 	card.Name = `Quest_{period}_{row.index}`
 	card.LayoutOrder = row.index
 	card.Parent = grid
@@ -1214,6 +1224,7 @@ function QuestController.start()
 	-- Panel FIRST: the pack pairs a button with the frame of the same name
 	-- when the button is registered.
 	frame.Parent = frames
+	PanelStyle.window(frame, 960, 610)
 	buildOpener(screen)
 
 	applyPanelScale()

@@ -37,6 +37,9 @@ local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local GadgetShopController = require(script.Parent.GadgetShopController)
 local UIStateController = require(script.Parent.UIStateController)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+
 local GadgetStoreController = {}
 
 local player = Players.LocalPlayer
@@ -159,6 +162,7 @@ local function build(): boolean
 	end
 	-- Outside `Frames`, so the pack never tries to manage it.
 	clone.Parent = layer
+	PanelStyle.window(clone, 840, 560)
 
 	local scroller = clone:FindFirstChild("ScrollingFrame")
 	if not scroller or not scroller:IsA("ScrollingFrame") then
@@ -205,10 +209,12 @@ local function build(): boolean
 		if width <= 0 then
 			return
 		end
-		local cellWidth = width * 0.47
-		local cellHeight = cellWidth / CARD_ASPECT
+		local factor = ClipSafe.scaleChain(scroller)
+		local columns = if width < 560 then 1 else 2
+		local cellWidth = width * (if columns == 1 then 0.94 else 0.47) / factor
+		local cellHeight = math.max(180 / factor, cellWidth / CARD_ASPECT)
 		layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
-		local rows = math.ceil(#GadgetConfig.Order / 2)
+		local rows = math.ceil(#GadgetConfig.Order / columns)
 		holder.Size = UDim2.new(1, 0, 0, 8 + rows * cellHeight + (rows - 1) * ROW_GAP + 8)
 	end
 	fitCells()
@@ -221,6 +227,7 @@ local function build(): boolean
 		if not card then
 			continue
 		end
+		PanelStyle.productCard(card)
 		card.Name = `StoreGadget_{key}`
 		card.LayoutOrder = index
 		card.Parent = holder

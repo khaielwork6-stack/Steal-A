@@ -30,6 +30,8 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local StateStore = require(script.Parent.Parent.StateStore)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+
 local CrewController = {}
 
 local player = Players.LocalPlayer
@@ -123,10 +125,11 @@ local function buildCard(ui: Instance)
 	-- rail (guardian sale / Slap cards) - seen in Studio.
 	card.AnchorPoint = Vector2.new(1, 0)
 	card.Position = UDim2.new(1, -10, 0, if Device.isTouch() then 58 else 72)
-	card.Size = UDim2.fromOffset(if Device.isTouch() then 150 else 190, 0)
+	card.Size = UDim2.fromOffset(if Device.isTouch() then 138 else 150, 0)
 	card.AutomaticSize = Enum.AutomaticSize.Y
 	card.BackgroundColor3 = PANEL
-	card.BackgroundTransparency = 0.25
+	card.BackgroundTransparency = 0
+	PanelStyle.gradient(card, Color3.fromRGB(36, 72, 115), Color3.fromRGB(20, 27, 61))
 	round(card, 14)
 	stroke(card, TEAL, 2)
 	local pad = Instance.new("UIPadding")
@@ -144,7 +147,8 @@ local function buildCard(ui: Instance)
 	local opener = Instance.new("TextButton")
 	opener.Name = "Crew"
 	opener.LayoutOrder = 0
-	opener.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
+	opener.Size = UDim2.new(1, 0, 0, 52)
+	PanelStyle.gradient(opener, Color3.fromRGB(82, 248, 195), Color3.fromRGB(15, 147, 144))
 	opener.BackgroundColor3 = TEAL
 	opener.Font, opener.TextScaled, opener.TextColor3 = FONT, true, WHITE
 	opener.Text = "CREW +"
@@ -157,8 +161,8 @@ local function buildCard(ui: Instance)
 		local icon = Instance.new("ImageLabel")
 		icon.BackgroundTransparency = 1
 		icon.Image = CrewConfig.Icons.Crew
-		icon.Size = UDim2.fromScale(0.3, 1.4)
-		icon.Position = UDim2.fromScale(0.02, -0.2)
+		icon.Size = UDim2.fromScale(0.3, 0.85)
+		icon.Position = UDim2.fromScale(0.02, 0.075)
 		icon.ScaleType = Enum.ScaleType.Fit
 		icon.Parent = opener
 	end
@@ -289,6 +293,7 @@ local function buildPanel(ui: Instance): boolean
 	list.ScrollingDirection = Enum.ScrollingDirection.Y
 	panelList = list
 	panel.Parent = frames
+	PanelStyle.window(panel, 780, 540)
 	return true
 end
 
