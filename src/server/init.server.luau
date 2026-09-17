@@ -61,6 +61,8 @@ local MysterySpawnService = require(Services.MysterySpawnService)
 local OfflineService = require(Services.OfflineService)
 local SpinWheelService = require(Services.SpinWheelService)
 local StarterTaskService = require(Services.StarterTaskService)
+-- DATA AREA: durable delivery to offline / other-server players.
+local MailboxService = require(Services.MailboxService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -418,6 +420,10 @@ SettingsService.start()
 -- exist by now; the absence itself is settled per player below, once the
 -- income has been rebuilt from the loaded profile.
 OfflineService.start()
+-- DATA AREA: the mailbox. After OfflineService - a join's first delivery runs
+-- after the offline settle (see onPlayer below) - and before DebugService so
+-- the Data debug commands find it running.
+MailboxService.start()
 
 DebugService.start()
 
@@ -457,13 +463,22 @@ local function onPlayer(player: Player)
 	end)
 
 	task.spawn(function()
-		DataService.waitForProfile(player)
+		-- Waits for the REAL load, however long it takes (no fixed timeout: a
+		-- join waiting on another server's session lock can take 20s, and a
+		-- settle that ran before the profile existed would silently pay no
+		-- offline earnings). nil means the load failed or they left.
+		if not DataService.waitForProfile(player) then
+			return
+		end
 		EconomyService.recalculate(player)
 		SpeedService.applyMovement(player)
 		-- AFTER the income is rebuilt: the absence is measured once, banked as
 		-- a pending claim, and the claim modal rides the first push below.
 		OfflineService.settle(player)
 		StateService.pushNow(player)
+		-- DATA AREA: mail sent while they were away (another server, offline)
+		-- is delivered once the profile is live and settled.
+		task.spawn(MailboxService.deliver, player)
 
 		-- The push above races the client: a profile that loads instantly (Studio
 		-- solo, or a warm DataStore) fires it before StarterPlayerScripts have

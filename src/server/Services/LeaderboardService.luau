@@ -196,12 +196,34 @@ end
 -- STORE I/O
 -- ==========================================================
 
+--- The largest value written to an OrderedDataStore. Its values are int64;
+--- 9e18 sits just under 2^63 (about 9.22e18) and is exactly representable.
+local MAX_STORABLE = 9e18
+
+--- A score as an OrderedDataStore will accept it: a finite whole number in
+--- [0, MAX_STORABLE]. Without this one enormous (or NaN) Cash value made
+--- every SetAsync for that player fail, forever, and the board froze them
+--- at whatever it last accepted.
+local function storable(value: any): number
+	local n = tonumber(value)
+	if n == nil or n ~= n then
+		return 0
+	end
+	if n >= MAX_STORABLE then
+		return MAX_STORABLE
+	end
+	if n <= 0 then
+		return 0
+	end
+	return math.floor(n)
+end
+
 local function currentScores(player: Player): (number?, number?)
 	local profile = DataService.get(player)
 	if not profile then
 		return nil, nil
 	end
-	return math.max(0, math.floor(profile.Cash)), math.max(0, math.floor(profile.SpeedPower))
+	return storable(profile.Cash), storable(profile.SpeedPower)
 end
 
 --- Writes one player's scores. Only when they changed since the last write, so

@@ -119,7 +119,9 @@ end
 function EconomyService.recalculate(player: Player): number
 	local profile = DataService.get(player)
 	if not profile then
-		incomePerSecond[player] = 0
+		-- nil, not 0: a recalculate after the player has been released must
+		-- not leave an entry behind (getIncome reads nil as 0 anyway).
+		incomePerSecond[player] = nil
 		return 0
 	end
 
@@ -208,17 +210,29 @@ end
 
 function EconomyService.start()
 	Players.PlayerRemoving:Connect(function(player)
-		incomePerSecond[player] = nil
 		awardedBySource[player] = nil
+	end)
+	-- The income cache outlives the leave-save: OfflineService stamps the
+	-- offline rate from it inside that save, and a PlayerRemoving handler here
+	-- could run first and make the saved rate 0. DataService runs this after
+	-- the profile has been written and dropped.
+	DataService.onAfterRelease(function(player)
+		incomePerSecond[player] = nil
 	end)
 
 	task.spawn(function()
 		while true do
 			task.wait(GameConfig.INCOME_TICK)
 			for _, player in Players:GetPlayers() do
-				local income = incomePerSecond[player]
-				if income and income > 0 then
-					EconomyService.award(player, income * GameConfig.INCOME_TICK, "passive")
+				-- One player's failure must never stop everyone's income.
+				local ok, err = pcall(function()
+					local income = incomePerSecond[player]
+					if income and income > 0 then
+						EconomyService.award(player, income * GameConfig.INCOME_TICK, "passive")
+					end
+				end)
+				if not ok then
+					warn(`[EconomyService] income tick failed for {player.Name}: {err}`)
 				end
 			end
 		end

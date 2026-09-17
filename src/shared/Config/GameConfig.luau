@@ -445,12 +445,13 @@ GameConfig.RATE_LIMITS = {
 GameConfig.OFFLINE_EARNINGS_MAX_SECONDS = 6 * 60 * 60
 --- The share of the live $/s paid per offline second (1 = the full online
 --- rate). The reference game pays substantially less than its online rate
---- while away, but its exact coefficient was not reachable from this project
---- and is NOT guessed here: the field exists, the multiplication is wired
---- (OfflineService.settle), and parity is NOT claimed for offline income
---- until a traced value replaces this. OFFLINE_STATUS says so at runtime.
-GameConfig.OFFLINE_EFFICIENCY = 1
-GameConfig.OFFLINE_STATUS = "BLOCKED_OFFLINE_COEFFICIENT"
+--- while away; its exact coefficient was never traced, so this is a DESIGN
+--- choice rather than a measured one: the owner chose 50% on 2026-09-17
+--- (genre-typical, and it keeps playing clearly better than idling).
+--- OFFLINE_STATUS is VERIFIED because the owner signed the number off, not
+--- because it was matched against the reference.
+GameConfig.OFFLINE_EFFICIENCY = 0.5
+GameConfig.OFFLINE_STATUS = "VERIFIED"
 --- Below this the reward is not worth a modal; it is still paid, silently.
 GameConfig.OFFLINE_EARNINGS_MIN_TO_SHOW = 1
 
@@ -473,5 +474,36 @@ GameConfig.NEXT_UPDATE_EVENT_ID = "4257917435077853831"
 --- event id is not an image and cannot be shown here - Roblox exposes no
 --- event thumbnail to a running game.
 GameConfig.NEXT_UPDATE_IMAGE = 115680004637965 :: number?
+
+-- ==========================================================
+-- DATA: SESSION LOCK, SAVE RETRIES, MAILBOX (data area)
+-- ==========================================================
+--
+-- See DataService's header for the session-lock design and MailboxService's
+-- for the mailbox. Server-only numbers; they live here so validate.luau can
+-- check them and so they are tuned in one place.
+
+--- A session lock whose last refresh is older than this is treated as dead
+--- (the server that held it crashed without its leave-save). Every save
+--- refreshes the stamp, and autosave runs every AUTOSAVE_INTERVAL, so a LIVE
+--- session never gets anywhere near this.
+GameConfig.DATA_LOCK_STALE_SECONDS = 30 * 60
+--- How long a join waits for another LIVE server to release the profile
+--- (its leave-save normally lands within a few seconds) before taking it over.
+GameConfig.DATA_LOCK_WAIT_SECONDS = 20
+--- How often the join re-checks the lock while it waits.
+GameConfig.DATA_LOCK_RETRY_SECONDS = 2
+--- Attempts a LEAVE-save makes (with backoff) before the profile is dropped.
+GameConfig.DATA_RELEASE_SAVE_ATTEMPTS = 5
+--- The longest BindToClose waits for every final save. Roblox allows 30s.
+GameConfig.DATA_SHUTDOWN_WAIT_SECONDS = 25
+--- Entries a single mailbox holds; a send into a full mailbox fails.
+GameConfig.MAILBOX_CAPACITY = 50
+--- How often online players' mailboxes are checked for new deliveries.
+GameConfig.MAILBOX_POLL_SECONDS = 30
+--- How many delivered mail ids a profile remembers (the idempotency record).
+--- Must be at least MAILBOX_CAPACITY so a whole mailbox can never be granted
+--- twice.
+GameConfig.MAILBOX_DELIVERED_MEMORY = 100
 
 return GameConfig
