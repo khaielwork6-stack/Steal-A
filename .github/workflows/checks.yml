@@ -1,0 +1,40 @@
+# Static checks for Steal & Run!.
+#   1. the Rojo project builds into a place file
+#   2. tools/check.sh (luau-lsp) has no hard errors (syntax, unknown global,
+#      unknown require); TypeErrors are reported but never fail
+#   3. selene finds no errors (warnings are allowed)
+# Tool versions come from rokit.toml, exactly as on a developer machine.
+name: checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      # Rokit downloads tool releases from GitHub; a token avoids rate limits.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rokit and the project's tools
+        run: |
+          curl -sSf https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+          "$HOME/.rokit/bin/rokit" install --no-trust-check
+
+      - name: Build the place (rojo)
+        run: rojo build default.project.json -o build.rbxl
+
+      - name: Static check (luau-lsp)
+        run: bash tools/check.sh
+
+      # Runs even when the luau-lsp step failed, so both reports are visible.
+      - name: Lint (selene, errors only)
+        if: success() || failure()
+        run: selene --allow-warnings src

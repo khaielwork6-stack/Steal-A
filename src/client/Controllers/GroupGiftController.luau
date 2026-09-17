@@ -10,9 +10,9 @@
 	printed "Join Community", a breathing glow on CLAIM so it reads as live, a
 	CLAIMED! pill once the server says so, and the open/close motion.
 
-	The previous, pack-built version of this screen is preserved verbatim at
-	`Client/Backups/FreeGiftUI_Backup_PrePNG` (never required, never started).
-	To roll back, copy it over this file.
+	The previous, pack-built version of this screen was kept as
+	`Client/Backups/FreeGiftUI_Backup_PrePNG` and has since been removed; to
+	roll back, restore that file from git history (it was never required).
 
 	WHAT THE CLIENT DOES AND DOES NOT DO - unchanged
 	  * It shows Roblox's OWN group prompt (GroupService:PromptJoinAsync). There

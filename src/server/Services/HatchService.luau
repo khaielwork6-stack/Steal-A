@@ -271,7 +271,10 @@ function HatchService.commit(player: Player, instanceId: string): (boolean, stri
 	-- pass, and the client reveals exactly what it finds on that frame.
 	task.delay(HatchConfig.swapAt(item.Rarity), function()
 		if player.Parent then
-			BaseService.rebuildDisplays(player)
+			-- Only the revealed pad: its "Trophy" is replaced exactly as a full
+			-- rebuild would (the client waits for that ChildAdded). rebuildSlot
+			-- falls back to the full rebuild if the item left its slot.
+			BaseService.rebuildSlot(player, item.SlotIndex)
 		end
 	end)
 	task.delay(HatchConfig.lockSeconds(item.Rarity), function()

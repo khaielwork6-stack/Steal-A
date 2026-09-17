@@ -8,7 +8,6 @@ Layout.CORRIDOR_HALF = 22
 Layout.DEPTH = Map.LANE_HALF - Layout.CORRIDOR_HALF
 Layout.HEIGHT = 64
 Layout.DOOR_WIDTH = 40
-Layout.WALL = 2
 Layout.BEAMS = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14 }
 
 function Layout.doorHeight(index: number): number

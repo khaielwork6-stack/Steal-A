@@ -421,20 +421,9 @@ OfflineService.start()
 
 DebugService.start()
 
--- Scenery is visible but hollow: 186 decorative parts across the twelve zones
--- were solid, which is what makes a fast player catch on a pillar and a guardian
--- jam on a cactus. The map is baked into the place file, so this runs at startup
--- rather than only at build time. See MapBuilder.applyDecorCollision.
-do
-	local MapBuilder = require(script.MapBuilder)
-	local cleared = MapBuilder.applyDecorCollision()
-	print(`[MapBuilder] decor made hollow: {cleared} part(s) no longer collide`)
-	-- The kit's snow was baked over the Secret Lab; it belongs to the North
-	-- Pole. Moved (once) at start, sized and rated for zone 5.
-	if MapBuilder.relocateWeather(9, 5) then
-		print("[MapBuilder] snow moved from the Secret Lab to the North Pole")
-	end
-end
+-- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the
+-- top of this file - see MapBuilder.applyDecorCollision. The zone 9 -> 5 snow
+-- move that used to follow here is retired: buildWeather places it directly.)
 
 -- Movement is owned by SpeedService/CarryService so the compressed formula and
 -- the carry penalty are applied in exactly one place.
@@ -487,5 +476,5 @@ for _, player in Players:GetPlayers() do
 end
 Players.PlayerAdded:Connect(onPlayer)
 
-print("[Server] Steal Something services started")
+print("[Server] Steal & Run! services started")
 print(string.format("[Server] boot completed in %.2fs", os.clock() - bootStarted))

@@ -218,17 +218,12 @@ function MysterySpawnService.layoutZone(zoneIndex: number, zone: Instance): numb
 		local socket = part :: BasePart
 		socket:SetAttribute("SpawnName", name)
 
-		-- Source-built museum sockets already sit on their case plinths. The
-		-- fallback arc below remains for older places; it must not pull the
-		-- galleries' crates out of the vitrines at every server start.
+		-- MUSEUM SOCKETS ARE PLACED BY MuseumGallery, which builds all eight
+		-- (position, size, inert flags, no child parts) on every boot through
+		-- MapBuilder.rebuildGalleries. Nothing to adjust here. The fallback arc
+		-- below only runs for a socket without the MuseumSocket attribute,
+		-- which a normal boot never produces.
 		if socket:GetAttribute("MuseumSocket") == true then
-			socket.Anchored, socket.CanCollide, socket.CanQuery = true, false, false
-			socket.Transparency, socket.CastShadow = 1, false
-			for _, child in socket:GetChildren() do
-				if child:IsA("BasePart") then
-					child.Transparency, child.CanCollide, child.CanQuery = 1, false, false
-				end
-			end
 			continue
 		end
 

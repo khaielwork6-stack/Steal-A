@@ -152,7 +152,8 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	CarryService.consumeCarry(player)
 	LootService.consume(loot)
 
-	BaseService.rebuildDisplays(player)
+	-- Only this pad changed: redraw it alone rather than every trophy.
+	BaseService.rebuildSlot(player, slotIndex)
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
@@ -221,7 +222,8 @@ function PlacementService.store(player: Player, slotIndex: number): (boolean, st
 	found.SlotIndex = 0
 	table.insert(profile.Inventory, found)
 
-	BaseService.rebuildDisplays(player)
+	-- Only the emptied pad changed.
+	BaseService.rebuildSlot(player, slotIndex)
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
@@ -253,7 +255,8 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 			item.SlotIndex = free[1]
 			table.insert(profile.DisplayItems, item)
 
-			BaseService.rebuildDisplays(player)
+			-- Only the pad it lands on changed.
+			BaseService.rebuildSlot(player, item.SlotIndex)
 			EconomyService.recalculate(player)
 			StateService.pushNow(player)
 
