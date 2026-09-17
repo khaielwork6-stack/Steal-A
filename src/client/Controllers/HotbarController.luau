@@ -36,10 +36,15 @@ local HotbarController = {}
 
 local player = Players.LocalPlayer
 
+local Device = require(ReplicatedStorage.Shared.Util.Device)
+
 local SLOT_COUNT = 4
 --- 66 on desktop; a touch layout takes them ~12% smaller so the bar leaves
---- more of the play area and never crowds the jump button.
-local SLOT_PIXELS = if require(ReplicatedStorage.Shared.Util.Device).isTouch() then 58 else 66
+--- more of the play area and never crowds the jump button. A function, not a
+--- constant decided at require time: the layout follows Device changes.
+local function slotPixels(): number
+	return if Device.isTouch() then 58 else 66
+end
 local SLOT_GAP = 10
 local BOTTOM_INSET = 14
 
@@ -64,9 +69,22 @@ local LIFT = TweenInfo.new(0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out
 local FOV = 36
 local VIEW_DIRECTION = Vector3.new(1, 0.6, 1.2).Unit
 
-type Slot = { button: TextButton, count: TextLabel?, name: TextLabel?, icon: ImageLabel?, viewport: ViewportFrame?, scale: UIScale, tool: Tool? }
+--- `lifted` / `lift`: the equipped state the slot's scale was last sent to,
+--- and the tween doing it, so a render that changes nothing creates nothing.
+type Slot = {
+	button: TextButton,
+	count: TextLabel?,
+	name: TextLabel?,
+	icon: ImageLabel?,
+	viewport: ViewportFrame?,
+	scale: UIScale,
+	tool: Tool?,
+	lifted: boolean?,
+	lift: Tween?,
+}
 
 local gui: ScreenGui? = nil
+local barFrame: Frame? = nil
 local slots: { Slot } = {}
 --- Which tool each slot shows this frame, by slot index.
 local assignment: { [number]: Tool } = {}
@@ -273,7 +291,45 @@ local function render()
 		end
 		slot.button.BackgroundColor3 = if equipped then FACE_EQUIPPED else FACE_IDLE
 		slot.button.BackgroundTransparency = if tool then 0.25 else 0.6
-		TweenService:Create(slot.scale, LIFT, { Scale = if equipped then 1.08 else 1 }):Play()
+		-- Only when the lift actually changes: every render used to start a
+		-- fresh tween on all four slots, equipped or not.
+		if slot.lifted ~= equipped then
+			slot.lifted = equipped
+			if slot.lift then
+				slot.lift:Cancel()
+			end
+			local tween = TweenService:Create(slot.scale, LIFT, { Scale = if equipped then 1.08 else 1 })
+			slot.lift = tween
+			tween:Play()
+		end
+	end
+end
+
+--- Coalesces render requests into ONE render at the end of the frame. An
+--- equip is two events (the tool leaves the Backpack, then arrives in the
+--- character) and used to render twice.
+local renderQueued = false
+local function queueRender()
+	if renderQueued then
+		return
+	end
+	renderQueued = true
+	task.defer(function()
+		renderQueued = false
+		render()
+	end)
+end
+
+--- Sizes the bar and its slots for the current device.
+local function applySize()
+	local bar = barFrame
+	if not bar then
+		return
+	end
+	local pixels = slotPixels()
+	bar.Size = UDim2.fromOffset(SLOT_COUNT * pixels + (SLOT_COUNT - 1) * SLOT_GAP, pixels + 8)
+	for _, slot in slots do
+		slot.button.Size = UDim2.fromOffset(pixels, pixels)
 	end
 end
 
@@ -299,8 +355,8 @@ local function build(): boolean
 	bar.Name = "Hotbar"
 	bar.AnchorPoint = Vector2.new(0.5, 1)
 	bar.Position = UDim2.new(0.5, 0, 1, -BOTTOM_INSET)
-	bar.Size = UDim2.fromOffset(SLOT_COUNT * SLOT_PIXELS + (SLOT_COUNT - 1) * SLOT_GAP, SLOT_PIXELS + 8)
 	bar.BackgroundTransparency = 1
+	barFrame = bar
 	bar.Visible = true
 	bar.Parent = screen
 
@@ -324,7 +380,6 @@ local function build(): boolean
 		end
 		button.Name = `Slot{index}`
 		button.LayoutOrder = index
-		button.Size = UDim2.fromOffset(SLOT_PIXELS, SLOT_PIXELS)
 		button.Text = ""
 		button.AutoButtonColor = false
 		-- The pack ships its buttons with Active off (its own handler drives
@@ -361,6 +416,7 @@ local function build(): boolean
 		end)
 	end
 
+	applySize()
 	screen.Parent = player:WaitForChild("PlayerGui")
 	gui = screen
 	return true
@@ -392,12 +448,12 @@ function HotbarController.start()
 	local function watch(container: Instance)
 		container.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
-				task.defer(render)
+				queueRender()
 			end
 		end)
 		container.ChildRemoved:Connect(function(child)
 			if child:IsA("Tool") then
-				task.defer(render)
+				queueRender()
 			end
 		end)
 	end
@@ -406,7 +462,7 @@ function HotbarController.start()
 	watch(backpack)
 	local function onCharacter(character: Model)
 		watch(character)
-		task.delay(0.2, render)
+		task.delay(0.2, queueRender)
 	end
 	if player.Character then
 		onCharacter(player.Character)
@@ -415,8 +471,13 @@ function HotbarController.start()
 	player.ChildAdded:Connect(function(child)
 		if child:IsA("Backpack") then
 			watch(child)
-			task.defer(render)
+			queueRender()
 		end
+	end)
+
+	-- Slot size follows the device if it changes mid-session.
+	Device.onTouchChanged(function()
+		applySize()
 	end)
 
 	UserInputService.InputBegan:Connect(function(input, processed)

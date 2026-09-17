@@ -43,6 +43,10 @@ local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
 local HUD_SCREENS = { "HotbarUI" }
 
+--- Claims tied to the character's life, released on respawn. Everything else
+--- (panel claims) is released by its panel.
+local CHARACTER_CLAIMS: { [string]: true } = { carry = true, treadmill = true }
+
 local claims: { [string]: boolean } = {}
 local remembered: { [Instance]: boolean } = {}
 
@@ -131,8 +135,10 @@ local function applyRestored()
 		local was = remembered[element]
 		remembered[element] = nil
 		-- Back to what it WAS. An element the game had hidden for its own reason
-		-- stays hidden.
-		if was == nil or was == true then
+		-- stays hidden. `nil` means applyHidden never touched it (it did not
+		-- exist yet when the HUD was hidden), so there is nothing to undo -
+		-- forcing it visible used to resurrect UI that was never ours to show.
+		if was == true then
 			element.Visible = true
 			UIAnim.popIn(element, 0.85)
 		end
@@ -140,7 +146,7 @@ local function applyRestored()
 	for _, screen in screens() do
 		local was = remembered[screen]
 		remembered[screen] = nil
-		if was == nil or was == true then
+		if was == true then
 			screen.Enabled = true
 		end
 	end
@@ -180,11 +186,20 @@ end
 function UIStateController.start()
 	-- A respawn rebuilds nothing here (MainUI has ResetOnSpawn = false), but a
 	-- claim held across one would leave the HUD hidden with the thing that
-	-- claimed it gone. Dropping every claim on respawn is the safe direction:
-	-- the worst case is a treadmill card that has to re-claim on the next frame.
+	-- claimed it gone. Only the claims that belong to the CHARACTER are
+	-- dropped (the carry, the treadmill run): a panel claim (gift, trail shop)
+	-- belongs to a panel that is still open after the respawn, and clearing it
+	-- used to bring the HUD back over the open panel - and then the panel's
+	-- own release found nothing to release.
 	player.CharacterAdded:Connect(function()
-		if anyClaim() then
-			table.clear(claims)
+		local dropped = false
+		for reason in CHARACTER_CLAIMS do
+			if claims[reason] then
+				claims[reason] = nil
+				dropped = true
+			end
+		end
+		if dropped and not anyClaim() then
 			applyRestored()
 		end
 	end)

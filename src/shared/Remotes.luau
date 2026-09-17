@@ -100,6 +100,21 @@ Remotes.NAMES = {
 	-- id. World/positional sounds do not use this: the server parents those to
 	-- the part they belong to and they replicate on their own.
 	"SoundCue",
+
+	-- ==========================================================
+	-- CLIENT / STATE PUSH SPLIT (client performance pass)
+	-- ==========================================================
+	-- server -> client. `inventory` and the Index SUMMARY (the `index` field),
+	-- split off StatePush and sent only when their content changed, plus on
+	-- join, respawn and resync. The client StateStore merges them back into
+	-- one state table. Not to be confused with IndexPush above, which is the
+	-- full 96-entry discovery map and is unchanged.
+	"InventoryPush",
+	"IndexSummaryPush",
+	-- client -> server. Carries nothing: "send me everything again". Sent by
+	-- the StateStore on start so a late-starting client cannot miss the join
+	-- push. Rate limited in StateService.
+	"StateSyncRequest",
 }
 
 local folder: Folder

@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local PortalController = {}
@@ -37,6 +38,8 @@ local RAINBOW = ColorSequence.new({
 local RAINBOW_PERIOD = 4
 local SPIN = 0.35 -- radians per second, the ring in its own plane
 local FLOAT = 0.6 -- studs of sign float
+--- Portals farther than this from the camera are not animated.
+local ANIMATE_DISTANCE = 300
 
 type Portal = {
 	part: BasePart,
@@ -95,10 +98,22 @@ local function watchPortal(name: string, signName: string, spin: boolean)
 end
 
 local function tick()
+	-- Reduced Effects: the portals hold still (sign, ring, rainbow, light all
+	-- stay where they are). Purely decorative, nothing to read from them.
+	if Effects.isReduced() then
+		return
+	end
 	local now = os.clock()
+	local camera = workspace.CurrentCamera
+	local eye = if camera then camera.CFrame.Position else nil
 	for _, portal in portals do
 		local part = portal.part
 		if not part.Parent then
+			continue
+		end
+		-- Nobody can see a portal from across the map; skip it until near.
+		-- The motion is a function of the clock, so it resumes in phase.
+		if eye and (part.Position - eye).Magnitude > ANIMATE_DISTANCE then
 			continue
 		end
 		if portal.spin then
@@ -161,7 +176,9 @@ function PortalController.start()
 		end
 	end)
 
-	RunService.RenderStepped:Connect(tick)
+	-- Heartbeat, not RenderStepped: world motion, nothing the camera depends
+	-- on, and it keeps its rate under a throttled renderer.
+	RunService.Heartbeat:Connect(tick)
 end
 
 return PortalController

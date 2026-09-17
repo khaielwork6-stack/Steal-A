@@ -22,6 +22,8 @@ local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+
 local EffectsController = {}
 
 local player = Players.LocalPlayer
@@ -54,11 +56,18 @@ function EffectsController.burst(variant: string, position: Vector3)
 	effect.CFrame = CFrame.new(position)
 	effect.Parent = workspace
 
+	-- Reduced Effects keeps the burst (it is the "you bought it" feedback) but
+	-- at a third of the particles.
+	local reduced = Effects.isReduced()
 	for _, descendant in effect:GetDescendants() do
 		if descendant:IsA("ParticleEmitter") then
 			-- Emit() ignores Enabled, but a disabled emitter that is later
 			-- toggled would spew; leave it false and fire the burst explicitly.
-			descendant:Emit(emitCount(descendant))
+			local count = emitCount(descendant)
+			if reduced then
+				count = math.max(1, math.ceil(count / 3))
+			end
+			descendant:Emit(count)
 		end
 	end
 
@@ -76,19 +85,25 @@ function EffectsController.burstOnPlayer(variant: string)
 end
 
 function EffectsController.start()
-	local assets = ReplicatedStorage:WaitForChild("GameAssets", 20)
-	local folder = assets and assets:FindFirstChild("Effects")
-	if not folder then
-		warn("[EffectsController] ReplicatedStorage.GameAssets.Effects missing - bursts disabled.")
-		return
-	end
-
-	for _, name in { "Gold", "Blue" } do
-		local template = folder:FindFirstChild("LevelUp" .. name)
-		if template and template:IsA("BasePart") then
-			templates[name] = template
+	-- In its own thread: HUDController calls this inside its start(), and a
+	-- 20 s wait for GameAssets here used to hold up the HUD - and, behind it,
+	-- every other controller. burst() is simply a no-op until the templates
+	-- are in.
+	task.spawn(function()
+		local assets = ReplicatedStorage:WaitForChild("GameAssets", 20)
+		local folder = assets and assets:FindFirstChild("Effects")
+		if not folder then
+			warn("[EffectsController] ReplicatedStorage.GameAssets.Effects missing - bursts disabled.")
+			return
 		end
-	end
+
+		for _, name in { "Gold", "Blue" } do
+			local template = folder:FindFirstChild("LevelUp" .. name)
+			if template and template:IsA("BasePart") then
+				templates[name] = template
+			end
+		end
+	end)
 end
 
 return EffectsController

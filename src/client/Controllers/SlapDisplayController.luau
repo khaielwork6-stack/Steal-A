@@ -15,7 +15,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 
 local SlapDisplayController = {}
 
@@ -33,6 +33,8 @@ local RAINBOW = ColorSequence.new({
 local RAINBOW_PERIOD = 3.4
 local TURN_SPEED = 0.6
 local BOB = 0.35
+--- The cage is only animated within this many studs of the camera.
+local ANIMATE_DISTANCE = 250
 
 local display: Model? = nil
 local origin: CFrame? = nil
@@ -96,7 +98,7 @@ local function attach(model: Model)
 end
 
 function SlapDisplayController.start()
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) == "table" then
 			latest = state
 			paintPrompt()
@@ -115,9 +117,15 @@ function SlapDisplayController.start()
 		end
 	end)
 
-	RunService.RenderStepped:Connect(function()
+	-- Heartbeat (world motion, keeps its rate under a throttled renderer),
+	-- skipped while far from the camera and held still under Reduced Effects.
+	RunService.Heartbeat:Connect(function()
 		local base = origin
-		if not base or #parts == 0 then
+		if not base or #parts == 0 or Effects.isReduced() then
+			return
+		end
+		local camera = workspace.CurrentCamera
+		if camera and (base.Position - camera.CFrame.Position).Magnitude > ANIMATE_DISTANCE then
 			return
 		end
 		local now = os.clock()

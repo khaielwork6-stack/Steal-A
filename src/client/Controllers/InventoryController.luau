@@ -634,10 +634,36 @@ local function mountCard(card: Frame, key: string, index: number): CanvasGroup
 	return group
 end
 
+--- What one Items row shows. Kept per mounted card so a row whose item kept
+--- its InstanceId but changed (a mutation applied, income re-rated) is
+--- repainted instead of keeping its stale text.
+local function rowSignature(item: any): string
+	return `{item.InstanceId}:{item.ItemId}:{item.Rarity}:{item.Size}:{item.Mutation}:{item.FinalIncome}`
+end
+local rowSignatureByKey: { [string]: string } = {}
+
+--- Swaps the card inside an existing slot, in place: no fade, no layout
+--- shift, the slot keeps its position in the list.
+local function replaceCard(group: CanvasGroup, card: Frame)
+	for _, child in group:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	card.AnchorPoint = Vector2.new(0, 0)
+	card.Position = UDim2.fromScale(0, 0)
+	card.Size = UDim2.fromScale(1, 1)
+	local stray = card:FindFirstChildOfClass("UIScale")
+	if stray then
+		stray:Destroy()
+	end
+	card.Parent = group
+end
+
 local function inventorySignature(inventory: { any }): string
 	local parts = table.create(#inventory)
 	for index, item in inventory do
-		parts[index] = `{item.InstanceId}:{item.ItemId}:{item.Rarity}:{item.Size}:{item.Mutation}:{item.FinalIncome}`
+		parts[index] = rowSignature(item)
 	end
 	return table.concat(parts, "|")
 end
@@ -645,6 +671,7 @@ end
 local function clearList()
 	builtSignature = nil
 	table.clear(slotsByKey)
+	table.clear(rowSignatureByKey)
 	local list = scroll
 	if not list then
 		return
@@ -791,18 +818,29 @@ local function refresh(state: any)
 			local key = tostring(item.InstanceId)
 			wanted[key] = true
 			local existing = slotsByKey[key]
+			local rowSig = rowSignature(item)
 			if existing and existing.Parent then
 				existing.LayoutOrder = index
+				-- Same item, different content: repaint the card in place.
+				if rowSignatureByKey[key] ~= rowSig then
+					local card = buildCard(item, index)
+					if card then
+						replaceCard(existing, card)
+						rowSignatureByKey[key] = rowSig
+					end
+				end
 			else
 				local card = buildCard(item, index)
 				if card then
 					mountCard(card, key, index)
+					rowSignatureByKey[key] = rowSig
 				end
 			end
 		end
 		for key, group in slotsByKey do
 			if not wanted[key] then
 				slotsByKey[key] = nil
+				rowSignatureByKey[key] = nil
 				group:Destroy()
 			end
 		end
@@ -1407,7 +1445,7 @@ function InventoryController.start()
 	buildPanel(ui, template)
 	buildOpener(ui)
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local previous = latestState and latestState.storageUsed
 		refresh(state)
 

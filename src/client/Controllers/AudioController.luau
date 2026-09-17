@@ -295,15 +295,14 @@ function AudioController.start()
 	-- Server-made world sounds (snoring, hits, the bat) arrive with no mixer
 	-- group. File them under SFX as they appear so the volume slider owns them.
 	local sfx = Audio.group(Audio.GROUP_SFX)
+	-- Through the shared WorldIndex: one workspace scan for every controller
+	-- that needs one, instead of a scan each.
 	local function adopt(instance: Instance)
 		if instance:IsA("Sound") and sfx and instance.SoundGroup == nil then
 			instance.SoundGroup = sfx
 		end
 	end
-	for _, descendant in workspace:GetDescendants() do
-		adopt(descendant)
-	end
-	workspace.DescendantAdded:Connect(adopt)
+	require(script.Parent.Parent.WorldIndex).watch("Sound", adopt)
 
 	-- Toasts already carry a `detail` tag that drives the world VFX burst, so the
 	-- purchase and unlock cues ride that same tag rather than needing a sound

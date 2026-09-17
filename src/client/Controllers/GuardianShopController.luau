@@ -28,12 +28,14 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local BaseGuardianConfig = require(ReplicatedStorage.Shared.Config.BaseGuardianConfig)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 
 local GuardianShopController = {}
 
 local TURN_SPEED = 0.45
 local BOB = 0.12
+--- Pedestal animals are only turned within this many studs of the camera.
+local ANIMATE_DISTANCE = 250
 
 --- Every pedestal is named GuardianShop, GuardianShop2, ... so one test finds
 --- them all and a third slot would need no change here.
@@ -188,18 +190,28 @@ local function tickCountdowns()
 	end
 end
 
+--- Held still under Reduced Effects, and skipped while far from the camera.
+--- The pose is a function of the clock, so it resumes in phase.
 local function turnDisplays()
+	if Effects.isReduced() then
+		return
+	end
 	local now = os.clock()
+	local camera = workspace.CurrentCamera
+	local eye = if camera then camera.CFrame.Position else nil
 	for _, shop in shops do
 		local root, base = shop.displayRoot, shop.displayBase
 		if root and base and root.Parent then
+			if eye and (base.Position - eye).Magnitude > ANIMATE_DISTANCE then
+				continue
+			end
 			root.CFrame = base * CFrame.new(0, math.sin(now * 1.4) * BOB, 0) * CFrame.Angles(0, now * TURN_SPEED, 0)
 		end
 	end
 end
 
 function GuardianShopController.start()
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) == "table" then
 			latest = state
 			paintAllPrompts()
@@ -227,7 +239,9 @@ function GuardianShopController.start()
 	end)
 
 	RunService.Heartbeat:Connect(tickCountdowns)
-	RunService.RenderStepped:Connect(turnDisplays)
+	-- Heartbeat rather than RenderStepped: world motion keeps its rate under a
+	-- throttled renderer and does not run inside the render step.
+	RunService.Heartbeat:Connect(turnDisplays)
 end
 
 return GuardianShopController

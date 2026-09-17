@@ -52,7 +52,6 @@ local TweenService = game:GetService("TweenService")
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TreadmillConfig = require(ReplicatedStorage.Shared.Config.TreadmillConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -89,6 +88,10 @@ end
 -- ==========================================================
 -- PLOT LOOKUP
 -- ==========================================================
+
+--- The per-frame fallback search runs at most this often (see step()).
+local PLOT_SEARCH_INTERVAL = 1
+local nextPlotSearch = 0
 
 --- Re-resolved rather than cached forever: plots are session-owned and a player
 --- can be assigned a different one after a rejoin.
@@ -743,7 +746,14 @@ local function step(dt: number)
 		return
 	end
 
-	if not trigger then
+	-- No plot (or its trigger was replaced): look again, but at most once a
+	-- second. This used to scan every plot on EVERY frame for as long as the
+	-- player had no plot - the whole lobby phase. The ownership and rebuild
+	-- listeners in start() catch the real changes immediately; this is only
+	-- the safety net.
+	local clock = os.clock()
+	if (not trigger or not trigger.Parent) and clock >= nextPlotSearch then
+		nextPlotSearch = clock + PLOT_SEARCH_INTERVAL
 		refreshPlot()
 	end
 
@@ -822,7 +832,7 @@ function TreadmillController.start()
 	refreshPlot()
 
 	-- The popup amount is the REAL granted delta, not a prediction from config.
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state or type(state.speedPower) ~= "number" then
 			return
 		end
@@ -870,14 +880,35 @@ function TreadmillController.start()
 		refreshPlot()
 	end)
 
-	-- A plot is assigned after join, and reassigned on rejoin.
-	local map = workspace:FindFirstChild("Map")
-	local bases = map and map:FindFirstChild("Bases")
-	if bases then
-		for _, plot in bases:GetChildren() do
-			plot:GetAttributeChangedSignal("OwnerUserId"):Connect(refreshPlot)
+	-- A plot is assigned after join, and reassigned on rejoin. Every plot is
+	-- watched, including plots that replicate AFTER this runs (the old loop
+	-- only saw the ones present at start, so a slow join never heard its own
+	-- plot being assigned and fell back on the per-frame search). Waited for
+	-- in the background so start() does not block on the map.
+	task.spawn(function()
+		local map = workspace:WaitForChild("Map", 60)
+		local bases = map and map:WaitForChild("Bases", 30)
+		if not bases then
+			return
 		end
-	end
+		local function watchPlot(plot: Instance)
+			plot:GetAttributeChangedSignal("OwnerUserId"):Connect(refreshPlot)
+			-- A treadmill rebuilt on this plot (upgrade) replaces the trigger.
+			plot.DescendantAdded:Connect(function(descendant)
+				if descendant.Name == "TrainingTrigger" and plot:GetAttribute("OwnerUserId") == player.UserId then
+					task.defer(refreshPlot)
+				end
+			end)
+		end
+		for _, plot in bases:GetChildren() do
+			watchPlot(plot)
+		end
+		bases.ChildAdded:Connect(function(plot)
+			watchPlot(plot)
+			task.defer(refreshPlot)
+		end)
+		refreshPlot()
+	end)
 
 	RunService.RenderStepped:Connect(step)
 end

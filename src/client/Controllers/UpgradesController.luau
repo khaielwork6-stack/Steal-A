@@ -862,7 +862,7 @@ function UpgradesController.start()
 	-- Both purchase paths land here: Cash writes the profile directly and Robux
 	-- writes it from ProcessReceipt, and either way the server pushes state. So
 	-- there is one refresh path and the panel can never show a stale tier.
-	Remotes.get("StatePush").OnClientEvent:Connect(render)
+	require(script.Parent.Parent.StateStore).subscribe(render)
 
 	-- Slowly turn the preview so the panel feels alive.
 	RunService.RenderStepped:Connect(function(delta)

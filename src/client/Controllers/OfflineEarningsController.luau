@@ -387,7 +387,7 @@ function OfflineEarningsController.start()
 		end)
 	end
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end

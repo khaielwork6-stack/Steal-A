@@ -161,7 +161,7 @@ function HUDController.start()
 	EffectsController.start()
 	ToastController.start(ui)
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if cashLabel then
 			-- Count toward the new balance rather than snapping, so passive
 			-- income visibly ticks up instead of flickering between values.

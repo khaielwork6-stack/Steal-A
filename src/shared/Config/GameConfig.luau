@@ -474,4 +474,16 @@ GameConfig.NEXT_UPDATE_EVENT_ID = "4257917435077853831"
 --- event thumbnail to a running game.
 GameConfig.NEXT_UPDATE_IMAGE = 115680004637965 :: number?
 
+-- ==========================================================
+-- CLIENT MOTION (client performance pass)
+-- ==========================================================
+
+--- Base trophies, zone crates and their animated sub-parts within this many
+--- studs of the camera move every frame. Farther ones still turn - their
+--- angle is always derived from the clock, so nothing freezes or snaps (see
+--- HANDOFF "Map visibility, crate motion") - but are only re-posed every
+--- CLIENT_FAR_MOTION_INTERVAL seconds, which is invisible at that distance.
+GameConfig.CLIENT_MOTION_CULL_RADIUS = 250
+GameConfig.CLIENT_FAR_MOTION_INTERVAL = 0.25
+
 return GameConfig

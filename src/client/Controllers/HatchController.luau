@@ -162,12 +162,17 @@ end
 local lastCardTick = -1
 
 local function repaintCards()
-	local second = math.floor(os.clock())
+	-- The SERVER's clock, not this device's: HatchEndsAt is stamped with the
+	-- server's os.time(), and a phone whose clock is a minute off used to show
+	-- a countdown a minute wrong (or READY before the server agreed). Ticks
+	-- are also aligned to the server's whole seconds, so the text changes on
+	-- the second it should rather than up to a second late.
+	local now = workspace:GetServerTimeNow()
+	local second = math.floor(now)
 	if second == lastCardTick then
 		return
 	end
 	lastCardTick = second
-	local now = os.time()
 
 	for _, slot in eachOwnedSlot() do
 		local card = slot:FindFirstChild("RevealCard")
@@ -1206,7 +1211,7 @@ end
 function HatchController.start()
 	preloadCycleCue()
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state then
 			return
 		end
@@ -1220,7 +1225,8 @@ function HatchController.start()
 				local existing = sealed[row.instanceId]
 				sealed[row.instanceId] = {
 					endsAt = row.endsAt or 0,
-					startedAt = if existing then existing.startedAt else os.time(),
+					-- Server time, to be comparable with endsAt (see repaintCards).
+					startedAt = if existing then existing.startedAt else workspace:GetServerTimeNow(),
 				}
 				seen[row.instanceId] = true
 			end
@@ -1258,10 +1264,8 @@ function HatchController.start()
 			applyCardOwnership(thing)
 		end
 	end
-	for _, thing in workspace:GetDescendants() do
-		adopt(thing)
-	end
-	workspace.DescendantAdded:Connect(adopt)
+	-- Through the shared WorldIndex (one workspace scan for all controllers).
+	require(script.Parent.Parent.WorldIndex).watch("BillboardGui", adopt)
 
 	-- ...and re-applied on a slow sweep, because a PLOT can change hands under
 	-- a card that never moved. Cheap: a handful of billboards, once a second.

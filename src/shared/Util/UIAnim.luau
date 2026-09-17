@@ -19,6 +19,8 @@
 
 local TweenService = game:GetService("TweenService")
 
+local Effects = require(script.Parent.Effects)
+
 local UIAnim = {}
 
 -- ==========================================================
@@ -68,6 +70,12 @@ function UIAnim.popIn(target: GuiObject, from: number?)
 	if not scale then
 		return
 	end
+	-- Reduced Effects: appear at rest size, no overshoot.
+	if Effects.isReduced() then
+		scale.Scale = 1
+		target.Visible = true
+		return
+	end
 	scale.Scale = from or 0.82
 	target.Visible = true
 	TweenService:Create(scale, UIAnim.POP, { Scale = 1 }):Play()
@@ -90,6 +98,10 @@ end
 --- A quick squash-and-recover on an existing element. This is the workhorse for
 --- "something just happened here" - purchases, equips, counter changes.
 function UIAnim.punch(target: GuiObject, strength: number?)
+	-- Purely decorative, so Reduced Effects drops it entirely.
+	if Effects.isReduced() then
+		return
+	end
 	local scale = scaleOf(target)
 	if not scale then
 		return
@@ -128,10 +140,22 @@ function UIAnim.punchRotation(target: GuiObject, degrees: number?)
 end
 
 --- Flash a label toward a colour and back. Used for cash gains and errors.
+---
+--- The resting colour is captured ONCE, on the first flash, as an attribute.
+--- Reading TextColor3 each time meant a second flash that started while the
+--- first was still fading captured the half-tinted colour as "original" and
+--- tweened back to THAT - leaving the cash label permanently tinted.
+local FLASH_BASE_ATTRIBUTE = "_FlashBaseColor"
+
 function UIAnim.flashColor(label: TextLabel, color: Color3)
-	local original = label.TextColor3
+	local base = label:GetAttribute(FLASH_BASE_ATTRIBUTE)
+	if typeof(base) ~= "Color3" then
+		base = label.TextColor3
+		label:SetAttribute(FLASH_BASE_ATTRIBUTE, base)
+	end
 	label.TextColor3 = color
-	TweenService:Create(label, UIAnim.SETTLE, { TextColor3 = original }):Play()
+	-- A new tween on the same property supersedes the running one.
+	TweenService:Create(label, UIAnim.SETTLE, { TextColor3 = base :: Color3 }):Play()
 end
 
 --- Slide + fade in from an offset. For toasts and the interact prompt.

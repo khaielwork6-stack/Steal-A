@@ -634,7 +634,7 @@ function IndexController.start()
 		renderZone()
 	end)
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state or not state.index then
 			return
 		end
