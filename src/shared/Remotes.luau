@@ -230,6 +230,13 @@ Remotes.NAMES = {
 	-- CrewService. (The vaults need no remote: doors, lasers and restocks
 	-- replicate as attributes and the steal is the ordinary prompt.)
 	"CrewRequest",
+
+	-- ==== ROUND3-UI-REWARDS ====
+	-- server -> one client, STUDIO DEBUG ONLY (DebugCommands/RewardsUI).
+	-- (kind, payload): "daily" opens the calendar on fake figures, "offline"
+	-- opens the WELCOME BACK popup on a fake amount. Display only; a claim
+	-- pressed in a preview plays locally and sends nothing. No server handler.
+	"RewardsUIPreview",
 }
 
 local folder: Folder

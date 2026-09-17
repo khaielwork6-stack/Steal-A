@@ -23,17 +23,17 @@ export type BadgeDef = {
 
 --- Built below so each zone gets its own row without twelve hand-written ones.
 local list: { BadgeDef } = {
-	{ key = "FirstSteal", id = 0, name = "Sticky Fingers", description = "Steal your first container." },
+	{ key = "FirstSteal", id = 1818392205990812, name = "Sticky Fingers", description = "Steal your first container." },
 	{ key = "FirstEscape", id = 0, name = "Clean Getaway", description = "Escape the museum with stolen loot." },
-	{ key = "FirstReveal", id = 0, name = "What's Inside?", description = "Reveal your first container." },
-	{ key = "FirstMythicReveal", id = 0, name = "Myth Maker", description = "Reveal a Mythic or better item." },
+	{ key = "FirstReveal", id = 1330539549462491, name = "What's Inside?", description = "Reveal your first container." },
+	{ key = "FirstMythicReveal", id = 2377234696063353, name = "Myth Maker", description = "Reveal a Mythic or better item." },
 	{ key = "FirstSecretReveal", id = 0, name = "Top Secret", description = "Reveal a Secret or better item." },
 	{ key = "IndexZoneComplete", id = 0, name = "Curator", description = "Complete every item of one zone in the Index." },
 	{ key = "IndexComplete", id = 0, name = "Master Curator", description = "Complete the whole Index." },
-	{ key = "Steals100", id = 0, name = "Career Thief", description = "Steal 100 containers." },
+	{ key = "Steals100", id = 1618938884680217, name = "Career Thief", description = "Steal 100 containers." },
 	{ key = "Steals1000", id = 0, name = "Legendary Thief", description = "Steal 1,000 containers." },
 	{ key = "FirstHeist", id = 0, name = "Base Raider", description = "Steal an item from another player's base." },
-	{ key = "Streak7", id = 0, name = "Regular", description = "Play 7 days in a row." },
+	{ key = "Streak7", id = 2862874232095580, name = "Regular", description = "Claim the daily reward 7 days in a row." },
 }
 
 --- Zone badges: "Zone01" ... "Zone12". Zone ids live here, one per row.
