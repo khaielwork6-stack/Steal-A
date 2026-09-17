@@ -12,3 +12,6 @@ sourcemap.json
 
 # Static analysis cache (tools/check.sh downloads it)
 /.luau-types/
+
+# Agent worktrees
+/.claude/worktrees/
