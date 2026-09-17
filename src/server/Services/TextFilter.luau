@@ -4,10 +4,16 @@
 	The ONE place player-typed text is filtered before anyone else sees it
 	(polish-events-analytics pass; Roblox community rules require it).
 
-	AUDIT (2026-09-17). Nothing in the game shows player-typed text today:
-	there are no TextBoxes, plot signs show `player.DisplayName` (already
-	Roblox-moderated), leaderboards show usernames, and Mailbox notes are
-	written by services. Any feature that ADDS typed text - crew names, trade
+	AUDIT (2026-09-17). Nothing in the game shows player-typed text to OTHER
+	players today:
+	  * the CODES box (CodesController -> CodeService) only answers the
+	    typer, with fixed messages that never echo the code;
+	  * owner chat commands (OwnerCommandService) echo the typed name only
+	    back to the owner ("No player called ...");
+	  * plot signs, kick/steal toasts and reveal announcements use
+	    `player.DisplayName` / usernames (already Roblox-moderated);
+	  * Mailbox notes are written by services, never by players.
+	Any feature that ADDS shared typed text - crew names, trade
 	notes, sign or pet names, a codes box that echoes the code - must pass it
 	through here on the SERVER before storing, replicating or broadcasting it.
 

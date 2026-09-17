@@ -203,6 +203,24 @@ end)
 startLater("AnalyticsController", function()
 	require(script.Controllers.AnalyticsController).start()
 end)
+-- [retention-codes-daily] The CODES row at the top of Settings, and the
+-- Daily Rewards panel + its top-strip button (after UIStateController and
+-- OfflineEarningsController, whose claims / modal the popup waits for).
+startLater("CodesController", function()
+	require(script.Controllers.CodesController).start()
+end)
+startLater("DailyRewardController", function()
+	require(script.Controllers.DailyRewardController).start()
+end)
+-- [social pass] The Invite button, the friend / Premium boost pills and the
+-- one-time favourite / notification prompts after a reveal; and the
+-- server-wide banner + chat line for Mythic-or-better reveals.
+startLater("SocialController", function()
+	require(script.Controllers.SocialController).start()
+end)
+startLater("RevealAnnounceController", function()
+	require(script.Controllers.RevealAnnounceController).start()
+end)
 
 print("[Client] controllers started")
 -- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.

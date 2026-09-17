@@ -134,6 +134,37 @@ Remotes.NAMES = {
 	-- skipped)." Carries nothing; the server only flips Profile.FlyoverSeen.
 	-- Rate-limited. See FlyoverService.
 	"FlyoverDone",
+
+	-- ==========================================================
+	-- RETENTION: CODES + DAILY STREAK (retention-codes-daily)
+	-- ==========================================================
+	-- client -> server. (codeText: string) - the text typed in the CODES box.
+	-- The server trims, upper-cases, looks it up, rate limits and pays.
+	"RedeemCodeRequest",
+	-- server -> client. (ok: boolean, message: string) - the answer to one
+	-- RedeemCodeRequest, for the CODES box. Display only; the toast comes
+	-- through Notify as usual.
+	"RedeemCodeResult",
+	-- client -> server. (action: "claim" | "preview") - claim today's streak
+	-- reward, or ask for the 7-day preview. Carries no day and no amount.
+	"DailyRewardRequest",
+	-- server -> client. The 7-day preview with this player's scaled amounts
+	-- (DailyRewardService.preview). Sent on join, on request and after a
+	-- claim - not on every StatePush.
+	"DailyRewardPush",
+
+	-- ==========================================================
+	-- SOCIAL PASS (invites, boosts, badges, announcements)
+	-- ==========================================================
+	-- client -> server. ("prompted", "favorite" | "notifications"): the
+	-- one-time favourite / notification opt-in prompt has been shown to this
+	-- account, so it is never shown again. Grants nothing; validated and
+	-- rate-limited in SocialService.
+	"SocialRequest",
+	-- server -> every client. A Mythic-or-better reveal, sent at the SWAP
+	-- moment (HatchConfig.swapAt) so it never spoils the revealer's roulette.
+	-- Display only: { userId, name, itemName, rarity, mutation }.
+	"RevealAnnounce",
 }
 
 local folder: Folder

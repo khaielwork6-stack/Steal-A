@@ -63,8 +63,13 @@ local SpinWheelService = require(Services.SpinWheelService)
 local StarterTaskService = require(Services.StarterTaskService)
 -- DATA AREA: durable delivery to offline / other-server players.
 local MailboxService = require(Services.MailboxService)
--- [polish-events-analytics] the progress bus (steal/escape/deliver/reveal).
+-- SOCIAL PASS: invites/referrals, friend & Premium boost, badges,
+-- notifications, reveal announcements, private-server owner commands.
 local ProgressEvents = require(Services.ProgressEvents)
+local SocialService = require(Services.SocialService)
+local BadgeAwardService = require(Services.BadgeAwardService)
+local NotificationService = require(Services.NotificationService)
+local OwnerCommandService = require(Services.OwnerCommandService)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -119,7 +124,8 @@ GuardianService.alarmLootFor = CarryService.getCarried
 -- paid. There is no client message anywhere in this.
 CarryService.setStolenHandler(function(player, loot)
 	StarterTaskService.complete(player, "steal")
-	ProgressEvents.fire(player, "steal", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
+	-- [social pass] Progress bus (badges: first steal, milestones, zones).
+	ProgressEvents.fire(player, "steal", 1, { zone = loot.zoneIndex })
 end)
 SpeedService.onTrained = function(player)
 	StarterTaskService.complete(player, "train")
@@ -175,6 +181,11 @@ CarryService.trailMultiplierFor = function(player)
 end
 EconomyService.cashMultiplierFor = function(player)
 	return MonetizationService.cashMultiplier(player)
+end
+-- [social pass] Friends-in-server + Premium: applied ONLY in the passive
+-- income tick, never in getIncome (see EconomyService "SOCIAL BOOST").
+EconomyService.socialMultiplierFor = function(player)
+	return SocialService.multiplierFor(player)
 end
 TrailService.refreshMovement = function(player)
 	SpeedService.applyMovement(player)
@@ -307,7 +318,8 @@ GuardianService.setEscapeHandler(function(loot, player)
 		-- cue (ChaseAudioController) and AudioController plays it; the old
 		-- sting-then-cue pair is gone.
 		StateService.sound(player, "Escape")
-		ProgressEvents.fire(player, "escape", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
+		-- [social pass] Progress bus (badge: first escape).
+		ProgressEvents.fire(player, "escape")
 	end
 end)
 
@@ -318,7 +330,8 @@ CarryService.setDeliveredHandler(function(player, loot)
 		return
 	end
 	GuardianService.stopChaseFor(loot)
-	ProgressEvents.fire(player, "deliver", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
+	-- [polish-events-analytics] Progress bus (analytics: first delivery).
+	ProgressEvents.fire(player, "deliver", 1, { zone = loot.zoneIndex })
 
 	-- Deliberately quiet in the normal case. This fires on reaching your own safe
 	-- zone, moments after the escape toast above, and it used to add a SECOND
@@ -347,7 +360,14 @@ HatchService.onHatched = function(player, item)
 	-- HatchService.commit AFTER the flag is flipped, so the reveal is already
 	-- real and irreversible by the time the row is ticked.
 	StarterTaskService.complete(player, "reveal")
-	ProgressEvents.fire(player, "reveal", 1, { itemId = item.ItemId }) -- [polish-events-analytics] progress bus
+	-- [social pass] The "reveal" progress event and the server-wide
+	-- announcement. Both wait for the SWAP (HatchConfig.swapAt) inside
+	-- SocialService, so neither can spoil the roulette. Guarded: the reveal
+	-- cue below must go out whatever happens here.
+	local socialOk: boolean, socialErr: any = (pcall :: any)(SocialService.onRevealCommitted, player, item)
+	if not socialOk then
+		warn(`[Server] reveal social hook failed: {socialErr}`)
+	end
 
 	local plot = BaseService.getPlot(player)
 	local slots = plot and plot:FindFirstChild("DisplaySlots")
@@ -497,6 +517,22 @@ OfflineService.start()
 -- the Data debug commands find it running.
 MailboxService.start()
 
+-- [retention-codes-daily] Codes (Settings panel) and the daily login streak.
+-- After Offline/Mailbox, before DebugService so the Retention debug commands
+-- find both running. The streak's "ready" hook is in onPlayer below.
+local CodeService = require(Services.CodeService)
+local DailyRewardService = require(Services.DailyRewardService)
+CodeService.start()
+DailyRewardService.start()
+-- SOCIAL PASS. After the mailbox (referral rewards are mailed) and before
+-- DebugService (the Social debug commands find them running). The badge
+-- service subscribes to ProgressEvents here; nothing fires before a player
+-- has a profile, so the order among these four does not matter.
+SocialService.start()
+BadgeAwardService.start()
+NotificationService.start()
+OwnerCommandService.start()
+
 DebugService.start()
 
 -- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the
@@ -535,6 +571,10 @@ local function onPlayer(player: Player)
 		end
 		EconomyService.recalculate(player)
 		SpeedService.applyMovement(player)
+		-- [social pass] BEFORE the offline settle, which moves
+		-- LastLeaveTimestamp: a still-zero stamp is how a brand-new account
+		-- (and so an invite referral) is recognised. Never yields.
+		SocialService.noteProfileLoaded(player)
 		-- AFTER the income is rebuilt: the absence is measured once, banked as
 		-- a pending claim, and the claim modal rides the first push below.
 		OfflineService.settle(player)
@@ -544,6 +584,10 @@ local function onPlayer(player: Player)
 		-- DATA AREA: mail sent while they were away (another server, offline)
 		-- is delivered once the profile is live and settled.
 		task.spawn(MailboxService.deliver, player)
+		-- [retention-codes-daily] The join has settled: the daily streak may
+		-- now show (its StatePush field appears and the preview is sent), so
+		-- the client's once-a-session popup never races the offline modal.
+		DailyRewardService.onProfileReady(player)
 
 		-- The push above races the client: a profile that loads instantly (Studio
 		-- solo, or a warm DataStore) fires it before StarterPlayerScripts have

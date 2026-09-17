@@ -1036,6 +1036,116 @@ return function(): Report
 		end
 	end
 
+	-- ==========================================================
+	-- RETENTION: CODES + DAILY STREAK (retention-codes-daily)
+	-- ==========================================================
+	do
+		local CodesConfig = require(script.Parent.CodesConfig)
+		local DailyRewardConfig = require(script.Parent.DailyRewardConfig)
+		-- A reward spec: known guardian, sane numbers, and every Speed scale
+		-- capped so no code or day can move the Zone 8+ wall.
+		local function checkSpec(spec: { [string]: any }, label: string)
+			for _, key in { "cash", "cashMinutes", "cashFloor", "speed", "speedGateFraction", "speedFloor", "speedMax" } do
+				local value = spec[key]
+				check(value == nil or (type(value) == "number" and value == value and value >= 0 and value < math.huge), `{label}: {key} must be a finite number >= 0`)
+			end
+			if spec.guardianKey ~= nil then
+				check(BaseGuardianConfig.ByKey[spec.guardianKey] ~= nil, `{label}: unknown guardian "{tostring(spec.guardianKey)}"`)
+			end
+			if (spec.speedGateFraction or 0) > 0 then
+				check((spec.speedGateFraction or 0) <= 0.05, `{label}: speedGateFraction above 5% of the next gate`)
+				check((spec.speedMax or 0) > 0 and (spec.speedMax or 0) <= 1e6, `{label}: a scaled Speed reward needs a speedMax in (0, 1M]`)
+			end
+		end
+		local seen: { [string]: boolean } = {}
+		for _, def in CodesConfig.Codes do
+			local key = CodesConfig.normalise(def.code)
+			check(key ~= nil and key == def.code, `code "{def.code}" must be upper-case letters/digits, at most {CodesConfig.MAX_LENGTH}`)
+			if key then
+				check(not seen[key], `code "{key}" is listed twice`)
+				seen[key] = true
+			end
+			check(type(def.enabled) == "boolean", `code "{def.code}": enabled must be a boolean`)
+			check(def.minZone == nil or (def.minZone >= 1 and def.minZone <= ZoneConfig.COUNT), `code "{def.code}": minZone out of range`)
+			checkSpec(def.rewards :: any, `code "{def.code}"`)
+		end
+		check(CodesConfig.normalise("  museum ") == "MUSEUM", "codes must match trimmed and case-insensitive")
+		check(CodesConfig.normalise("a b") == nil and CodesConfig.normalise(5) == nil, "codes must reject junk")
+		check(CodesConfig.FAILURE_LIMIT >= 3 and CodesConfig.LOCKOUT_SECONDS > 0, "code lockout must allow a few typos and then lock")
+
+		check(#DailyRewardConfig.Days == DailyRewardConfig.CYCLE_DAYS, "the daily streak needs one row per cycle day")
+		for index, def in DailyRewardConfig.Days do
+			check(def.day == index, `daily row {index} must be day {index}`)
+			checkSpec(def :: any, `daily day {index}`)
+			if def.duplicate then
+				checkSpec(def.duplicate :: any, `daily day {index} duplicate`)
+			end
+			check(type(def.icon) == "string", `daily day {index}: icon must be a string`)
+		end
+		check(DailyRewardConfig.GRACE_DAYS >= 0 and DailyRewardConfig.GRACE_DAYS <= 2, "daily GRACE_DAYS must be 0-2")
+		-- The streak rules, on fixed clocks.
+		local day = 20000 * 86400
+		local s = DailyRewardConfig.status
+		check(s(0, 0, day).claimable and s(0, 0, day).day == 1, "a first claim is day 1")
+		check(not s(3, 20000, day + 5).claimable, "one claim per UTC day")
+		check(s(3, 19999, day).claimable and s(3, 19999, day).day == 4, "the next day continues the streak")
+		check(s(7, 19999, day).day == 1, "day 7 wraps to day 1")
+		local missed = 19999 - (DailyRewardConfig.GRACE_DAYS + 1)
+		check(s(5, missed, day).nextStreak == 1, "missing a whole day (beyond grace) resets the streak")
+		check(not s(3, 20001, day).claimable, "a claim day in the future must not pay")
+	end
+
+	-- ==========================================================
+	-- SOCIAL PASS (SocialConfig, BadgeConfig)
+	-- ==========================================================
+	do
+		local SocialConfig = require(script.Parent.SocialConfig)
+		local BadgeConfig = require(script.Parent.BadgeConfig)
+		for _, key in {
+			"REFERRAL_MIN_PLAY_SECONDS", "REFERRAL_DAILY_CAP", "REFERRAL_CASH_MINUTES", "REFERRAL_CASH_FLOOR",
+			"REFERRAL_SPEED_GATE_FRACTION", "REFERRAL_SPEED_FLOOR", "REFERRAL_TICK_SECONDS",
+			"ANNOUNCE_BANNER_SECONDS", "ANNOUNCE_QUEUE_MAX", "NOTIFY_MIN_GAP_SECONDS", "NOTIFY_POLL_SECONDS",
+			"NOTIFY_BATCH", "NOTIFY_MAX_LATE_SECONDS", "OWNER_COMMAND_COOLDOWN", "OWNER_NIGHT_COOLDOWN",
+		} do
+			local value = (SocialConfig :: any)[key]
+			check(type(value) == "number" and value > 0 and value == value, `SocialConfig.{key} must be a positive number`)
+		end
+		check(SocialConfig.REFERRAL_CASH_MAX >= SocialConfig.REFERRAL_CASH_FLOOR, "the referral Cash ceiling must be above its floor")
+		check(SocialConfig.REFERRAL_SPEED_MAX >= SocialConfig.REFERRAL_SPEED_FLOOR, "the referral Speed ceiling must be above its floor")
+		-- A referral must stay a small nudge, never a way past a zone gate.
+		check(SocialConfig.REFERRAL_SPEED_GATE_FRACTION <= 0.05, "a referral must pay at most 5% of the next zone gate")
+		check(
+			SocialConfig.FRIEND_BOOST_PER_FRIEND >= 0 and SocialConfig.FRIEND_BOOST_CAP >= 0 and SocialConfig.PREMIUM_BOOST >= 0,
+			"social boosts must not be negative"
+		)
+		check(SocialConfig.multiplier(0, false) == 1, "no friends and no Premium must be exactly 1x")
+		check(
+			SocialConfig.multiplier(99, true) <= 1 + SocialConfig.FRIEND_BOOST_CAP + SocialConfig.PREMIUM_BOOST + 1e-9,
+			"the friend boost must be capped"
+		)
+		check(RarityConfig.Rank[SocialConfig.ANNOUNCE_REVEAL_MIN_RARITY] ~= nil, "ANNOUNCE_REVEAL_MIN_RARITY must be a rarity")
+		check(SocialConfig.NOTIFY_POLL_SECONDS >= 30, "the notification queue must not be polled faster than every 30s")
+		for kind, id in SocialConfig.NOTIFICATION_TEMPLATES do
+			check(type(id) == "string", `SocialConfig.NOTIFICATION_TEMPLATES.{kind} must be a string ("" = off)`)
+		end
+
+		check(#BadgeConfig.ZONE_BADGE_IDS == ZoneConfig.COUNT, "one zone badge per zone")
+		local seenIds: { [number]: string } = {}
+		for _, def in BadgeConfig.List do
+			check(type(def.id) == "number" and def.id >= 0 and def.id % 1 == 0, `badge {def.key} id must be a whole number (0 = not created)`)
+			if def.id ~= 0 then
+				check(seenIds[def.id] == nil, `badge id {def.id} is used by both {seenIds[def.id]} and {def.key}`)
+				seenIds[def.id] = def.key
+			end
+		end
+		for _, key in { "FirstSteal", "FirstEscape", "FirstReveal", "FirstMythicReveal", "FirstSecretReveal", "IndexZoneComplete", "IndexComplete", "FirstHeist", "Streak7" } do
+			check(BadgeConfig.ByKey[key] ~= nil, `BadgeConfig is missing {key}`)
+		end
+		for _, milestone in BadgeConfig.STEAL_MILESTONES do
+			check(BadgeConfig.ByKey[milestone.key] ~= nil, `steal milestone badge {milestone.key} is missing`)
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

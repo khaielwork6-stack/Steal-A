@@ -34,8 +34,9 @@
 
 	PROGRESS BUS
 	Steals, escapes, deliveries and reveals arrive through ProgressEvents
-	(KINDS below). If the merged ProgressEvents uses other kind names, change
-	KINDS - nothing else.
+	(KINDS below). "steal" / "escape" are fired in init.server.luau and
+	"reveal" by SocialService at the swap (social pass); "deliver" is fired
+	by this pass in init's delivered handler.
 ]]
 
 local AnalyticsService = game:GetService("AnalyticsService")
@@ -93,6 +94,8 @@ local CLIENT_STEPS: { [string]: true } = { shopOpened = true }
 --- Unknown tags (a mailbox entry's own source, a future "code") are Gameplay.
 AnalyticsEvents.SOURCE_TYPES = {
 	passive = "Gameplay",
+	social = "Gameplay",
+	daily = "TimedReward",
 	sell = "Gameplay",
 	discovery = "Gameplay",
 	index = "Gameplay",
@@ -324,7 +327,11 @@ end
 -- ECONOMY
 -- ==========================================================
 
-type Pending = { amount: number, balance: number }
+--- Sources paid on every income tick: summed per player and tag, sent in
+--- batches ("social" is the friend / Premium boost's share of the tick).
+local BATCHED: { [string]: true } = { passive = true, social = true }
+
+type Pending = { amounts: { [string]: number }, balance: number }
 local passive: { [Player]: Pending } = {}
 
 local function logEconomy(player: Player, flow: string, amount: number, tag: string, balance: number)
@@ -347,8 +354,13 @@ end
 local function flushPassive(player: Player)
 	local pending = passive[player]
 	passive[player] = nil
-	if pending and pending.amount >= 1 then
-		logEconomy(player, "source", pending.amount, "passive", pending.balance)
+	if not pending then
+		return
+	end
+	for tag, amount in pending.amounts do
+		if amount >= 1 then
+			logEconomy(player, "source", amount, tag, pending.balance)
+		end
 	end
 end
 
@@ -359,13 +371,13 @@ local function onTransaction(player: Player, flow: string, amount: number, tag: 
 	if flow == "sink" and string.sub(tag, 1, 8) == "upgrade:" then
 		AnalyticsEvents.onboarding(player, "firstUpgrade")
 	end
-	if flow == "source" and tag == "passive" then
+	if flow == "source" and BATCHED[tag] then
 		local pending = passive[player]
 		if not pending then
-			pending = { amount = 0, balance = balance }
+			pending = { amounts = {}, balance = balance }
 			passive[player] = pending
 		end
-		pending.amount += amount
+		pending.amounts[tag] = (pending.amounts[tag] or 0) + amount
 		pending.balance = balance
 		return
 	end
@@ -419,7 +431,7 @@ function AnalyticsEvents.dump(): { [string]: any }
 		pendingPassive = (function()
 			local out = {}
 			for player, pending in passive do
-				out[player.Name] = pending.amount
+				out[player.Name] = table.clone(pending.amounts)
 			end
 			return out
 		end)(),

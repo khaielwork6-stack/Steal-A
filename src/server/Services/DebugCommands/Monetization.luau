@@ -176,7 +176,10 @@ local function runFallback(player: Player, profile: DataService.Profile, path: s
 		),
 		receiptRecorded = table.find(profile.ProcessedReceipts, info.PurchaseId) ~= nil,
 		replayDecision = replay.Name,
-		replayPaidAgain = profile.Cash ~= cashAfterFirst,
+		-- Passive income keeps ticking while the replay waits on its save, so a
+		-- small delta is expected; a second payout would be at least the fallback.
+		replayDelta = profile.Cash - cashAfterFirst,
+		replayPaidAgain = profile.Cash - cashAfterFirst >= (cashAfterFirst - cashBefore) / 2,
 	}
 end
 

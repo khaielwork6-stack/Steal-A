@@ -42,19 +42,14 @@ local listeners: { (Player) -> () } = {}
 --- tool; never saved.
 local awardedBySource: { [Player]: { [string]: number } } = {}
 
--- [polish-events-analytics] "spin" (free wheel) and "task" (beginner
--- checklist) used to be tallied as "other"; analytics tells them apart.
-export type CashSource =
-	"passive"
-	| "sell"
-	| "discovery"
-	| "index"
-	| "offline"
-	| "product"
-	| "debug"
+export type CashSource = "passive" | "social" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other"
+	-- [retention-codes-daily] redeemed codes and the daily login streak.
+	| "code"
+	| "daily"
+	-- [polish-events-analytics] "spin" (free wheel) and "task" (beginner
+	-- checklist) used to be tallied as "other"; analytics tells them apart.
 	| "spin"
 	| "task"
-	| "other"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())
@@ -96,6 +91,49 @@ end
 --- not.
 function EconomyService.cashMultiplierFor(_player: Player): number
 	return 1
+end
+
+-- ==========================================================
+-- SOCIAL BOOST (social pass)
+-- ==========================================================
+--
+-- The friends-in-server and Roblox Premium bonus. Applied at exactly ONE
+-- point: the passive income tick below, as a separate "social" award on top
+-- of the ordinary "passive" one. It is deliberately NOT inside maturedRate /
+-- recalculate / getIncome, because those are the "income" that everything
+-- else is measured in:
+--   * MonetizationConfig.baseIncome (Cash packs, the spin wheel, the receipt
+--     fallback) reads getIncome - a pack must not be worth more because two
+--     friends happen to be online;
+--   * OfflineService stamps getIncome as the offline rate - a presence bonus
+--     must not keep paying while nobody is present;
+--   * trophy labels (maturedRate) show what the ITEM earns.
+-- The HUD's $/s shows the boosted figure (getPaidIncome) so it matches what
+-- actually lands, and the social pill says why.
+
+--- Overridden by init (SocialService.multiplierFor). 1 = no boost.
+function EconomyService.socialMultiplierFor(_player: Player): number
+	return 1
+end
+
+--- The social multiplier, guarded: a throwing or silly provider reads as 1.
+local function socialMultiplier(player: Player): number
+	local ok, value = pcall(EconomyService.socialMultiplierFor, player)
+	local n = if ok then tonumber(value) else nil
+	if n == nil or n ~= n or n < 1 then
+		return 1
+	end
+	return math.min(n, 10)
+end
+
+--- Fractions of a dollar carried between ticks, so a +10% on $5/s still
+--- pays its 50 cents a second on average instead of rounding to nothing.
+local socialRemainder: { [Player]: number } = {}
+
+--- What the player is actually paid per second right now, boosts included.
+--- For display only; every "minutes of income" formula uses getIncome.
+function EconomyService.getPaidIncome(player: Player): number
+	return math.floor((incomePerSecond[player] or 0) * socialMultiplier(player))
 end
 
 --- True once a placed item has accrued its maturation time. An item with no
@@ -248,6 +286,7 @@ end
 function EconomyService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		awardedBySource[player] = nil
+		socialRemainder[player] = nil
 	end)
 	-- The income cache outlives the leave-save: OfflineService stamps the
 	-- offline rate from it inside that save, and a PlayerRemoving handler here
@@ -265,7 +304,16 @@ function EconomyService.start()
 				local ok, err = pcall(function()
 					local income = incomePerSecond[player]
 					if income and income > 0 then
-						EconomyService.award(player, income * GameConfig.INCOME_TICK, "passive")
+						local paid = income * GameConfig.INCOME_TICK
+						EconomyService.award(player, paid, "passive")
+						-- SOCIAL BOOST: the one place it is applied (see above).
+						local multiplier = socialMultiplier(player)
+						if multiplier > 1 then
+							local extra = paid * (multiplier - 1) + (socialRemainder[player] or 0)
+							local whole = math.floor(extra)
+							socialRemainder[player] = extra - whole
+							EconomyService.award(player, whole, "social")
+						end
 					end
 				end)
 				if not ok then

@@ -225,8 +225,8 @@ local function buildGui(onSkip: () -> ()): ScreenGui
 	text.Name = "Caption"
 	text.BackgroundTransparency = 1
 	text.AnchorPoint = Vector2.new(0.5, 1)
-	text.Position = UDim2.new(0.5, 0, 0.88, 0)
-	text.Size = UDim2.new(0.8, 0, 0.09, 0)
+	text.Position = UDim2.fromScale(0.5, 0.88)
+	text.Size = UDim2.fromScale(0.8, 0.09)
 	text.Font = FONT
 	text.TextScaled = true
 	text.TextColor3 = Color3.new(1, 1, 1)

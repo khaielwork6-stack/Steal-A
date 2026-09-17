@@ -119,7 +119,7 @@ local function buildPill(ui: Instance)
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.BackgroundTransparency = 1
-	label.Position = UDim2.new(0, 10, 0, 0)
+	label.Position = UDim2.fromOffset(10, 0)
 	label.Size = UDim2.new(1, -20, 1, 0)
 	label.Font = FONT
 	label.TextScaled = true
@@ -179,10 +179,10 @@ local function paintPill()
 	icon.Visible = hasIcon
 	if hasIcon then
 		icon.Image = image
-		label.Position = UDim2.new(0, 36, 0, 0)
+		label.Position = UDim2.fromOffset(36, 0)
 		label.Size = UDim2.new(1, -44, 1, 0)
 	else
-		label.Position = UDim2.new(0, 10, 0, 0)
+		label.Position = UDim2.fromOffset(10, 0)
 		label.Size = UDim2.new(1, -20, 1, 0)
 	end
 	local wasVisible = frame.Visible
