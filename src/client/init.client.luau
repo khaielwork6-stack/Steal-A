@@ -192,5 +192,14 @@ end)
 startLater("PurchasePolicyController", function()
 	require(script.Controllers.PurchasePolicyController).start()
 end)
+-- [retention-codes-daily] The CODES row at the top of Settings, and the
+-- Daily Rewards panel + its top-strip button (after UIStateController and
+-- OfflineEarningsController, whose claims / modal the popup waits for).
+startLater("CodesController", function()
+	require(script.Controllers.CodesController).start()
+end)
+startLater("DailyRewardController", function()
+	require(script.Controllers.DailyRewardController).start()
+end)
 
 print("[Client] controllers started")

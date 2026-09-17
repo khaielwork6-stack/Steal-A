@@ -43,6 +43,9 @@ local listeners: { (Player) -> () } = {}
 local awardedBySource: { [Player]: { [string]: number } } = {}
 
 export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other"
+	-- [retention-codes-daily] redeemed codes and the daily login streak.
+	| "code"
+	| "daily"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())

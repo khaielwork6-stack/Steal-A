@@ -270,6 +270,15 @@ export type Profile = {
 	-- `reconcile` (an empty list is the only correct value for an old save),
 	-- so no schema bump was needed.
 	DeliveredMail: { string },
+	-- [retention-codes-daily] Codes this player has redeemed: normalised code
+	-- -> os.time() of the redemption. Durable because each code pays once
+	-- per player, forever (CodeService). Only ever added to.
+	RedeemedCodes: { [string]: number },
+	-- [retention-codes-daily] The daily login streak (DailyRewardService):
+	-- consecutive claims so far, and the UTC day number
+	-- (floor(os.time() / 86400)) of the last claim. 0 / 0 = never claimed.
+	DailyStreak: number,
+	DailyLastClaimDay: number,
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -339,6 +348,10 @@ local function defaultProfile(): Profile
 		StarterTasks = {},
 		StarterTasksClosed = false,
 		DeliveredMail = {},
+		-- [retention-codes-daily]
+		RedeemedCodes = {},
+		DailyStreak = 0,
+		DailyLastClaimDay = 0,
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -950,6 +963,24 @@ local function reconcile(profile: Profile): Profile
 		table.remove(delivered, 1)
 	end
 	profile.DeliveredMail = delivered
+
+	-- [retention-codes-daily] Redeemed codes: repaired only when not a table
+	-- (like the receipt list - emptying a damaged set would let every code be
+	-- redeemed again); junk entries inside are dropped. The streak fields are
+	-- finite, non-negative whole numbers.
+	if type(profile.RedeemedCodes) ~= "table" then
+		profile.RedeemedCodes = {}
+	else
+		local codes: { [string]: number } = {}
+		for code, at in profile.RedeemedCodes :: any do
+			if type(code) == "string" then
+				codes[code] = if type(at) == "number" and at == at then at else 0
+			end
+		end
+		profile.RedeemedCodes = codes
+	end
+	profile.DailyStreak = math.floor(finite(profile.DailyStreak))
+	profile.DailyLastClaimDay = math.floor(finite(profile.DailyLastClaimDay))
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile
