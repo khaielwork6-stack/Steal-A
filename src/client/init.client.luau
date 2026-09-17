@@ -192,5 +192,10 @@ end)
 startLater("PurchasePolicyController", function()
 	require(script.Controllers.PurchasePolicyController).start()
 end)
+-- [retention-quests-pass] The Quests panel (daily/weekly quests + season
+-- pass) and its HUD button with the red "claimable" dot.
+startLater("QuestController", function()
+	require(script.Controllers.QuestController).start()
+end)
 
 print("[Client] controllers started")

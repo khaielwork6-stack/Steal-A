@@ -270,6 +270,17 @@ export type Profile = {
 	-- `reconcile` (an empty list is the only correct value for an old save),
 	-- so no schema bump was needed.
 	DeliveredMail: { string },
+	-- [retention-quests-pass] Additive, no schema bump; written only by
+	-- QuestService / SeasonPassService, which also deep-validate the contents.
+	--   Quests  { Daily = { period, list }, Weekly = { period, list } }, each
+	--           list entry { id, target, progress, claimed }.
+	--   Season  { id, xp, claimedFree = { [tier] = true },
+	--           claimedPremium = { [tier] = true }, xpDay, dayXp, dayStealXp }.
+	--           A different `id` from SeasonPassConfig.SEASON_ID resets it.
+	--   Titles  cosmetic titles earned from the pass, kept across seasons.
+	Quests: { [string]: any },
+	Season: { [string]: any },
+	Titles: { [string]: boolean },
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -339,6 +350,10 @@ local function defaultProfile(): Profile
 		StarterTasks = {},
 		StarterTasksClosed = false,
 		DeliveredMail = {},
+		-- [retention-quests-pass] Filled in on first use by the services.
+		Quests = {},
+		Season = {},
+		Titles = {},
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -950,6 +965,26 @@ local function reconcile(profile: Profile): Profile
 		table.remove(delivered, 1)
 	end
 	profile.DeliveredMail = delivered
+
+	-- [retention-quests-pass] Only the container types are enforced here;
+	-- QuestService / SeasonPassService sanitise the contents on first use.
+	if type(profile.Quests) ~= "table" then
+		profile.Quests = {}
+	end
+	if type(profile.Season) ~= "table" then
+		profile.Season = {}
+	end
+	do
+		local titles: { [string]: boolean } = {}
+		if type(profile.Titles) == "table" then
+			for key, value in profile.Titles :: any do
+				if type(key) == "string" and value == true then
+					titles[key] = true
+				end
+			end
+		end
+		profile.Titles = titles
+	end
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile

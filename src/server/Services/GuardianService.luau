@@ -50,6 +50,7 @@ local RagdollService = require(script.Parent.RagdollService)
 -- DataService is a leaf module (config only), so requiring it here creates no
 -- cycle. The chase needs the thief's real SpeedPower to decide how hard to run.
 local DataService = require(script.Parent.DataService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass] leaf
 
 local GuardianService = {}
 
@@ -1633,6 +1634,8 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	-- longer has the item.
 	if isBehindSafeLine(targetRoot.Position) then
 		if loot then onEscape(loot, target) end
+		-- [retention-quests-pass] One per item: QuestService ignores a repeat lootId.
+		if loot then ProgressEvents.fire(target, "chaseEscape", 1, { lootId = loot.id, zone = loot.zoneIndex }) end
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return

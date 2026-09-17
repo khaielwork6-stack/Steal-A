@@ -939,6 +939,79 @@ return function(): Report
 		check(SecurityConfig.SPEED_HISTORY_SECONDS >= 60, "the speed history must cover a whole run")
 	end
 
+	-- ==========================================================
+	-- RETENTION: QUESTS + SEASON PASS (retention-quests-pass)
+	-- ==========================================================
+	do
+		local QuestConfig = require(script.Parent.QuestConfig)
+		local SeasonPassConfig = require(script.Parent.SeasonPassConfig)
+		check(type(QuestConfig.ENABLED) == "boolean", "QuestConfig.ENABLED must be a boolean")
+		check(type(SeasonPassConfig.ENABLED) == "boolean", "SeasonPassConfig.ENABLED must be a boolean")
+		local ids: { [string]: boolean } = {}
+		for period, pool in QuestConfig.Pools do
+			local kinds: { [string]: boolean } = {}
+			for _, t in pool do
+				check(not ids[t.id], `quest id "{t.id}" appears twice`)
+				ids[t.id] = true
+				kinds[t.kind] = true
+				check(QuestConfig.EVENT_FOR_KIND[t.kind] ~= nil, `quest "{t.id}" has unknown kind "{t.kind}"`)
+				check(t.weight > 0 and t.min >= 1 and t.max >= t.min, `quest "{t.id}" has a bad weight or target range`)
+				check(t.minRarity == nil or RarityConfig.rank(t.minRarity) > 0, `quest "{t.id}" has unknown rarity`)
+				check(t.kind ~= "earn" or (t.earnMinutes or 0) > 0, `earn quest "{t.id}" needs earnMinutes`)
+				check(string.find(QuestConfig.describe(t, t.min), "{", 1, true) == nil, `quest "{t.id}" text has an unfilled placeholder`)
+			end
+			-- One per kind per list, so the pool needs at least COUNT kinds.
+			local distinct = 0
+			for _ in kinds do
+				distinct += 1
+			end
+			check(distinct >= QuestConfig.COUNTS[period], `the {period} pool has fewer kinds than quests per list`)
+			-- Determinism: the same seed and context give the same list.
+			local context = { highestZone = 1, baseIncome = 0, undiscovered = 96 }
+			local a = QuestConfig.generate(pool, QuestConfig.COUNTS[period], 12345, context)
+			local b = QuestConfig.generate(pool, QuestConfig.COUNTS[period], 12345, context)
+			check(#a == QuestConfig.COUNTS[period], `a new player's {period} list is not full`)
+			local same = #a == #b
+			for i = 1, math.min(#a, #b) do
+				same = same and a[i].id == b[i].id and a[i].target == b[i].target
+			end
+			check(same, `{period} quest generation is not deterministic`)
+		end
+		-- Calendar: a Monday 00:00 UTC is a weekly boundary, a Sunday is not.
+		local monday = DateTime.fromUniversalTime(2026, 9, 14).UnixTimestamp
+		check(QuestConfig.weekOf(monday) == QuestConfig.weekOf(monday - 1) + 1, "the weekly reset is not Monday 00:00 UTC")
+		check(QuestConfig.resetAt("weekly", QuestConfig.weekOf(monday)) == monday + 7 * 86400, "weekly resetAt is wrong")
+		check(QuestConfig.resetAt("daily", QuestConfig.dayOf(monday)) == monday + 86400, "daily resetAt is wrong")
+		-- Rewards never exceed the spin wheel's Speed caps (the Zone 8+ wall).
+		for period, scale in QuestConfig.Rewards do
+			check(scale.speedCap <= 5e6, `{period} quest Speed cap is above the wheel's`)
+			local _, speed = QuestConfig.rewardFor(period, nil, 0, 20e9)
+			check(speed <= scale.speedCap, `{period} quest Speed reward ignores its cap`)
+		end
+		check(#SeasonPassConfig.Tiers == SeasonPassConfig.TIER_COUNT, "the season pass must define every tier")
+		check(SeasonPassConfig.ENDS_AT > SeasonPassConfig.STARTS_AT, "the season must end after it starts")
+		local last = 0
+		for tier, def in SeasonPassConfig.Tiers do
+			check(def.tier == tier, `season tier {tier} is out of order`)
+			check(SeasonPassConfig.Thresholds[tier] > last, `season tier {tier} threshold does not increase`)
+			last = SeasonPassConfig.Thresholds[tier]
+			for _, reward in { def.free, def.premium } do
+				if reward.kind == "speed" then
+					check((reward.cap or math.huge) <= 5e6, `season tier {tier} Speed cap is above the wheel's`)
+				elseif reward.kind == "guardian" then
+					check(BaseGuardianConfig.ByKey[reward.guardianKey or ""] ~= nil, `season tier {tier} names an unknown guardian`)
+				elseif reward.kind == "trail" then
+					check(MonetizationConfig.TrailByKey[reward.trailKey or ""] ~= nil, `season tier {tier} names an unknown trail`)
+				elseif reward.kind == "title" then
+					check((reward.title or "") ~= "", `season tier {tier} has an empty title`)
+				end
+			end
+		end
+		check(SeasonPassConfig.tierFor(0) == 0, "0 XP must be tier 0")
+		check(SeasonPassConfig.tierFor(last) == SeasonPassConfig.TIER_COUNT, "the last threshold must reach the last tier")
+		check(MonetizationConfig.SeasonPremiumPass.gamePassId >= 0, "the season premium pass id must be 0 (placeholder) or real")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

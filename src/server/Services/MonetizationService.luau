@@ -890,6 +890,24 @@ function MonetizationService.promptSlapPass(player: Player): (boolean, string?)
 	return promptPass(player, pass.gamePassId)
 end
 
+-- [retention-quests-pass] The season pass premium track. Degrades to "not
+-- owned / not for sale" while the configured id is the placeholder 0.
+function MonetizationService.ownsSeasonPremium(player: Player): boolean
+	local pass = MonetizationConfig.SeasonPremiumPass
+	return pass.gamePassId > 0 and MonetizationService.ownsPassCached(player, pass.gamePassId)
+end
+
+function MonetizationService.promptSeasonPremium(player: Player): (boolean, string?)
+	local pass = MonetizationConfig.SeasonPremiumPass
+	if pass.gamePassId <= 0 then
+		return false, "Season Pass Premium is coming soon!"
+	end
+	if MonetizationService.ownsPassCached(player, pass.gamePassId) then
+		return false, "You already own Season Pass Premium!"
+	end
+	return promptPass(player, pass.gamePassId)
+end
+
 -- ==========================================================
 -- BASE STEALING RECEIPTS
 -- ==========================================================
@@ -1019,6 +1037,8 @@ function MonetizationService.start()
 			ok, reason = MonetizationService.promptGuardianPass(player)
 		elseif action == "slap" then
 			ok, reason = MonetizationService.promptSlapPass(player)
+		elseif action == "seasonPremium" then -- [retention-quests-pass]
+			ok, reason = MonetizationService.promptSeasonPremium(player)
 		else
 			return
 		end

@@ -32,6 +32,7 @@ local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local SpeedService = {}
 
@@ -658,6 +659,7 @@ local function trainPlayer(player: Player)
 	if not trained then
 		warn(`[SpeedService] training listener failed for {player.Name}: {trainedErr}`)
 	end
+	ProgressEvents.fire(player, "train", TreadmillConfig.TICK_INTERVAL) -- [retention-quests-pass]
 
 	-- Crossing a zone's recommended Speed is the single moment the long
 	-- treadmill grind pays off, so it gets its own cue. THE CUE ONLY: the

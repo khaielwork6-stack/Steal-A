@@ -38,6 +38,7 @@ local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local IndexService = {}
 
@@ -162,6 +163,7 @@ end
 function IndexService.onDiscovered(player: Player, itemId: string)
 	IndexService.push(player)
 	StateService.markDirty(player)
+	ProgressEvents.fire(player, "discover", 1, { itemId = itemId }) -- [retention-quests-pass]
 	-- No cue and no banner here: discovery happens on the reveal, and the
 	-- reveal's own pop is the one sound and the one moment.
 

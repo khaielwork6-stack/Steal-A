@@ -32,6 +32,8 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local DataService = require(script.Parent.DataService)
+-- [retention-quests-pass] Leaf event bus ("earn $X" quests and friends).
+local ProgressEvents = require(script.Parent.ProgressEvents)
 
 local EconomyService = {}
 
@@ -42,7 +44,9 @@ local listeners: { (Player) -> () } = {}
 --- tool; never saved.
 local awardedBySource: { [Player]: { [string]: number } } = {}
 
-export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other"
+-- "quest" / "season": the retention pass's own rewards (QuestConfig.EARN_SOURCES
+-- keeps them out of the "earn $X" quests).
+export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other" | "quest" | "season"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())
@@ -175,6 +179,7 @@ function EconomyService.award(player: Player, amount: number, source: CashSource
 	profile.Lifetime.CashEarned += amount
 	tally(player, source or "other", amount)
 	notify(player)
+	ProgressEvents.fire(player, "earn", amount, { source = source or "other" }) -- [retention-quests-pass]
 end
 
 --- Pays `amount` scaled by the 2x Cash pass. Use for one-off GAMEPLAY

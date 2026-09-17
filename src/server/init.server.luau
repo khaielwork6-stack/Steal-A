@@ -467,6 +467,60 @@ OfflineService.start()
 -- the Data debug commands find it running.
 MailboxService.start()
 
+-- ==========================================================
+-- RETENTION: DAILY/WEEKLY QUESTS + SEASON PASS
+-- (docs/handoff-parts/retention-quests-pass.md)
+-- ==========================================================
+-- Both listen to Services.ProgressEvents, which the gameplay services fire
+-- from their success paths; nothing here is a gameplay dependency. Before
+-- DebugService so the Quests debug commands find them running.
+do
+	local SeasonPassService = require(Services.SeasonPassService)
+	local QuestService = require(Services.QuestService)
+
+	-- Injected, not required: the two retention services depend only on
+	-- DataService / EconomyService. Fields are set on the shared table.
+	local hooks = SeasonPassService.hooks
+	hooks.notify = function(player, kind, message, cue)
+		StateService.notify(player, kind, message, cue)
+	end
+	hooks.pushState = function(player)
+		StateService.pushNow(player)
+	end
+	hooks.markStateDirty = function(player)
+		StateService.markDirty(player)
+	end
+	hooks.refreshMovement = function(player)
+		SpeedService.applyMovement(player)
+	end
+	hooks.ownsPremium = MonetizationService.ownsSeasonPremium
+	hooks.ownsTrail = TrailService.owns
+	hooks.grantGuardian = BaseGuardianService.grantWon
+	hooks.syncGuardian = BaseGuardianService.sync
+	hooks.setPremiumForTesting = function(player, owned)
+		local id = MonetizationConfig.SeasonPremiumPass.gamePassId
+		if owned == nil then
+			MonetizationService.refreshOwnership(player)
+		elseif id > 0 then
+			MonetizationService.setOwnedForTesting(player, id, owned)
+		end
+	end
+	-- The HUD red dot: rewards waiting in the Quests panel.
+	StateService.addProvider("retention", function(player)
+		return { claimable = QuestService.claimableCount(player) }
+	end)
+
+	SeasonPassService.start()
+	QuestService.start()
+	-- A Season Pass Premium bought (or confirmed on join) repaints the PASS
+	-- tab. Chained, so the ownership wiring above keeps running first.
+	local previousOwnershipChanged = MonetizationService.onOwnershipChanged
+	MonetizationService.onOwnershipChanged = function(player)
+		previousOwnershipChanged(player)
+		QuestService.markDirty(player)
+	end
+end
+
 DebugService.start()
 
 -- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the

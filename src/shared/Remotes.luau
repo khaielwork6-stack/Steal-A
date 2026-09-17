@@ -124,6 +124,19 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==========================================================
+	-- RETENTION: DAILY/WEEKLY QUESTS + SEASON PASS (retention-quests-pass)
+	-- ==========================================================
+	-- server -> client. The Quests panel's data: both quest lists, their
+	-- progress, live rewards and reset times, and the season pass state. Sent
+	-- only when it changed (at most once a second) and on request. The HUD red
+	-- dot rides StatePush as `retention` instead.
+	"QuestPush",
+	-- client -> server. ("sync") | ("claim", "daily"|"weekly", index) |
+	-- ("season", tier, "free"|"premium"). Intent only: the server re-checks
+	-- completion, ownership and the claimed flags; rate limited; idempotent.
+	"QuestRequest",
 }
 
 local folder: Folder
