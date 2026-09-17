@@ -5365,3 +5365,57 @@ owner's profile has nothing discovered in Zone 6).
 `SpinWheelConfig.PLAY_SECONDS = 300`, with the matching pin in `validate`.
 Everything else reads the constant; comments are updated. The boot log reads
 "300s of play per spin". `validate` 1,667 checks, 0 failures.
+
+## 53. Full review pass: fixes + eight features (2026-09-17)
+
+The owner approved everything in the full game review except rebirth, base
+shield, server luck boost and any change to the Zone 8+ progression wall. The
+work ran as parallel agents in git worktrees, merged on master and tested in
+Studio. **Detailed notes, values, owner actions and Studio test plans live in
+`docs/handoff-parts/`** (one file per area); this section is the map.
+
+Start with `docs/START_HERE.md` (current architecture), `docs/OWNER_TODO.md`
+(Creator Dashboard ids, decisions, live checks) and `docs/codex-prompts/ALL.md`
+(all art, with the config key each asset id goes into).
+
+### Fixes (Phase 1)
+
+| Area | Notes file | Highlights |
+|---|---|---|
+| Saves / data | data.md | Session-locked profiles, coalesced saves, retrying leave-saves, 25s shutdown wait, Studio-only memory mode, MailboxService, loops wrapped in pcall, offline earnings at 50% and stamped correctly |
+| Security / gameplay | security-gameplay.md | MovementService (server movement checks, snap-back + drop), delivery needs a trusted position and a minimum run time, paid-steal hardening, Night drop bug, drop generations, laser-chase leash, guard animation on clients, crouch x0.6 |
+| Client | client.md | StateStore (single StatePush listener; inventory/index split, measured ~6.9 KB/s -> ~1.9 KB/s), guarded parallel controller start, toast freeze, motion culling + BulkMoveTo, Effects (Reduced / Low Graphics), shift lock fallback, server-time hatch clock |
+| World / code health | world-health.md | Cases built once (width capped at 14 in review), ~28% fewer museum parts, one socket owner, lighter previews, PartKit, dead files removed, tools/check.sh + selene + StyLua config + CI |
+| Monetization | monetization.md | promptProduct is Cash/Speed only, undeliverable receipts become a Cash fallback, income-scaled cash packs, spin wheel AFK pause + lower rare weights + zone-scaled prizes + crash-safe pending prize, 90s loss-offer cooldown, PolicyService |
+
+### Features (Phase 2)
+
+| Feature | Notes file |
+|---|---|
+| Codes, 7-day daily streak (day 7 = Cash + Speed, not a free Panda) | retention-codes-daily.md |
+| Daily/weekly quests, Season 1 pass (premium = game pass) | retention-quests-pass.md |
+| Invites + referral rewards, friend/Premium boosts, 23 badges, notifications, reveal announcements, private-server commands | social.md |
+| Trading, gift packs, 4 new world leaderboards | trading-gifting-boards.md |
+| Gadgets (smoke, jammer, grapple), guard patrols in zones 7+ | gadgets-patrols.md |
+| Vault rooms (restock on the timer only), crew heists | vaults-crews.md |
+| Item fusion, Auto Reveal pass, base themes | fusion-autoreveal-bases.md |
+| Loading screen, first-join flyover, analytics, timed events, TextFilter | polish-events-analytics.md |
+
+### Shared plumbing added
+
+- `ProgressEvents` (server event bus). Several names exist for the same moment
+  because features were built in parallel: steal / stealDelivered / deliver /
+  delivered, escape / chaseEscape, reveal / revealed. Each feature listens to
+  its own; unify when convenient.
+- `DebugCommands/<Area>.luau` modules, auto-loaded by DebugService in Studio.
+- `tools/check.sh` (luau-lsp; hard errors must be zero), and the merge helpers
+  `tools/show-conflicts.js` and `tools/resolve-both.js`.
+- `place/` mirrors the place-owned UI pack script.
+
+### Studio caveats found while testing
+
+- Studio signals are deferred: code that guards against its own property
+  changes must use a time window, not a flag (fixed in MovementService).
+- Launching Studio from automation closes every open Studio. Never do it.
+- The Rojo plugin can hold a large pending patch until someone accepts it in
+  the plugin.
