@@ -181,6 +181,10 @@ return {
 			task.wait(2)
 			local trusted = MovementService.trustedPosition(player)
 			report.trustedAtHome = trusted ~= nil and BaseService.plotAt(trusted) == BaseService.getPlot(player)
+			report.trusted = tostring(trusted)
+			report.live = tostring(rootOf(player) and (rootOf(player) :: BasePart).Position)
+			report.plotAtTrusted = tostring(trusted and BaseService.plotAt(trusted))
+			report.ownPlot = tostring(BaseService.getPlot(player))
 			report.newViolations = violations(player) - before
 			MovementService.debugSetAutoTrust(wasAuto)
 

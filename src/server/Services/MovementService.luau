@@ -83,9 +83,14 @@ local serverMovedAt: { [Player]: number? } = {}
 --- Pending allowTeleport windows for a character that has not been sampled
 --- yet (the call can land before the first sample of a new character).
 local teleportUntil: { [Player]: number? } = {}
---- True while this service is pivoting a character itself, so its own
---- snap-back is not mistaken for a debug teleport.
-local snapping: { [Player]: boolean? } = {}
+--- Until when this service's OWN pivots of a character must not be read as
+--- a debug teleport (its snap-back, and the simulated client move). A window,
+--- not a flag: under deferred signal behaviour the root's CFrame-changed
+--- handler runs AFTER the pivot call has returned, so a flag cleared right
+--- after PivotTo was always already clear and every simulated cheat was
+--- "trusted".
+local ownPivotUntil: { [Player]: number? } = {}
+local OWN_PIVOT_WINDOW = 0.25
 
 local metrics = {
 	samples = 0,
@@ -243,7 +248,7 @@ local function watchPivots(player: Player, root: BasePart)
 		return
 	end
 	root:GetPropertyChangedSignal("CFrame"):Connect(function()
-		if snapping[player] or not MovementService.debugAutoTrust() then
+		if os.clock() < (ownPivotUntil[player] or 0) or not MovementService.debugAutoTrust() then
 			return
 		end
 		metrics.autoTrustedPivots += 1
@@ -269,13 +274,13 @@ local function violate(player: Player, track: Track, character: Model, root: Bas
 	metrics.lastViolation = message
 	warn("[MovementService] " .. message)
 
-	snapping[player] = true
+	ownPivotUntil[player] = os.clock() + OWN_PIVOT_WINDOW
 	local ok, err = pcall(function()
 		character:PivotTo(CFrame.new(target) * root.CFrame.Rotation)
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
 	end)
-	snapping[player] = nil
+	ownPivotUntil[player] = os.clock() + OWN_PIVOT_WINDOW
 	if not ok then
 		warn(`[MovementService] snap-back failed for {player.Name}: {err}`)
 	end
@@ -444,11 +449,11 @@ function MovementService.debugSimulateClientMove(player: Player, target: CFrame)
 	if not IS_STUDIO or not character then
 		return false
 	end
-	snapping[player] = true
+	ownPivotUntil[player] = os.clock() + OWN_PIVOT_WINDOW
 	local ok = pcall(function()
 		character:PivotTo(target)
 	end)
-	snapping[player] = nil
+	ownPivotUntil[player] = os.clock() + OWN_PIVOT_WINDOW
 	return ok
 end
 
@@ -496,7 +501,7 @@ function MovementService.start()
 		exempt[player] = nil
 		serverMovedAt[player] = nil
 		teleportUntil[player] = nil
-		snapping[player] = nil
+		ownPivotUntil[player] = nil
 		violationsByPlayer[player] = nil
 	end)
 
