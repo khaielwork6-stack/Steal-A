@@ -117,6 +117,19 @@ end
 --- right-side offer, both through the same prompt.
 MonetizationConfig.SlapPass = { key = "Slap", gamePassId = 1968935748, robux = 29, label = "Slap" } :: SimplePass
 
+-- [retention-quests-pass] The season pass premium track. PLACEHOLDER id 0:
+-- while it is 0 the premium row shows "COMING SOON", nothing on it can be
+-- claimed and no purchase can be opened. The owner creates the pass on the
+-- Creator Dashboard and pastes its id here. One pass per season: a new
+-- season needs a NEW pass (and a new id here), or last season's buyers
+-- would own the new premium track.
+MonetizationConfig.SeasonPremiumPass = {
+	key = "SeasonPremium",
+	gamePassId = 0,
+	robux = 199,
+	label = "Season Pass Premium",
+} :: SimplePass
+
 -- ==========================================================
 -- TRAILS
 -- ==========================================================
@@ -545,6 +558,10 @@ function MonetizationConfig.allGamePassIds(): { number }
 		if pass.gamePassId > 0 then
 			table.insert(ids, pass.gamePassId)
 		end
+	end
+	-- [retention-quests-pass] Only once a real id exists: 0 is a placeholder.
+	if MonetizationConfig.SeasonPremiumPass.gamePassId > 0 then
+		table.insert(ids, MonetizationConfig.SeasonPremiumPass.gamePassId)
 	end
 	return ids
 end

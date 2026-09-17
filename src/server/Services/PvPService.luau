@@ -35,6 +35,7 @@ local MonetizationService = require(script.Parent.MonetizationService)
 local MovementService = require(script.Parent.MovementService)
 local RagdollService = require(script.Parent.RagdollService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local PvPService = {}
 
@@ -261,6 +262,7 @@ local function resolveSwing(attacker: Player, weapon: PvPConfig.WeaponDef)
 	end
 	-- No toast for a plain hit. The connect sound, the swing, the launch and
 	-- the ragdoll are the feedback; a "Hit!" card on top was noise.
+	ProgressEvents.fire(attacker, "pvpHit", 1, { weapon = weapon.name, knockedLoot = carried ~= nil }) -- [retention-quests-pass]
 
 	RagdollService.launch(victim, origin, {
 		knockback = weapon.knockback,
@@ -584,6 +586,7 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 	})
 
 	StateService.pushNow(player)
+	ProgressEvents.fire(player, "trapPlaced", 1) -- [retention-quests-pass]
 	if emptied then
 		notify(player, "success", `Trap placed - last one. All {PvPConfig.TRAP_CAPACITY} back in {PvPConfig.TRAP_REFILL // 60}m.`)
 	else

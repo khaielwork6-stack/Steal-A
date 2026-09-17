@@ -38,6 +38,7 @@ local HeistService = require(script.Parent.HeistService)
 local IndexService = require(script.Parent.IndexService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local PlacementService = {}
 
@@ -163,6 +164,10 @@ function PlacementService.place(player: Player, slotIndex: number): (boolean, st
 	-- Hand the world instance over: this clears the carry and refills the socket.
 	CarryService.consumeCarry(player)
 	LootService.consume(loot)
+	-- [retention-quests-pass] THE completed steal: the container is home and on
+	-- the base. No rarity or item: both are still sealed. ("steal" is the
+	-- social pass's pickup-time event; this is the delivered one.)
+	ProgressEvents.fire(player, "stealDelivered", 1, { zone = loot.zoneIndex })
 
 	-- Only this pad changed: redraw it alone rather than every trophy.
 	BaseService.rebuildSlot(player, slotIndex)

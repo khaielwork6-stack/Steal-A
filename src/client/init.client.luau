@@ -240,6 +240,11 @@ end)
 startLater("FusionController", function()
 	require(script.Controllers.FusionController).start()
 end)
+-- [retention-quests-pass] The Quests panel (daily/weekly quests + season
+-- pass) and its HUD button with the red "claimable" dot.
+startLater("QuestController", function()
+	require(script.Controllers.QuestController).start()
+end)
 
 print("[Client] controllers started")
 -- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.

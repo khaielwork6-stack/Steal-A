@@ -80,6 +80,7 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local SpeedService = require(script.Parent.SpeedService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local SpinWheelService = {}
 
@@ -482,6 +483,9 @@ local function onTriggered(player: Player, wheel: Wheel)
 	local prize = prizeFor(segment, prizeContext(player, profile))
 	pending[player] = prize
 	profile.PendingSpinPrize = encodePrize(prize)
+	-- [retention-quests-pass] The spin is spent and rolled: it happened. Fired
+	-- before the save below so a quest tick rides the same write.
+	ProgressEvents.fire(player, "spin", 1, { index = index })
 
 	-- The animation is told which wedge to land on, plus the finished banner
 	-- line so the win card names the amount actually paid. Presentation only:

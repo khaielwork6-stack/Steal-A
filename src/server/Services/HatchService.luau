@@ -56,6 +56,7 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local IndexService = require(script.Parent.IndexService)
 local StateService = require(script.Parent.StateService)
+local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
 
 local HatchService = {}
 
@@ -282,7 +283,12 @@ function HatchService.commit(player: Player, instanceId: string, options: Commit
 	-- THE SWAP, on the pop frame. The pedestal keeps showing the container
 	-- until then; the rebuild replaces it with the item and its label in one
 	-- pass, and the client reveals exactly what it finds on that frame.
+	-- [retention-quests-pass] Fired at the swap, not the flip: a quest toast
+	-- naming a rarity must not beat the roulette. ("reveal" is the social
+	-- pass's event at the same moment; this one feeds quests.)
+	local revealedInfo = { rarity = item.Rarity, itemId = item.ItemId }
 	task.delay(swapDelay, function()
+		ProgressEvents.fire(player, "revealed", 1, revealedInfo) -- [retention-quests-pass]
 		if player.Parent then
 			-- Only the revealed pad: its "Trophy" is replaced exactly as a full
 			-- rebuild would (the client waits for that ChildAdded). rebuildSlot
