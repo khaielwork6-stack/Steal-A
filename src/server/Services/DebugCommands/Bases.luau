@@ -293,7 +293,10 @@ return {
 			AutoRevealService.debugResetPacing(player)
 			task.wait(0.6) -- the container replicates before the cue
 
-			local started = AutoRevealService.step(player)
+			-- The service's own poll may already have taken it during the wait
+			-- above; that counts as started too.
+			local already = item.Hatched == true or HatchService.isRevealing(item.InstanceId)
+			local started = AutoRevealService.step(player) or already
 			local waitFor = if mode == "quick" then HatchConfig.QuickReveal.lock else HatchConfig.lockSeconds(item.Rarity)
 			task.wait(waitFor + 0.5)
 			local after = findIn(profile.DisplayItems, item.InstanceId)

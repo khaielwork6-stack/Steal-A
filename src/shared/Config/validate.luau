@@ -1123,7 +1123,7 @@ return function(): Report
 		check(FusionConfig.targetClass(#ScaleConfig.Variants) == #ScaleConfig.Variants, "fusion must cap at the largest size")
 		check(FusionConfig.targetClass(1) == 2, "fusion must step one size class up")
 		check(FusionConfig.scaleFor(#ScaleConfig.Variants, 0, ScaleConfig.MAX_SCALE) == ScaleConfig.MAX_SCALE, "a capped fusion must never shrink the best input")
-		check(FusionConfig.costFor(0, 1) == FusionConfig.MIN_COST, "fusion must cost at least MIN_COST")
+		check(FusionConfig.costFor(0, 1) >= FusionConfig.MIN_COST, "fusion must cost at least MIN_COST")
 		check(FusionConfig.costFor(1e6, 3) > FusionConfig.costFor(10, 3), "fusion cost must follow income")
 		check(FusionConfig.REQUESTS_PER_SECOND > 0 and BaseThemeConfig.REQUESTS_PER_SECOND > 0, "feature request budgets must be positive")
 
