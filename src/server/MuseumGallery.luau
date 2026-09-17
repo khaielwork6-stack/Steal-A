@@ -96,15 +96,20 @@ end
 --- it shrank back to 12 studs the moment a big one was carried off. Now it is
 --- sized once for anything the socket can hold:
 ---   span    LootService caps a socket container's widest side at
----           Layout.displayFootprint(zone) (<= 12). The client turns it on
----           the spot, so its square footprint sweeps a circle of diameter
----           footprint * sqrt(2); +2 is the old fit's clearance.
+---           Layout.displayFootprint(zone) (<= 12); +2 is the old fit's
+---           clearance, and CASE_SPAN_MAX caps it. Sizing for the turning
+---           diagonal (footprint * sqrt(2)) made every case ~19 studs wide
+---           around ~6-stud containers and pushed the glass into the room's
+---           own exhibits (seen in Studio, 2026-09-17). A rare max-size roll
+---           may now brush the glass with a corner while it turns; the old
+---           per-spawn refit let those cases overlap the exhibits instead.
 ---   height  MysteryModel.tallestDisplayHeight: the zone's own container at
 ---           the largest roll under that same cap, +3 as before (seating
 ---           clearance and the client's idle bob). Held inside the room.
+local CASE_SPAN_MAX = 14
 local function caseSize(index: number): (number, number)
 	local footprint = Layout.displayFootprint(index)
-	local span = math.max(12, footprint * math.sqrt(2) + 2)
+	local span = math.clamp(footprint + 2, 12, CASE_SPAN_MAX)
 	local height = 10
 	local tallest = MysteryModel.tallestDisplayHeight(index, footprint)
 	if tallest then
