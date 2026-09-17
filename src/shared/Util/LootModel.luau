@@ -212,8 +212,34 @@ end
 -- RESOLUTION
 -- ==========================================================
 
---- The authored asset for an item id, whatever class it is. Recursive, because
---- imports keep their parts inside nested Models (the meteorite lives at
+--- The folder ItemAssetBuilder keeps superseded saved-place art in. It used to
+--- live INSIDE GameAssets.Loot, under the same item ids as the live art, so a
+--- recursive lookup could return the old copy depending on child order. It
+--- now lives beside Loot (GameAssets.LootOriginals); the name is still
+--- skipped here in case an older place has not been migrated yet.
+LootModel.ORIGINALS_FOLDER = "_OriginalArt"
+
+--- `name` under `folder`: a DIRECT child first (the live, installed art), then
+--- a nested match inside any other child - never inside the originals backup.
+local function findArt(folder: Instance, name: string): Instance?
+	local direct = folder:FindFirstChild(name)
+	if direct then
+		return direct
+	end
+	for _, child in folder:GetChildren() do
+		if child.Name ~= LootModel.ORIGINALS_FOLDER then
+			local nested = child:FindFirstChild(name, true)
+			if nested then
+				return nested
+			end
+		end
+	end
+	return nil
+end
+
+--- The authored asset for an item id, whatever class it is. Direct children of
+--- GameAssets.Loot win; otherwise the search is recursive, because imports
+--- keep their parts inside nested Models (the meteorite lives at
 --- `Zone One Meteor > meteor > OldMeteor`) and a non-recursive lookup finds
 --- nothing.
 function LootModel.findSource(itemId: string): Instance?
@@ -225,11 +251,11 @@ function LootModel.findSource(itemId: string): Instance?
 	-- The override, when there is one, is the asset name to look for; the
 	-- ItemId is still the save key and still the fallback.
 	local wanted = LootConfig.modelNameFor(itemId)
-	local found = folder:FindFirstChild(wanted, true)
+	local found = findArt(folder, wanted)
 	if found then
 		return found
 	end
-	return if wanted ~= itemId then folder:FindFirstChild(itemId, true) else nil
+	return if wanted ~= itemId then findArt(folder, itemId) else nil
 end
 
 function LootModel.hasArt(itemId: string): boolean
@@ -238,7 +264,25 @@ end
 
 --- Wraps whatever the artist provided into a Model we own.
 --- Returns nil when the source contains no parts at all.
-local function adopt(source: Instance): Model?
+---
+--- THE ONE ADOPT. MysteryModel uses it too (with `preferUpright`), so loot and
+--- zone containers unwrap Tools/Accessories the same way.
+---   preferUpright  false/nil: a Model keeps its own PrimaryPart (else the
+---                  first part) and a Tool/Accessory pivots on its Handle -
+---                  the loot rule; build() re-picks the anchor afterwards.
+---                  true: the pivot part is LootModel.chooseAnchor's upright
+---                  pick - the container rule, which has no later re-pick.
+function LootModel.adopt(source: Instance, preferUpright: boolean?): Model?
+	-- Hoisted: chooseAnchor is defined further down this file.
+	local function anchorFor(model: Model, fallback: BasePart?): BasePart?
+		if preferUpright then
+			local anchor = LootModel.chooseAnchor(model)
+			if anchor then
+				return anchor
+			end
+		end
+		return fallback
+	end
 	-- ORDER MATTERS, AND IT IS NOT OBVIOUS. `Tool` INHERITS FROM `Model` in
 	-- Roblox's class hierarchy (Tool -> BackpackItem -> Model), so a Tool
 	-- answers true to IsA("Model"). With the Model branch first, all eight
@@ -277,8 +321,9 @@ local function adopt(source: Instance): Model?
 			end
 		end
 		local handle = model:FindFirstChild("Handle") or model:FindFirstChildWhichIsA("BasePart")
-		if handle and handle:IsA("BasePart") then
-			model.PrimaryPart = handle
+		local pivot = anchorFor(model, if handle and handle:IsA("BasePart") then handle else nil)
+		if pivot then
+			model.PrimaryPart = pivot
 			return model
 		end
 		model:Destroy()
@@ -287,8 +332,9 @@ local function adopt(source: Instance): Model?
 
 	if source:IsA("Model") then
 		local model = source:Clone()
-		if not model.PrimaryPart then
-			model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
+		local pivot = anchorFor(model, model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true))
+		if pivot then
+			model.PrimaryPart = pivot
 		end
 		return if model.PrimaryPart then model else nil
 	end
@@ -333,7 +379,7 @@ end
 --- the item has no art.
 function LootModel.measureSource(itemId: string): Vector3?
 	local source = LootModel.findSource(itemId)
-	local model = if source then adopt(source) else nil
+	local model = if source then LootModel.adopt(source) else nil
 	if not model then
 		return nil
 	end
@@ -480,7 +526,7 @@ end
 --- anchored, non-colliding, and scaled to Normal times any size roll.
 function LootModel.build(options: BuildOptions): (Model, boolean)
 	local source = LootModel.findSource(options.itemId)
-	local model: Model? = if source then adopt(source) else nil
+	local model: Model? = if source then LootModel.adopt(source) else nil
 	local isReal = model ~= nil
 
 	if not model then
@@ -818,12 +864,59 @@ end
 -- publishes a sanitised copy of every item under ReplicatedStorage.LootPreviews
 -- once at start. A client card then clones its item into a ViewportFrame and
 -- draws the REAL model - the same mesh the player steals - instead of a colour
--- swatch. Scripts, sounds, prompts and humanoids are stripped; nothing in the
--- folder can run or make noise.
+-- swatch.
+--
+-- EVERY CLIENT DOWNLOADS THIS FOLDER (~100 models), so a preview carries only
+-- what a viewport draws: parts, meshes, SurfaceAppearances, decals and
+-- textures, all in colour. Everything else is stripped - scripts, sounds,
+-- prompts, humanoids, GUIs, and the effects (particles, beams, trails, fire,
+-- smoke, sparkles, lights, highlights) that a ViewportFrame does not render
+-- anyway, plus the attachments and joints they hung from. World, trophy and
+-- carry models are built from ServerStorage by build() and keep theirs.
+-- (HatchController's roulette strips effects from its clones as well; on
+-- these that is now a harmless no-op.)
 
 local PREVIEW_FOLDER = "LootPreviews"
 
+--- Whether a preview descendant is dead weight for a ViewportFrame.
+local function previewStrips(descendant: Instance): boolean
+	if descendant:IsA("Attachment") then
+		-- A Bone is an Attachment, and a skinned mesh needs its bones to draw.
+		return not descendant:IsA("Bone")
+	end
+	return descendant:IsA("LuaSourceContainer")
+		or descendant:IsA("Sound")
+		or descendant:IsA("ProximityPrompt")
+		or descendant:IsA("ClickDetector")
+		or descendant:IsA("Humanoid")
+		or descendant:IsA("BillboardGui")
+		or descendant:IsA("SurfaceGui")
+		or descendant:IsA("ParticleEmitter")
+		or descendant:IsA("Beam")
+		or descendant:IsA("Trail")
+		or descendant:IsA("Fire")
+		or descendant:IsA("Smoke")
+		or descendant:IsA("Sparkles")
+		or descendant:IsA("Light")
+		or descendant:IsA("Highlight")
+		or descendant:IsA("JointInstance")
+		or descendant:IsA("WeldConstraint")
+		or descendant:IsA("Constraint")
+		or descendant:IsA("BodyMover")
+end
+
 --- Server only. Idempotent: a second call replaces the folder.
+---
+--- ONE PREVIEW PER ITEM, published under the ITEM ID, from exactly the art
+--- build() uses (findSource). previewSource() looks up by id, so:
+---   * an item that adopts a differently-named asset (LootConfig.ModelOverrides)
+---     is still found under its own id, and a superseded asset that merely
+---     shares the id is never the one published;
+---   * an asset NO item claims - a saved-place alias such as "Toy Train" - is
+---     not published at all. It used to be copied to every client under its
+---     own name, where nothing ever looked it up;
+---   * art nested inside a wrapper model is found the way build() finds it,
+---     instead of the wrapper being published under the wrapper's name.
 function LootModel.publishPreviews(): number
 	local assets = ServerStorage:FindFirstChild("GameAssets")
 	local source = assets and assets:FindFirstChild("Loot")
@@ -837,42 +930,21 @@ function LootModel.publishPreviews(): number
 	local folder = Instance.new("Folder")
 	folder.Name = PREVIEW_FOLDER
 
-	-- A preview is published under the ITEM ID it serves, not under the asset's
-	-- own name, because previewSource() looks up by id. An item that adopts a
-	-- differently-named asset through LootConfig.ModelOverrides would otherwise
-	-- publish as (say) "Toy Train", be looked up as "NorthPole_NiceList", miss,
-	-- and lose its thumbnail everywhere ItemThumb paints one - storage cards,
-	-- Index cards and reveals. An asset no item claims keeps its own name.
-	local idForAsset: { [string]: string } = {}
+	-- Sorted so the folder's child order is stable from run to run.
+	local ids: { string } = {}
 	for itemId in LootConfig.ById do
-		idForAsset[LootConfig.modelNameFor(itemId)] = itemId
+		table.insert(ids, itemId)
 	end
-
-	-- Two assets can want the SAME published name. An item that adopts new art
-	-- through ModelOverrides leaves its original asset in the folder still named
-	-- after the item id, and the adopted asset then renames onto that same id.
-	-- Both land in the folder and FindFirstChild returns whichever came first,
-	-- which is how superseded art went on painting the thumbnails while the
-	-- world showed the new model. The claim wins: an asset an item actually
-	-- names beats one that merely happens to share the id. The loser is not
-	-- published and not touched - it stays in ServerStorage until someone
-	-- deletes it deliberately.
-	local function superseded(assetName: string): boolean
-		return idForAsset[assetName] == nil
-			and LootConfig.ById[assetName] ~= nil
-			and LootConfig.modelNameFor(assetName) ~= assetName
-	end
+	table.sort(ids)
 
 	local count = 0
-	for _, item in source:GetChildren() do
-		if superseded(item.Name) then
-			continue
-		end
-		local model = adopt(item)
+	for _, itemId in ids do
+		local art = LootModel.findSource(itemId)
+		local model = if art then LootModel.adopt(art) else nil
 		if not model then
 			continue
 		end
-		model.Name = idForAsset[item.Name] or item.Name
+		model.Name = itemId
 		unwrapEquipment(model)
 		for _, descendant in model:GetDescendants() do
 			if descendant:IsA("BasePart") then
@@ -880,14 +952,8 @@ function LootModel.publishPreviews(): number
 				descendant.CanCollide = false
 				descendant.CanQuery = false
 				descendant.CanTouch = false
-			elseif
-				descendant:IsA("BaseScript")
-				or descendant:IsA("Sound")
-				or descendant:IsA("ProximityPrompt")
-				or descendant:IsA("Humanoid")
-				or descendant:IsA("BillboardGui")
-				or descendant:IsA("SurfaceGui")
-			then
+				descendant.CastShadow = false
+			elseif previewStrips(descendant) then
 				descendant:Destroy()
 			end
 		end

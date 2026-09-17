@@ -1,15 +1,15 @@
 --!strict
 -- Two large collection silhouettes per room. These are scenery, not loot:
 -- no prompts, rewards, physics, lights or per-frame work.
+local PartKit = require(script.Parent.PartKit)
 local Exhibits = {}
-local GOLD = Color3.fromRGB(202, 157, 65)
-local DARK = Color3.fromRGB(24, 29, 38)
+local GOLD = PartKit.GOLD
+local DARK = PartKit.DARK
 local WHITE = Color3.fromRGB(226, 228, 217)
 local WOOD = Color3.fromRGB(98, 58, 37)
 
 function Exhibits.build(parent: Instance, roomFrame: CFrame, roomWidth: number, roomDepth: number, index: number, accent: Color3)
-	local collection = Instance.new("Folder")
-	collection.Name, collection.Parent = "CollectionExhibits", parent
+	local collection = PartKit.folder("CollectionExhibits", parent)
 	for side = 1, 2 do
 		local model = Instance.new("Model")
 		model.Name, model.Parent = "Exhibit" .. side, collection
@@ -32,8 +32,11 @@ function Exhibits.build(parent: Instance, roomFrame: CFrame, roomWidth: number, 
 			piece.Parent = model
 			return piece
 		end
+		-- The same A-to-B beam as the rooms' bars (PartKit.span), then through
+		-- this model's 0.65 scale like every other piece.
 		local function rod(name: string, a: Vector3, b: Vector3, width: number, color: Color3)
-			return p(name, Vector3.new(width, width, (b - a).Magnitude), CFrame.lookAt((a + b) / 2, b), color)
+			local size, cf = PartKit.span(a, b, width)
+			return p(name, size, cf, color)
 		end
 		local function disk(name: string, diameter: number, depth: number, at: Vector3, color: Color3, upright: boolean?): Part
 			return p(name, Vector3.new(depth, diameter, diameter), CFrame.new(at) * CFrame.Angles(0, if upright then math.pi / 2 else 0, if upright then 0 else math.pi / 2), color, Enum.PartType.Cylinder)

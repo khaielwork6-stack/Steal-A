@@ -1,0 +1,21 @@
+# selene (Luau linter). Run: selene --allow-warnings src
+# std "roblox" is generated and cached by selene itself on first use (it
+# downloads the API dump), so no roblox.yml is committed.
+#
+# Lenient on purpose: CI fails on ERRORS only, and the rules below are either
+# this codebase's deliberate style or known false positives on Luau.
+std = "roblox"
+
+[lints]
+# Deliberate style: shadowed locals and `a, b = x, y` / one-line blocks.
+shadowing = "allow"
+multiple_statements = "allow"
+# Reported, never fatal.
+unused_variable = "warn"
+if_same_then_else = "warn"
+roblox_manual_fromscale_or_fromoffset = "warn"
+# False positives on Luau: a forward-declared `local f` assigned later reads
+# as a zero-argument function, and assert(x) with one argument is valid.
+# Still printed as warnings so a real misuse is visible.
+mismatched_arg_count = "warn"
+incorrect_standard_library_use = "warn"

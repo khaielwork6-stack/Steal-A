@@ -1,19 +1,19 @@
-# Steal Something
+# Steal & Run!
 
-A Roblox game. Rojo 7.7.0 project.
+A Roblox museum-heist game: run down a lane of 12 themed museum zones, steal
+sealed mystery containers from the display cases in each zone's two side
+rooms, dodge the lasers and the room guards, and carry the loot home to your
+base, where it is revealed as one of **96 loot items** (12 zones x 8) and earns
+Cash on a pedestal.
 
-**Place:** `PlaceId 134344354476234` · `GameId 10765058861`
+Rojo 7.7.0 project. **Place:** `PlaceId 134344354476234` · `GameId 10765058861`
+
+New here? Read **[docs/START_HERE.md](docs/START_HERE.md)** first. `HANDOFF.md`
+is the historical design log (long; search it, don't read it top to bottom).
 
 ---
 
-## ⛔ READ THIS BEFORE YOU RUN ANYTHING
-
-**Do NOT run `rojo build`.**
-
-The default Rojo README tells you to build a place from the repo. That is wrong
-for this project and it will cost you every asset in the game.
-
-**Code lives in git. Art lives in the place file. They are separate.**
+## ⛔ Code lives in git. Art lives in the place file.
 
 `default.project.json` maps only three folders:
 
@@ -23,158 +23,124 @@ ServerScriptService.Server                 <- src/server
 StarterPlayer.StarterPlayerScripts.Client  <- src/client
 ```
 
-Everything else — all 38 loot models, the 5 guardians, the mutation VFX, the
-9 treadmills, the purchased UI pack — exists **only inside the place file** and
-is not in this repo. `rojo build` produces a place containing the code and
-nothing else. Open that and you have an empty game.
+Everything else - the loot art (`ServerStorage.GameAssets.Loot`), the zone
+container models, the map kit, guardians, VFX, treadmills, the purchased UI
+pack - exists **only inside the place file**. A place built with `rojo build`
+contains the code and nothing else. **Never open a built place to work in, and
+never publish one.** (CI runs `rojo build` only as a compile check; the output
+`build.rbxl` is git-ignored and thrown away.)
 
-**Always open the real place through Team Create.** Never open a locally built
-`.rbxlx`.
+**Always work in the real place through Team Create**, with Rojo syncing the
+code into it.
 
-The museum lane is rebuilt from `MapBuilder` and `MuseumGallery` at server
-startup, before services bind to its sockets. Press **Play** to see source
-changes synced by Rojo. The saved lobby, plots, wheels and asset kit remain in
-the place; rebuilding the lane does not replace them. See HANDOFF section 44
-for the laser service and crouch controls. Section 46 documents the approved
-left/right rooms: four sealed displays and one guard per room, with lasers
-inside. The central corridor stays clear; all twelve zones use this layout.
-
----
-
-## Getting set up (macOS or Windows)
-
-### 1. Get the code
-
-```bash
-git clone https://github.com/khaielwork6-stack/Steal-A.git
-cd Steal-A
-```
-
-If you already have a clone, **pull before you do anything else**:
-
-```bash
-git pull origin master
-```
-
-### 2. Install the toolchain
-
-`rokit.toml` pins Rojo to 7.7.0. Install [Rokit](https://github.com/rojo-rbx/rokit)
-(its README has the current macOS install line), then from the project folder:
-
-```bash
-rokit install
-```
-
-That reads `rokit.toml` and installs the exact Rojo version this project uses.
-Mismatched Rojo versions will refuse to connect to the Studio plugin.
-
-### 3. Install the Rojo plugin in Studio
-
-Roblox Studio → Plugins → Manage Plugins → install **Rojo**. It must be the
-plugin that matches Rojo 7.x.
-
-### 4. Open the place
-
-Studio → the game → **Edit** (Team Create). Not a local file.
-
-### 5. Start the sync server
-
-```bash
-rojo serve default.project.json
-```
-
-It listens on port **34872**. Then in Studio: Rojo plugin → Connect.
+The museum lane (zones, rooms, display cases, sockets, guardian posts, lasers)
+is generated from source at server start by `MapBuilder` + `MuseumGallery` +
+`MuseumExhibits`, before any service binds to it. Edit-mode changes to that
+geometry do not survive the next Play. The lobby, plots and wheels are saved in
+the place and are not rebuilt.
 
 ---
 
-## ⚠️ Only ONE person may have Rojo connected at a time
+## Setup (Windows or macOS)
 
-This is the rule that matters most when two people are working on the same
-place.
+1. **Clone and pull.** `git clone <repo>`; before any session, `git pull`.
+2. **Install the toolchain.** Install [Rokit](https://github.com/rojo-rbx/rokit),
+   then in the project folder run `rokit install`. `rokit.toml` pins rojo,
+   luau-lsp, selene, StyLua and luau.
+3. **Install the Rojo plugin** in Studio (Plugins -> Manage Plugins -> Rojo 7.x).
+   The plugin and the CLI versions must match.
+4. **Open the place** in Studio through Team Create (not a local file).
+5. **Sync:** `rojo serve default.project.json` (port 34872), then Rojo plugin
+   -> Connect. Press **Play** to run the synced code.
 
-Rojo pushes the contents of `src/` into the live place. If two people are
-connected to the same Team Create session with different checkouts, whoever
-syncs last wins, and the other person's work is silently overwritten inside the
-place — including work that was already committed.
+### ⚠️ Only ONE person may have Rojo connected at a time
 
-**Handover procedure:**
-
-1. The person finishing **disconnects the Rojo plugin** in Studio and stops
-   their `rojo serve`.
-2. They commit and push everything: `git push origin master`.
-3. The person taking over runs `git pull origin master`, **confirms they are on
-   the newest commit**, and only then connects their Rojo.
-
-If code ever does get clobbered, it is recoverable: everything is pushed to
-`master`, so pull and reconnect. **Art is not recoverable from git** — that is
-why the place must be saved, and why nobody should ever open a built `.rbxlx`.
+Rojo pushes `src/` into the live place; whoever syncs last wins. Handover:
+the person finishing disconnects the plugin, stops `rojo serve`, commits and
+pushes; the next person pulls, confirms they are on the newest commit, and only
+then connects. Code is recoverable from git; **art is not**.
 
 ---
 
-## Where to start reading
+## ⚠️ Studio Play writes to the REAL DataStore
 
-`HANDOFF.md` is the real documentation — architecture, every non-obvious bug and
-its root cause, and the current state of the project.
-
-**Start at §18.** It says exactly where the last session stopped, what is
-verified, what is not, and what to pick up next. §0 is the checklist to act on
-first. §16 and §17 cover the two most recent bodies of work (the economy
-rebalance, and the chase / DROP button / interaction fixes).
-
-`src/shared/Config/` is where every tuning number lives. Nothing gameplay-facing
-is hardcoded in a service — if you are changing a number, it belongs there.
+When the place has Studio API access enabled, a Play session loads and saves
+your **real profile** (Cash, Speed, trophies, purchases). Debug commands that
+grant, place or reset things change that profile. Test on an alt account, or
+expect your main profile to change. Some integration tests restore what they
+touch (see their comments), most do not.
 
 ---
 
-## Verifying you have a working setup
+## Static checks
 
-In Studio, with Rojo connected, press **Play** and check the Output:
-
-```
-[LootService] 12 zones x 4 sockets filled
-[GuardianService] 12 guardians posted (one per zone), safe line at Z=0
-[Server] Steal Something services started
-[Client] controllers started
+```bash
+bash tools/check.sh            # luau-lsp over src (or pass files/dirs)
+selene --allow-warnings src    # lint; fails on errors only
+stylua --check <file>          # formatting; only for files you touch
 ```
 
-Then run the config validation from the command bar:
+`tools/check.sh` prints **hard errors** (syntax errors, unknown globals,
+unknown requires - always bugs) and then a per-file TypeError count. It exits
+non-zero only when the hard-error list is non-empty; TypeErrors are for
+comparing a change against the baseline and never fail the check. It finds the
+tools in `~/.rokit/bin` or on `PATH`.
+
+The same three steps (rojo build, check.sh, selene) run in GitHub Actions on
+every push and pull request (`.github/workflows/checks.yml`).
+
+Do **not** mass-reformat the codebase with StyLua; format only what you change.
+
+---
+
+## Verifying a working setup
+
+Press **Play** and look in Output for, among others:
+
+```
+[LootService] 12 zones x 8 sockets filled
+[Server] Steal & Run! services started
+[Server] boot completed in ...s
+```
+
+In Edit mode the lane has no loot and parts of the HUD look like the UI pack's
+demo - loot, guardians and many panels are created at runtime. That is
+expected.
+
+---
+
+## Debug / test commands (Studio only)
+
+`DebugService` exposes a bridge while playing in Studio. From the command bar
+(Play mode, server side):
 
 ```lua
-require(game.ReplicatedStorage.Shared.Config.validate)()
+local Debug = game.ServerStorage.DebugInvoke
+Debug:Invoke("snapshot")                  -- quick state dump
+Debug:Invoke("nope")                      -- unknown name: lists every command
+Debug:Invoke("validate")                  -- config validation (validate.luau)
+Debug:Invoke("economyTests")              -- economy regression suite
+Debug:Invoke("museumTests")               -- museum geometry/static checks
+Debug:Invoke("museumLoops", "YourName")   -- steal/escape loop in every room
+Debug:Invoke("museumScenarios", "YourName")
+Debug:Invoke("museumPaths", "YourName")
+Debug:Invoke("roomEscapeAudit", "YourName")
+Debug:Invoke("paritySim")                 -- Monte Carlo roll parity
+Debug:Invoke("museumPartCount")           -- parts per museum room
+Debug:Invoke("museumCaseChurn", nil, 3, 2) -- case rebuild check, zone 3 socket 2
 ```
 
-It should print `[Config] validation PASSED - 849 checks`.
+The second argument is a **player name string or `nil`** (first player), not a
+Player object. The command bar runs in a separate Lua VM: `require`-ing a
+server module there gives you a fresh copy with empty state, so always go
+through `DebugInvoke` (or the `DebugRequest` / `DebugResponse` attribute bridge
+on ServerStorage, documented in `DebugService.luau`, for tools that cannot
+call a BindableFunction).
 
-Two warnings are **expected and pre-existing**, ignore them:
+### Adding test commands: `DebugCommands/`
 
-- `StudioAccessToApisNotAllowed` — DataStores are off in Studio, profiles run in
-  memory.
-- `Failed to load sound rbxassetid://92804804272270` — the lobby music asset is
-  not approved for this experience. Not a code bug.
-
-### In Edit mode the game looks empty. That is correct.
-
-Loot, guardians, and half the UI are created **at runtime**. In Edit mode the
-sockets are genuinely empty, the left button rail is missing Upgrades and
-Storage (they are cloned in by their controllers), the HUD shows the UI pack's
-demo numbers, and the DROP button sits in the middle of the screen still
-labelled "SHOP" because `DropController` only retitles and moves it on start.
-
-None of that is damage. Press Play and it all appears.
-
----
-
-## Testing tools
-
-There is a Studio-only debug bridge. From the command bar in Play mode:
-
-```lua
-game.ServerStorage.DebugInvoke:Invoke("snapshot")
-game.ServerStorage.DebugInvoke:Invoke("nope")  -- lists every command
-```
-
-Note the second argument is a player **name string or `nil`**, not a Player.
-
-`execute_luau` / the command bar runs in a **separate Lua VM** from the game.
-`require`-ing a server module there gives you a fresh copy with empty state, and
-event connections made there die with the script. Go through `DebugInvoke`.
+Don't grow `DebugService.luau`. Put new commands in a module under
+`src/server/Services/DebugCommands/` returning
+`{ [name] = function(player, ...) ... end }`. DebugService loads every module
+there at start; a name that already exists is warned about and ignored.
+`DebugCommands/World.luau` is an example.

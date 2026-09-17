@@ -1,2 +1,15 @@
+# Text is stored with LF in the repository and checked out with LF everywhere.
+# (Existing files are renormalised separately, in one commit:
+#  git add --renormalize .)
+* text=auto eol=lf
+
 # Shell scripts must keep LF or bash fails on checkout with autocrlf.
 *.sh text eol=lf
+
+# Binary assets: never diffed or converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.rbxl binary
+*.rbxm binary
+*.mp4 binary

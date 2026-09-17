@@ -1,7 +1,7 @@
 --!strict
 --[[
 	MapBuilder
-	Generates the entire Steal Something world as real, editable geometry under
+	Generates the entire Steal & Run! world as real, editable geometry under
 	Workspace.Map, following the hierarchy contract in section 15 of the GDD.
 
 	Server bootstrap calls rebuildGalleries() before any service binds to the
@@ -23,10 +23,11 @@
 	    mouth, the event stand and Speed board on the right. Every one of those
 	    stands on a MARKER the owner can move in Studio (LobbyLayout).
 	  * THE LANE: 160 wide, twelve zones, each floor a clone of its kit part at
-	    its kit length, tinted the zone's colour. A gate at each entrance, one
-	    sign on the left, four side-alcove vitrines and a guardian post. The
-	    MuseumGallery module adds the continuous interior and laser geometry;
-	    the existing kit weather stays in its configured zones.
+	    its kit length, tinted the zone's colour, and a gate at each entrance.
+	    This builder leaves each zone's SpawnSockets and GuardianSpawns folders
+	    EMPTY: the MuseumGallery module adds the two rooms, the eight display
+	    cases with their sockets, both guardian posts and the lasers. The kit
+	    weather stays in its configured zones.
 	  * THE WALLS: the kit segment tiled end to end around the lobby and down
 	    both sides of the lane, textured face inward, the lobby in the kit's
 	    clay and every zone's run tinted toward that zone's colour. Corners are
@@ -56,12 +57,7 @@ local MapBuilder = {}
 -- HELPERS
 -- ==========================================================
 
-local function folder(name: string, parent: Instance): Folder
-	local f = Instance.new("Folder")
-	f.Name = name
-	f.Parent = parent
-	return f
-end
+local folder = require(script.Parent.PartKit).folder
 
 type PartOptions = {
 	name: string,
@@ -97,18 +93,6 @@ local function makePart(o: PartOptions): Part
 	return p
 end
 
---- Splits a run into segments no longer than MAX_PART_AXIS.
-local function segmentRun(center: number, total: number): { { center: number, length: number } }
-	local count = math.max(1, math.ceil(total / MapConfig.MAX_PART_AXIS))
-	local each = total / count
-	local start = center - total / 2
-	local segments = {}
-	for i = 1, count do
-		table.insert(segments, { center = start + each * (i - 0.5), length = each })
-	end
-	return segments
-end
-
 --- A paved surface laid ON a floor: a thin smooth slab sitting proud of the
 --- ground by its own thickness, so it never shares a plane with the checker.
 local function makePaving(name: string, size: Vector3, cframe: CFrame, parent: Instance, shape: Enum.PartType?): Part
@@ -138,44 +122,8 @@ local function makeVolume(name: string, size: Vector3, cframe: CFrame, parent: I
 	})
 end
 
---- A loot socket: the part LootService measures against, dressed as a low
---- stone plinth with a lighter rim under it. The name, size and position are
---- the contract; the client draws the item's rarity ring on top.
-local function makeSocket(name: string, cframe: CFrame, parent: Instance): Part
-	local socket = makePart({
-		name = name,
-		size = Vector3.new(16, 0.6, 16),
-		cframe = cframe,
-		parent = parent,
-		color = MapPalette.LootSocket,
-		canCollide = false,
-		castShadow = false,
-	})
-	makePart({
-		name = "Rim",
-		size = Vector3.new(18, 0.3, 18),
-		cframe = cframe * CFrame.new(0, -0.2, 0),
-		parent = socket,
-		color = MapPalette.LootSocketRim,
-		canCollide = false,
-		castShadow = false,
-	})
-	return socket
-end
-
---- The guardian's post: a marker the service reads and nothing a player sees.
---- The guardian itself stands on it.
-local function makeGuardianPost(cframe: CFrame, parent: Instance): Part
-	return makePart({
-		name = "GuardianPost",
-		size = Vector3.new(9, 0.6, 9),
-		cframe = cframe,
-		parent = parent,
-		transparency = 1,
-		canCollide = false,
-		castShadow = false,
-	})
-end
+-- (Loot sockets and guardian posts are not made here: MuseumGallery owns
+-- them. See the note where placeSockets used to be.)
 
 --- Display slot pad. Matte and quiet, in the locked shade: BaseService restyles
 --- every pad (locked / empty / occupied) the moment the server starts, and the
@@ -192,14 +140,6 @@ local function makeSlotPad(name: string, cframe: CFrame, parent: Instance): Part
 		material = Enum.Material.SmoothPlastic,
 	})
 end
-
--- ==========================================================
--- SMALL PROPS
--- ==========================================================
-
--- ==========================================================
--- LANE FLOORS AND THE HUB
--- ==========================================================
 
 -- ==========================================================
 -- THE TEMPLATE KIT
@@ -666,221 +606,21 @@ local function buildWeather(map: Instance)
 	end
 end
 
---- Moves the weather part already baked into one zone to another, sized to
---- the destination and with its emitter rates rescaled so the DENSITY is
---- the same (a 324-stud zone gets half the snowflakes of a 640-stud one, and
---- reads exactly as full). Runs at server start because the map is baked
---- into the place; idempotent - once the destination has weather and the
---- source has none there is nothing to do. Returns true when it moved.
-function MapBuilder.relocateWeather(fromIndex: number, toIndex: number): boolean
-	local map = workspace:FindFirstChild("Map")
-	local zones = map and map:FindFirstChild("Zones")
-	if not zones then
-		return false
-	end
-	local fromZone = zones:FindFirstChild(MapConfig.ZONES[fromIndex].id)
-	local toZone = zones:FindFirstChild(MapConfig.ZONES[toIndex].id)
-	if not fromZone or not toZone then
-		return false
-	end
-	local weather = fromZone:FindFirstChild("Weather")
-	if toZone:FindFirstChild("Weather") then
-		-- Already there. A leftover copy in the source is retired.
-		if weather then
-			weather:Destroy()
-		end
-		return false
-	end
-	if not weather or not weather:IsA("BasePart") then
-		return false
-	end
-
-	local oldArea = weather.Size.X * weather.Size.Z
-	local length = MapConfig.zoneLength(toIndex)
-	weather.Size = Vector3.new(MapConfig.LANE_WIDTH, weather.Size.Y, length)
-	weather.CFrame = CFrame.new(0, WEATHER_HEIGHT, MapConfig.zoneCenterZ(toIndex))
-	local newArea = weather.Size.X * weather.Size.Z
-	local factor = if oldArea > 0 then newArea / oldArea else 1
-	for _, d in weather:GetDescendants() do
-		if d:IsA("ParticleEmitter") then
-			d.Rate = math.max(1, math.floor(d.Rate * factor + 0.5))
-			d.Enabled = true
-		end
-	end
-	weather.Parent = toZone
-	return true
-end
+-- RETIRED: relocateWeather. It moved the kit's snow from zone 9 to zone 5 in
+-- a baked place. buildWeather already gives zone 5 the Zone09 template and
+-- zone 9 nothing (WEATHER_TEMPLATE_FOR), and rebuildGalleries runs on every
+-- boot, so the move could never happen.
 
 -- ==========================================================
 -- LOOT SOCKETS AND GUARDIAN POSTS
 -- ==========================================================
-
---- True world-axis XZ half-extents of a part, rotation included.
-local function footprintOf(p: BasePart): (number, number)
-	local cf = p.CFrame
-	local sx, sy, sz = p.Size.X / 2, p.Size.Y / 2, p.Size.Z / 2
-	local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
-	local hx = math.abs(r.X) * sx + math.abs(u.X) * sy + math.abs(l.X) * sz
-	local hz = math.abs(r.Z) * sx + math.abs(u.Z) * sy + math.abs(l.Z) * sz
-	return hx, hz
-end
-
-type Footprint = { x: number, z: number, hx: number, hz: number, pad: number? }
-
---- Small props (a crate, a barrel, a bush) may sit close to a plinth - that
---- is the point of them; a landmark keeps the full clearance.
-local SMALL_PROP_EXTENT = 14
-local SMALL_PROP_CLEARANCE = 5
-
---- XZ footprints of everything a socket must stay clear of: the scenery and
---- the gate pylons.
-local function blockerFootprints(zone: Instance): { Footprint }
-	local out: { Footprint } = {}
-	for _, container in { zone:FindFirstChild("Decorations"), zone:FindFirstChild("Gate") } do
-		if container then
-			for _, p in container:GetDescendants() do
-				if p:IsA("BasePart") and p.Position.Y - p.Size.Y / 2 < 12 then
-					-- Only things a player could bump into matter; a lintel or
-					-- a sail overhead does not block the ground.
-					local hx, hz = footprintOf(p)
-					-- A small prop, or a thin strip (a hedge, a fence, a rail),
-					-- keeps a short clearance; only a real landmark keeps the
-					-- full one.
-					local small = hx + hz < SMALL_PROP_EXTENT or math.min(hx, hz) < 4
-					table.insert(out, {
-						x = p.Position.X,
-						z = p.Position.Z,
-						hx = hx,
-						hz = hz,
-						pad = if small then SMALL_PROP_CLEARANCE else nil,
-					})
-				end
-			end
-		end
-	end
-	return out
-end
-
-local function isClear(footprints: { Footprint }, x: number, z: number, pad: number): boolean
-	for _, f in footprints do
-		local clearance = f.pad or pad
-		if math.abs(x - f.x) < f.hx + clearance and math.abs(z - f.z) < f.hz + clearance then
-			return false
-		end
-	end
-	return true
-end
-
---- Nudges a wanted spot toward the lane centre, then along the zone, until it
---- is clear of the blockers. Returns the spot it settled on.
-local function settle(footprints: { Footprint }, x: number, z: number, pad: number, minZ: number, maxZ: number): (number, number)
-	if isClear(footprints, x, z, pad) then
-		return x, z
-	end
-	local side = if x < 0 then -1 else 1
-	local trialX = math.abs(x)
-	while trialX > 8 and not isClear(footprints, side * trialX, z, pad) do
-		trialX -= 4
-	end
-	if isClear(footprints, side * trialX, z, pad) then
-		return side * trialX, z
-	end
-	for shift = 8, MapConfig.SOCKET_MAX_Z_SHIFT, 8 do
-		for _, dir in { 1, -1 } do
-			local trialZ = math.clamp(z + dir * shift, minZ, maxZ)
-			local tx = math.abs(x)
-			while tx > 8 and not isClear(footprints, side * tx, trialZ, pad) do
-				tx -= 4
-			end
-			if isClear(footprints, side * tx, trialZ, pad) then
-				return side * tx, trialZ
-			end
-		end
-	end
-	return 0, z
-end
-
---- Places the four loot sockets and the guardian post of every zone.
--- Runs AFTER landmarks so a socket can never end up buried inside a pyramid or
--- pressed against a wall. Each zone's layout is the even grid below -
--- composed against its own landmark - and falls back to the symmetric grid
--- for a zone that has none.
-local function placeSockets(map: Instance)
-	local zones = map.Zones
-	local pad = MapConfig.SOCKET_CLEARANCE
-	local S = MapConfig.LANDMARK_SCALE
-
-	for i, def in MapConfig.ZONES do
-		local zone = zones:FindFirstChild(def.id)
-		if not zone then
-			continue
-		end
-
-		local startZ = MapConfig.zoneStartZ(i)
-		local length = MapConfig.zoneLength(i)
-		local centerZ = MapConfig.zoneCenterZ(i)
-		local sockets = zone.SpawnSockets
-		local guards = zone.GuardianSpawns
-		sockets:ClearAllChildren()
-		guards:ClearAllChildren()
-
-		local footprints = blockerFootprints(zone)
-		local minZ, maxZ = startZ + 14, startZ + length - 14
-		-- No landmarks any more (the kit's zones are open floor), so no
-		-- authored layout: the even grid below is the layout.
-		local layout = nil
-
-		local wanted: { Vector2 } = {}
-		if layout then
-			for _, offset in layout.sockets do
-				table.insert(wanted, Vector2.new(offset.X * S, centerZ + offset.Y * S))
-			end
-		else
-			local maxX = MapConfig.LANE_WIDTH * MapConfig.SOCKET_INSET_X
-			for _, frac in MapConfig.SOCKET_ROW_FRACTIONS do
-				for _, sign in { -1, 1 } do
-					table.insert(wanted, Vector2.new(sign * maxX, startZ + length * frac))
-				end
-			end
-		end
-
-		local placed: { Footprint } = {}
-		for n, spot in wanted do
-			local x, z = settle(footprints, spot.X, math.clamp(spot.Y, minZ, maxZ), pad, minZ, maxZ)
-			-- Never on top of a socket already placed in this zone.
-			local tries = 0
-			while not isClear(placed, x, z, 12) and tries < 6 do
-				z = math.clamp(z + 14, minZ, maxZ)
-				tries += 1
-			end
-			makeSocket(string.format("Socket%02d", n), CFrame.new(x, 0.3, z), sockets)
-			table.insert(placed, { x = x, z = z, hx = 10, hz = 10 })
-		end
-
-		-- ONE guardian per zone, resting where its layout puts it. Validated
-		-- against the scenery and the sockets it guards.
-		local restX, restZ = 0, startZ + length * 0.5
-		if layout then
-			restX, restZ = layout.post.X * S, centerZ + layout.post.Y * S
-		end
-		local blockers = table.clone(footprints)
-		for _, f in placed do
-			table.insert(blockers, f)
-		end
-		if not isClear(blockers, restX, restZ, 8) then
-			local found = false
-			for _, dx in { 0, 26, -26, 52, -52 } do
-				for _, dz in { 0, 22, -22, 44, -44 } do
-					if not found and isClear(blockers, restX + dx, restZ + dz, 8) then
-						restX, restZ = restX + dx, restZ + dz
-						found = true
-					end
-				end
-			end
-		end
-		makeGuardianPost(CFrame.new(restX, 0.3, math.clamp(restZ, minZ, maxZ)), guards)
-	end
-end
+--
+-- RETIRED: placeSockets (and its footprint/settle helpers). It laid four
+-- plinth sockets with rims and one guardian post per zone on an open-floor
+-- grid that the museum then deleted or moved. MuseumGallery is now the single
+-- owner: it creates Socket01-08 (MuseumSocket, RoomIndex) at
+-- MuseumLayout.socketFrame and GuardianPost / GuardianPost02 in each zone's
+-- SpawnSockets / GuardianSpawns folders, which buildZones creates empty.
 
 -- ==========================================================
 -- BASES
@@ -1285,6 +1025,16 @@ local function isLaneDecoration(child: Instance): boolean
 	return position ~= nil and position.Z > 0
 end
 
+--- Called once per boot, by rebuildGalleries (and by the full build()).
+---
+--- TWO PASSES, and what each still catches today:
+---   1. Every part under a zone's Decorations and Gate. The museum builds its
+---      decorations non-colliding already, so this is a safety net for
+---      anything added there by hand.
+---   2. Top-level Workspace scenery in the lane. The entry points run
+---      archiveLaneScenery FIRST, which parks every such decoration in
+---      ServerStorage - except models carrying a Humanoid (NPC-style props),
+---      which it leaves in place. Those are what this pass still hollows.
 function MapBuilder.applyDecorCollision(map: Instance?): number
 	local target = map or workspace:FindFirstChild("Map")
 	local zones = target and target:FindFirstChild("Zones")
@@ -1328,6 +1078,10 @@ end
 -- ENTRY POINT
 -- ==========================================================
 
+--- The museum replaced the old outdoor lane scenery. Toolbox decorations
+--- still saved at the top of Workspace in the lane are parked (not deleted)
+--- in ServerStorage.MuseumReplacedScenery. Models with a Humanoid stay put;
+--- applyDecorCollision hollows those. Runs BEFORE applyDecorCollision.
 local function archiveLaneScenery()
 	local archive = ServerStorage:FindFirstChild("MuseumReplacedScenery") or folder("MuseumReplacedScenery", ServerStorage)
 	for _, child in workspace:GetChildren() do
@@ -1352,10 +1106,13 @@ function MapBuilder.rebuildGalleries(): Folder
 	buildZones(map)
 	buildWeather(map)
 	buildWalls(map)
-	placeSockets(map)
+	-- The museum adds rooms, cases, sockets, guardian posts and lasers, and
+	-- records its own MuseumRevision on the map.
 	require(script.Parent.MuseumGallery).build(map)
-	MapBuilder.applyDecorCollision(map)
-	map:SetAttribute("MuseumRevision", 3)
+	-- The ONE boot-time pass that makes scenery walk-through (it used to run
+	-- a second time from init.server.luau after the services started).
+	local cleared = MapBuilder.applyDecorCollision(map)
+	print(`[MapBuilder] decor made hollow: {cleared} part(s) no longer collide`)
 	return map :: Folder
 end
 
@@ -1381,11 +1138,9 @@ function MapBuilder.build(): Folder
 	buildSpawns(map)
 
 	-- The purchased kit supplies the floor/walls; museum dressing fits the
-	-- same bands and retains every service anchor.
-	placeSockets(map)
+	-- same bands and creates every lane service anchor (sockets, posts).
 	require(script.Parent.MuseumGallery).build(map)
 	MapBuilder.applyDecorCollision(map)
-	map:SetAttribute("MuseumRevision", 3)
 
 	local parts = 0
 	for _, d in map:GetDescendants() do

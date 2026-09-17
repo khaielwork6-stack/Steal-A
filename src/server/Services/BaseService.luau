@@ -785,10 +785,100 @@ local function addSizeSparkle(trophy: Model, item: DataService.DisplayItem)
 	sparkle.Parent = attachment
 end
 
+--- Draws ONE display slot from the profile: clears what the slot showed, then
+--- styles the pad and builds its pedestal and trophy/container. `item` is the
+--- DisplayItem whose SlotIndex is `index`, or nil for an empty pad.
+---
+--- The "Trophy" child is always DESTROYED AND RE-CREATED, never edited in
+--- place: HatchController's reveal waits for a new "Trophy" to be added to the
+--- slot (slot.ChildAdded) on the swap frame.
+local function drawSlot(player: Player, slot: BasePart, index: number, unlocked: number, item: DataService.DisplayItem?)
+	for _, name in { "Trophy", "Pedestal", ROBBED_SIGN_NAME, REVEAL_CARD_NAME } do
+		local existing = slot:FindFirstChild(name)
+		if existing then
+			existing:Destroy()
+		end
+	end
+
+	if index > unlocked then
+		styleSlot(slot, "Locked")
+		return
+	end
+	if not item then
+		styleSlot(slot, "Empty")
+		return
+	end
+	if item.RobbedBy then
+		-- Being carried away by a thief: no trophy, no pedestal, a red pad
+		-- that still counts as taken. HeistService puts the item back here
+		-- (or hands it over) and rebuilds.
+		styleSlot(slot, "Occupied", ROBBED_COLOR)
+		robbedSign(slot)
+		return
+	end
+
+	local sealed = item.Hatched == false
+	-- A SEALED PAD IS NEUTRAL. Painting it the item's rarity colour would
+	-- announce the rarity of something the player has not seen yet, so a
+	-- container stands on a plain pad and only a hatched trophy colours it.
+	styleSlot(slot, "Occupied", if sealed then MysteryConfig.INCUBATING_TINT else RarityConfig.Colors[item.Rarity])
+
+	local padTop = slot.Position.Y + slot.Size.Y / 2
+	local _, surfaceY = buildPedestal(slot, padTop, if sealed then "Common" else item.Rarity)
+
+	if sealed then
+		-- THE CONTAINER, not the item. Same model, size and mutation VFX it
+		-- had in the zone, so what the player carried home is what stands
+		-- on their pedestal - and still nothing that names the reward.
+		local container = BaseService.buildContainer(item)
+		if container then
+			container.Name = "Trophy"
+			container.Parent = slot
+			MysteryModel.seat(container, slot.Position, surfaceY, ITEM_HOVER)
+			-- The countdown floats just above the container and says only
+			-- how long is left.
+			BaseService.buildRevealCard(slot, container, item)
+		end
+		return
+	end
+
+	local trophy = buildTrophy(item)
+	trophy.Name = "Trophy"
+	-- WHAT THIS ITEM ACTUALLY PAYS, for the floating "+$1,512" the client
+	-- pops over it once a second (BaseEarningsController). Deliberately the
+	-- MATURED rate rather than itemRate: a growing trophy is stamped with
+	-- the figure it is about to start paying, and the client starts popping
+	-- numbers the moment its own MaturationRemaining countdown reaches zero
+	-- - so a trophy that matures does not sit silent until the next rebuild.
+	--
+	-- Not item.FinalIncome: that is the card rate at moneyPass 1 and would
+	-- show the player a smaller number than the one hitting their Cash.
+	trophy:SetAttribute("IncomeRate", EconomyService.maturedRate(player, item))
+	trophy.Parent = slot
+	seatTrophy(trophy, slot, surfaceY)
+
+	local _, maxCorner = LootModel.visibleExtents(trophy)
+	buildLabel(item, trophy, if maxCorner then maxCorner.Y else surfaceY + GameConfig.LOOT_TROPHY_HEIGHT)
+	addSizeSparkle(trophy, item)
+end
+
+--- What every rebuild (full or single-slot) does once the pads are drawn: the
+--- owner sign, then the onRebuilt listeners (slot prompts, heist targets,
+--- base guardian, wheels, speed), which re-read the whole plot either way.
+local function finishRebuild(player: Player)
+	BaseService.refreshOwnerSign(player)
+
+	for _, callback in rebuildListeners do
+		task.spawn(callback, player)
+	end
+end
+
 --- Rebuilds every slot's look and every placed trophy from the profile.
---- Called on assignment and after any placement, store or sale. The server
---- owns the state: a pedestal appearing or disappearing here never creates,
---- deletes or moves an item - it only draws the profile.
+--- Called on assignment and after anything that can change several slots at
+--- once (capacity upgrades, heists, loads, debug commands). The server owns
+--- the state: a pedestal appearing or disappearing here never creates,
+--- deletes or moves an item - it only draws the profile. Where exactly one
+--- slot changed, prefer rebuildSlot.
 function BaseService.rebuildDisplays(player: Player)
 	local plot = assignments[player]
 	local profile = DataService.get(player)
@@ -813,82 +903,50 @@ function BaseService.rebuildDisplays(player: Player)
 		if not index or not slot:IsA("BasePart") then
 			continue
 		end
-
-		for _, name in { "Trophy", "Pedestal", ROBBED_SIGN_NAME, REVEAL_CARD_NAME } do
-			local existing = slot:FindFirstChild(name)
-			if existing then
-				existing:Destroy()
-			end
-		end
-
-		local item = occupied[index]
-		if index > unlocked then
-			styleSlot(slot, "Locked")
-			continue
-		end
-		if not item then
-			styleSlot(slot, "Empty")
-			continue
-		end
-		if item.RobbedBy then
-			-- Being carried away by a thief: no trophy, no pedestal, a red pad
-			-- that still counts as taken. HeistService puts the item back here
-			-- (or hands it over) and rebuilds.
-			styleSlot(slot, "Occupied", ROBBED_COLOR)
-			robbedSign(slot)
-			continue
-		end
-
-		local sealed = item.Hatched == false
-		-- A SEALED PAD IS NEUTRAL. Painting it the item's rarity colour would
-		-- announce the rarity of something the player has not seen yet, so a
-		-- container stands on a plain pad and only a hatched trophy colours it.
-		styleSlot(slot, "Occupied", if sealed then MysteryConfig.INCUBATING_TINT else RarityConfig.Colors[item.Rarity])
-
-		local padTop = slot.Position.Y + slot.Size.Y / 2
-		local _, surfaceY = buildPedestal(slot, padTop, if sealed then "Common" else item.Rarity)
-
-		if sealed then
-			-- THE CONTAINER, not the item. Same model, size and mutation VFX it
-			-- had in the zone, so what the player carried home is what stands
-			-- on their pedestal - and still nothing that names the reward.
-			local container = BaseService.buildContainer(item)
-			if container then
-				container.Name = "Trophy"
-				container.Parent = slot
-				MysteryModel.seat(container, slot.Position, surfaceY, ITEM_HOVER)
-				-- The countdown floats just above the container and says only
-				-- how long is left.
-				BaseService.buildRevealCard(slot, container, item)
-			end
-			continue
-		end
-
-		local trophy = buildTrophy(item)
-		trophy.Name = "Trophy"
-		-- WHAT THIS ITEM ACTUALLY PAYS, for the floating "+$1,512" the client
-		-- pops over it once a second (BaseEarningsController). Deliberately the
-		-- MATURED rate rather than itemRate: a growing trophy is stamped with
-		-- the figure it is about to start paying, and the client starts popping
-		-- numbers the moment its own MaturationRemaining countdown reaches zero
-		-- - so a trophy that matures does not sit silent until the next rebuild.
-		--
-		-- Not item.FinalIncome: that is the card rate at moneyPass 1 and would
-		-- show the player a smaller number than the one hitting their Cash.
-		trophy:SetAttribute("IncomeRate", EconomyService.maturedRate(player, item))
-		trophy.Parent = slot
-		seatTrophy(trophy, slot, surfaceY)
-
-		local _, maxCorner = LootModel.visibleExtents(trophy)
-		buildLabel(item, trophy, if maxCorner then maxCorner.Y else surfaceY + GameConfig.LOOT_TROPHY_HEIGHT)
-		addSizeSparkle(trophy, item)
+		drawSlot(player, slot, index, unlocked, occupied[index])
 	end
 
-	BaseService.refreshOwnerSign(player)
+	finishRebuild(player)
+end
 
-	for _, callback in rebuildListeners do
-		task.spawn(callback, player)
+--- Redraws ONE slot - the one a placement, store, equip or reveal just
+--- changed - instead of tearing down and rebuilding every trophy on the plot.
+--- Same drawing, same listeners, same "Trophy" replacement as the full
+--- rebuild. Falls back to rebuildDisplays when the slot cannot be found (an
+--- index of 0, a plot without that pad), so a caller can never be left with
+--- a stale pad.
+function BaseService.rebuildSlot(player: Player, slotIndex: number)
+	local plot = assignments[player]
+	local profile = DataService.get(player)
+	if not plot or not profile then
+		return
 	end
+	local slots = plot:FindFirstChild("DisplaySlots")
+	local target: BasePart? = nil
+	if slots and slotIndex >= 1 then
+		for _, slot in slots:GetChildren() do
+			if slot:IsA("BasePart") and slot:GetAttribute("SlotIndex") == slotIndex then
+				target = slot
+				break
+			end
+		end
+	end
+	if not target then
+		BaseService.rebuildDisplays(player)
+		return
+	end
+
+	-- The LAST item claiming the slot wins, exactly as the full rebuild's
+	-- occupancy table resolves a (never expected) double claim.
+	local item: DataService.DisplayItem? = nil
+	for _, candidate in profile.DisplayItems do
+		if candidate.SlotIndex == slotIndex then
+			item = candidate
+		end
+	end
+
+	drawSlot(player, target, slotIndex, BaseService.unlockedSlots(player), item)
+	finishRebuild(player)
 end
 
 -- RETIRED: applyGrowth. Growth no longer changes a trophy's size or income;

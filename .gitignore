@@ -4,6 +4,13 @@
 # Roblox Studio lock files
 /*.rbxlx.lock
 /*.rbxl.lock
+*.rbxl.lock
+
+# Place/model files and build output (CI builds build.rbxl with rojo)
+*.rbxl
+*.rbxm
+*.rbxmx
+build.rbxl
 
 sourcemap.json
 

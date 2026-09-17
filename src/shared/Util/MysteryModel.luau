@@ -172,31 +172,17 @@ end
 -- ==========================================================
 
 --- Wraps whatever the artist supplied into a Model we own, with a PrimaryPart.
+--- ONE implementation, shared with the loot models (LootModel.adopt), so a
+--- Tool- or Accessory-shaped container is unwrapped exactly like loot is -
+--- a Tool lying in a zone is equipment a player could pick up.
+---
+--- THE PIVOT IS THE PART'S FRAME, so the part is chosen for its frame and not
+--- for its position in the child list (`preferUpright`). The zone container
+--- art ships parts with mixed frames; taking the first one gave several zones
+--- a pivot lying on its side, and every PivotTo onto an upright socket then
+--- laid the container on its back.
 local function adopt(source: Instance): Model?
-	if source:IsA("BasePart") then
-		local model = Instance.new("Model")
-		local part = source:Clone()
-		part.Parent = model
-		model.PrimaryPart = part
-		return model
-	end
-	if source:IsA("Model") then
-		local model = source:Clone()
-		-- THE PIVOT IS THE PART'S FRAME, so the part is chosen for its frame
-		-- and not for its position in the child list. The zone container art
-		-- ships parts with mixed frames; taking the first one gave several
-		-- zones a pivot lying on its side, and every PivotTo onto an upright
-		-- socket then laid the container on its back. Same rule, same reason
-		-- and the same helper as the loot models use.
-		local anchor = LootModel.chooseAnchor(model)
-		if anchor then
-			model.PrimaryPart = anchor
-		elseif not model.PrimaryPart then
-			model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart", true)
-		end
-		return if model.PrimaryPart then model else nil
-	end
-	return nil
+	return LootModel.adopt(source, true)
 end
 
 export type BuildOptions = {
@@ -320,6 +306,43 @@ function MysteryModel.build(options: BuildOptions): Model?
 	model:SetAttribute("ContainerScale", options.scale)
 	model:SetAttribute("ContainerDisplayScale", displayScale)
 	return model
+end
+
+--- The TALLEST a zone's container can ever stand under a footprint ceiling,
+--- in studs, or nil when the zone has no usable model. Server/Edit only.
+---
+--- Exactly build()'s arithmetic, evaluated at the largest size roll: the
+--- normalised box is grown by min(MAX_SCALE, maxFootprint / normalised
+--- width), because above that the footprint cap binds and height stops
+--- growing with the roll. The museum builds each display case ONCE at this
+--- height (MuseumGallery) instead of refitting it around every spawn, so the
+--- two must use the same rule - which is why it lives next to build().
+function MysteryModel.tallestDisplayHeight(zoneIndex: number, maxFootprint: number): number?
+	local template = MysteryModel.templateFor(zoneIndex)
+	if not template then
+		return nil
+	end
+	local min, max = LootModel.visibleExtents(template)
+	if not min or not max then
+		return nil
+	end
+	local size = max - min
+	local widest = math.max(size.X, size.Z)
+	local fit = math.huge
+	if size.Y > 0.01 then
+		fit = MysteryConfig.CONTAINER_HEIGHT / size.Y
+	end
+	if widest > 0.01 then
+		fit = math.min(fit, (MysteryConfig.CONTAINER_HEIGHT * MysteryConfig.MAX_WIDTH_RATIO) / widest)
+	end
+	if fit == math.huge then
+		return nil
+	end
+	local grow = ScaleConfig.MAX_SCALE
+	if widest * fit > 0.01 then
+		grow = math.min(grow, maxFootprint / (widest * fit))
+	end
+	return size.Y * fit * grow
 end
 
 --- The invisible, non-colliding interaction hitbox. Constant size whatever the
