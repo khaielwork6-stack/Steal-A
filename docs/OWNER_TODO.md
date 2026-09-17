@@ -60,7 +60,8 @@ filled in.
 
 ## 3. Art
 
-- [ ] Send `docs/codex-prompts/ALL.md` to Codex (every icon, banner, badge
+- [ ] Send `docs/codex-prompts/ROUND3_MASTER.md` to Codex (UI polish, Fusion Machine, animated pets, and it includes ALL.md)
+- [ ] (covered by the master prompt) `docs/codex-prompts/ALL.md` (every icon, banner, badge
       image, gadget mesh, vault set, theme thumbnail and loading screen art,
       each with its exact config key).
 - [ ] Optional re-export of the "24K" Cash pack card art: the pack now pays at
@@ -87,7 +88,7 @@ filled in.
 
 ## 5. Live checks (need a published server / real devices)
 
-- [ ] Leave for 5+ minutes and rejoin: offline earnings ~ rate x seconds x 0.5.
+- [ ] Leave for 5+ minutes and rejoin: offline earnings ~ rate x seconds x 0.25 (max 6 h).
 - [ ] Hop servers quickly after a purchase: nothing rolls back.
 - [ ] "Shut down all servers": the last minute of progress is kept.
 - [ ] Phone + tablet: shift lock, crouch/shift-lock buttons vs Jump, Daily /
