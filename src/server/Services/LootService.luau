@@ -24,6 +24,9 @@
 	  Escorted  welded to the zone's guardian, on its way back to its socket
 	  Returning transient cleanup
 	  Placed    handed to BaseService, no longer world state
+	  Retired   removed from the world without becoming anything (the Night
+	            clearing loose drops, a return to a socket that was refilled).
+	            Terminal: nothing may ever act on a Retired instance again.
 
 	== SPAWN PACING - THE RULE THAT SHAPES THE WHOLE GAME ==
 
@@ -81,7 +84,7 @@ local LootService = {}
 --- stops climbing and steps out of the silhouette instead.
 local TALL_ITEM_PROMPT_HEIGHT = 9
 
-export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Escorted" | "Returning" | "Placed"
+export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Escorted" | "Returning" | "Placed" | "Retired"
 
 export type LootInstance = {
 	id: string,
@@ -140,6 +143,20 @@ export type LootInstance = {
 	--- new player in it would hand anyone an endless supply of Pharaoh Masks,
 	--- re-pinned every half second.
 	tutorialPin: boolean?,
+	--- Bumped by every drop (CarryService.dropLoose). A drop's timers carry
+	--- the value they were scheduled under and stand down if it has moved on,
+	--- so a timer from an EARLIER drop can never send a re-dropped item home
+	--- early. Security pass B5.
+	dropGeneration: number?,
+	--- Where and when (os.clock) the current run with this item began: the
+	--- first steal out of its socket, or the moment a base steal was handed
+	--- over. Survives a drop and a re-grab on purpose - see
+	--- CarryService.deliveryReady. Cleared when the item is back in its socket.
+	stolenFrom: Vector3?,
+	stolenAt: number?,
+	--- Who began that run. Only THEIR delivery is timed from `stolenFrom`; a
+	--- different player who grabs the drop is timed from their own grab.
+	stolenBy: Player?,
 }
 
 --- The part a player interacts with. Ordinary loot: its PrimaryPart. A tall
@@ -191,6 +208,39 @@ type Socket = {
 
 local sockets: { { Socket } } = {}
 local byId: { [string]: LootInstance } = {}
+--- The same live instances, bucketed by zone (security pass B18). Guards ask
+--- `instancesInZone` several times a second each; scanning all ~100 live
+--- instances for every one of those asks was the cost. A zone never changes
+--- on an instance, so the bucket is fixed at track time. Written ONLY through
+--- track / untrack below, together with `byId`, so the two cannot disagree.
+local byZone: { [number]: { [string]: LootInstance } } = {}
+
+local function track(loot: LootInstance)
+	byId[loot.id] = loot
+	local bucket = byZone[loot.zoneIndex]
+	if not bucket then
+		bucket = {}
+		byZone[loot.zoneIndex] = bucket
+	end
+	bucket[loot.id] = loot
+end
+
+local function untrack(loot: LootInstance)
+	if byId[loot.id] == loot then
+		byId[loot.id] = nil
+	end
+	local bucket = byZone[loot.zoneIndex]
+	if bucket and bucket[loot.id] == loot then
+		bucket[loot.id] = nil
+	end
+end
+
+--- Whether this exact instance is still world state. False once it has been
+--- placed, retired, rerolled or replaced. Every delayed callback that acts on
+--- an instance it captured earlier must ask this first (security pass B5).
+function LootService.isLive(loot: LootInstance): boolean
+	return byId[loot.id] == loot
+end
 
 local listeners: { (LootInstance, LootState, LootState) -> () } = {}
 
@@ -206,8 +256,10 @@ local function setState(loot: LootInstance, next: LootState)
 		return
 	end
 	loot.state = next
+	-- Re-typed: the equality refinement above widens `previous` to string.
+	local was: LootState = previous :: LootState
 	for _, callback in listeners do
-		task.spawn(callback, loot, previous, next)
+		task.spawn(callback, loot, was, next)
 	end
 end
 
@@ -523,7 +575,7 @@ function LootService.fillSocket(socket: Socket): LootInstance?
 		-- roll is discarded rather than shown as another zone's container.
 		return nil
 	end
-	byId[loot.id] = loot
+	track(loot)
 	return loot
 end
 
@@ -537,10 +589,8 @@ end
 --- reference that can go stale.
 function LootService.instancesInZone(zoneIndex: number): { LootInstance }
 	local list = {}
-	for _, loot in byId do
-		if loot.zoneIndex == zoneIndex then
-			table.insert(list, loot)
-		end
+	for _, loot in byZone[zoneIndex] or {} do
+		table.insert(list, loot)
 	end
 	return list
 end
@@ -548,12 +598,21 @@ end
 --- Retires every instance lying loose on the ground. Run by the Night refresh
 --- before the sockets are refilled: a drop left over from the old world would
 --- otherwise come home to a socket that already holds its replacement.
+---
+--- THE STATE MATTERS (security pass B6). This used to destroy the model and
+--- forget the id but leave the instance saying "Dropped" - and the drop's own
+--- timers, still pending, then saw "Dropped" and ran returnToOrigin, which
+--- rebuilt it into its (by then possibly empty) socket as a container no
+--- prompt could resolve: an unstealable ghost. A retired instance is now
+--- Retired, a terminal state every timer refuses, and returnToOrigin also
+--- refuses anything that is no longer live.
 function LootService.retireLoose(): number
 	local count = 0
-	for id, loot in byId do
+	for _, loot in byId do
 		if loot.state == "Dropped" then
 			despawn(loot)
-			byId[id] = nil
+			untrack(loot)
+			setState(loot, "Retired")
 			count += 1
 		end
 	end
@@ -624,7 +683,7 @@ function LootService.forceSocket(
 			return current -- already correct
 		end
 		despawn(current)
-		byId[current.id] = nil
+		untrack(current)
 		socket.loot = nil
 	end
 
@@ -632,7 +691,7 @@ function LootService.forceSocket(
 	if not materialise(socket, loot) then
 		return nil
 	end
-	byId[loot.id] = loot
+	track(loot)
 	return loot
 end
 
@@ -692,11 +751,17 @@ end
 --- steal must not cost the player five minutes, and must not hand the world a
 --- free extra roll either.
 function LootService.returnToOrigin(loot: LootInstance, delay: number?)
+	-- Only live world loot can go home (security pass B5/B6). An instance the
+	-- Night retired, or one already placed or replaced, is gone for good:
+	-- rebuilding it would put an untracked, unstealable container in a socket.
+	if not LootService.isLive(loot) then
+		return
+	end
 	setState(loot, "Returning")
 	loot.carrier = nil
 
 	task.delay(delay or 0, function()
-		if loot.state ~= "Returning" then
+		if loot.state ~= "Returning" or not LootService.isLive(loot) then
 			return
 		end
 		despawn(loot)
@@ -709,14 +774,20 @@ function LootService.returnToOrigin(loot: LootInstance, delay: number?)
 			-- gate) belong to the run that just ended, not to the instance.
 			loot.escapeNotice = nil
 			loot.deliveredNotice = nil
+			-- The run is over, and so is its delivery timing.
+			loot.stolenFrom = nil
+			loot.stolenAt = nil
+			loot.stolenBy = nil
 			-- THE SAME container, with the SAME hidden reward and the SAME
 			-- spawn token. Being caught never rerolls anything.
 			if not materialise(socket, loot) then
-				byId[loot.id] = nil
+				untrack(loot)
+				setState(loot, "Retired")
 			end
 		else
 			-- Origin was refilled while we were away; retire this instance.
-			byId[loot.id] = nil
+			untrack(loot)
+			setState(loot, "Retired")
 		end
 	end)
 end
@@ -726,7 +797,7 @@ end
 function LootService.consume(loot: LootInstance)
 	setState(loot, "Placed")
 	despawn(loot)
-	byId[loot.id] = nil
+	untrack(loot)
 	LootService.detach(loot)
 end
 
@@ -783,7 +854,7 @@ function LootService.refreshAll(): RefreshReport
 			if loot then
 				if loot.state == "Spawned" then
 					despawn(loot)
-					byId[loot.id] = nil
+					untrack(loot)
 					socket.loot = nil
 					report.rerolled += 1
 				else

@@ -32,6 +32,7 @@ local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local GuardianService = require(script.Parent.GuardianService)
 local MonetizationService = require(script.Parent.MonetizationService)
+local MovementService = require(script.Parent.MovementService)
 local RagdollService = require(script.Parent.RagdollService)
 local StateService = require(script.Parent.StateService)
 
@@ -171,7 +172,24 @@ local function resolveSwing(attacker: Player, weapon: PvPConfig.WeaponDef)
 		return
 	end
 
-	local origin = attackerRoot.Position
+	-- RE-CHECKED WHEN THE SWING LANDS (security pass B10b). trySwing checked
+	-- all of this strikeDelay ago; since then the attacker may have died,
+	-- put the weapon away, swapped to the other one, or walked into a safe
+	-- zone to swing out of it.
+	if not isAlive(attacker) then
+		return
+	end
+	local held = heldWeapon(attacker)
+	if not held or held.name ~= weapon.name then
+		return
+	end
+
+	-- FROM WHERE THE SERVER BELIEVES THE ATTACKER IS (B10a): a client that
+	-- teleports next to a victim swings from its last verified position.
+	local origin = MovementService.verifiedPosition(attacker) or attackerRoot.Position
+	if BaseService.isSafePosition(origin) then
+		return
+	end
 	local forward = attackerRoot.CFrame.LookVector
 
 	local best: Player? = nil
@@ -281,8 +299,9 @@ function PvPService.trySwing(player: Player): (boolean, string?)
 		return false, "no character"
 	end
 
-	-- An attacker standing in a safe zone cannot swing out of it.
-	if BaseService.isSafePosition(root.Position) then
+	-- An attacker standing in a safe zone cannot swing out of it. Judged from
+	-- the verified position, like the hit itself (security pass B10a).
+	if BaseService.isSafePosition(MovementService.verifiedPosition(player) or root.Position) then
 		notify(player, "error", "No fighting in the safe zone.")
 		return false, "safe zone"
 	end
@@ -595,7 +614,13 @@ end
 --- Traps are polled rather than using Touched: the server stays authoritative
 --- and a lagging client cannot avoid one by not reporting a touch.
 local function stepTraps()
+	if #traps == 0 then
+		return
+	end
 	local now = os.clock()
+	-- ONCE PER FRAME, not once per trap (security pass B10c): the chase list
+	-- walks all 24 guards and allocates a table per call.
+	local chaseRooms = GuardianService.activeChaseRooms()
 
 	for index = #traps, 1, -1 do
 		local trap = traps[index]
@@ -635,7 +660,7 @@ local function stepTraps()
 		end
 
 		-- Active guardians: rooted, but their chase state is left intact.
-		for _, guard in GuardianService.activeChaseRooms() do
+		for _, guard in chaseRooms do
 			local guardianPosition = GuardianService.guardianPosition(guard.zoneIndex, guard.roomIndex)
 			if guardianPosition and (guardianPosition - position).Magnitude <= PvPConfig.TRAP_TRIGGER_RADIUS then
 				if GuardianService.rootGuardian(guard.zoneIndex, PvPConfig.TRAP_ROOT_DURATION, guard.roomIndex) then
@@ -997,9 +1022,16 @@ function PvPService.start()
 		while true do
 			task.wait(1)
 			for _, player in Players:GetPlayers() do
-				local profile = DataService.get(player)
-				if profile and refillTraps(profile) then
-					StateService.markDirty(player)
+				-- One bad profile must not end the refill for the whole server
+				-- (an error here used to kill this loop for good; pass B10d).
+				local ok, err = pcall(function()
+					local profile = DataService.get(player)
+					if profile and refillTraps(profile) then
+						StateService.markDirty(player)
+					end
+				end)
+				if not ok then
+					warn(`[PvPService] trap refill failed for {player.Name}: {err}`)
 				end
 			end
 		end

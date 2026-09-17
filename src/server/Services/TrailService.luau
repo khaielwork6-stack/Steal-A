@@ -52,6 +52,10 @@ local StateService = require(script.Parent.StateService)
 local TrailService = {}
 
 local buyLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.TrailRequest)
+--- "sync" and "equip" each force a full state push to the client; unlimited,
+--- a client could make the server rebuild and send its whole state as fast as
+--- it can fire (security pass B12).
+local syncLimiter = RateLimiter.new(require(ReplicatedStorage.Shared.Config.SecurityConfig).TRAIL_SYNC_PER_SECOND)
 
 local ATTACHMENT_TOP = "TrailTop"
 local ATTACHMENT_BOTTOM = "TrailBottom"
@@ -553,6 +557,12 @@ function TrailService.start()
 			return
 		end
 
+		-- Both push the whole state; dropped silently past the limit (a real
+		-- client sends one on open and one per click).
+		if (action == "sync" or action == "equip") and not syncLimiter:consume(player) then
+			return
+		end
+
 		local ok, reason
 		if action == "buyCash" and type(argument) == "string" then
 			ok, reason = TrailService.buyWithCash(player, argument)
@@ -573,6 +583,10 @@ function TrailService.start()
 		if not ok and reason then
 			StateService.notify(player, "error", reason)
 		end
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		syncLimiter:release(player)
 	end)
 
 	-- The trail has to come back on a new character: respawning, dying and being

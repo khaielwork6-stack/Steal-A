@@ -34,6 +34,93 @@ local FLASH_PULSE = 0.28
 --- Matches the Zzz billboard's MaxDistance: beyond this nothing would render.
 local PUFF_VISIBLE_DISTANCE = 320
 
+-- ==========================================================
+-- THE COSTUME POSE (moved here from the server, security pass B8b)
+-- ==========================================================
+--
+-- The server used to write every guardian's ShellMotor.C0 every frame - a
+-- replicated property change per guard per frame for a purely cosmetic sway.
+-- It now writes only a rest pose when the state changes, and each client
+-- plays the motion locally from the replicated `State` attribute. The numbers
+-- are the server's old ones, unchanged: MUSEUM_POSE for the zone guards
+-- (GuardianService), BASE_POSE for the base animals (BaseGuardianService).
+-- A local write to a Weld's C0 moves only this client's view of the costume;
+-- physics and the catch stay on the server's invisible root.
+
+type PoseTuning = { cycle: number, bob: number, roll: number, yaw: number, lean: number, walkLean: number }
+local MUSEUM_POSE: PoseTuning = {
+	cycle = 15, bob = 0.85, roll = math.rad(17), yaw = math.rad(11), lean = math.rad(-24), walkLean = math.rad(-7),
+}
+local BASE_POSE: PoseTuning = {
+	cycle = 14, bob = 0.5, roll = math.rad(12), yaw = math.rad(8), lean = math.rad(-16), walkLean = math.rad(-6),
+}
+--- BaseGuardianService.ATTACK_SECONDS: the swipe after an `AttackAt` stamp.
+local BASE_ATTACK_SECONDS = 0.35
+--- Guardians further than this from the camera are not animated at all.
+local POSE_DISTANCE = 400
+
+type Posed = { model: Model, root: BasePart, motor: Weld, base: boolean }
+local posed: { [Model]: Posed } = {}
+
+local function poseFor(entry: Posed, now: number): CFrame
+	local model = entry.model
+	local state = model:GetAttribute("State")
+	local walking = model:GetAttribute("PoseWalkTrack") == true
+	local tuning = if entry.base then BASE_POSE else MUSEUM_POSE
+
+	if entry.base then
+		local attackAt = model:GetAttribute("AttackAt")
+		if type(attackAt) == "number" then
+			local since = workspace:GetServerTimeNow() - attackAt
+			if since >= 0 and since < BASE_ATTACK_SECONDS then
+				local t = since / BASE_ATTACK_SECONDS
+				local lunge = math.sin(math.min(1, t * 1.6) * math.pi)
+				return CFrame.new(0, 0.2 * lunge, -0.9 * lunge) * CFrame.Angles(math.rad(-34) * lunge, 0, 0)
+			end
+		end
+		if state == "Idle" then
+			local breathe = math.sin(now * 1.6) * 0.06
+			return CFrame.new(0, breathe, 0) * CFrame.Angles(math.sin(now * 0.8) * math.rad(1.5), 0, 0)
+		elseif state == "Alert" then
+			local shake = math.sin(now * 46) * math.rad(6)
+			return CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
+		end
+	else
+		if state == "Sleeping" then
+			local breathe = math.sin(now * 1.5) * 0.07
+			return CFrame.new(0, breathe, 0) * CFrame.Angles(math.rad(14), 0, 0)
+		elseif state == "Waking" then
+			local shake = math.sin(now * 46) * math.rad(7)
+			return CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
+		end
+	end
+
+	if walking then
+		return CFrame.Angles(tuning.walkLean, 0, 0)
+	end
+	local t = now * tuning.cycle
+	local bob = math.abs(math.sin(t)) * tuning.bob
+	local roll = math.sin(t * 0.5) * tuning.roll
+	local yaw = math.sin(t * 0.5 + 1.1) * tuning.yaw
+	return CFrame.new(0, bob, 0) * CFrame.Angles(tuning.lean, yaw, roll)
+end
+
+local function stepPoses()
+	local camera = workspace.CurrentCamera
+	local eye = if camera then camera.CFrame.Position else nil
+	local now = os.clock()
+	for model, entry in posed do
+		if not model.Parent or not entry.root.Parent or not entry.motor.Parent then
+			posed[model] = nil
+			continue
+		end
+		if eye and (entry.root.Position - eye).Magnitude > POSE_DISTANCE then
+			continue
+		end
+		entry.motor.C0 = poseFor(entry, now)
+	end
+end
+
 --- One rising, fading "Z" / "Zz" / "Zzz" puff.
 local function puff(adornee: BasePart, stage: number, headY: number)
 	local gui = Instance.new("BillboardGui")
@@ -181,47 +268,61 @@ local function runEffects(model: Model, root: BasePart)
 		return (boxCFrame.Position.Y + boxSize.Y / 2) - root.Position.Y
 	end
 
-	local stage = 0
-	local nextPuff = 0
-	local wasSleeping = model:GetAttribute("State") == "Sleeping"
-	local wasAlert = model:GetAttribute("State") == "Alert"
+	-- The costume pose, if this rig has one (placeholder bodies do not).
+	local motor = root:FindFirstChild("ShellMotor")
+	if motor and motor:IsA("Weld") then
+		posed[model] = { model = model, root = root, motor = motor, base = model:GetAttribute("BaseGuardian") == true }
+	end
 
-	while model.Parent and root.Parent do
-		RunService.Heartbeat:Wait()
+	local stage = 0
+	local previous = model:GetAttribute("State")
+
+	-- STATE CHANGES ARE EVENTS, not a per-frame poll (security pass B8b):
+	-- this used to read the attribute on every Heartbeat for every guardian.
+	local changed = model:GetAttributeChangedSignal("State"):Connect(function()
 		local state = model:GetAttribute("State")
-		local sleeping = state == "Sleeping"
+		if state == previous then
+			return
+		end
+		local wasSleeping = previous == "Sleeping"
+		local wasAlert = previous == "Alert"
+		previous = state
 
 		-- A base guardian never sleeps; it goes from Idle straight to Alert
 		-- when an intruder steps onto the plot. Same "!" and the same red
 		-- flash as a boss waking, once per alert.
-		local alert = state == "Alert"
-		if alert and not wasAlert then
+		if state == "Alert" and not wasAlert then
 			alertPop(root, headroom() + ALERT_HEADROOM)
 			alertFlash(model)
 		end
-		wasAlert = alert
-
-		if sleeping then
-			if os.clock() >= nextPuff then
-				stage = stage % 3 + 1
-				nextPuff = os.clock() + 0.85
-				-- Twelve sleepers each spawning a billboard every 0.85s is a
-				-- steady trickle of instances for the whole session, and the
-				-- ones past the billboard's own MaxDistance are never drawn.
-				-- Keep the cadence, skip the object.
-				local camera = workspace.CurrentCamera
-				if not camera or (camera.CFrame.Position - root.Position).Magnitude <= PUFF_VISIBLE_DISTANCE then
-					puff(root, stage, headroom() + ZZZ_HEADROOM)
-				end
-			end
-		elseif wasSleeping then
-			-- Woke up this frame: kill the Zzz immediately, then react.
+		if wasSleeping and state ~= "Sleeping" then
+			-- Woke up: kill the Zzz immediately, then react.
 			clearPuffs(model)
 			alertPop(root, headroom() + ALERT_HEADROOM)
 			alertFlash(model)
 		end
+	end)
 
-		wasSleeping = sleeping
+	-- The Zzz cadence is the only timed thing left: one puff every 0.85s
+	-- while asleep, and a cheap wait otherwise.
+	while model.Parent and root.Parent do
+		if model:GetAttribute("State") == "Sleeping" then
+			stage = stage % 3 + 1
+			-- Twelve sleepers each spawning a billboard every 0.85s is a
+			-- steady trickle of instances for the whole session, and the
+			-- ones past the billboard's own MaxDistance are never drawn.
+			-- Keep the cadence, skip the object.
+			local camera = workspace.CurrentCamera
+			if not camera or (camera.CFrame.Position - root.Position).Magnitude <= PUFF_VISIBLE_DISTANCE then
+				puff(root, stage, headroom() + ZZZ_HEADROOM)
+			end
+		end
+		task.wait(0.85)
+	end
+
+	changed:Disconnect()
+	if posed[model] and posed[model].root == root then
+		posed[model] = nil
 	end
 end
 
@@ -245,6 +346,9 @@ function GuardianFxController.start()
 	if not holder then
 		return
 	end
+
+	-- One loop poses every nearby guardian's costume, before the frame renders.
+	RunService.RenderStepped:Connect(stepPoses)
 
 	for _, model in holder:GetChildren() do
 		if model:IsA("Model") then

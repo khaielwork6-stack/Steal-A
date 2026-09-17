@@ -368,6 +368,43 @@ HatchService.onHatched = function(player, item)
 	})
 end
 
+-- ==========================================================
+-- SECURITY PASS (docs/handoff-parts/security-gameplay.md)
+-- ==========================================================
+--
+-- MovementService is a leaf the other services require; everything that
+-- would make it depend on them is injected here instead.
+do
+	local MovementService = require(Services.MovementService)
+	local LaserService = require(Services.LaserService)
+	local SecurityConfig = require(ReplicatedStorage.Shared.Config.SecurityConfig)
+
+	-- A snap-back drops whatever the cheater carried, through the ordinary
+	-- drop path, at the trusted position the character was just moved to. A
+	-- base steal goes back to its owner the way every other loss does.
+	MovementService.setViolationHandler(function(player)
+		local loot = CarryService.getCarried(player)
+		if loot then
+			CarryService.forceDrop(loot)
+		end
+	end)
+	MovementService.start()
+
+	-- The BASE button refuses a carrier inside teleportHome itself.
+	BaseService.isCarrying = function(player)
+		return CarryService.getCarried(player) ~= nil
+	end
+
+	-- Crouching costs speed: LaserService owns the posture, CarryService the
+	-- WalkSpeed, and a change of posture re-derives it.
+	CarryService.crouchMultiplierFor = function(player)
+		return if LaserService.isCrouched(player) then SecurityConfig.CROUCH_SPEED_MULTIPLIER else 1
+	end
+	LaserService.onPostureChanged = function(player)
+		SpeedService.applyMovement(player)
+	end
+end
+
 LootService.start()
 CarryService.start()
 GuardianService.start()
@@ -451,6 +488,8 @@ local function onPlayer(player: Player)
 			end
 			local spawn = BaseService.homeSpawn(player)
 			if spawn then
+				-- A legitimate server move (security pass B1).
+				require(Services.MovementService).allowTeleport(player)
 				character:PivotTo(spawn.CFrame * CFrame.new(0, 4, 0))
 			end
 		end)

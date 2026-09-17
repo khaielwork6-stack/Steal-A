@@ -165,6 +165,9 @@ function MuseumTests.loops(player: Player): any
 	assert(not Night.isNight(), "Run during Day")
 	local steals = profile.Lifetime.Steals
 	local rows = {}
+	-- The runner pivots the character around the map: not a movement cheat.
+	local Movement = require(script.Parent.MovementService)
+	Movement.setExempt(player, true)
 	local ok, err = pcall(function()
 		Night.setDayRemaining(260)
 		for index = 1, 12 do
@@ -209,6 +212,7 @@ function MuseumTests.loops(player: Player): any
 	if carried then Carry.reclaim(carried) end
 	Guardian.resetAll()
 	profile.Lifetime.Steals = steals
+	Movement.setExempt(player, false)
 	if not ok then return { error = tostring(err), zones = rows } end
 	return { zones = rows }
 end
@@ -233,6 +237,10 @@ function MuseumTests.scenarios(player: Player): any
 		highest = profile.HighestZoneReached, traps = profile.TrapCount, ready = profile.TrapReadyAt }
 	local addedId: string? = nil
 	local report: any = {}
+	-- Pivots between rooms and home, then places: exempt from the movement
+	-- check and its delivery timer for the duration (Studio only).
+	local Movement = require(script.Parent.MovementService)
+	Movement.setExempt(player, true)
 	local function move(at: Vector3)
 		character:PivotTo(CFrame.new(at))
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -343,6 +351,7 @@ function MuseumTests.scenarios(player: Player): any
 		require(script.Parent.EconomyService).recalculate(player)
 	end
 	require(script.Parent.StateService).pushNow(player)
+	Movement.setExempt(player, false)
 	if not ok then report.error = tostring(err) end
 	return report
 end
@@ -365,6 +374,8 @@ function MuseumTests.paths(player: Player): any
 	local saved = root.CFrame
 	local rows = {}
 	local report: any = { rooms = rows }
+	local Movement = require(script.Parent.MovementService)
+	Movement.setExempt(player, true)
 	local function move(at: Vector3)
 		character:PivotTo(CFrame.new(at))
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -430,6 +441,8 @@ function MuseumTests.paths(player: Player): any
 	profile.Lifetime.Steals = steals
 	character:PivotTo(saved)
 	root.AssemblyLinearVelocity = Vector3.zero
+	-- Deferred a moment so the pivot back above is re-based, not measured.
+	task.delay(0.5, Movement.setExempt, player, false)
 	if not ok then report.error = tostring(err) end
 	return report
 end
@@ -466,6 +479,11 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	-- a trip is a separate, immediate chase, so the runner is kept out of the
 	-- laser detector for the duration and the trip count is reported.
 	Laser.setExempt(player, true)
+	-- Pivots to each display between runs; the runs themselves are real
+	-- MoveTo walking, but exempting the whole audit keeps it about the
+	-- doorway rule only (Studio only, like the laser exemption).
+	local Movement = require(script.Parent.MovementService)
+	Movement.setExempt(player, true)
 	local tripsBefore = Laser.snapshot().trips
 	local ok, err = pcall(function()
 		local list = zones or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
@@ -565,6 +583,7 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	profile.Lifetime.Steals = saved.steals
 	Speed.applyMovement(player)
 	Laser.setExempt(player, false)
+	Movement.setExempt(player, false)
 	local laserTrips = Laser.snapshot().trips - tripsBefore
 	local lines = {}
 	for _, row in rows do

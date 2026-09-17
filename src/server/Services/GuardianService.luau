@@ -43,6 +43,8 @@ local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 
+local SecurityConfig = require(ReplicatedStorage.Shared.Config.SecurityConfig)
+
 local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
 -- DataService is a leaf module (config only), so requiring it here creates no
@@ -64,6 +66,13 @@ type Guardian = {
 	target: Player?,
 	lootId: string?,
 	alarm: boolean?, -- a laser may start a chase without inventing a loot item
+	--- os.clock the current LASER chase began; nil for a loot chase. A laser
+	--- chase gives up after SecurityConfig.LASER_CHASE_TIMEOUT (pass B8a).
+	alarmStartedAt: number?,
+	--- The state the costume's REST pose was last written for. The pose is
+	--- animated on the clients (GuardianFxController); the server writes the
+	--- ShellMotor only when this changes (pass B8b).
+	poseState: string?,
 	wakeAt: number?,
 	shellMotor: Weld?, -- drives the imported costume's pose; nil when unskinned
 	--- Roblox's own walk cycle on a rigged costume; nil for props and custom
@@ -114,10 +123,10 @@ local exitedLoot: { [string]: boolean } = {}
 
 -- Run-cycle tuning. Deliberately over the top: this is the first chase a new
 -- player ever sees and it should read as comedy, not as a walk.
-local RUN_CYCLE_SPEED = 15 -- radians/sec; ~4.8 footfalls a second
-local RUN_BOB = 0.85 -- studs of vertical pump per stride
-local RUN_ROLL = math.rad(17) -- side-to-side rock
-local RUN_YAW = math.rad(11) -- shoulder swing
+-- Since security pass B8b the cycle PLAYS on the clients: the speed (15
+-- rad/s), bob (0.85 studs), roll (17 deg) and yaw (11 deg) now live in
+-- GuardianFxController (MUSEUM_POSE). Only the leans are still used here, for
+-- the rest pose the server writes on a state change.
 local RUN_LEAN = math.rad(-24) -- pitched forward, chasing his own centre of mass
 
 -- Walk-cycle pacing for RIGGED costumes (see prepareWalk). Roblox's Animate
@@ -221,6 +230,15 @@ end
 --- that joins mid-state reads the current value instead of missing an event.
 --- Set true when a guardian takes a target and false the moment it lets go, so
 --- it can never outlive the chase.
+---
+--- ONE WRITER, COUNTED (security pass B9). The flag is shared by the museum
+--- guards and the base guardians. It used to be written by both directly, so
+--- a base guardian giving up cleared RUN!! in the middle of a museum chase.
+--- Every other chaser now registers through `setChasedBy` under a source key
+--- of its own, and the attribute is true while ANY museum guard targets the
+--- player OR any external source still holds it.
+local externalChasers: { [Player]: { [any]: boolean } } = {}
+
 local function setChased(player: Player?, on: boolean)
 	if player and player.Parent then
 		local alarm = false
@@ -230,9 +248,38 @@ local function setChased(player: Player?, on: boolean)
 				alarm = alarm or active.alarm == true
 			end
 		end
+		local external = externalChasers[player]
+		if external and next(external) ~= nil then
+			on = true
+		end
 		player:SetAttribute("LaserChased", alarm)
 		player:SetAttribute("Chased", on)
 	end
+end
+
+--- The counted entry for chasers that are not museum guards (the base
+--- guardians). `source` is any stable key identifying ONE chaser - the base
+--- guardian's own record - so two of them on the same player are counted
+--- separately. `on = false` releases only that source.
+function GuardianService.setChasedBy(player: Player?, source: any, on: boolean)
+	if not player then
+		return
+	end
+	local set = externalChasers[player]
+	if on then
+		if not set then
+			set = {}
+			externalChasers[player] = set
+		end
+		set[source] = true
+	elseif set then
+		set[source] = nil
+		if next(set) == nil then
+			externalChasers[player] = nil
+		end
+	end
+	-- Recount: false means "whatever the guards and sources say now".
+	setChased(player, false)
 end
 
 local function sleepPose(guardian: Guardian)
@@ -1102,6 +1149,7 @@ local function releaseTarget(guardian: Guardian)
 	guardian.target = nil
 	guardian.lootId = nil
 	guardian.alarm = nil
+	guardian.alarmStartedAt = nil
 	guardian.wakeAt = nil
 	setChased(previous, false)
 end
@@ -1117,6 +1165,8 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 	guardian.target = carrier.player
 	guardian.lootId = if carrier.loot then carrier.loot.id else nil
 	guardian.alarm = carrier.alarm == true
+	-- The laser chase's clock starts with the laser chase, and only then.
+	guardian.alarmStartedAt = if carrier.alarm then os.clock() else nil
 	if previous ~= carrier.player then setChased(previous, false) end
 	resetSteering(guardian)
 	setChased(carrier.player, true)
@@ -1440,7 +1490,29 @@ GuardianService.WALK_RATE_MAX = WALK_RATE_MAX
 --- and down while pitched forward and rocking side to side reads as a cartoon
 --- sprint - closer to a Looney Tunes run cycle than to a jointed walk, and much
 --- better than the stiff glide it would otherwise be.
-local function animateShell(guardian: Guardian, now: number)
+---
+--- THE POSE IS ANIMATED ON THE CLIENTS NOW (security pass B8b). Writing
+--- ShellMotor.C0 here every frame for 24 guards was ~1.5k replicated property
+--- changes a second for a purely cosmetic bob. GuardianFxController plays the
+--- same sway, slump, shake, lean and run cycle locally from the replicated
+--- `State` attribute (and `PoseWalkTrack`, set at spawn). The server writes
+--- only the REST pose, once per state change, so a client that is not
+--- animating (out of range, still streaming) sees a sensible still pose.
+---
+--- The walk and idle AnimationTracks stay here: they are Animator tracks on
+--- the costume's Humanoid, which replicate through the Animator on their own,
+--- and they are only started, stopped and re-paced - not rewritten per frame.
+--- The re-pace is skipped unless the rate actually moved.
+local POSE_RESTS: { [string]: CFrame } = {
+	Sleeping = CFrame.Angles(math.rad(14), 0, 0),
+	Waking = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+}
+local WALK_REST = CFrame.Angles(WALK_LEAN, 0, 0)
+local RUN_REST = CFrame.Angles(RUN_LEAN, 0, 0)
+--- Smallest walk-cycle rate change worth replicating.
+local WALK_RATE_EPSILON = 0.05
+
+local function animateShell(guardian: Guardian, _now: number)
 	local motor = guardian.shellMotor
 	if not motor then
 		return -- placeholder body, nothing to pose
@@ -1449,6 +1521,11 @@ local function animateShell(guardian: Guardian, now: number)
 	local state = guardian.state
 	local track = guardian.walkTrack
 	local idle = guardian.idleTrack
+
+	if guardian.poseState ~= state then
+		guardian.poseState = state
+		motor.C0 = POSE_RESTS[state] or (if track then WALK_REST else RUN_REST)
+	end
 
 	if state == "Sleeping" then
 		if track and track.IsPlaying then
@@ -1459,9 +1536,6 @@ local function animateShell(guardian: Guardian, now: number)
 		if idle and not idle.IsPlaying then
 			idle:Play(0.4)
 		end
-		-- Slumped forward, breathing slowly.
-		local breathe = math.sin(now * 1.5) * 0.07
-		motor.C0 = CFrame.new(0, breathe, 0) * CFrame.Angles(math.rad(14), 0, 0)
 		return
 	end
 
@@ -1473,9 +1547,6 @@ local function animateShell(guardian: Guardian, now: number)
 		if track and track.IsPlaying then
 			track:Stop(0.1)
 		end
-		-- Bolt upright and vibrate with outrage.
-		local shake = math.sin(now * 46) * math.rad(7)
-		motor.C0 = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
 		return
 	end
 
@@ -1489,29 +1560,32 @@ local function animateShell(guardian: Guardian, now: number)
 		local root = guardian.root
 		local velocity = if root then root.AssemblyLinearVelocity else Vector3.zero
 		local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-		track:AdjustSpeed(math.clamp(speed / guardian.walkSpeedPerRate, WALK_RATE_MIN, WALK_RATE_MAX))
-		motor.C0 = CFrame.Angles(WALK_LEAN, 0, 0)
-		return
+		local rate = math.clamp(speed / guardian.walkSpeedPerRate, WALK_RATE_MIN, WALK_RATE_MAX)
+		if math.abs(track.Speed - rate) > WALK_RATE_EPSILON then
+			track:AdjustSpeed(rate)
+		end
 	end
-
-	-- BOOKING IT, rigidly.
-	local t = now * RUN_CYCLE_SPEED
-	-- abs(sin) gives two bounces per cycle: one per footfall.
-	local bob = math.abs(math.sin(t)) * RUN_BOB
-	local roll = math.sin(t * 0.5) * RUN_ROLL
-	local yaw = math.sin(t * 0.5 + 1.1) * RUN_YAW
-	motor.C0 = CFrame.new(0, bob, 0) * CFrame.Angles(RUN_LEAN, yaw, roll)
 end
 
 --- One frame of the chase proper (Waking / Chasing). Returns after any
 --- transition it makes; the caller moves on to the next guardian.
 -- Never catch through a room wall. Ignore non-queryable exhibit dressing
 -- and filter to the map so players, loot and other guards cannot occlude it.
+--- ONE RaycastParams for every call (security pass B8c): this runs every
+--- frame for every guard walking home or fetching. Built on first use,
+--- because workspace.Map does not exist when this module is required.
+local catchParams: RaycastParams? = nil
+
 local function clearCatch(from: Vector3, target: Vector3): boolean
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Include
-	params.FilterDescendantsInstances = { workspace.Map }
-	params.RespectCanCollide = true
+	local params = catchParams
+	if not params then
+		local built = RaycastParams.new()
+		built.FilterType = Enum.RaycastFilterType.Include
+		built.FilterDescendantsInstances = { workspace.Map }
+		built.RespectCanCollide = true
+		catchParams = built
+		params = built
+	end
 	local a, b = Vector3.new(from.X, 3, from.Z), Vector3.new(target.X, 3, target.Z)
 	return workspace:Raycast(a, b - a, params) == nil
 end
@@ -1533,6 +1607,20 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
 	local targetHumanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not targetRoot or not targetRoot:IsA("BasePart") or not targetHumanoid or targetHumanoid.Health <= 0 then
+		releaseTarget(guardian)
+		nextJob(guardian)
+		return
+	end
+
+	-- THE LASER LEASH (security pass B8a). A chase over stolen loot ends only
+	-- at the red line, a catch, or the loot leaving the thief - that rule is
+	-- untouched. A LASER chase has no loot behind it, so a player who tripped a
+	-- beam and then kept out of reach (circling the room, standing on a prop)
+	-- had the guard on them forever. It now gives up like a stuck fetch does;
+	-- nextJob still picks the player straight back up if they are carrying
+	-- loot that has left the room.
+	local alarmStarted = guardian.alarmStartedAt
+	if guardian.alarm and alarmStarted and now - alarmStarted > SecurityConfig.LASER_CHASE_TIMEOUT then
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return
@@ -1635,7 +1723,10 @@ local function stepRecovery(guardian: Guardian, humanoid: Humanoid, root: BasePa
 	local distance = flatDistance(root.Position, position)
 	-- Same arrival test as the walk home and the escort: an item wedged
 	-- against a wall or a prop is one a guardian can circle forever otherwise.
-	if clearCatch(root.Position, position) and arrived(guardian, distance, guardian.catchRadius + PICKUP_REACH, now) then
+	-- The raycast only when `arrived` could possibly say yes (it never does
+	-- beyond ARRIVE_STALL_REACH x the reach): cheap distance first.
+	local reach = guardian.catchRadius + PICKUP_REACH
+	if distance <= reach * ARRIVE_STALL_REACH and clearCatch(root.Position, position) and arrived(guardian, distance, reach, now) then
 		-- PICKED UP IS PUT BACK. The guardian reaches the dropped item and the
 		-- item goes home on that frame; it is never welded on and walked back.
 		guardian.lootId = nil
@@ -1778,7 +1869,9 @@ local function step(dt: number)
 			end
 			driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
 			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
-			if clearCatch(root.Position, guardian.home.Position) and arrived(guardian, distance, HOME_REACH, now) then
+			-- Cheap distance first; the raycast only near home (see stepRecovery).
+			if distance <= HOME_REACH * ARRIVE_STALL_REACH and clearCatch(root.Position, guardian.home.Position)
+				and arrived(guardian, distance, HOME_REACH, now) then
 				enterSleep(guardian)
 			end
 			continue
@@ -1888,6 +1981,9 @@ function GuardianService.start()
 			guardian.walkTrack = walkTrack
 			guardian.idleTrack = idleTrack
 			guardian.walkSpeedPerRate = walkSpeedPerRate
+			-- Tells the client pose animator which moving pose this costume
+			-- uses: the walk lean (a walk track plays) or the rigid run cycle.
+			model:SetAttribute("PoseWalkTrack", walkTrack ~= nil)
 			guardians[Layout.key(zoneIndex, roomIndex or 1)] = guardian
 
 			model.Name ..= "_Room" .. roomIndex
@@ -1905,13 +2001,14 @@ function GuardianService.start()
 			GuardianService.engage(loot, loot.carrier)
 		elseif next == "Dropped" then
 			GuardianService.noticeDrop(loot)
-		elseif next == "Returning" or next == "Placed" or next == "Spawned" then
+		elseif next == "Returning" or next == "Placed" or next == "Spawned" or next == "Retired" then
 			GuardianService.stopChaseFor(loot)
 			exitedLoot[loot.id] = nil -- back in its case: the next steal is quiet again
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		externalChasers[player] = nil
 		for _, guardian in guardians do
 			if guardian.target == player then
 				releaseTarget(guardian)
