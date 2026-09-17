@@ -74,10 +74,15 @@ DailyRewardConfig.Days = {
 	{ day = 6, speedGateFraction = 0.01, speedFloor = 600, speedMax = 250e3, icon = "rbxassetid://0" },
 	{
 		day = 7,
-		-- The Panda is the spin wheel's commoner guardian. A player who
-		-- already has it (pass, wheel or an earlier week) gets Speed.
-		guardianKey = "Panda",
-		duplicate = { speedGateFraction = 0.02, speedFloor = 5000, speedMax = 500e3 },
+		-- The week's big one: cash AND Speed together. Not a guardian - the
+		-- Panda is a 399 R$ gamepass, and a free one every week would undercut
+		-- it (lead's call, 2026-09-17; set guardianKey = "Panda" here to
+		-- change that, and `duplicate` pays Speed to owners).
+		cashMinutes = 20,
+		cashFloor = 10000,
+		speedGateFraction = 0.02,
+		speedFloor = 2000,
+		speedMax = 500e3,
 		icon = "rbxassetid://0",
 	},
 } :: { Day }
