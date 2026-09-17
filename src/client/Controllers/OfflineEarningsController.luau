@@ -1,52 +1,86 @@
 --!strict
 --[[
 	OfflineEarningsController
-	The "OFFLINE EARNINGS" modal.
+	The WELCOME BACK! offline earnings reveal.
 
 	Shown once per session, the first time StatePush carries a positive
 	`offlineCash` (OfflineService banks it when the profile loads). The client
 	renders the number the server sent and can only ASK to claim it; the
-	server pays what it holds, zeroes it and pushes, and the modal closes on
+	server pays what it holds, zeroes it and pushes, and the popup closes on
 	that push. A double-click, a spammed remote or a rejoin finds nothing to
 	pay, so nothing here needs to guard the money - only the animation.
+
+	THE LOOK (round3-ui-rewards redesign, Util/RewardFx)
+	A bright blue-to-violet pack plate with a thick outline. Behind a big cash
+	pile, a slow sunburst and a soft glow; above it WELCOME BACK! in gold and
+	"You were away 2h 14m (max 6h)" (StatePush `offlineAway`, the capped
+	seconds the server measured; the line falls back to a plain one when a
+	pending amount was carried over from an earlier session). The amount
+	counts up from $0; under it "at 25% of your income" is read from
+	GameConfig.OFFLINE_EFFICIENCY. CLAIM carries a sheen sweep.
+
+	THE CLAIM. When the server's push zeroes the amount: coins burst from the
+	amount into the HUD cash counter (which counts up on its own), the popup's
+	number drains to $0 and the card pops away. Reduced Effects: no rays, bob,
+	sheen or coins; the card simply appears and fades.
+
+	STUDIO PREVIEW. RewardsUIPreview("offline", { amount, away })
+	(DebugCommands/RewardsUI) opens the popup on a fake amount; CLAIM then
+	plays the moment locally and sends nothing.
+
+	No Cash-multiplier offer is shown here: MonetizationConfig has no product
+	meant for this screen, and this pass adds none.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
-local Device = require(ReplicatedStorage.Shared.Util.Device)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local RewardFx = require(ReplicatedStorage.Shared.Util.RewardFx)
+local RewardUiConfig = require(ReplicatedStorage.Shared.Config.RewardUiConfig)
+local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
+
+local AudioController = require(script.Parent.AudioController)
 
 local OfflineEarningsController = {}
 
 local player = Players.LocalPlayer
 
-local PANEL = Color3.fromRGB(16, 22, 44)
-local FACE_TOP = Color3.fromRGB(44, 58, 104)
-local FACE_BOTTOM = Color3.fromRGB(24, 32, 64)
-local TITLE = Color3.fromRGB(255, 226, 120)
-local BODY = Color3.fromRGB(230, 236, 250)
-local CASH = Color3.fromRGB(110, 240, 130)
-local CLAIM_TOP = Color3.fromRGB(96, 240, 150)
-local CLAIM_BOTTOM = Color3.fromRGB(28, 190, 110)
-local CLAIM_PLATE = Color3.fromRGB(22, 120, 70)
-
-local CASH_ICON = "rbxassetid://112931960147028"
+local Z = 3
+local CARD_TOP = Color3.fromRGB(80, 200, 255)
+local CARD_BOTTOM = Color3.fromRGB(130, 60, 235)
+local WHITE = RewardFx.WHITE
+local CASH = Color3.fromRGB(140, 255, 140)
+local CLAIM_TOP = Color3.fromRGB(110, 250, 150)
+local CLAIM_BOTTOM = Color3.fromRGB(20, 175, 90)
+local CARD_MAX = Vector2.new(480, 420)
+local CARD_MIN = Vector2.new(250, 218)
+local CARD_ASPECT = 1.15
 
 local gui: ScreenGui? = nil
 local dim: Frame? = nil
 local panel: Frame? = nil
+local awayLabel: TextLabel? = nil
+local rateLabel: TextLabel? = nil
 local amountLabel: TextLabel? = nil
 local claimButton: TextButton? = nil
-local shine: Frame? = nil
+local sheen: Frame? = nil
+local rays: Frame? = nil
+local pile: ImageLabel? = nil
 
 local shownAmount = 0
 local open = false
 local claiming = false
 local sessionShown = false
+--- A Studio preview is on screen: the claim plays locally.
+local previewing = false
+local loops = RewardFx.loopSet()
+--- Entrance / exit tweens (cancelled when the other one starts).
 local liveTweens: { Tween } = {}
 
 local function cancelTweens()
@@ -63,26 +97,35 @@ local function track(tween: Tween): Tween
 end
 
 -- ==========================================================
--- BUILD
+-- TEXT
 -- ==========================================================
 
-local function text(parent: Instance, name: string, color: Color3, max: number, bold: boolean): TextLabel
-	local item = Instance.new("TextLabel")
-	item.Name = name
-	item.BackgroundTransparency = 1
-	item.Font = if bold then Enum.Font.FredokaOne else Enum.Font.GothamBold
-	item.TextColor3 = color
-	item.TextScaled = true
-	item.TextStrokeTransparency = 0.6
-	item.TextStrokeColor3 = Color3.fromRGB(8, 12, 28)
-	item.ZIndex = 6
-	item.Parent = parent
-	local limit = Instance.new("UITextSizeConstraint")
-	limit.MinTextSize = 12
-	limit.MaxTextSize = max
-	limit.Parent = item
-	return item
+local function maxHours(): number
+	return math.max(1, math.floor(GameConfig.OFFLINE_EARNINGS_MAX_SECONDS / 3600 + 0.5))
 end
+
+local function awayText(seconds: number?): string
+	local cap = maxHours()
+	if type(seconds) ~= "number" or seconds <= 0 then
+		return `While you were away you earned (max {cap}h)`
+	end
+	if seconds >= GameConfig.OFFLINE_EARNINGS_MAX_SECONDS then
+		return `You were away {cap}h+ (max {cap}h)`
+	end
+	local s = math.floor(seconds)
+	local hours, minutes = s // 3600, (s % 3600) // 60
+	local span = if hours > 0 then `{hours}h {minutes}m` elseif minutes > 0 then `{minutes}m` else "a moment"
+	return `You were away {span} (max {cap}h)`
+end
+
+local function rateText(): string
+	local percent = math.floor(GameConfig.OFFLINE_EFFICIENCY * 100 + 0.5)
+	return `at {percent}% of your income`
+end
+
+-- ==========================================================
+-- BUILD
+-- ==========================================================
 
 local function build()
 	local playerGui = player:WaitForChild("PlayerGui")
@@ -104,225 +147,197 @@ local function build()
 	backdrop.BackgroundTransparency = 1
 	backdrop.BorderSizePixel = 0
 	backdrop.ZIndex = 1
+	backdrop.Active = true -- swallows clicks behind the popup
 	backdrop.Parent = screen
 	dim = backdrop
 
-	local card = Instance.new("Frame")
-	card.Name = "Panel"
-	card.AnchorPoint = Vector2.new(0.5, 0.5)
-	card.Position = UDim2.fromScale(0.5, 0.5)
-	card.Size = UDim2.fromOffset(420, 300)
-	card.BackgroundColor3 = PANEL
-	card.BorderSizePixel = 0
-	card.ZIndex = 3
-	card.Parent = screen
-	local sizeLimit = Instance.new("UISizeConstraint")
-	sizeLimit.MaxSize = Vector2.new(420, 300)
-	sizeLimit.MinSize = Vector2.new(260, 190)
-	sizeLimit.Parent = card
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 18)
-	corner.Parent = card
-	local edge = Instance.new("UIStroke")
-	edge.Thickness = 3
-	edge.Color = Color3.fromRGB(0, 0, 0)
-	edge.Parent = card
-	panel = card
+	-- The card never outgrows the screen: a scale size, an aspect lock and
+	-- a pixel range.
+	local holder = RewardFx.box(screen, "Panel", Z)
+	RewardFx.place(holder, 0.5, 0.5, 0.82, 0.74)
+	RewardFx.aspect(holder, CARD_ASPECT)
+	local limit = Instance.new("UISizeConstraint")
+	limit.MaxSize = CARD_MAX
+	limit.MinSize = CARD_MIN
+	limit.Parent = holder
+	UIAnim.scaleOf(holder)
+	panel = holder
 
-	local face = Instance.new("Frame")
-	face.Name = "Face"
-	face.AnchorPoint = Vector2.new(0.5, 0.5)
-	face.Position = UDim2.fromScale(0.5, 0.5)
-	face.Size = UDim2.new(1, -8, 1, -8)
-	face.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	face.BorderSizePixel = 0
-	face.ZIndex = 4
-	face.Parent = card
-	local faceCorner = Instance.new("UICorner")
-	faceCorner.CornerRadius = UDim.new(0, 15)
-	faceCorner.Parent = face
-	local gradient = Instance.new("UIGradient")
-	gradient.Rotation = 90
-	gradient.Color = ColorSequence.new(FACE_TOP, FACE_BOTTOM)
-	gradient.Parent = face
-	local studs = Instance.new("ImageLabel")
-	studs.Name = "Studs"
-	studs.BackgroundTransparency = 1
-	studs.Image = "rbxassetid://76728843491214"
-	studs.ImageTransparency = 0.84
-	studs.ScaleType = Enum.ScaleType.Tile
-	studs.TileSize = UDim2.fromOffset(28, 28)
-	studs.Size = UDim2.fromScale(1, 1)
-	studs.ZIndex = 4
-	studs.Parent = face
-	local studsCorner = Instance.new("UICorner")
-	studsCorner.CornerRadius = UDim.new(0, 15)
-	studsCorner.Parent = studs
+	local plate, face = RewardFx.plate(holder, "Card", CARD_TOP, CARD_BOTTOM, Z, 22, 5)
+	RewardFx.stroke(plate, 3)
 
-	local title = text(face, "Title", TITLE, 34, true)
-	title.Text = "OFFLINE EARNINGS"
-	title.Position = UDim2.fromScale(0.5, 0.15)
-	title.AnchorPoint = Vector2.new(0.5, 0.5)
-	title.Size = UDim2.fromScale(0.9, 0.16)
+	-- Behind the pile: a glow and a slow sunburst, clipped to the face.
+	local art = RewardFx.box(face, "ArtClip", Z + 2)
+	art.ClipsDescendants = true
+	local glow = RewardFx.glow(art, "Glow", Color3.fromRGB(255, 250, 190), Z + 2, 0.15)
+	RewardFx.place(glow, 0.5, 0.42, 0.7, 0.5)
+	local burst = RewardFx.rays(art, "Rays", Color3.fromRGB(255, 248, 200), Z + 2, 0.4)
+	RewardFx.place(burst, 0.5, 0.42, 1.1, 0.78)
+	rays = burst
 
-	local body = text(face, "Body", BODY, 18, false)
-	body.Text = "This is how much you earned offline:"
-	body.Position = UDim2.fromScale(0.5, 0.31)
-	body.AnchorPoint = Vector2.new(0.5, 0.5)
-	body.Size = UDim2.fromScale(0.9, 0.1)
+	local pileId = if RewardUiConfig.hasArt(RewardUiConfig.CASH_PILE_ICON) then RewardUiConfig.CASH_PILE_ICON else ShopKit.Icons.Cash
+	local cashPile = RewardFx.image(face, "Pile", pileId, Z + 4)
+	RewardFx.place(cashPile, 0.5, 0.42, 0.46, 0.27)
+	pile = cashPile
 
-	local row = Instance.new("Frame")
-	row.Name = "AmountRow"
-	row.BackgroundTransparency = 1
-	row.AnchorPoint = Vector2.new(0.5, 0.5)
-	row.Position = UDim2.fromScale(0.5, 0.52)
-	row.Size = UDim2.fromScale(0.86, 0.24)
-	row.ZIndex = 5
-	row.Parent = face
-	local rowLayout = Instance.new("UIListLayout")
-	rowLayout.FillDirection = Enum.FillDirection.Horizontal
-	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	rowLayout.Padding = UDim.new(0, 10)
-	rowLayout.Parent = row
+	local title = RewardFx.label(face, "Title", "WELCOME BACK!", WHITE, 46, Z + 5)
+	RewardFx.place(title, 0.5, 0.115, 0.9, 0.15)
+	RewardFx.goldText(title)
 
-	local cashIcon = Instance.new("ImageLabel")
-	cashIcon.Name = "Icon"
-	cashIcon.BackgroundTransparency = 1
-	cashIcon.Image = CASH_ICON
-	cashIcon.Size = UDim2.fromScale(0.9, 0.9)
-	cashIcon.LayoutOrder = 1
-	cashIcon.ZIndex = 6
-	cashIcon.Parent = row
-	local iconRatio = Instance.new("UIAspectRatioConstraint")
-	iconRatio.AspectRatio = 1
-	iconRatio.Parent = cashIcon
+	local away = RewardFx.label(face, "Away", "", WHITE, 20, Z + 5)
+	RewardFx.place(away, 0.5, 0.215, 0.9, 0.065)
+	awayLabel = away
 
-	local amount = text(row, "Amount", CASH, 48, true)
-	amount.Text = "$0"
-	amount.Size = UDim2.fromScale(0.7, 1)
-	amount.LayoutOrder = 2
-	amount.TextXAlignment = Enum.TextXAlignment.Left
-	amount.TextStrokeTransparency = 0.15
+	local amount = RewardFx.label(face, "Amount", "$0", CASH, 56, Z + 5)
+	RewardFx.place(amount, 0.5, 0.635, 0.92, 0.15)
+	local amountFill = Instance.new("UIGradient")
+	amountFill.Rotation = 90
+	amountFill.Color = ColorSequence.new(Color3.fromRGB(230, 255, 200), Color3.fromRGB(80, 235, 110))
+	amountFill.Parent = amount
+	amount.TextColor3 = WHITE
 	amountLabel = amount
+
+	local rate = RewardFx.label(face, "Rate", rateText(), Color3.fromRGB(225, 232, 255), 18, Z + 5)
+	RewardFx.place(rate, 0.5, 0.728, 0.9, 0.055)
+	rateLabel = rate
 
 	local claim = Instance.new("TextButton")
 	claim.Name = "Claim"
-	claim.AnchorPoint = Vector2.new(0.5, 0.5)
-	claim.Position = UDim2.fromScale(0.5, 0.8)
-	claim.Size = UDim2.fromScale(0.62, 0.2)
-	claim.BackgroundColor3 = CLAIM_PLATE
+	claim.BackgroundColor3 = RewardFx.OUTLINE
 	claim.BorderSizePixel = 0
 	claim.Text = ""
 	claim.AutoButtonColor = false
-	claim.ClipsDescendants = true
-	claim.ZIndex = 6
+	claim.ZIndex = Z + 6
+	RewardFx.place(claim, 0.5, 0.865, 0.58, 0.16)
+	RewardFx.corner(claim, 16)
+	RewardFx.stroke(claim, 2)
+	-- A finger-sized target on any screen (this ScreenGui has no UIScale).
+	local claimMin = Instance.new("UISizeConstraint")
+	claimMin.MinSize = Vector2.new(150, 44)
+	claimMin.Parent = claim
 	claim.Parent = face
-	local claimCorner = Instance.new("UICorner")
-	claimCorner.CornerRadius = UDim.new(0, 14)
-	claimCorner.Parent = claim
-	local claimEdge = Instance.new("UIStroke")
-	claimEdge.Thickness = 2.5
-	claimEdge.Color = Color3.fromRGB(0, 0, 0)
-	claimEdge.Parent = claim
+
 	local claimFace = Instance.new("Frame")
 	claimFace.Name = "Face"
 	claimFace.AnchorPoint = Vector2.new(0.5, 0.5)
 	claimFace.Position = UDim2.fromScale(0.5, 0.5)
 	claimFace.Size = UDim2.new(1, -6, 1, -6)
-	claimFace.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	claimFace.BackgroundColor3 = WHITE
 	claimFace.BorderSizePixel = 0
-	claimFace.ZIndex = 7
+	claimFace.ZIndex = Z + 7
+	RewardFx.corner(claimFace, 13)
+	RewardFx.gradient(claimFace, CLAIM_TOP, CLAIM_BOTTOM)
 	claimFace.Parent = claim
-	local claimFaceCorner = Instance.new("UICorner")
-	claimFaceCorner.CornerRadius = UDim.new(0, 11)
-	claimFaceCorner.Parent = claimFace
-	local claimGradient = Instance.new("UIGradient")
-	claimGradient.Rotation = 90
-	claimGradient.Color = ColorSequence.new(CLAIM_TOP, CLAIM_BOTTOM)
-	claimGradient.Parent = claimFace
-	local claimText = text(claimFace, "Label", Color3.fromRGB(255, 255, 255), 30, true)
-	claimText.Text = "CLAIM"
-	claimText.AnchorPoint = Vector2.new(0.5, 0.5)
-	claimText.Position = UDim2.fromScale(0.5, 0.5)
-	claimText.Size = UDim2.fromScale(0.8, 0.7)
-	claimText.TextStrokeTransparency = 0.2
-	claimText.ZIndex = 9
-
-	-- A diagonal sheen that sweeps across the button now and then.
-	local sheen = Instance.new("Frame")
-	sheen.Name = "Shine"
-	sheen.AnchorPoint = Vector2.new(0.5, 0.5)
-	sheen.Position = UDim2.fromScale(-0.3, 0.5)
-	sheen.Size = UDim2.fromScale(0.18, 1.6)
-	sheen.Rotation = 20
-	sheen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	sheen.BackgroundTransparency = 0.7
-	sheen.BorderSizePixel = 0
-	sheen.ZIndex = 8
-	sheen.Parent = claimFace
-	shine = sheen
+	local gloss = Instance.new("Frame")
+	gloss.Name = "Gloss"
+	gloss.BackgroundColor3 = WHITE
+	gloss.BackgroundTransparency = 0.72
+	gloss.BorderSizePixel = 0
+	gloss.Position = UDim2.fromScale(0.03, 0.08)
+	gloss.Size = UDim2.fromScale(0.94, 0.36)
+	gloss.ZIndex = Z + 8
+	RewardFx.corner(gloss, 9)
+	gloss.Parent = claimFace
+	sheen = RewardFx.sheen(claimFace, Z + 8)
+	local claimText = RewardFx.label(claimFace, "Label", "CLAIM", WHITE, 34, Z + 9)
+	RewardFx.place(claimText, 0.5, 0.5, 0.8, 0.72)
 
 	claimButton = claim
 	UIAnim.claimButton(claim)
 end
 
 -- ==========================================================
--- OPEN / CLOSE
+-- LOOPS
 -- ==========================================================
 
-local shineToken = 0
-
-local function runShine()
-	shineToken += 1
-	local mine = shineToken
-	task.spawn(function()
-		while open and mine == shineToken and shine do
-			shine.Position = UDim2.fromScale(-0.3, 0.5)
-			local sweep = TweenService:Create(shine, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
-				Position = UDim2.fromScale(1.3, 0.5),
-			})
-			sweep:Play()
-			sweep.Completed:Wait()
-			-- A pulse between sweeps, on the button's own scale.
-			if claimButton and open and mine == shineToken then
-				UIAnim.punch(claimButton, 0.05)
+local function startLoops()
+	loops.stop()
+	if not open or Effects.isReduced() then
+		return
+	end
+	local burst, cashPile, bar, button = rays, pile, sheen, claimButton
+	if burst then
+		loops.play(RewardFx.spin(burst, RewardUiConfig.RAYS_TURN_SECONDS), function()
+			burst.Rotation = 0
+		end)
+	end
+	if cashPile then
+		local rest = UDim2.fromScale(0.5, 0.42)
+		cashPile.Position = rest
+		loops.play(RewardFx.yoyo(cashPile, 0.9, { Position = UDim2.fromScale(0.5, 0.405) }), function()
+			cashPile.Position = rest
+		end)
+	end
+	if bar and button then
+		loops.every(2.2, function()
+			RewardFx.sweep(bar, 0.65)
+			if open then
+				UIAnim.punch(button, 0.05)
 			end
-			task.wait(2.2)
-		end
-	end)
+		end)
+	end
 end
+
+-- ==========================================================
+-- OPEN / CLOSE
+-- ==========================================================
 
 local function close(success: boolean)
 	if not open then
 		return
 	end
 	open = false
-	shineToken += 1
+	previewing = false
+	loops.stop()
 	cancelTweens()
 	local screen, backdrop, card = gui, dim, panel
 	if not screen or not backdrop or not card then
 		return
 	end
-	if success and claimButton then
-		UIAnim.punch(claimButton, 0.2)
-	end
 	local scale = UIAnim.scaleOf(card)
-	if scale then
-		track(TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0.7 }))
-	end
-	track(TweenService:Create(backdrop, UIAnim.FADE, { BackgroundTransparency = 1 }))
-	task.delay(0.24, function()
-		if not open then
-			screen.Enabled = false
-			if scale then
-				scale.Scale = 1
-			end
+	local reduced = Effects.isReduced()
+	-- Paid: the coins leave first, then the card pops away.
+	local hold = if success and not reduced then 0.55 else 0
+	task.delay(hold, function()
+		if open then
+			return -- reopened meanwhile
 		end
+		if scale and not reduced then
+			scale.Scale = 1
+			local grow = track(TweenService:Create(scale, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.08 }))
+			grow.Completed:Once(function(state)
+				if state == Enum.PlaybackState.Completed and not open then
+					track(TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 }))
+				end
+			end)
+		end
+		track(TweenService:Create(backdrop, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }))
+		task.delay(if reduced then 0.3 else 0.36, function()
+			if not open then
+				screen.Enabled = false
+				if scale then
+					scale.Scale = 1
+				end
+			end
+		end)
 	end)
 end
 
-local function show(amount: number)
+--- The paid moment: coins into the HUD, the number drains, then close.
+local function payOut()
+	local label = amountLabel
+	if label and not Effects.isReduced() then
+		RewardFx.flyToHud(RewardFx.screenCenter(label), "Cash", RewardFx.coinImage(), RewardUiConfig.COIN_COUNT + 4)
+		UIAnim.countTo(label, 0, NumberFormat.cash, 0.45)
+		if claimButton then
+			UIAnim.punch(claimButton, 0.2)
+		end
+	end
+	AudioController.play("RevealPop")
+	close(true)
+end
+
+local function show(amount: number, away: number?)
 	local screen, backdrop, card, label = gui, dim, panel, amountLabel
 	if not screen or not backdrop or not card or not label then
 		return
@@ -334,34 +349,49 @@ local function show(amount: number)
 	claiming = false
 	cancelTweens()
 
-	-- Phones get a smaller card so it never crowds the safe area.
-	local limit = card:FindFirstChildOfClass("UISizeConstraint")
-	if limit then
-		limit.MaxSize = if Device.isPhone() then Vector2.new(340, 236) else Vector2.new(420, 300)
+	if awayLabel then
+		awayLabel.Text = awayText(away)
 	end
-	card.Size = UDim2.fromOffset(limit and limit.MaxSize.X or 420, limit and limit.MaxSize.Y or 300)
+	if rateLabel then
+		rateLabel.Text = rateText()
+	end
 
 	screen.Enabled = true
 	backdrop.BackgroundTransparency = 1
 	track(TweenService:Create(backdrop, UIAnim.FADE, { BackgroundTransparency = 0.45 }))
 
+	local reduced = Effects.isReduced()
 	local scale = UIAnim.scaleOf(card)
 	if scale then
-		scale.Scale = 0.6
-		track(TweenService:Create(scale, TweenInfo.new(0.34, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }))
+		if reduced then
+			scale.Scale = 1
+		else
+			scale.Scale = 0.55
+			track(TweenService:Create(scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }))
+		end
 	end
 
-	label.Text = "$0"
-	-- countTo snaps on a label it has never counted; seed it at zero so the
-	-- first reveal is the count-up.
-	label:SetAttribute("_CountValue", 0)
 	shownAmount = amount
-	task.delay(0.18, function()
-		if open and shownAmount == amount then
-			UIAnim.countTo(label, amount, NumberFormat.cash, 0.9)
-		end
-	end)
-	runShine()
+	if reduced then
+		label:SetAttribute("_CountValue", amount)
+		label.Text = NumberFormat.cash(amount)
+	else
+		label.Text = "$0"
+		-- countTo snaps on a label it has never counted; seed it at zero so
+		-- the reveal is the count-up.
+		label:SetAttribute("_CountValue", 0)
+		task.delay(0.3, function()
+			if open and shownAmount == amount then
+				UIAnim.countTo(label, amount, NumberFormat.cash, RewardUiConfig.OFFLINE_COUNT_SECONDS)
+			end
+		end)
+		task.delay(0.3 + RewardUiConfig.OFFLINE_COUNT_SECONDS, function()
+			if open and shownAmount == amount then
+				UIAnim.punch(label, 0.18)
+			end
+		end)
+	end
+	startLoops()
 end
 
 -- ==========================================================
@@ -378,6 +408,11 @@ function OfflineEarningsController.start()
 			end
 			claiming = true
 			UIAnim.punch(claimButton :: TextButton, 0.12)
+			if previewing then
+				-- Studio preview: nothing to ask the server for.
+				payOut()
+				return
+			end
 			Remotes.get("OfflineClaimRequest"):FireServer()
 			-- If the server never answers (a dropped packet), let them try
 			-- again rather than leaving a dead button.
@@ -387,24 +422,46 @@ function OfflineEarningsController.start()
 		end)
 	end
 
+	Remotes.get("RewardsUIPreview").OnClientEvent:Connect(function(kind, payload)
+		if kind ~= "offline" or type(payload) ~= "table" then
+			return
+		end
+		local amount = tonumber(payload.amount) or 0
+		if amount <= 0 then
+			return
+		end
+		if open then
+			close(false)
+		end
+		-- Let a closing card finish before the preview reopens it.
+		task.delay(0.4, function()
+			previewing = true
+			show(amount, tonumber(payload.away))
+		end)
+	end)
+
+	Effects.reducedChanged:Connect(function()
+		startLoops()
+	end)
+
 	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end
 		local pending = tonumber(state.offlineCash) or 0
 		if pending > 0 then
-			-- Only the first positive push opens the modal; a later push with
+			-- Only the first positive push opens the popup; a later push with
 			-- the same amount (an income tick) must not re-run the entrance.
 			if not sessionShown and not open then
 				sessionShown = true
-				show(pending)
-			elseif open and pending ~= shownAmount and amountLabel then
+				show(pending, tonumber(state.offlineAway))
+			elseif open and not previewing and pending ~= shownAmount and amountLabel then
 				shownAmount = pending
 				UIAnim.countTo(amountLabel, pending, NumberFormat.cash, 0.4)
 			end
-		elseif open then
+		elseif open and not previewing then
 			-- Paid. The claim landed on the server and the balance moved.
-			close(true)
+			payOut()
 		end
 	end)
 end

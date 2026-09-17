@@ -44,6 +44,12 @@ local claimLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.OfflineClaimRequest)
 --- however many times the profile-ready hooks fire.
 local settled: { [Player]: boolean } = {}
 
+--- round3-ui-rewards: the absence (seconds, already capped) measured this
+--- session, for the WELCOME BACK popup's "You were away 2h 14m" line. Session
+--- memory only - a pending amount carried over from an earlier session simply
+--- shows no away line.
+local awaySeconds: { [Player]: number } = {}
+
 --- Stamps the departure clock and rate. Called from DataService's before-save
 --- hook, so it covers autosave, PlayerRemoving and BindToClose without three
 --- separate paths.
@@ -89,6 +95,7 @@ function OfflineService.settle(player: Player)
 		local offlineCash = math.floor(rate * offlineSeconds * GameConfig.OFFLINE_EFFICIENCY)
 		if offlineCash > 0 then
 			profile.PendingOfflineCash += offlineCash
+			awaySeconds[player] = offlineSeconds
 			print(`[OfflineService] {player.Name} away {offlineSeconds}s at ${rate}/s -> +${offlineCash} pending`)
 		end
 	end
@@ -104,6 +111,15 @@ end
 function OfflineService.summarise(player: Player): number
 	local profile = DataService.get(player)
 	return if profile then math.max(0, math.floor(profile.PendingOfflineCash)) else 0
+end
+
+--- StatePush `offlineAway`: the capped seconds away behind the pending
+--- amount, or nil (nothing pending, or not measured this session).
+function OfflineService.summariseAway(player: Player): number?
+	if OfflineService.summarise(player) <= 0 then
+		return nil
+	end
+	return awaySeconds[player]
 end
 
 --- Pays the pending amount - exactly once, exactly what is held.
@@ -122,6 +138,7 @@ function OfflineService.claim(player: Player): (boolean, string?)
 	-- Zero FIRST, then pay: if anything below throws, the worst case is an
 	-- unpaid claim rather than a doubled one.
 	profile.PendingOfflineCash = 0
+	awaySeconds[player] = nil
 	-- `award`, not `earn`: the rate that produced this already carried the
 	-- 2x Cash pass (EconomyService.recalculate applies it), so multiplying
 	-- again here would double-dip.
@@ -155,6 +172,7 @@ end
 function OfflineService.start()
 	DataService.onBeforeSave(OfflineService.stamp)
 	StateService.addProvider("offlineCash", OfflineService.summarise)
+	StateService.addProvider("offlineAway", OfflineService.summariseAway)
 
 	Remotes.get("OfflineClaimRequest").OnServerEvent:Connect(function(player)
 		local ok, reason = OfflineService.claim(player)
@@ -168,6 +186,7 @@ function OfflineService.start()
 	-- first (handler order is not guaranteed) would lose the departure time.
 	DataService.onAfterRelease(function(player)
 		settled[player] = nil
+		awaySeconds[player] = nil
 	end)
 	Players.PlayerRemoving:Connect(function(player)
 		claimLimiter:release(player)
