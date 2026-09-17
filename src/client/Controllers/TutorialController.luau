@@ -87,7 +87,9 @@ function TutorialController.start()
 	-- Arrow bob. Kept on Heartbeat so it tracks a target that moves (the base
 	-- spawn changes when a plot is reassigned).
 	RunService.Heartbeat:Connect(function()
-		if not currentTarget then
+		-- [polish-events-analytics] No objective arrow while the first-join
+		-- flyover is playing: the tour comes first, then the first objective.
+		if not currentTarget or player:GetAttribute("FlyoverActive") == true then
 			if arrowPart then
 				arrowPart:Destroy()
 				arrowPart = nil

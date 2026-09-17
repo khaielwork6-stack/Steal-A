@@ -195,7 +195,7 @@ function TrailService.buyWithCash(player: Player, trailKey: string): (boolean, s
 	end
 
 	-- Atomic: spend first, and only record the unlock if the spend succeeded.
-	if not EconomyService.spend(player, trail.cash) then
+	if not EconomyService.spend(player, trail.cash, "trail:" .. trailKey) then
 		return false, `NOT ENOUGH CASH - you need {NumberFormat.cash(trail.cash)}.`
 	end
 

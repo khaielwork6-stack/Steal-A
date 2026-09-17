@@ -327,6 +327,15 @@ function LootService.rollMutationId(rng: Random?): string
 	return rollVariant(RarityConfig.Mutations, rng).id
 end
 
+--- [polish-events-analytics] The table a WORLD roll (makeInstance) draws its
+--- mutation from. The base table by default; init points this at
+--- EventService.mutationTable, which returns a scaled COPY during Mutation
+--- Weekend. The locked RarityConfig table itself is never edited, and the
+--- regression roll above keeps using it directly.
+function LootService.mutationTableFor(): { RarityConfig.Variant }
+	return RarityConfig.Mutations
+end
+
 --- The Scale roll, exposed for the parity tool. ScaleConfig owns the bands,
 --- and the roll is zone-biased, so the zone is not optional.
 function LootService.rollScale(zoneIndex: number, rng: Random?): number
@@ -523,7 +532,7 @@ local function makeInstance(
 	-- The Scale roll is ZONE-BIASED: early zones lean small, the last zones
 	-- lean large (ScaleConfig.ZoneBands). One roll, one variant, always.
 	local rolledScale = if scale then ScaleConfig.clampScale(scale) else ScaleConfig.rollScale(zoneIndex)
-	local mutation = mutationId or rollVariant(RarityConfig.Mutations).id
+	local mutation = mutationId or rollVariant(LootService.mutationTableFor()).id
 
 	return {
 		id = HttpService:GenerateGUID(false),

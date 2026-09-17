@@ -330,6 +330,8 @@ CarryService.setDeliveredHandler(function(player, loot)
 		return
 	end
 	GuardianService.stopChaseFor(loot)
+	-- [polish-events-analytics] Progress bus (analytics: first delivery).
+	ProgressEvents.fire(player, "deliver", 1, { zone = loot.zoneIndex })
 
 	-- Deliberately quiet in the normal case. This fires on reaching your own safe
 	-- zone, moments after the escape toast above, and it used to add a SECOND
@@ -431,6 +433,30 @@ do
 	LaserService.onPostureChanged = function(player)
 		SpeedService.applyMovement(player)
 	end
+end
+
+-- ==========================================================
+-- POLISH / EVENTS / ANALYTICS (docs/handoff-parts/polish-events-analytics.md)
+-- ==========================================================
+--
+-- Placed before LootService.start (its first rolls read the mutation hook),
+-- NightService.start (its first cycle reads the Day-length hook) and
+-- MonetizationService.start (which installs the wrapped processReceipt).
+do
+	local EventService = require(Services.EventService)
+	local AnalyticsEvents = require(Services.AnalyticsEvents)
+
+	-- Timed events. Both hooks are read at roll time / at dawn; neither
+	-- touches a base table.
+	LootService.mutationTableFor = EventService.mutationTable
+	NightService.daySecondsFor = EventService.daySeconds
+	EventService.start()
+
+	AnalyticsEvents.wrapReceipts(MonetizationService)
+	AnalyticsEvents.start()
+
+	-- The first-join flyover: the `firstSession` push field and FlyoverDone.
+	require(Services.FlyoverService).start()
 end
 
 LootService.start()

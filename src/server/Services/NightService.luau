@@ -76,12 +76,30 @@ local pendingSpotlights: { Spotlight } = {}
 -- REPLICATION
 -- ==========================================================
 
+-- [polish-events-analytics] NIGHT RUSH. How long the Day of a cycle lasts
+-- is asked once, when that cycle starts (server start and every dawn), so a
+-- timed event opening mid-Day never moves the countdown on screen. The Night
+-- itself is always NIGHT_SECONDS. init points the hook at EventService.
+function NightService.daySecondsFor(): number
+	return NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS
+end
+
+local cycleDaySeconds = NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS
+
+local function captureDayLength()
+	local ok, value = pcall(NightService.daySecondsFor)
+	local normal = NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS
+	cycleDaySeconds = if ok and type(value) == "number" and value > NightConfig.WARNING_SECONDS
+		then math.min(value, normal)
+		else normal
+end
+
 local function dayEndsAt(): number
-	return cycleStart + NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS
+	return cycleStart + cycleDaySeconds
 end
 
 local function nightEndsAt(): number
-	return cycleStart + NightConfig.CYCLE_SECONDS
+	return cycleStart + cycleDaySeconds + NightConfig.NIGHT_SECONDS
 end
 
 --- Everything a client needs to render the countdown, as attributes: they
@@ -91,8 +109,10 @@ local function publish()
 	ReplicatedStorage:SetAttribute("NightPhase", phase)
 	ReplicatedStorage:SetAttribute("NightCycleStart", cycleStart)
 	ReplicatedStorage:SetAttribute("NightPhaseEndsAt", if phase == "Day" then dayEndsAt() else nightEndsAt())
-	ReplicatedStorage:SetAttribute("NightCycleSeconds", NightConfig.CYCLE_SECONDS)
+	ReplicatedStorage:SetAttribute("NightCycleSeconds", cycleDaySeconds + NightConfig.NIGHT_SECONDS)
 	ReplicatedStorage:SetAttribute("NightSeconds", NightConfig.NIGHT_SECONDS)
+	-- [polish-events-analytics] The Nightfall pill reads this to say "Rush".
+	ReplicatedStorage:SetAttribute("NightRush", cycleDaySeconds < NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS)
 end
 
 --- Runs one transition step PROTECTED. A step that throws is logged and the
@@ -404,6 +424,8 @@ local function endNight()
 	phase = "Day"
 	cycleNumber += 1
 	cycleStart = workspace:GetServerTimeNow()
+	-- [polish-events-analytics] this cycle's Day length (Night Rush).
+	captureDayLength()
 	warned = false
 	safely("publishing Day", publish)
 
@@ -474,7 +496,7 @@ function NightService.setDayRemaining(seconds: number)
 	if phase ~= "Day" then
 		return
 	end
-	cycleStart = workspace:GetServerTimeNow() + seconds - (NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS)
+	cycleStart = workspace:GetServerTimeNow() + seconds - cycleDaySeconds
 	warned = seconds <= NightConfig.WARNING_SECONDS
 	publish()
 end
@@ -482,7 +504,7 @@ end
 function NightService.forceNight()
 	-- Re-anchor the cycle so the forced Night lasts exactly NIGHT_SECONDS and
 	-- every countdown reads it, instead of whatever was left of the Day.
-	cycleStart = workspace:GetServerTimeNow() - (NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS)
+	cycleStart = workspace:GetServerTimeNow() - cycleDaySeconds
 	beginNight()
 end
 
@@ -495,6 +517,9 @@ end
 -- ==========================================================
 
 function NightService.start()
+	-- [polish-events-analytics] the first cycle's Day length (Night Rush);
+	-- init has pointed daySecondsFor at EventService by now.
+	captureDayLength()
 	publish()
 
 	-- The scheduler. Polls the server clock four times a second and acts on

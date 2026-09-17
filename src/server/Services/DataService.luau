@@ -274,6 +274,16 @@ export type Profile = {
 	-- `reconcile` (an empty list is the only correct value for an old save),
 	-- so no schema bump was needed.
 	DeliveredMail: { string },
+	-- [polish-events-analytics] The first-join camera flyover has been seen
+	-- (or skipped). A profile saved before the flyover existed reads as seen
+	-- if its player had ever started (see reconcile), so only brand-new
+	-- players get it.
+	FlyoverSeen: boolean,
+	-- [polish-events-analytics] Onboarding funnel steps already logged to
+	-- AnalyticsService, by step key. Durable because Roblox counts each step
+	-- once per player. `{ legacy = true }` marks a profile that existed
+	-- before analytics: those players are not new and are never logged.
+	AnalyticsOnboarding: { [string]: boolean },
 	-- [retention-codes-daily] Codes this player has redeemed: normalised code
 	-- -> os.time() of the redemption. Durable because each code pays once
 	-- per player, forever (CodeService). Only ever added to.
@@ -386,6 +396,10 @@ local function defaultProfile(): Profile
 		StarterTasks = {},
 		StarterTasksClosed = false,
 		DeliveredMail = {},
+		-- [polish-events-analytics] A brand-new profile is the only kind
+		-- that starts unseen / un-logged.
+		FlyoverSeen = false,
+		AnalyticsOnboarding = {},
 		-- [retention-codes-daily]
 		RedeemedCodes = {},
 		DailyStreak = 0,
@@ -835,6 +849,21 @@ DataService.migrate = migrate
 
 --- Repairs a loaded profile so a corrupt or partial save cannot crash services.
 local function reconcile(profile: Profile): Profile
+	-- [polish-events-analytics] BEFORE the defaults are copied in: a save
+	-- that predates these fields belongs to a player who has already joined,
+	-- so it must not pick up the brand-new-player defaults below. A save
+	-- with any tutorial progress (or the intro seen) counts as started.
+	do
+		local raw = profile :: any
+		local started = (tonumber(raw.TutorialStage) or 0) > 0 or raw.TutorialIntroSeen == true
+		if type(raw.FlyoverSeen) ~= "boolean" then
+			raw.FlyoverSeen = started
+		end
+		if type(raw.AnalyticsOnboarding) ~= "table" then
+			raw.AnalyticsOnboarding = if started then { legacy = true } else {}
+		end
+	end
+
 	local defaults = defaultProfile()
 	for key, value in defaults :: any do
 		if (profile :: any)[key] == nil then

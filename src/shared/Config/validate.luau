@@ -940,6 +940,103 @@ return function(): Report
 	end
 
 	-- ==========================================================
+	-- POLISH / EVENTS / ANALYTICS (EventConfig, PolishConfig, LoadingConfig)
+	-- ==========================================================
+	do
+		local EventConfig = require(script.Parent.EventConfig)
+		local PolishConfig = require(script.Parent.PolishConfig)
+		local function assetOk(value: any): boolean
+			return type(value) == "string" and string.match(value, "^rbxassetid://%d+$") ~= nil
+		end
+
+		-- The UTC calendar the schedule is built on.
+		check(EventConfig.utc(1970, 1, 1) == 0, "EventConfig.utc(1970-01-01) must be 0")
+		check(EventConfig.utc(2024, 3, 1) == 1709251200, "EventConfig.utc must handle leap years")
+		check(EventConfig.yearOf(EventConfig.utc(2027, 1, 1) - 1) == 2026, "EventConfig.yearOf must roll at New Year")
+
+		local eventKeys: { [string]: boolean } = {}
+		local normalDay = NightConfig.CYCLE_SECONDS - NightConfig.NIGHT_SECONDS
+		for _, def in EventConfig.Events do
+			check(not eventKeys[def.key], `event {def.key} is listed twice`)
+			eventKeys[def.key] = true
+			check(assetOk(def.icon), `event {def.key} icon must be an rbxassetid`)
+			local weekly = def.weekly
+			local yearly = def.from ~= nil and def.to ~= nil
+			check((weekly ~= nil) ~= yearly, `event {def.key} needs exactly one of weekly / from+to`)
+			if weekly then
+				check(weekly.weekday >= 1 and weekly.weekday <= 7, `event {def.key} weekday must be 1-7`)
+				check(weekly.hour >= 0 and weekly.hour <= 23, `event {def.key} hour must be 0-23`)
+				check(weekly.durationHours > 0 and weekly.durationHours <= 7 * 24, `event {def.key} must last (0, 1 week]`)
+			end
+			-- Every window resolves, and the one after now starts in the future.
+			local now = os.time()
+			local startsAt, endsAt = EventConfig.windowFor(def, now)
+			check(startsAt ~= nil and endsAt ~= nil and endsAt > startsAt, `event {def.key} has no valid window`)
+			if def.kind == "mutation" then
+				local factor = def.mutationMultiplier
+				check(type(factor) == "number" and factor >= 1, `event {def.key} needs a mutation multiplier >= 1`)
+				-- The scaled table: every chance a valid percentage, the same
+				-- ids in the same order, still summing to the base total, and
+				-- the base table untouched.
+				local scaled = EventConfig.scaledMutations(RarityConfig.Mutations, factor or 1)
+				local scaledTotal, baseTotal = 0, 0
+				for index, row in scaled do
+					local base = RarityConfig.Mutations[index]
+					check(base ~= nil and base.id == row.id, `event {def.key} scaled mutation order changed`)
+					check(row.chance >= 0 and row.chance <= 100, `event {def.key} {row.id} odds out of range`)
+					scaledTotal += row.chance
+				end
+				for _, row in RarityConfig.Mutations do
+					baseTotal += row.chance
+				end
+				check(near(scaledTotal, baseTotal, 1e-6), `event {def.key} scaled mutation odds must still sum to {baseTotal}`)
+				check(near(RarityConfig.Mutations[1].chance, 90), "Mutation Weekend must not edit the locked mutation table")
+				-- An absurd factor is capped, never negative.
+				for _, row in EventConfig.scaledMutations(RarityConfig.Mutations, 1000) do
+					check(row.chance >= 0, "an oversized mutation factor must cap at zero Normal, not go negative")
+				end
+			elseif def.kind == "nightRush" then
+				local day = def.nightRushDaySeconds
+				check(
+					type(day) == "number" and day > NightConfig.WARNING_SECONDS and day < normalDay,
+					`event {def.key} Day must be shorter than {normalDay}s and longer than the Night warning`
+				)
+			elseif def.kind == "holiday" then
+				check(typeof(def.lightColor) == "Color3", `holiday {def.key} needs a lightColor`)
+			end
+		end
+		check(EventConfig.HOLIDAY_LIGHT_BLEND >= 0 and EventConfig.HOLIDAY_LIGHT_BLEND <= 1, "holiday blend must be 0-1")
+
+		-- The flyover and analytics switches.
+		check(#PolishConfig.FLYOVER_SHOTS >= 1, "the flyover needs at least one shot")
+		local flyoverSeconds = 0
+		for _, shot in PolishConfig.FLYOVER_SHOTS do
+			check(shot.zone >= 1 and shot.zone <= ZoneConfig.COUNT, "a flyover shot names a zone that does not exist")
+			check(shot.caption ~= "", "every flyover shot needs a caption")
+			flyoverSeconds += shot.travel + shot.hold
+		end
+		check(flyoverSeconds >= 5 and flyoverSeconds <= 9, `the flyover shots should total 5-9 s (6-8 s with the fades), got {flyoverSeconds}`)
+		check(PolishConfig.ANALYTICS_BUDGET_SAFETY > 0 and PolishConfig.ANALYTICS_BUDGET_SAFETY <= 1, "analytics safety must be (0, 1]")
+		check(PolishConfig.ANALYTICS_PASSIVE_FLUSH_SECONDS >= 60, "passive income must be batched at least a minute")
+
+		-- The loading screen's config lives in ReplicatedFirst (src/first).
+		local loadingModule = game:GetService("ReplicatedFirst"):FindFirstChild("LoadingConfig")
+		check(loadingModule ~= nil and loadingModule:IsA("ModuleScript"), "ReplicatedFirst.LoadingConfig is missing")
+		if loadingModule and loadingModule:IsA("ModuleScript") then
+			local LoadingConfig = require(loadingModule) :: any
+			check(type(LoadingConfig.TIPS) == "table" and #LoadingConfig.TIPS >= 10, "the loading screen needs 10+ tips")
+			for _, tip in LoadingConfig.TIPS do
+				check(type(tip.text) == "string" and #tip.text > 0 and #tip.text <= 110, "a loading tip is empty or too long")
+				check(assetOk(tip.icon), "a loading tip icon must be an rbxassetid")
+			end
+			for _, key in { "BACKGROUND_WIDE", "BACKGROUND_TALL", "LOGO" } do
+				check(assetOk(LoadingConfig[key]), `LoadingConfig.{key} must be an rbxassetid`)
+			end
+			check(LoadingConfig.SKIP_AFTER >= 1 and LoadingConfig.MAX_SECONDS > LoadingConfig.SKIP_AFTER, "loading screen timings are out of order")
+		end
+	end
+
+	-- ==========================================================
 	-- RETENTION: CODES + DAILY STREAK (retention-codes-daily)
 	-- ==========================================================
 	do

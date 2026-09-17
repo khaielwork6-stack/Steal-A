@@ -309,7 +309,7 @@ local function grant(player: Player, profile: DataService.Profile, prize: Prize,
 	if segment.kind == "cash" then
 		-- EXACTLY what the wedge said at the roll. Not `earn`: that applies the
 		-- 2x Cash pass, and the wedge's figure is already the whole prize.
-		EconomyService.award(player, prize.amount, "other")
+		EconomyService.award(player, prize.amount, "spin")
 		tell(`FREE SPIN: {NumberFormat.cash(prize.amount)}!`)
 	elseif segment.kind == "speed" then
 		-- Added to the saved total, never multiplied into it. The Speed pass
