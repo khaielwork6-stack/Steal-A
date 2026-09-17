@@ -77,6 +77,7 @@ local MysteryConfig = require(ReplicatedStorage.Shared.Config.MysteryConfig)
 local MysteryModel = require(ReplicatedStorage.Shared.Util.MysteryModel)
 local MysterySpawnService = require(script.Parent.MysterySpawnService)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
 
 local LootService = {}
 
@@ -204,9 +205,17 @@ type Socket = {
 	--- moved on - so a timer from an earlier theft can never refill a socket
 	--- early after it has been refilled and emptied again.
 	respawnGeneration: number?,
+	--- A zone VAULT's pedestal (vaults-crews): rolled from VaultConfig's
+	--- table, never refreshed by refreshAll or the Zone 1 respawn -
+	--- VaultService owns its restock.
+	vault: boolean?,
 }
 
 local sockets: { { Socket } } = {}
+--- One vault pedestal per zone (vaults-crews), kept OUT of `sockets` so the
+--- Night refresh, the occupancy counts and the spotlight never see it.
+local vaultSockets: { [number]: Socket } = {}
+local VAULT_SOCKET = require(ReplicatedStorage.Shared.MuseumLayout).VAULT_SOCKET
 local byId: { [string]: LootInstance } = {}
 --- The same live instances, bucketed by zone (security pass B18). Guards ask
 --- `instancesInZone` several times a second each; scanning all ~100 live
@@ -356,11 +365,15 @@ end
 --- that walks the workspace finds a size and a mutation dressing, which is
 --- exactly what it can already see with its eyes.
 local function buildModel(loot: LootInstance): Model?
+	local layout = require(ReplicatedStorage.Shared.MuseumLayout)
 	local model = MysteryModel.build({
 		zoneIndex = loot.zoneIndex,
 		scale = loot.scale,
 		mutation = loot.mutation,
-		maxFootprint = require(ReplicatedStorage.Shared.MuseumLayout).displayFootprint(loot.zoneIndex),
+		-- A vault pedestal sits inside a laser ring: a smaller cap (vaults-crews).
+		maxFootprint = if loot.socketIndex == layout.VAULT_SOCKET
+			then VaultConfig.DISPLAY_FOOTPRINT
+			else layout.displayFootprint(loot.zoneIndex),
 		hitbox = true,
 	})
 	if not model then
@@ -482,12 +495,18 @@ local function materialise(socket: Socket, loot: LootInstance): boolean
 	loot.promptPart = promptHost
 	loot.interactRange = math.max(GameConfig.STEAL_INTERACTION_RANGE, footprint / 2 + 10)
 		+ (anchorY - surface) * 0.6
+	if socket.vault then
+		-- [vaults-crews] Reachable from inside the laser ring and not from
+		-- outside it (VaultService also checks the ring on the steal).
+		local ring = VaultConfig.ring(loot.zoneIndex)
+		loot.interactRange = math.sqrt((ring.inner + 1) ^ 2 + (anchorY - 3) ^ 2) + 1
+	end
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "StealPrompt"
 	prompt.ActionText = "Steal"
 	-- NEVER the item name: a sealed container says only "Steal".
-	prompt.ObjectText = "Mystery"
+	prompt.ObjectText = if socket.vault then "Vault" else "Mystery"
 	prompt.HoldDuration = GameConfig.STEAL_HOLD_DURATION
 	prompt.MaxActivationDistance = loot.interactRange
 	-- Line of sight is what hides a prompt behind the item it belongs to.
@@ -573,7 +592,10 @@ function LootService.fillSocket(socket: Socket): LootInstance?
 		return nil
 	end
 
-	local def = rollItem(socket.zoneIndex)
+	-- A vault pedestal rolls its own table: the zone's top two rarities.
+	local def = if socket.vault
+		then VaultConfig.pick(socket.zoneIndex, math.random())
+		else rollItem(socket.zoneIndex)
 	if not def then
 		return nil
 	end
@@ -705,6 +727,9 @@ function LootService.forceSocket(
 end
 
 function LootService.getSocket(zoneIndex: number, socketIndex: number): Socket?
+	if socketIndex == VAULT_SOCKET then
+		return vaultSockets[zoneIndex]
+	end
 	local zone = sockets[zoneIndex]
 	return if zone then zone[socketIndex] else nil
 end
@@ -725,7 +750,8 @@ end
 --- fills the socket anyway.
 local function scheduleRespawn(socket: Socket)
 	local window = GameConfig.ZONE_RESPAWN[socket.zoneIndex]
-	if not window then
+	-- A vault restocks on its own clock (VaultService), even in Zone 1.
+	if not window or socket.vault then
 		return
 	end
 	local generation = (socket.respawnGeneration or 0) + 1
@@ -913,6 +939,54 @@ function LootService.occupancy(): { occupied: number, empty: number }
 		end
 	end
 	return { occupied = occupied, empty = empty }
+end
+
+-- ==========================================================
+-- VAULTS (vaults-crews)
+-- ==========================================================
+--
+-- Each zone's vault pedestal is an ordinary socket in every way that matters
+-- to a steal - same instance lifecycle, same sealed MysteryModel container,
+-- same carry, catch, drop and return paths - with three differences: its
+-- index is MuseumLayout.VAULT_SOCKET (so its guard is the vault's, room 3),
+-- it rolls VaultConfig's table, and only VaultService refills it.
+
+--- Registers a zone's vault pedestal. Called once by VaultService.start.
+function LootService.addVaultSocket(zoneIndex: number, part: BasePart)
+	vaultSockets[zoneIndex] = {
+		zoneIndex = zoneIndex,
+		index = VAULT_SOCKET,
+		part = part,
+		loot = nil,
+		vault = true,
+	}
+end
+
+--- True for an instance that came from a vault pedestal.
+function LootService.isVaultLoot(loot: LootInstance): boolean
+	return loot.socketIndex == VAULT_SOCKET and not loot.heist
+end
+
+--- Restocks one vault. `reroll` also replaces a container still sitting on the
+--- pedestal (the Night); otherwise only an EMPTY pedestal is filled. Returns
+--- the instance now on the pedestal (nil if none) and whether it was empty.
+--- A container mid-steal (Reserved) is never touched.
+function LootService.restockVault(zoneIndex: number, reroll: boolean): (LootInstance?, boolean)
+	local socket = vaultSockets[zoneIndex]
+	if not socket then
+		return nil, false
+	end
+	local current = socket.loot
+	if current then
+		if not reroll or current.state ~= "Spawned" then
+			return current, false
+		end
+		despawn(current)
+		untrack(current)
+		socket.loot = nil
+		return LootService.fillSocket(socket), false
+	end
+	return LootService.fillSocket(socket), true
 end
 
 -- ==========================================================

@@ -471,6 +471,12 @@ local function validatePickup(player: Player, loot: LootService.LootInstance, ex
 		return "That one's saved for a new player - try another crate!"
 	end
 
+	-- [vaults-crews] The vault's own rules (Speed gate, laser ring).
+	local veto = CarryService.pickupVeto(player, loot)
+	if veto then
+		return veto
+	end
+
 	local model = loot.model
 	local reach = LootService.interactionPart(loot)
 	if not model or not model.PrimaryPart or not reach then
@@ -607,6 +613,13 @@ end
 --- rather than required, so CarryService keeps no dependency on the tutorial.
 function CarryService.mayTakeLoot(_player: Player, _loot: LootService.LootInstance): boolean
 	return true
+end
+
+--- A player-facing reason this pickup is refused, or nil. Overridden by init
+--- with VaultService.pickupVeto (vaults-crews): vault loot needs the zone's
+--- Speed and, on the pedestal, a thief standing inside the laser ring.
+function CarryService.pickupVeto(_player: Player, _loot: LootService.LootInstance): string?
+	return nil
 end
 
 --- Lays an item on the ground at `position` (feet at `floorY`) and marks it
@@ -791,6 +804,7 @@ function CarryService.consumeCarry(player: Player)
 	if not loot then
 		return
 	end
+	require(script.Parent.ProgressEvents).fire(player, "delivered", 1, { itemId = loot.itemId, zoneIndex = loot.zoneIndex, income = loot.finalIncome, heist = loot.heist == true })
 	detach(loot)
 	clearCarry(player)
 	loot.carrier = nil

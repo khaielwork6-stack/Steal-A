@@ -463,6 +463,20 @@ LootService.start()
 CarryService.start()
 GuardianService.start()
 require(Services.LaserService).start()
+-- ==========================================================
+-- VAULTS AND CREWS (docs/handoff-parts/vaults-crews.md)
+-- ==========================================================
+-- After LootService (vault pedestals are its sockets) and LaserService (the
+-- rotating arms register there). Guards were posted by GuardianService.
+do
+	local VaultService = require(Services.VaultService)
+	local CrewService = require(Services.CrewService)
+	CarryService.pickupVeto = VaultService.pickupVeto
+	HeistService.areCrewmates = CrewService.areCrewmates
+	StateService.addProvider("crew", CrewService.summarise)
+	VaultService.start()
+	CrewService.start()
+end
 PlacementService.start()
 SpeedService.start()
 -- After BaseService and EconomyService: a commit rebuilds the base and

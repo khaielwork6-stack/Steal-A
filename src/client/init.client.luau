@@ -252,6 +252,16 @@ startLater("TradeController", function()
 	require(script.Controllers.TradeController).start()
 end)
 
+-- [vaults-crews] The vault doors, barriers, rotating lasers and signs; the
+-- crew card, panel and nameplates. The crew panel clones the Sell skeleton
+-- InventoryController parks in MainUI.Templates, so it waits for it itself.
+startLater("VaultController", function()
+	require(script.Controllers.VaultController).start()
+end)
+startLater("CrewController", function()
+	require(script.Controllers.CrewController).start()
+end)
+
 print("[Client] controllers started")
 -- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.
 game:GetService("Players").LocalPlayer:SetAttribute("ClientReady", true)

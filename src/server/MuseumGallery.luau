@@ -373,11 +373,15 @@ function MuseumGallery.build(map: Instance)
 		-- Longer zones retain their original travel distance. Facade extensions
 		-- close the unused wings without turning the room into a 700-stud hall.
 		local shell = folder("Structure", zone)
-		local spare = (length - Layout.width(index)) / 2
 		for _, side in { -1, 1 } do
 			for _, endSign in { -1, 1 } do
-				local wall = part(shell, "FacadeExtension", Vector3.new(2, HEIGHT, spare), CFrame.new(side * Layout.CORRIDOR_HALF, HEIGHT / 2, center + endSign * (Layout.width(index) / 2 + spare / 2)), palette.wall)
-				wall.CanCollide, wall.CanQuery = true, true
+				-- [vaults-crews] A wing holding a vault is closed by the vault's own
+				-- front wall (VaultBuilder); only the rest of it is facade here.
+				for _, segment in Layout.facadeSegments(index, side, endSign) do
+					local from, to = segment[1], segment[2]
+					local wall = part(shell, "FacadeExtension", Vector3.new(2, HEIGHT, to - from), CFrame.new(side * Layout.CORRIDOR_HALF, HEIGHT / 2, (from + to) / 2), palette.wall)
+					wall.CanCollide, wall.CanQuery = true, true
+				end
 			end
 		end
 		part(decor, "CorridorCeiling", Vector3.new(Layout.CORRIDOR_HALF * 2, 1, length), CFrame.new(0, HEIGHT, center), palette.floor)

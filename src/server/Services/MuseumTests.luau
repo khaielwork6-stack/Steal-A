@@ -145,6 +145,125 @@ function MuseumTests.run(): any
 		end
 		check(totalParts < 900, `{def.id} two-room decoration budget`)
 
+		-- ======================================================
+		-- THE VAULT (vaults-crews). New geometry only: everything above is
+		-- unchanged, and these check the third room fits around it.
+		-- ======================================================
+		local vault = zone:FindFirstChild("Vault")
+		check(vault ~= nil, `{def.id} vault exists`)
+		if vault then
+			local vframe = Layout.vaultFrame(index)
+			local vlength = Layout.vaultLength(index)
+			local host = Layout.vaultHost(index)
+			local z0, z1, vside = Layout.vaultSpan(index)
+			local hostCenter, hostHalf = MapConfig.zoneCenterZ(host), Layout.width(host) / 2
+			check(z0 >= MapConfig.zoneStartZ(host) - 0.01 and z1 <= MapConfig.zoneEndZ(host) + 0.01
+				and (z0 >= hostCenter + hostHalf - 0.01 or z1 <= hostCenter - hostHalf + 0.01), `{def.id} vault sits in an unused wing of zone {host}`)
+			check(vlength >= 30 and vlength <= Layout.VAULT_MAX_LENGTH + 0.01, `{def.id} vault length 30-{Layout.VAULT_MAX_LENGTH}`)
+			for other = 1, index - 1 do
+				local a, b, otherSide = Layout.vaultSpan(other)
+				check(otherSide ~= vside or b <= z0 + 0.01 or a >= z1 - 0.01, `{def.id} vault does not overlap zone {other}'s vault`)
+			end
+			check(Layout.key(index, Layout.VAULT_ROOM) > MapConfig.ZONE_COUNT * Layout.ROOMS_PER_ZONE and Layout.roomOfSocket(Layout.VAULT_SOCKET) == Layout.VAULT_ROOM, `{def.id} vault key and socket are its own`)
+			-- Part budget and decor flags.
+			local vaultParts, vaultSafe = 0, true
+			for _, d in vault:GetDescendants() do
+				if d:IsA("BasePart") then
+					vaultParts += 1
+				end
+			end
+			for _, name in { "Decorations", "Door", "Lasers" } do
+				local holder = vault:FindFirstChild(name)
+				check(holder ~= nil, `{def.id} vault {name}`)
+				for _, d in if holder then holder:GetDescendants() else {} do
+					if d:IsA("BasePart") then
+						vaultSafe = vaultSafe and d.Anchored and not d.CanCollide and not d.CanQuery and not d.CanTouch and not d.CastShadow
+					end
+				end
+			end
+			check(vaultSafe, `{def.id} vault decor flags`)
+			check(vaultParts < 150, `{def.id} vault part budget ({vaultParts} < 150)`)
+			check(#vault.Structure:GetChildren() == 8, `{def.id} vault walls, ceiling and pedestal`)
+			local barrier = vault:FindFirstChild("VaultBarrier") :: BasePart?
+			check(barrier ~= nil and not barrier.CanCollide and not barrier.CanQuery, `{def.id} vault barrier never collides on the server`)
+			-- The doorway is open; the wall either side of it is not.
+			local vaultWalls = RaycastParams.new()
+			vaultWalls.FilterType, vaultWalls.RespectCanCollide = Enum.RaycastFilterType.Include, true
+			local solidList: { Instance } = {}
+			for _, other in workspace.Map.Zones:GetChildren() do
+				for _, name in { "Rooms", "Structure" } do
+					local holder = other:FindFirstChild(name)
+					if holder then
+						table.insert(solidList, holder)
+					end
+				end
+				local otherVault = other:FindFirstChild("Vault")
+				local otherStructure = otherVault and otherVault:FindFirstChild("Structure")
+				if otherStructure then
+					table.insert(solidList, otherStructure)
+				end
+			end
+			vaultWalls.FilterDescendantsInstances = solidList
+			local doorFrom = vframe:PointToWorldSpace(Vector3.new(0, 4, -6))
+			check(workspace:Raycast(doorFrom, vframe:VectorToWorldSpace(Vector3.new(0, 0, 16)), vaultWalls) == nil, `{def.id} vault doorway open`)
+			for _, x in { -vlength / 2 + 3, vlength / 2 - 3 } do
+				local from = vframe:PointToWorldSpace(Vector3.new(x, 4, -6))
+				check(workspace:Raycast(from, vframe:VectorToWorldSpace(Vector3.new(0, 0, 12)), vaultWalls) ~= nil, `{def.id} vault wall beside the door x{math.floor(x)}`)
+			end
+			check(workspace:Raycast(Vector3.new(0, 3, MapConfig.zoneStartZ(host)), Vector3.new(0, 0, MapConfig.zoneLength(host)), vaultWalls) == nil, `{def.id} vault leaves zone {host}'s corridor clear`)
+			-- Service anchors are inside, and the vault is its zone's room 3.
+			local sockets = vault:FindFirstChild("SpawnSockets")
+			local vsocket = sockets and sockets:FindFirstChild(string.format("Socket%02d", Layout.VAULT_SOCKET)) :: BasePart?
+			local vpost = vault:FindFirstChild("GuardianPost") :: BasePart?
+			check(vsocket ~= nil and Layout.inVault(vsocket.Position) == index, `{def.id} vault socket inside`)
+			check(vpost ~= nil and Layout.inVault(vpost.Position) == index, `{def.id} vault guard post inside`)
+			local lz, lr = Layout.locate(vframe:PointToWorldSpace(Vector3.new(0, 3, 20)))
+			check(lz == index and lr == Layout.VAULT_ROOM, `{def.id} locate finds the vault`)
+			local outZ = Layout.locate(vframe:PointToWorldSpace(Vector3.new(0, 3, -4)))
+			check(outZ == nil, `{def.id} the corridor outside the vault is not the vault`)
+			-- Routes in and out through the door, as for the rooms.
+			local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
+			local ring = VaultConfig.ring(index)
+			local pivotLocal = vframe:PointToObjectSpace(ring.pivot)
+			local front = vframe:PointToWorldSpace(Vector3.new(0, 0, pivotLocal.Z - ring.pedestalRadius - 2))
+			local hall = Vector3.new(0, 3, MapConfig.zoneStartZ(index) + 6)
+			local roomSocket = Layout.socketFrame(index, 2).Position
+			for routeIndex, route in { { hall, front }, { front, hall }, { front, roomSocket }, { roomSocket, front } } do
+				local from, goal = route[1], route[2]
+				local clear = true
+				for _ = 1, 3000 do
+					if (Vector3.new(from.X, 0, from.Z) - Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1 then break end
+					local waypoint = Layout.waypoint(from, goal)
+					local delta = Vector3.new(waypoint.X - from.X, 0, waypoint.Z - from.Z)
+					if delta.Magnitude < 0.01 then clear = false; break end
+					local step = delta.Unit * math.min(1, delta.Magnitude)
+					if workspace:Raycast(Vector3.new(from.X, 3, from.Z), step, vaultWalls) then clear = false; break end
+					from += step
+				end
+				check(clear and (Vector3.new(from.X, 0, from.Z) - Vector3.new(goal.X, 0, goal.Z)).Magnitude < 1, `{def.id} vault route {routeIndex}`)
+			end
+			-- The ring and every arm stay inside the vault at any moment.
+			local halfInside = vlength / 2 - 2
+			check(ring.inner - ring.pedestalRadius >= 2.5 and ring.outer - ring.inner >= 4, `{def.id} vault ring leaves room to stand`)
+			local armsInside = true
+			for _, arm in VaultConfig.beamsFor(index) do
+				for step = 0, 11 do
+					local angle = arm.phase + step * math.pi / 6
+					local tip = ring.pivot + Vector3.new(math.cos(angle), 0, math.sin(angle)) * ring.outer
+					local at = vframe:PointToObjectSpace(tip)
+					armsInside = armsInside and math.abs(at.X) < halfInside and at.Z > 2 and at.Z < Layout.DEPTH - 2
+				end
+			end
+			check(armsInside, `{def.id} vault arms never reach a wall`)
+			local beams = vault:FindFirstChild("Lasers")
+			check(beams ~= nil and #beams:GetChildren() == #VaultConfig.beamsFor(index), `{def.id} vault laser arm count`)
+			-- A live, sealed container on the pedestal (when the vaults are on).
+			if VaultConfig.ENABLED then
+				local vaultLoot = LootService.getSocket(index, Layout.VAULT_SOCKET)
+				check(vaultLoot ~= nil and vaultLoot.loot ~= nil and LootService.promptOf(vaultLoot.loot) ~= nil, `{def.id} vault stocked with a prompt`)
+			end
+		end
+
 	end
 	return report
 end

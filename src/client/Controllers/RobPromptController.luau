@@ -34,7 +34,11 @@ local function refresh(plot: Instance, prompt: ProximityPrompt)
 	local unowned = owner == nil or owner == 0
 	local protectedUntil = tonumber(prompt:GetAttribute("ProtectedUntil")) or 0
 	local protected = protectedUntil > workspace:GetServerTimeNow()
-	prompt.Enabled = not mine and not unowned and not protected
+	-- [vaults-crews] No steal prompt on a crew mate's base (the server refuses it too).
+	local ownerPlayer = if type(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
+	local myCrew = player:GetAttribute("CrewId")
+	local crewmate = ownerPlayer ~= nil and myCrew ~= nil and ownerPlayer:GetAttribute("CrewId") == myCrew
+	prompt.Enabled = not mine and not unowned and not protected and not crewmate
 end
 
 local function track(plot: Instance, prompt: ProximityPrompt)

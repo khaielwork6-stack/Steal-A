@@ -222,6 +222,14 @@ Remotes.NAMES = {
 	-- gift is for, then open the Robux dialog. Grants nothing; ProcessReceipt
 	-- does. See GiftService.
 	"GiftRequest",
+
+	-- ==== VAULTS-CREWS ====
+	-- client -> server. CrewRequest(action, targetUserId?): action is
+	-- "invite" | "accept" | "decline" | "leave" | "kick"; the target is a
+	-- player in this server, by UserId. Validated and rate-limited in
+	-- CrewService. (The vaults need no remote: doors, lasers and restocks
+	-- replicate as attributes and the steal is the ordinary prompt.)
+	"CrewRequest",
 }
 
 local folder: Folder

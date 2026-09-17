@@ -56,6 +56,8 @@ export type CashSource = "passive" | "social" | "sell" | "discovery" | "index" |
 	-- (QuestConfig.EARN_SOURCES keeps them out of the "earn $X" quests).
 	| "quest"
 	| "season"
+	-- [vaults-crews] "crew": the crew assist bonus (CrewService).
+	| "crew"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())

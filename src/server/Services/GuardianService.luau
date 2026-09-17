@@ -46,6 +46,7 @@ local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 local SecurityConfig = require(ReplicatedStorage.Shared.Config.SecurityConfig)
 -- gadgets-patrols area: moving patrols in the later zones (PATROLS below).
 local PatrolConfig = require(ReplicatedStorage.Shared.Config.PatrolConfig)
+local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
 
 local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
@@ -125,6 +126,9 @@ type Guardian = {
 	pauseUntil: number,
 	--- os.clock at which a Searching guard gives up and takes its next job.
 	searchUntil: number,
+	--- A Vault Guardian's tuning (vaults-crews; room Layout.VAULT_ROOM). Nil
+	--- for the room guards. Same state machine, scaled numbers.
+	profile: VaultConfig.GuardProfile?,
 }
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
@@ -712,12 +716,23 @@ end
 
 GuardianService.buildRigFrom = buildRigFrom
 
-local function buildRig(zoneIndex: number): (Model, number)
+local function buildRig(zoneIndex: number, profile: VaultConfig.GuardProfile?): (Model, number)
 	local zone = ZoneConfig.Zones[zoneIndex]
 	local assets = ServerStorage:FindFirstChild("GameAssets")
 	local source = if assets and assets:FindFirstChild("Guardians")
 		then assets.Guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{zone.guardian}`)
 		else nil
+	if profile then
+		-- [vaults-crews] The Vault Guardian's own costume when it exists, capped
+		-- to fit the vault's door; the zone's guard otherwise.
+		local guardians = assets and assets:FindFirstChild("Guardians")
+		local own = guardians and (guardians:FindFirstChild(`Zone{string.format("%02d", zoneIndex)}_{profile.costumeName}`)
+			or guardians:FindFirstChild(profile.costumeName))
+		source = own or source
+		local height = math.min(GameConfig.guardianHeightFor(zoneIndex), profile.maxHeight)
+		local physics = GameConfig.guardianPhysicsGrowthFor(zoneIndex)
+		return buildRigFrom(source, height, physics, `Vault{zone.guardian}`), physics
+	end
 
 	-- Guardians grow zone by zone so a later zone reads as dangerous on sight.
 	--
@@ -1423,11 +1438,16 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 		power,
 		GuardianService.carryPenaltyOf(carrier.loot)
 	)
+	-- A Vault Guardian runs harder and wakes sooner (VaultConfig.GUARDIAN).
+	local profile = guardian.profile
+	if profile then
+		guardian.baseSpeed *= profile.speedScale
+	end
 	guardian.nextScanAt = os.clock() + SCAN_INTERVAL
 
 	if fromSleep then
 		guardian.state = "Waking"
-		guardian.wakeAt = os.clock() + (grace or WAKE_DELAY)
+		guardian.wakeAt = os.clock() + (grace or WAKE_DELAY) * (if profile then profile.wakeScale else 1)
 		-- From a standstill: the first strides are an acceleration, not a launch.
 		guardian.currentSpeed = guardian.baseSpeed * 0.55
 		if guardian.humanoid then
@@ -1885,7 +1905,8 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 	-- nextJob still picks the player straight back up if they are carrying
 	-- loot that has left the room.
 	local alarmStarted = guardian.alarmStartedAt
-	if guardian.alarm and alarmStarted and now - alarmStarted > SecurityConfig.LASER_CHASE_TIMEOUT then
+	local leash = if guardian.profile then guardian.profile.laserLeash else SecurityConfig.LASER_CHASE_TIMEOUT
+	if guardian.alarm and alarmStarted and now - alarmStarted > leash then
 		releaseTarget(guardian)
 		nextJob(guardian)
 		return
@@ -2334,14 +2355,21 @@ function GuardianService.start()
 	for zoneIndex, zoneDef in ZoneConfig.Zones do
 		local zone = zonesFolder:FindFirstChild(zoneDef.id)
 		local posts = zone and zone:FindFirstChild("GuardianSpawns")
-		for roomIndex = 1, Layout.ROOMS_PER_ZONE do
-			local post = posts and posts:FindFirstChild(if roomIndex == 1 then "GuardianPost" else "GuardianPost02")
+		-- The two room guards, then the Vault Guardian (vaults-crews): room
+		-- VAULT_ROOM, posted by VaultBuilder, tuned by VaultConfig.GUARDIAN.
+		for roomIndex = 1, Layout.VAULT_ROOM do
+			local isVault = roomIndex == Layout.VAULT_ROOM
+			local vaultFolder = if isVault and zone then zone:FindFirstChild("Vault") else nil
+			local post = if isVault
+				then (if vaultFolder then vaultFolder:FindFirstChild("GuardianPost") else nil)
+				else posts and posts:FindFirstChild(if roomIndex == 1 then "GuardianPost" else "GuardianPost02")
 			if not post or not post:IsA("BasePart") then
-				warn(`[GuardianService] {zoneDef.id} has no GuardianPost - rebuild the map`)
+				warn(`[GuardianService] {zoneDef.id} has no {if isVault then "vault " else ""}GuardianPost - rebuild the map`)
 				continue
 			end
+			local profile = if isVault then VaultConfig.GUARDIAN else nil
 
-			local model, growth = buildRig(zoneIndex)
+			local model, growth = buildRig(zoneIndex, profile)
 			local humanoid = model:FindFirstChildWhichIsA("Humanoid")
 			local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
 			if not humanoid or not root or not root:IsA("BasePart") then
@@ -2357,7 +2385,7 @@ function GuardianService.start()
 				-- guardian is physically larger and a constant offset would bury it.
 				home = post.CFrame * CFrame.new(0, (root :: BasePart).Size.Y / 2 + 0.2, 0),
 				state = "Sleeping",
-				catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth,
+				catchRadius = ZoneConfig.GUARDIAN_CATCH_RADIUS * growth * (if profile then profile.catchScale else 1),
 				baseSpeed = guardianSpeed(zoneIndex),
 				currentSpeed = guardianSpeed(zoneIndex),
 				nextScanAt = 0,
@@ -2372,6 +2400,7 @@ function GuardianService.start()
 				patrolIndex = 1,
 				pauseUntil = 0,
 				searchUntil = 0,
+				profile = profile,
 			}
 			-- The loop is measured at the height the guard stands at its post.
 			guardian.patrol = patrolRoute(zoneIndex, roomIndex, guardian.home.Position.Y)
@@ -2403,7 +2432,7 @@ function GuardianService.start()
 			model:SetAttribute("PoseWalkTrack", walkTrack ~= nil)
 			guardians[Layout.key(zoneIndex, roomIndex or 1)] = guardian
 
-			model.Name ..= "_Room" .. roomIndex
+			model.Name ..= if isVault then "_Vault" else "_Room" .. roomIndex
 			model:SetAttribute("ZoneIndex", zoneIndex)
 			model:SetAttribute("RoomIndex", roomIndex)
 			-- Asleep at the post, or out on patrol in the later zones.
@@ -2496,11 +2525,12 @@ function GuardianService.activeChaseZones(): { number }
 	return zones
 end
 
-function GuardianService.activeChaseRooms(): { { zoneIndex: number, roomIndex: number } }
+--- `target` (vaults-crews) is who that guard is after, for the crew assist.
+function GuardianService.activeChaseRooms(): { { zoneIndex: number, roomIndex: number, target: Player? } }
 	local rooms = {}
 	for _, guardian in guardians do
 		if guardian.state == "Chasing" or guardian.state == "Waking" then
-			table.insert(rooms, { zoneIndex = guardian.zoneIndex, roomIndex = guardian.roomIndex })
+			table.insert(rooms, { zoneIndex = guardian.zoneIndex, roomIndex = guardian.roomIndex, target = guardian.target })
 		end
 	end
 	return rooms
