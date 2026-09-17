@@ -1109,6 +1109,8 @@ function MapBuilder.rebuildGalleries(): Folder
 	-- The museum adds rooms, cases, sockets, guardian posts and lasers, and
 	-- records its own MuseumRevision on the map.
 	require(script.Parent.MuseumGallery).build(map)
+	-- [vaults-crews] One vault per zone, in the wings the museum leaves free.
+	require(script.Parent.VaultBuilder).build(map)
 	-- The ONE boot-time pass that makes scenery walk-through (it used to run
 	-- a second time from init.server.luau after the services started).
 	local cleared = MapBuilder.applyDecorCollision(map)
@@ -1140,6 +1142,7 @@ function MapBuilder.build(): Folder
 	-- The purchased kit supplies the floor/walls; museum dressing fits the
 	-- same bands and creates every lane service anchor (sockets, posts).
 	require(script.Parent.MuseumGallery).build(map)
+	require(script.Parent.VaultBuilder).build(map) -- [vaults-crews]
 	MapBuilder.applyDecorCollision(map)
 
 	local parts = 0

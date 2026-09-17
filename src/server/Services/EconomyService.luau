@@ -42,7 +42,8 @@ local listeners: { (Player) -> () } = {}
 --- tool; never saved.
 local awardedBySource: { [Player]: { [string]: number } } = {}
 
-export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other"
+-- "crew": the crew assist bonus (vaults-crews, CrewService).
+export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other" | "crew"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())

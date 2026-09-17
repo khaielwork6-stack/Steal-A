@@ -286,6 +286,12 @@ end
 -- BEGIN: the hold completed
 -- ==========================================================
 
+--- Whether two players are in the same crew. Overridden by init with
+--- CrewService.areCrewmates (vaults-crews); nobody is, by default.
+function HeistService.areCrewmates(_a: Player, _b: Player): boolean
+	return false
+end
+
 function HeistService.begin(player: Player, slot: BasePart)
 	local now = os.clock()
 	if now - (lastBeginAt[player] or 0) < HeistConfig.BEGIN_COOLDOWN then
@@ -314,6 +320,11 @@ function HeistService.begin(player: Player, slot: BasePart)
 	end
 	if owner == player then
 		notify(player, "error", "You can't steal your own item!")
+		return
+	end
+	-- [vaults-crews] Crew mates never rob each other.
+	if HeistService.areCrewmates(player, owner) then
+		notify(player, "error", "You can't steal from your crew!")
 		return
 	end
 

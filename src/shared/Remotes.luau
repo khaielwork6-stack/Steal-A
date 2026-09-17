@@ -124,6 +124,14 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==== VAULTS-CREWS ====
+	-- client -> server. CrewRequest(action, targetUserId?): action is
+	-- "invite" | "accept" | "decline" | "leave" | "kick"; the target is a
+	-- player in this server, by UserId. Validated and rate-limited in
+	-- CrewService. (The vaults need no remote: doors, lasers and restocks
+	-- replicate as attributes and the steal is the ordinary prompt.)
+	"CrewRequest",
 }
 
 local folder: Folder

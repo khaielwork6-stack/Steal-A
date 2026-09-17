@@ -11,15 +11,21 @@ local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
+local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
 
 local LaserService = {}
 local INTERVAL = 0.1
 local limiter = RateLimiter.new(8, 12)
-type Sample = { position: Vector3, time: number, character: Model }
+type Sample = { position: Vector3, time: number, character: Model, serverTime: number }
 type Field = { index: number, startZ: number, endZ: number, folder: Instance }
 local fields: { Field } = {}
+--- ROTATING VAULT BEAMS (vaults-crews). Not parts the overlap query can find:
+--- the arms exist only as functions of the server clock, tested with
+--- Geometry.sweptArmHit. `inside` says whether a position is in the field.
+type MovingField = { zoneIndex: number, roomIndex: number, arms: { Geometry.SweepArm }, inside: (Vector3) -> boolean }
+local movingFields: { MovingField } = {}
 local previous: { [Player]: Sample } = {}
 local crouched: { [Player]: boolean } = {}
 local cooldown: { [Player]: { [number]: number } } = {}
@@ -93,15 +99,42 @@ local function step()
 		local half = Vector3.new(1.1, height / 2, 1.1)
 		local old = previous[player]
 		local from = center
+		local serverNow = workspace:GetServerTimeNow()
+		local serverFrom = serverNow - INTERVAL
 		-- Ignore a teleport sweep, never the destination overlap. The generous
 		-- bound allows the existing maximum walk speed and network batching.
 		if old and old.character == character then
 			local elapsed = math.min(started - old.time, 0.5)
 			if (root.Position - old.position).Magnitude <= math.max(24, humanoid.WalkSpeed * elapsed * 2 + 8) then
 				from = center + old.position - root.Position
+				serverFrom = math.max(old.serverTime, serverNow - 0.5)
 			end
 		end
-		previous[player] = { position = root.Position, character = character, time = started }
+		previous[player] = { position = root.Position, character = character, time = started, serverTime = serverNow }
+		-- [vaults-crews] The rotating vault arms: the same trip as a static beam.
+		for _, field in movingFields do
+			if not field.inside(root.Position) then
+				continue
+			end
+			local key = Layout.key(field.zoneIndex, field.roomIndex)
+			local times = cooldown[player] or {}
+			cooldown[player] = times
+			if (times[key] or 0) > started then
+				continue
+			end
+			for _, arm in field.arms do
+				metrics.narrowChecks += 1
+				if Geometry.sweptArmHit(arm, serverFrom, serverNow, from, center, half) then
+					times[key] = started + 1.5
+					metrics.trips += 1
+					player:SetAttribute("LastLaserZone", field.zoneIndex)
+					player:SetAttribute("LastLaserTrip", serverNow)
+					player:SetAttribute("LastLaserRoom", field.roomIndex)
+					GuardianService.alarm(field.zoneIndex, player, field.roomIndex)
+					break
+				end
+			end
+		end
 		local containers: { Instance } = {}
 		for _, field in fields do
 			if math.max(from.Z, center.Z) + half.Z >= field.startZ and math.min(from.Z, center.Z) - half.Z <= field.endZ then
@@ -154,7 +187,15 @@ end
 function LaserService.snapshot(): any
 	local out: any = table.clone(metrics)
 	out.fields, out.hz = #fields, 1 / INTERVAL
+	out.movingFields = #movingFields
 	return out
+end
+
+--- Registers a field of rotating arms (vaults-crews: VaultService, one per
+--- vault). A player whose root is `inside` it is swept against every arm on
+--- each step; a touch wakes the guard of (zoneIndex, roomIndex).
+function LaserService.addMovingField(zoneIndex: number, roomIndex: number, arms: { Geometry.SweepArm }, inside: (Vector3) -> boolean)
+	table.insert(movingFields, { zoneIndex = zoneIndex, roomIndex = roomIndex, arms = arms, inside = inside })
 end
 
 function LaserService.start()

@@ -939,6 +939,42 @@ return function(): Report
 		check(SecurityConfig.SPEED_HISTORY_SECONDS >= 60, "the speed history must cover a whole run")
 	end
 
+	-- ==========================================================
+	-- VAULTS AND CREWS (VaultConfig, CrewConfig; docs/handoff-parts/vaults-crews.md)
+	-- ==========================================================
+	do
+		local VaultConfig = require(script.Parent.VaultConfig)
+		local CrewConfig = require(script.Parent.CrewConfig)
+		check(type(VaultConfig.ENABLED) == "boolean" and type(VaultConfig.RESTOCK_AT_NIGHT) == "boolean", "VaultConfig switches must be booleans")
+		for _, key in { "RESTOCK_SECONDS", "SPEED_GATE_FRACTION", "DOOR_OPEN_RADIUS", "DOOR_CHECK_INTERVAL", "DISPLAY_FOOTPRINT", "RING_GAP", "RING_WIDTH", "PEDESTAL_HEIGHT" } do
+			local value = (VaultConfig :: any)[key]
+			check(type(value) == "number" and value > 0, `VaultConfig.{key} must be a positive number`)
+		end
+		-- A 2.2-stud player must fit between the pedestal and the arms.
+		check(VaultConfig.RING_GAP >= 2.5, "the vault ring gap must fit a standing player")
+		local guard = VaultConfig.GUARDIAN
+		check(guard.speedScale >= 1 and guard.wakeScale > 0 and guard.wakeScale <= 1 and guard.catchScale >= 1, "the Vault Guardian must be at least as tough as a room guard")
+		check(guard.laserLeash >= require(script.Parent.SecurityConfig).LASER_CHASE_TIMEOUT and guard.maxHeight > 0 and guard.maxHeight < 20, "Vault Guardian leash and height (door is 20 studs)")
+		for zoneIndex = 1, ZoneConfig.COUNT do
+			local rows = VaultConfig.rollTable(zoneIndex)
+			local sum, top = 0, VaultConfig.topRarities(zoneIndex)
+			for _, row in rows do
+				sum += row.chance
+				check(row.item.rarity == top[1] or row.item.rarity == top[2], `zone {zoneIndex} vault rolls only its top two rarities`)
+			end
+			check(#rows > 0 and near(sum, 1, 1e-6), `zone {zoneIndex} vault roll table sums to 1`)
+			check(#VaultConfig.beamsFor(zoneIndex) >= 2 and #VaultConfig.beamsFor(zoneIndex) <= 6, `zone {zoneIndex} vault has 2-6 laser arms`)
+			local ring = VaultConfig.ring(zoneIndex)
+			check(ring.outer - ring.inner >= 4, `zone {zoneIndex} vault laser ring is at least 4 studs wide`)
+		end
+		check(CrewConfig.MAX_MEMBERS >= 2 and CrewConfig.MAX_MEMBERS <= 8, "crew size must be 2-8")
+		for _, key in { "INVITE_SECONDS", "MAX_OUTGOING_INVITES", "REQUESTS_PER_SECOND", "ASSIST_RADIUS", "CHASE_ASSIST_SECONDS", "PRESENCE_SECONDS", "BONUS_INCOME_SECONDS", "BONUS_FRACTION", "TRACK_INTERVAL", "NAMEPLATE_MAX_DISTANCE" } do
+			local value = (CrewConfig :: any)[key]
+			check(type(value) == "number" and value > 0, `CrewConfig.{key} must be a positive number`)
+		end
+		check(CrewConfig.BONUS_FRACTION <= 1, "the crew bonus is a fraction of the item's income")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
