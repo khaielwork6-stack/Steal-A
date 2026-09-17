@@ -467,6 +467,14 @@ OfflineService.start()
 -- the Data debug commands find it running.
 MailboxService.start()
 
+-- [retention-codes-daily] Codes (Settings panel) and the daily login streak.
+-- After Offline/Mailbox, before DebugService so the Retention debug commands
+-- find both running. The streak's "ready" hook is in onPlayer below.
+local CodeService = require(Services.CodeService)
+local DailyRewardService = require(Services.DailyRewardService)
+CodeService.start()
+DailyRewardService.start()
+
 DebugService.start()
 
 -- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the
@@ -514,6 +522,10 @@ local function onPlayer(player: Player)
 		-- DATA AREA: mail sent while they were away (another server, offline)
 		-- is delivered once the profile is live and settled.
 		task.spawn(MailboxService.deliver, player)
+		-- [retention-codes-daily] The join has settled: the daily streak may
+		-- now show (its StatePush field appears and the preview is sent), so
+		-- the client's once-a-session popup never races the offline modal.
+		DailyRewardService.onProfileReady(player)
 
 		-- The push above races the client: a profile that loads instantly (Studio
 		-- solo, or a warm DataStore) fires it before StarterPlayerScripts have

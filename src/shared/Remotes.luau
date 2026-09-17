@@ -124,6 +124,24 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==========================================================
+	-- RETENTION: CODES + DAILY STREAK (retention-codes-daily)
+	-- ==========================================================
+	-- client -> server. (codeText: string) - the text typed in the CODES box.
+	-- The server trims, upper-cases, looks it up, rate limits and pays.
+	"RedeemCodeRequest",
+	-- server -> client. (ok: boolean, message: string) - the answer to one
+	-- RedeemCodeRequest, for the CODES box. Display only; the toast comes
+	-- through Notify as usual.
+	"RedeemCodeResult",
+	-- client -> server. (action: "claim" | "preview") - claim today's streak
+	-- reward, or ask for the 7-day preview. Carries no day and no amount.
+	"DailyRewardRequest",
+	-- server -> client. The 7-day preview with this player's scaled amounts
+	-- (DailyRewardService.preview). Sent on join, on request and after a
+	-- claim - not on every StatePush.
+	"DailyRewardPush",
 }
 
 local folder: Folder

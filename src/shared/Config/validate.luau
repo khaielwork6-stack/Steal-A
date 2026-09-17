@@ -939,6 +939,65 @@ return function(): Report
 		check(SecurityConfig.SPEED_HISTORY_SECONDS >= 60, "the speed history must cover a whole run")
 	end
 
+	-- ==========================================================
+	-- RETENTION: CODES + DAILY STREAK (retention-codes-daily)
+	-- ==========================================================
+	do
+		local CodesConfig = require(script.Parent.CodesConfig)
+		local DailyRewardConfig = require(script.Parent.DailyRewardConfig)
+		-- A reward spec: known guardian, sane numbers, and every Speed scale
+		-- capped so no code or day can move the Zone 8+ wall.
+		local function checkSpec(spec: { [string]: any }, label: string)
+			for _, key in { "cash", "cashMinutes", "cashFloor", "speed", "speedGateFraction", "speedFloor", "speedMax" } do
+				local value = spec[key]
+				check(value == nil or (type(value) == "number" and value == value and value >= 0 and value < math.huge), `{label}: {key} must be a finite number >= 0`)
+			end
+			if spec.guardianKey ~= nil then
+				check(BaseGuardianConfig.ByKey[spec.guardianKey] ~= nil, `{label}: unknown guardian "{tostring(spec.guardianKey)}"`)
+			end
+			if (spec.speedGateFraction or 0) > 0 then
+				check((spec.speedGateFraction or 0) <= 0.05, `{label}: speedGateFraction above 5% of the next gate`)
+				check((spec.speedMax or 0) > 0 and (spec.speedMax or 0) <= 1e6, `{label}: a scaled Speed reward needs a speedMax in (0, 1M]`)
+			end
+		end
+		local seen: { [string]: boolean } = {}
+		for _, def in CodesConfig.Codes do
+			local key = CodesConfig.normalise(def.code)
+			check(key ~= nil and key == def.code, `code "{def.code}" must be upper-case letters/digits, at most {CodesConfig.MAX_LENGTH}`)
+			if key then
+				check(not seen[key], `code "{key}" is listed twice`)
+				seen[key] = true
+			end
+			check(type(def.enabled) == "boolean", `code "{def.code}": enabled must be a boolean`)
+			check(def.minZone == nil or (def.minZone >= 1 and def.minZone <= ZoneConfig.COUNT), `code "{def.code}": minZone out of range`)
+			checkSpec(def.rewards :: any, `code "{def.code}"`)
+		end
+		check(CodesConfig.normalise("  museum ") == "MUSEUM", "codes must match trimmed and case-insensitive")
+		check(CodesConfig.normalise("a b") == nil and CodesConfig.normalise(5) == nil, "codes must reject junk")
+		check(CodesConfig.FAILURE_LIMIT >= 3 and CodesConfig.LOCKOUT_SECONDS > 0, "code lockout must allow a few typos and then lock")
+
+		check(#DailyRewardConfig.Days == DailyRewardConfig.CYCLE_DAYS, "the daily streak needs one row per cycle day")
+		for index, def in DailyRewardConfig.Days do
+			check(def.day == index, `daily row {index} must be day {index}`)
+			checkSpec(def :: any, `daily day {index}`)
+			if def.duplicate then
+				checkSpec(def.duplicate :: any, `daily day {index} duplicate`)
+			end
+			check(type(def.icon) == "string", `daily day {index}: icon must be a string`)
+		end
+		check(DailyRewardConfig.GRACE_DAYS >= 0 and DailyRewardConfig.GRACE_DAYS <= 2, "daily GRACE_DAYS must be 0-2")
+		-- The streak rules, on fixed clocks.
+		local day = 20000 * 86400
+		local s = DailyRewardConfig.status
+		check(s(0, 0, day).claimable and s(0, 0, day).day == 1, "a first claim is day 1")
+		check(not s(3, 20000, day + 5).claimable, "one claim per UTC day")
+		check(s(3, 19999, day).claimable and s(3, 19999, day).day == 4, "the next day continues the streak")
+		check(s(7, 19999, day).day == 1, "day 7 wraps to day 1")
+		local missed = 19999 - (DailyRewardConfig.GRACE_DAYS + 1)
+		check(s(5, missed, day).nextStreak == 1, "missing a whole day (beyond grace) resets the streak")
+		check(not s(3, 20001, day).claimable, "a claim day in the future must not pay")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
