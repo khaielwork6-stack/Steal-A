@@ -168,6 +168,11 @@ function MuseumTests.loops(player: Player): any
 	-- The runner pivots the character around the map: not a movement cheat.
 	local Movement = require(script.Parent.MovementService)
 	Movement.setExempt(player, true)
+	-- These runners measure the SLEEPING-guard rules (§47/§48) in every zone,
+	-- so the later zones' patrols (PatrolConfig) are suspended for the run:
+	-- every guard is asleep at its post, as the expectations below assume.
+	-- Patrols have their own test (DebugCommands/Gadgets: gadgetPatrolTest).
+	Guardian.suspendPatrols(true)
 	local ok, err = pcall(function()
 		Night.setDayRemaining(260)
 		for index = 1, 12 do
@@ -213,6 +218,7 @@ function MuseumTests.loops(player: Player): any
 	Guardian.resetAll()
 	profile.Lifetime.Steals = steals
 	Movement.setExempt(player, false)
+	Guardian.suspendPatrols(false)
 	if not ok then return { error = tostring(err), zones = rows } end
 	return { zones = rows }
 end
@@ -241,6 +247,7 @@ function MuseumTests.scenarios(player: Player): any
 	-- check and its delivery timer for the duration (Studio only).
 	local Movement = require(script.Parent.MovementService)
 	Movement.setExempt(player, true)
+	Guardian.suspendPatrols(true) -- sleeping-guard expectations (see loops)
 	local function move(at: Vector3)
 		character:PivotTo(CFrame.new(at))
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -352,6 +359,7 @@ function MuseumTests.scenarios(player: Player): any
 	end
 	require(script.Parent.StateService).pushNow(player)
 	Movement.setExempt(player, false)
+	Guardian.suspendPatrols(false)
 	if not ok then report.error = tostring(err) end
 	return report
 end
@@ -376,6 +384,9 @@ function MuseumTests.paths(player: Player): any
 	local report: any = { rooms = rows }
 	local Movement = require(script.Parent.MovementService)
 	Movement.setExempt(player, true)
+	-- Zone 12 is a patrol zone; this measures the sleeping guard's walk
+	-- through the doorway and back to its post (see loops).
+	Guardian.suspendPatrols(true)
 	local function move(at: Vector3)
 		character:PivotTo(CFrame.new(at))
 		root.AssemblyLinearVelocity = Vector3.zero
@@ -437,6 +448,7 @@ function MuseumTests.paths(player: Player): any
 	local leftover = Carry.getCarried(player)
 	if leftover then Carry.reclaim(leftover) end
 	Guardian.resetAll()
+	Guardian.suspendPatrols(false)
 	Laser.setCrouched(player, false)
 	profile.Lifetime.Steals = steals
 	character:PivotTo(saved)
@@ -484,6 +496,9 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	-- doorway rule only (Studio only, like the laser exemption).
 	local Movement = require(script.Parent.MovementService)
 	Movement.setExempt(player, true)
+	-- The escape table is the sleeping-guard doorway rule; patrol zones are
+	-- measured as if asleep (see loops).
+	Guardian.suspendPatrols(true)
 	local tripsBefore = Laser.snapshot().trips
 	local ok, err = pcall(function()
 		local list = zones or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }
@@ -584,6 +599,7 @@ function MuseumTests.escapeAudit(player: Player, zones: { number }?, fractions: 
 	Speed.applyMovement(player)
 	Laser.setExempt(player, false)
 	Movement.setExempt(player, false)
+	Guardian.suspendPatrols(false)
 	local laserTrips = Laser.snapshot().trips - tripsBefore
 	local lines = {}
 	for _, row in rows do

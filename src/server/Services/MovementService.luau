@@ -183,6 +183,54 @@ function MovementService.allowTeleport(player: Player, seconds: number?)
 	end
 end
 
+-- ==========================================================
+-- SERVER-GRANTED BURSTS (gadgets-patrols area)
+-- ==========================================================
+--
+-- A server-applied pull (the Grappling Hook) moves the character faster than
+-- its WalkSpeed while the CLIENT still owns and simulates it, so it is not a
+-- teleport (no re-base: the path is still measured) and not serverDriven.
+-- `allowBurst` widens the budget for a short window instead: the refill rate,
+-- the cap and the climb rate all get `extraSpeed` studs/s on top, so the pull
+-- is paid for and anything beyond it is still a strike.
+
+type Burst = { from: number, untilTime: number, extra: number }
+local bursts: { [Player]: Burst? } = {}
+
+--- Adds `extraSpeed` studs/s to this player's movement budget for `seconds`.
+--- Overlapping calls keep the larger extra and the later end.
+function MovementService.allowBurst(player: Player, extraSpeed: number, seconds: number)
+	if type(extraSpeed) ~= "number" or type(seconds) ~= "number" or extraSpeed ~= extraSpeed or seconds ~= seconds then
+		return
+	end
+	local now = os.clock()
+	local extra = math.clamp(extraSpeed, 0, 500)
+	local untilTime = now + math.clamp(seconds, 0, 5)
+	local current = bursts[player]
+	if current and current.untilTime > now then
+		current.extra = math.max(current.extra, extra)
+		current.untilTime = math.max(current.untilTime, untilTime)
+	else
+		bursts[player] = { from = now, untilTime = untilTime, extra = extra }
+	end
+end
+
+--- The burst extra (studs/s) in effect at any moment in [since, now].
+local function burstExtraSince(player: Player, since: number): number
+	local burst = bursts[player]
+	if not burst then
+		return 0
+	end
+	if burst.untilTime < since then
+		-- Long over: forget it so the table stays small.
+		if os.clock() - burst.untilTime > 5 then
+			bursts[player] = nil
+		end
+		return 0
+	end
+	return burst.extra
+end
+
 --- Studio only (ignored live, like LaserService.setExempt): the test runners
 --- move the character around with PivotTo and MoveTo and must not be judged.
 function MovementService.setExempt(player: Player, on: boolean)
@@ -349,6 +397,7 @@ local function sample(player: Player, now: number)
 	end
 
 	local rate = MovementService.peakSpeedSince(player, now - dt) * SecurityConfig.MOVEMENT_SPEED_TOLERANCE
+		+ burstExtraSince(player, now - dt) -- a granted pull (allowBurst)
 	local cap = rate * SecurityConfig.MOVEMENT_BURST_SECONDS + SecurityConfig.MOVEMENT_SLACK_STUDS
 	track.budget = math.min(cap, track.budget + rate * dt)
 	local riseRate = SecurityConfig.MOVEMENT_RISE_SPEED + rate
@@ -414,6 +463,7 @@ function MovementService.verifiedPosition(player: Player): Vector3?
 	end
 	local now = os.clock()
 	local rate = MovementService.peakSpeedSince(player, track.trustedAt) * SecurityConfig.MOVEMENT_SPEED_TOLERANCE
+		+ burstExtraSince(player, track.trustedAt)
 	local allowed = rate * (now - track.trustedAt + SecurityConfig.MOVEMENT_BURST_SECONDS) + SecurityConfig.MOVEMENT_SLACK_STUDS
 	local offset = root.Position - track.reference
 	if Vector3.new(offset.X, 0, offset.Z).Magnitude <= allowed then
@@ -503,6 +553,7 @@ function MovementService.start()
 		teleportUntil[player] = nil
 		ownPivotUntil[player] = nil
 		violationsByPlayer[player] = nil
+		bursts[player] = nil
 	end)
 
 	local accumulated = 0

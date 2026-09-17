@@ -452,6 +452,10 @@ RagdollService.setMovementRefresher(function(player)
 	SpeedService.applyMovement(player)
 end)
 PvPService.start()
+-- GADGETS-PATROLS AREA: Cash gadgets (smoke / laser jammer / grapple). After
+-- PvPService, so the weapon and the trap are in the Backpack first, and after
+-- Guardian/Laser/Movement, whose APIs it calls. Registers a StatePush provider.
+require(Services.GadgetService).start()
 
 -- Both listen for the plot rebuild that assignment fires, so they must be
 -- registered before BaseService hands out a single plot.

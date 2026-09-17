@@ -38,7 +38,10 @@ local player = Players.LocalPlayer
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 
-local SLOT_COUNT = 4
+--- Five since the gadgets (gadgets-patrols area): weapon, trap, and the three
+--- gadgets on 3-5. The pack's MenuButtons template ships exactly five slots;
+--- a template with fewer simply shows fewer (see `slotCount`).
+local SLOT_COUNT = 5
 --- 66 on desktop; a touch layout takes them ~12% smaller so the bar leaves
 --- more of the play area and never crowds the jump button. A function, not a
 --- constant decided at require time: the layout follows Device changes.
@@ -53,11 +56,17 @@ local BOTTOM_INSET = 14
 --- one of them (Storage > WEAPONS picks which); anything else fills the
 --- remaining slots by name.
 local FIXED_SLOTS: { [string]: number } = { Bat = 1, Slap = 1, Trap = 2 }
+-- Gadgets keep their own keys (GadgetConfig.hotbarSlot), so "3 is smoke"
+-- stays true whether or not the player holds the other two.
+for _, gadget in require(ReplicatedStorage.Shared.Config.GadgetConfig).Gadgets do
+	FIXED_SLOTS[gadget.toolName] = gadget.hotbarSlot
+end
 local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
 	[Enum.KeyCode.Two] = 2,
 	[Enum.KeyCode.Three] = 3,
 	[Enum.KeyCode.Four] = 4,
+	[Enum.KeyCode.Five] = 5,
 }
 
 local STROKE_IDLE = Color3.fromRGB(0, 0, 0)
@@ -227,11 +236,13 @@ local function gatherTools(): { [number]: Tool }
 		return a.Name < b.Name
 	end)
 
+	-- The slots actually built (a template may ship fewer than SLOT_COUNT).
+	local limit = if #slots > 0 then #slots else SLOT_COUNT
 	local placed: { [number]: Tool } = {}
 	local rest: { Tool } = {}
 	for _, tool in tools do
 		local fixed = FIXED_SLOTS[tool.Name]
-		if fixed and not placed[fixed] then
+		if fixed and fixed <= limit and not placed[fixed] then
 			placed[fixed] = tool
 		else
 			table.insert(rest, tool)
@@ -239,15 +250,22 @@ local function gatherTools(): { [number]: Tool }
 	end
 	local cursor = 1
 	for _, tool in rest do
-		while cursor <= SLOT_COUNT and placed[cursor] do
+		while cursor <= limit and placed[cursor] do
 			cursor += 1
 		end
-		if cursor > SLOT_COUNT then
+		if cursor > limit then
 			break
 		end
 		placed[cursor] = tool
 	end
 	return placed
+end
+
+--- The slot caption: a tool's own `HotbarLabel` (the gadgets carry their
+--- count there, "Smoke x2"), else its name.
+local function labelOf(tool: Tool): string
+	local label = tool:GetAttribute("HotbarLabel")
+	return if type(label) == "string" then label else tool.Name
 end
 
 local function toggle(index: number)
@@ -277,8 +295,13 @@ local function render()
 		slot.tool = tool
 		if changed then
 			paintIcon(slot, tool)
-			if slot.name then
-				slot.name.Text = if tool then tool.Name else ""
+		end
+		-- Every render, not only on a change of tool: a gadget's count lives
+		-- in its label and changes while the same Tool stays in the slot.
+		if slot.name then
+			local text = if tool then labelOf(tool) else ""
+			if slot.name.Text ~= text then
+				slot.name.Text = text
 			end
 		end
 		local equipped = tool ~= nil and tool == held
@@ -327,7 +350,8 @@ local function applySize()
 		return
 	end
 	local pixels = slotPixels()
-	bar.Size = UDim2.fromOffset(SLOT_COUNT * pixels + (SLOT_COUNT - 1) * SLOT_GAP, pixels + 8)
+	local count = math.max(#slots, 1)
+	bar.Size = UDim2.fromOffset(count * pixels + (count - 1) * SLOT_GAP, pixels + 8)
 	for _, slot in slots do
 		slot.button.Size = UDim2.fromOffset(pixels, pixels)
 	end
@@ -445,9 +469,24 @@ function HotbarController.start()
 		end
 	end)
 
+	-- A gadget's count changes its caption without moving the Tool. Hooked
+	-- once per Tool (it travels Backpack <-> Character).
+	local function hookLabel(tool: Tool)
+		if not tool:GetAttribute("_HotbarLabelHooked") then
+			tool:SetAttribute("_HotbarLabelHooked", true)
+			tool:GetAttributeChangedSignal("HotbarLabel"):Connect(queueRender)
+		end
+	end
+
 	local function watch(container: Instance)
+		for _, child in container:GetChildren() do
+			if child:IsA("Tool") then
+				hookLabel(child)
+			end
+		end
 		container.ChildAdded:Connect(function(child)
 			if child:IsA("Tool") then
+				hookLabel(child)
 				queueRender()
 			end
 		end)

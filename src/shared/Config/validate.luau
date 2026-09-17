@@ -1049,6 +1049,49 @@ return function(): Report
 		end
 	end
 
+	-- ==========================================================
+	-- GADGETS AND PATROLS (GadgetConfig, PatrolConfig;
+	-- docs/handoff-parts/gadgets-patrols.md)
+	-- ==========================================================
+	do
+		local GadgetConfig = require(script.Parent.GadgetConfig)
+		local PatrolConfig = require(script.Parent.PatrolConfig)
+		check(#GadgetConfig.ZONE_PRICE_MULTIPLIER == ZoneConfig.COUNT, "one gadget price multiplier per zone")
+		local lastMultiplier = 0
+		for zone, multiplier in GadgetConfig.ZONE_PRICE_MULTIPLIER do
+			check(multiplier > 0 and multiplier >= lastMultiplier, `gadget price multiplier for zone {zone} must be positive and non-decreasing`)
+			lastMultiplier = multiplier
+		end
+		local slots: { [number]: boolean } = {}
+		for _, key in GadgetConfig.Order do
+			local def = GadgetConfig.Gadgets[key]
+			check(def ~= nil and def.key == key, `gadget {key} is defined under its own key`)
+			if not def then
+				continue
+			end
+			check(GadgetConfig.ByToolName[def.toolName] == def, `gadget {key} tool name is unique`)
+			check(def.basePrice > 0 and def.maxCarried >= 1 and def.cooldown > 0, `gadget {key} price, stack and cooldown are positive`)
+			check(def.hotbarSlot >= 3 and def.hotbarSlot <= 5 and not slots[def.hotbarSlot], `gadget {key} has its own hotbar slot 3-5`)
+			slots[def.hotbarSlot] = true
+			check(GadgetConfig.priceFor(key, 12) >= GadgetConfig.priceFor(key, 1), `gadget {key} price grows with the zone`)
+		end
+		check(#GadgetConfig.Order == 3, "three gadgets")
+		check(GadgetConfig.SMOKE_CONFUSE_SECONDS > 0 and GadgetConfig.SMOKE_CONFUSE_SECONDS <= 5, "smoke confuse time is in (0, 5]")
+		check(GadgetConfig.JAM_SECONDS > 0 and GadgetConfig.JAM_SECONDS <= 8, "laser jam time is in (0, 8]")
+		check(GadgetConfig.GRAPPLE_RANGE > 0 and GadgetConfig.GRAPPLE_RANGE <= 60, "grapple range is in (0, 60]")
+		check(GadgetConfig.GRAPPLE_PULL_SECONDS > 0 and GadgetConfig.GRAPPLE_PULL_SECONDS <= 1.5, "grapple pull is in (0, 1.5]")
+		check(GadgetConfig.GRAPPLE_STANDOFF >= 0 and GadgetConfig.GRAPPLE_STANDOFF < GadgetConfig.GRAPPLE_RANGE, "grapple standoff is inside the range")
+		check(GadgetConfig.GRAPPLE_TARGET_TOLERANCE > 0 and GadgetConfig.GRAPPLE_BURST_SLACK >= 0, "grapple tolerances are sane")
+		check(GadgetConfig.SHARED_COOLDOWN >= 0 and GadgetConfig.USE_PER_SECOND > 0 and GadgetConfig.BUY_PER_SECOND > 0, "gadget limits are positive")
+		check(type(PatrolConfig.ENABLED) == "boolean" and type(PatrolConfig.VISION_ENABLED) == "boolean", "patrol switches are booleans")
+		check(PatrolConfig.MIN_ZONE >= 1 and PatrolConfig.MIN_ZONE <= ZoneConfig.COUNT + 1, "patrol start zone is a zone (or COUNT + 1 = none)")
+		check(PatrolConfig.SPEED > 0 and PatrolConfig.SPEED <= 30, "patrol speed is slow and positive")
+		check(PatrolConfig.ROUTE_NEAR_Z >= 8 and PatrolConfig.ROUTE_FAR_Z > PatrolConfig.ROUTE_NEAR_Z, "patrol loop starts clear of the doorway line")
+		check(PatrolConfig.VISION_RANGE > 0 and PatrolConfig.VISION_ANGLE > 0 and PatrolConfig.VISION_ANGLE <= 180, "vision cone is sane")
+		check(PatrolConfig.VISION_HZ > 0 and PatrolConfig.VISION_HZ <= 10, "vision checks are throttled (<= 10 Hz)")
+		check(PatrolConfig.WAYPOINT_REACH > 0 and PatrolConfig.CORNER_PAUSE >= 0, "patrol arrival and pause are sane")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

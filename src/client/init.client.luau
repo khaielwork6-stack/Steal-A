@@ -210,5 +210,17 @@ end)
 startLater("RevealAnnounceController", function()
 	require(script.Controllers.RevealAnnounceController).start()
 end)
+-- GADGETS-PATROLS AREA: gadget tool input (hotbar keys 3-5), the smoke /
+-- jam visuals (honour Reduced Effects and Low Graphics), and the GADGETS
+-- section of the Shop panel.
+startLater("GadgetController", function()
+	require(script.Controllers.GadgetController).start()
+end)
+startLater("GadgetFxController", function()
+	require(script.Controllers.GadgetFxController).start()
+end)
+startLater("GadgetShopController", function()
+	require(script.Controllers.GadgetShopController).start()
+end)
 
 print("[Client] controllers started")

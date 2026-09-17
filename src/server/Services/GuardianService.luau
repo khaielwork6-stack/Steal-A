@@ -44,6 +44,8 @@ local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 
 local SecurityConfig = require(ReplicatedStorage.Shared.Config.SecurityConfig)
+-- gadgets-patrols area: moving patrols in the later zones (PATROLS below).
+local PatrolConfig = require(ReplicatedStorage.Shared.Config.PatrolConfig)
 
 local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
@@ -53,7 +55,10 @@ local DataService = require(script.Parent.DataService)
 
 local GuardianService = {}
 
-export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Recovering" | "ReturningLoot" | "Returning"
+--- "Patrolling" is the later zones' resting state (walks a loop in its room
+--- instead of sleeping at the post); "Searching" is the short pause after a
+--- Smoke Bomb made it lose its target (see PATROLS AND SEARCHING).
+export type GuardianState = "Sleeping" | "Waking" | "Chasing" | "Recovering" | "ReturningLoot" | "Returning" | "Patrolling" | "Searching"
 
 type Guardian = {
 	zoneIndex: number,
@@ -110,6 +115,15 @@ type Guardian = {
 	--- current job, and when it last improved on it. See `arrived`.
 	bestDistance: number,
 	bestAt: number,
+	--- The patrol loop (world points), empty when the room is too small for
+	--- one. Walked only while patrolActive says so.
+	patrol: { Vector3 },
+	--- The waypoint the patrol (or the walk back to it) is heading for.
+	patrolIndex: number,
+	--- os.clock until which a patrolling guard stands at a corner.
+	pauseUntil: number,
+	--- os.clock at which a Searching guard gives up and takes its next job.
+	searchUntil: number,
 }
 
 -- Tuning for the catch. Big and funny, but controlled: capped, single-shot, and
@@ -120,6 +134,19 @@ local DOORWAY_INTERVAL = 0.1
 local nextDoorwayCheck = 0
 --- Loot whose carrier has taken it out of its room. Only this loot can be chased.
 local exitedLoot: { [string]: boolean } = {}
+
+-- SMOKE (gadgets-patrols area; GuardianService.confuse). A smoked player can
+-- not be taken as a target by any museum guard until `confusedUntil`, and
+-- loot a smoked carrier held outside its room is "shaken": no longer in
+-- `exitedLoot`, and the doorway check ignores it until that carrier walks
+-- back into the loot's room. So after the smoke only the doorway rule (a new
+-- exit) or the laser rule can start a chase on them again.
+local confusedUntil: { [Player]: number } = {}
+local shakenLoot: { [string]: Player } = {}
+
+function GuardianService.isConfused(player: Player): boolean
+	return (confusedUntil[player] or 0) > os.clock()
+end
 
 -- Run-cycle tuning. Deliberately over the top: this is the first chase a new
 -- player ever sees and it should read as comedy, not as a walk.
@@ -902,7 +929,12 @@ end
 --   Recovering     walking to a dropped item of its own zone to pick it up.
 --   ReturningLoot  carrying an item (caught or recovered) back to the EXACT
 --                  socket it was stolen from, then putting it back.
---   Returning      walking home to sleep again.
+--   Returning      walking home to sleep again (or back to its patrol loop).
+--   Patrolling     the later zones' resting state: a slow loop in its own room
+--                  instead of Sleeping (PatrolConfig). Chases nothing on sight;
+--                  the vision cone raises the doorway alert.
+--   Searching      a Smoke Bomb took its target; stands and looks around,
+--                  then nextJob (GuardianService.confuse).
 --
 -- Every job ends through nextJob(): another carrier first, then a drop, then
 -- home. Nothing here holds a stale reference: the target is re-validated from
@@ -944,7 +976,8 @@ local JOB_TIMEOUT = 60
 function GuardianService.isZoneBusy(zoneIndex: number): boolean
 	for room = 1, Layout.ROOMS_PER_ZONE do
 		local guardian = guardians[Layout.key(zoneIndex, room)]
-		if guardian and guardian.state ~= "Sleeping" then return true end
+		-- A patrol is a resting state, not work.
+		if guardian and guardian.state ~= "Sleeping" and guardian.state ~= "Patrolling" then return true end
 	end
 	return false
 end
@@ -1054,6 +1087,10 @@ local function asCarrier(guardian: Guardian, loot: LootService.LootInstance): Ca
 	if loot.state ~= "Carried" or not player or not player.Parent or not root then
 		return nil
 	end
+	-- Inside a smoke window nobody can take this player as a target.
+	if GuardianService.isConfused(player) then
+		return nil
+	end
 	local character = player.Character
 	local targetRoot = character and character:FindFirstChild("HumanoidRootPart")
 	if not targetRoot or not targetRoot:IsA("BasePart") then
@@ -1152,6 +1189,210 @@ local function releaseTarget(guardian: Guardian)
 	guardian.alarmStartedAt = nil
 	guardian.wakeAt = nil
 	setChased(previous, false)
+end
+
+-- ==========================================================
+-- PATROLS AND SEARCHING (gadgets-patrols area)
+-- ==========================================================
+--
+-- In zones >= PatrolConfig.MIN_ZONE the RESTING state is "Patrolling": the
+-- guard walks a slow rectangle inside its own room instead of sleeping at its
+-- corridor post. Everything that used to put a guard to sleep now goes
+-- through `enterRest`, which picks Sleeping or Patrolling. A patrol is not
+-- vigilance: the §48 triggers are unchanged, plus the vision cone
+-- (checkVision) which raises exactly the doorway alert.
+--
+-- "Searching" is the pause after a Smoke Bomb took the target away
+-- (GuardianService.confuse): the guard stands and looks around, then takes
+-- its next job through nextJob like any other ending.
+
+--- Per-zone switch set by the debug commands (nil = PatrolConfig decides).
+local patrolOverride: { [number]: boolean } = {}
+--- While > 0 every guard sleeps at its post. Counted, so overlapping test
+--- runners (MuseumTests) cannot switch patrols back on under each other.
+local patrolSuspensions = 0
+
+--- The loop for one room, in world space at the guard's standing height:
+--- a rectangle between ROUTE_NEAR_Z and ROUTE_FAR_Z studs into the room (clear
+--- of the doorway line and of the display cases at the rear), clear of the
+--- ropes along the side walls and of the side exhibit on the room's +X wall
+--- (MuseumExhibits places it at local X = width / 2 - 10). Corner 1 is the
+--- one a Night reset snaps to. Empty when the room is too small.
+local function patrolRoute(zoneIndex: number, roomIndex: number, y: number): { Vector3 }
+	local frame = Layout.frame(zoneIndex, roomIndex)
+	local half = Layout.width(zoneIndex) / 2
+	local left = -(half - PatrolConfig.ROUTE_WALL_MARGIN)
+	local right = half - PatrolConfig.ROUTE_EXHIBIT_MARGIN
+	local near = PatrolConfig.ROUTE_NEAR_Z
+	local far = math.min(PatrolConfig.ROUTE_FAR_Z, Layout.DEPTH - 18)
+	local route: { Vector3 } = {}
+	if right - left < 12 or far - near < 4 then
+		return route
+	end
+	for _, corner in { Vector3.new(left, 0, near), Vector3.new(right, 0, near), Vector3.new(right, 0, far), Vector3.new(left, 0, far) } do
+		local world = frame:PointToWorldSpace(corner)
+		table.insert(route, Vector3.new(world.X, y, world.Z))
+	end
+	return route
+end
+
+--- Whether this guard's resting state is Patrolling right now.
+local function patrolActive(guardian: Guardian): boolean
+	if patrolSuspensions > 0 or #guardian.patrol < 2 then
+		return false
+	end
+	local override = patrolOverride[guardian.zoneIndex]
+	if override ~= nil then
+		return override
+	end
+	return PatrolConfig.ENABLED and guardian.zoneIndex >= PatrolConfig.MIN_ZONE
+end
+
+local function nearestWaypoint(guardian: Guardian): number
+	local root = guardian.root
+	local best, bestDistance = 1, math.huge
+	if root then
+		for index, point in guardian.patrol do
+			local distance = (Vector3.new(point.X, 0, point.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
+			if distance < bestDistance then
+				best, bestDistance = index, distance
+			end
+		end
+	end
+	return best
+end
+
+--- Where a guard with nothing to do walks back to: its post, or its patrol.
+local function restGoal(guardian: Guardian): Vector3
+	if patrolActive(guardian) then
+		return guardian.patrol[math.clamp(guardian.patrolIndex, 1, #guardian.patrol)]
+	end
+	return guardian.home.Position
+end
+
+--- Starts (or resumes) the patrol. `snap` puts the guard on corner 1 at once
+--- (start, Night reset, a switch); otherwise it carries on from where it is,
+--- toward the waypoint it was walking back to.
+local function enterPatrol(guardian: Guardian, snap: boolean)
+	local root = guardian.root
+	local route = guardian.patrol
+	if not root or #route < 2 then
+		enterSleep(guardian)
+		return
+	end
+	releaseTarget(guardian)
+	guardian.lootId = nil
+	standUp(guardian)
+	if snap then
+		guardian.patrolIndex = 2
+		local at, facing = route[1], route[2]
+		root.CFrame = CFrame.lookAt(at, Vector3.new(facing.X, at.Y, facing.Z))
+		root.AssemblyLinearVelocity = Vector3.zero
+	else
+		guardian.patrolIndex = math.clamp(guardian.patrolIndex, 1, #route)
+	end
+	guardian.state = "Patrolling"
+	guardian.baseSpeed = PatrolConfig.SPEED
+	guardian.currentSpeed = math.min(guardian.currentSpeed, PatrolConfig.SPEED)
+	guardian.pauseUntil = 0
+	guardian.nextScanAt = os.clock() + SCAN_INTERVAL
+	resetSteering(guardian)
+	publishState(guardian)
+end
+
+--- THE ONE WAY a guard goes back to resting: asleep at its post, or on patrol.
+local function enterRest(guardian: Guardian, snap: boolean)
+	if patrolActive(guardian) then
+		enterPatrol(guardian, snap)
+	else
+		enterSleep(guardian)
+	end
+end
+
+--- Lost the target in the smoke: stand and look around for `seconds`.
+local function enterSearch(guardian: Guardian, seconds: number)
+	releaseTarget(guardian)
+	guardian.state = "Searching"
+	guardian.searchUntil = os.clock() + seconds
+	resetSteering(guardian)
+	if guardian.humanoid then
+		guardian.humanoid:Move(Vector3.zero, false)
+	end
+	publishState(guardian)
+end
+
+--- A resting guard whose rest state no longer matches the switches is moved
+--- to the right one at once (a debug toggle, a test suspending patrols).
+--- Busy guards are left alone; they pick the new rest when their job ends.
+local function refreshRest(zoneIndex: number?)
+	for _, guardian in guardians do
+		if zoneIndex ~= nil and guardian.zoneIndex ~= zoneIndex then
+			continue
+		end
+		local state = guardian.state
+		if (state == "Sleeping" or state == "Patrolling") and patrolActive(guardian) ~= (state == "Patrolling") then
+			enterRest(guardian, true)
+		end
+	end
+end
+
+--- Debug: force patrols on or off in one zone (nil = back to PatrolConfig).
+function GuardianService.setPatrolOverride(zoneIndex: number, on: boolean?)
+	(patrolOverride :: any)[zoneIndex] = on -- nil clears the override
+	refreshRest(zoneIndex)
+end
+
+--- Test runners: `true` puts every resting guard to sleep at its post until
+--- the matching `false`. Counted.
+function GuardianService.suspendPatrols(on: boolean)
+	patrolSuspensions = math.max(0, patrolSuspensions + (if on then 1 else -1))
+	refreshRest(nil)
+end
+
+--- Debug/reporting: every guard's patrol state.
+function GuardianService.patrolSnapshot(): { [string]: any }
+	local out = {}
+	for _, guardian in guardians do
+		local root = guardian.root
+		out[ZoneConfig.Zones[guardian.zoneIndex].id .. "_Room" .. guardian.roomIndex] = {
+			state = guardian.state,
+			patrolActive = patrolActive(guardian),
+			override = patrolOverride[guardian.zoneIndex],
+			waypoints = #guardian.patrol,
+			heading = guardian.patrolIndex,
+			position = if root then string.format("%.0f,%.0f", root.Position.X, root.Position.Z) else nil,
+		}
+	end
+	out._suspended = patrolSuspensions
+	return out
+end
+
+--- THE SMOKE BOMB. Every museum guard currently chasing `player` (Waking or
+--- Chasing) loses them and stands Searching for `searchSeconds` (default
+--- `seconds`); for `seconds` nobody can take the player as a target (no
+--- doorway alert, no laser wake, no vision, no scan). Loot they carry outside
+--- its room is shaken (see SMOKE at the top). Returns how many guards lost
+--- the player. The doorway grace, the laser leash and everything else in the
+--- chase are untouched: this only ends chases through releaseTarget.
+function GuardianService.confuse(player: Player, seconds: number, searchSeconds: number?): number
+	if type(seconds) ~= "number" or seconds ~= seconds or seconds <= 0 then
+		return 0
+	end
+	local now = os.clock()
+	confusedUntil[player] = math.max(confusedUntil[player] or 0, now + math.min(seconds, 10))
+	local carried = GuardianService.alarmLootFor(player)
+	if carried and carried.carrier == player and carried.state == "Carried" and exitedLoot[carried.id] then
+		exitedLoot[carried.id] = nil
+		shakenLoot[carried.id] = player
+	end
+	local count = 0
+	for _, guardian in guardians do
+		if guardian.target == player and (guardian.state == "Waking" or guardian.state == "Chasing") then
+			enterSearch(guardian, math.min(searchSeconds or seconds, 10))
+			count += 1
+		end
+	end
+	return count
 end
 
 --- Takes a carrier as THE target. From sleep it is the shocked Waking beat
@@ -1282,6 +1523,10 @@ local function goHome(guardian: Guardian)
 	releaseTarget(guardian)
 	guardian.state = "Returning"
 	guardian.baseSpeed = guardianSpeed(guardian.zoneIndex)
+	-- A patrolling guard walks back to the nearest corner of its loop.
+	if patrolActive(guardian) then
+		guardian.patrolIndex = nearestWaypoint(guardian)
+	end
 	resetSteering(guardian)
 	publishState(guardian)
 	-- No MoveTo. `step` steers home every frame, same as it chases.
@@ -1322,7 +1567,7 @@ function GuardianService.engage(loot: LootService.LootInstance, _thief: Player)
 	if state == "Sleeping" then
 		standUp(guardian)
 		beginChase(guardian, carrier, true)
-	elseif state == "Returning" or state == "Recovering" or guardian.alarm then
+	elseif state == "Returning" or state == "Recovering" or state == "Patrolling" or state == "Searching" or guardian.alarm then
 		beginChase(guardian, carrier, false)
 	end
 end
@@ -1342,11 +1587,16 @@ function GuardianService.alarm(zoneIndex: number, player: Player, roomIndex: num
 		or guardian.humanoid:GetAttribute("Rooted") or RagdollService.isImmune(player)
 		or not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0
 		or isBehindSafeLine(root.Position) or LootService.isClosed() then return false end
+	-- A smoked player cannot wake anyone for the smoke window (GuardianService.confuse).
+	if GuardianService.isConfused(player) then return false end
 	if guardian.state == "Waking" or guardian.state == "Chasing" then return false end
 	local asleep = guardian.state == "Sleeping"
 	if asleep then standUp(guardian) end
+	-- A patrolling or searching guard was not alerted yet: it gets the same
+	-- wake beat a sleeping one does.
+	local fresh = asleep or guardian.state == "Patrolling" or guardian.state == "Searching"
 	beginChase(guardian, { player = player, root = root, loot = GuardianService.alarmLootFor(player), alarm = true,
-		distance = flatDistance(root.Position, guardian.root.Position) }, asleep)
+		distance = flatDistance(root.Position, guardian.root.Position) }, fresh)
 	return true
 end
 
@@ -1360,7 +1610,7 @@ function GuardianService.noticeDrop(loot: LootService.LootInstance)
 	if guardian.state == "Sleeping" then
 		standUp(guardian)
 		beginRecovery(guardian, loot)
-	elseif guardian.state == "Returning" then
+	elseif guardian.state == "Returning" or guardian.state == "Patrolling" then
 		beginRecovery(guardian, loot)
 	end
 end
@@ -1378,11 +1628,14 @@ end
 
 --- Night: every chase ends this instant and every guardian is back asleep on
 --- its post - not walking home, HOME - with every thief's warning cleared.
---- Loot a guardian was carrying goes straight back to its socket.
+--- Loot a guardian was carrying goes straight back to its socket. A
+--- patrolling zone's guards are put back on corner 1 of their loop instead.
 function GuardianService.resetAll()
 	table.clear(exitedLoot)
+	table.clear(shakenLoot)
+	table.clear(confusedUntil)
 	for _, guardian in guardians do
-		if guardian.state == "Sleeping" then
+		if guardian.state == "Sleeping" and not patrolActive(guardian) then
 			continue
 		end
 		releaseTarget(guardian)
@@ -1393,7 +1646,7 @@ function GuardianService.resetAll()
 		if guardian.humanoid then
 			guardian.humanoid:Move(Vector3.zero, false)
 		end
-		enterSleep(guardian)
+		enterRest(guardian, true)
 	end
 end
 
@@ -1503,11 +1756,14 @@ GuardianService.WALK_RATE_MAX = WALK_RATE_MAX
 --- the costume's Humanoid, which replicate through the Animator on their own,
 --- and they are only started, stopped and re-paced - not rewritten per frame.
 --- The re-pace is skipped unless the rate actually moved.
+local WALK_REST = CFrame.Angles(WALK_LEAN, 0, 0)
 local POSE_RESTS: { [string]: CFrame } = {
 	Sleeping = CFrame.Angles(math.rad(14), 0, 0),
 	Waking = CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+	-- A patrol is a stroll for every costume, never the sprint lean.
+	Patrolling = WALK_REST,
+	Searching = CFrame.new(0, 0.1, 0) * CFrame.Angles(math.rad(-4), 0, 0),
 }
-local WALK_REST = CFrame.Angles(WALK_LEAN, 0, 0)
 local RUN_REST = CFrame.Angles(RUN_LEAN, 0, 0)
 --- Smallest walk-cycle rate change worth replicating.
 local WALK_RATE_EPSILON = 0.05
@@ -1543,7 +1799,7 @@ local function animateShell(guardian: Guardian, _now: number)
 		idle:Stop(0.15)
 	end
 
-	if state == "Waking" then
+	if state == "Waking" or state == "Searching" then
 		if track and track.IsPlaying then
 			track:Stop(0.1)
 		end
@@ -1554,12 +1810,20 @@ local function animateShell(guardian: Guardian, _now: number)
 		-- WALKING, the Roblox way. Paced from real velocity rather than from
 		-- WalkSpeed, so a guardian jammed on a corner or easing into a turn
 		-- strides at the pace it is actually moving.
-		if not track.IsPlaying then
-			track:Play(0.2)
-		end
 		local root = guardian.root
 		local velocity = if root then root.AssemblyLinearVelocity else Vector3.zero
 		local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+		-- A patrol standing at a corner stands still rather than marching on
+		-- the spot at the minimum rate.
+		if state == "Patrolling" and speed < 0.5 then
+			if track.IsPlaying then
+				track:Stop(0.2)
+			end
+			return
+		end
+		if not track.IsPlaying then
+			track:Play(0.2)
+		end
 		local rate = math.clamp(speed / guardian.walkSpeedPerRate, WALK_RATE_MIN, WALK_RATE_MAX)
 		if math.abs(track.Speed - rate) > WALK_RATE_EPSILON then
 			track:AdjustSpeed(rate)
@@ -1751,6 +2015,56 @@ local function stepEscort(guardian: Guardian, _humanoid: Humanoid, _root: BasePa
 	nextJob(guardian)
 end
 
+--- One frame of a patrol (PATROLS AND SEARCHING). The same steering, pace
+--- easing and stuck recovery as every other walk; no raycasts of its own.
+local function stepPatrol(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
+	local route = guardian.patrol
+	if not patrolActive(guardian) then
+		-- Switched off mid-walk: back to the post, to sleep there.
+		goHome(guardian)
+		return
+	end
+	-- Work outranks the patrol, exactly as it outranks the walk home.
+	if now >= guardian.nextScanAt then
+		guardian.nextScanAt = now + SCAN_INTERVAL
+		local carrier = nearestCarrier(guardian, nil)
+		if carrier then
+			beginChase(guardian, carrier, false)
+			return
+		end
+		local drop = nearestDrop(guardian)
+		if drop then
+			beginRecovery(guardian, drop)
+			return
+		end
+	end
+	if now < guardian.pauseUntil then
+		humanoid:Move(Vector3.zero, false)
+		return
+	end
+	local index = math.clamp(guardian.patrolIndex, 1, #route)
+	driveSpeed(guardian, humanoid, PatrolConfig.SPEED, dt)
+	local distance = steer(guardian, humanoid, root, route[index], now, dt)
+	if arrived(guardian, distance, PatrolConfig.WAYPOINT_REACH, now) then
+		guardian.patrolIndex = index % #route + 1
+		guardian.pauseUntil = now + PatrolConfig.CORNER_PAUSE
+		humanoid:Move(Vector3.zero, false)
+		resetSteering(guardian)
+	end
+end
+
+--- Searching: stand, look left and right, then the next job (usually home).
+local SEARCH_TURN_RATE = 1.8
+local function stepSearch(guardian: Guardian, humanoid: Humanoid, root: BasePart, now: number, dt: number)
+	if now >= guardian.searchUntil then
+		nextJob(guardian)
+		return
+	end
+	humanoid:Move(Vector3.zero, false)
+	driveSpeed(guardian, humanoid, 0, dt)
+	root.CFrame = root.CFrame * CFrame.Angles(0, math.sin(now * 2.4) * SEARCH_TURN_RATE * dt, 0)
+end
+
 -- ==========================================================
 -- MUSEUM DOORWAYS
 -- ==========================================================
@@ -1787,7 +2101,7 @@ local function doorwayExit(loot: LootService.LootInstance)
 	if state == "Sleeping" then
 		standUp(guardian)
 		beginChase(guardian, carrier, true, DOOR_GRACE)
-	elseif state == "Returning" or state == "Recovering" then
+	elseif state == "Returning" or state == "Recovering" or state == "Patrolling" or state == "Searching" then
 		beginChase(guardian, carrier, true, DOOR_GRACE)
 	end
 	-- Waking or Chasing someone else: the scan picks this carrier up when it
@@ -1811,7 +2125,85 @@ local function checkDoorways()
 			continue
 		end
 		local zone, room = Layout.locate(root.Position)
-		if zone ~= loot.zoneIndex or room ~= Layout.roomOfSocket(loot.socketIndex) then
+		if zone == loot.zoneIndex and room == Layout.roomOfSocket(loot.socketIndex) then
+			-- Back inside its room: a smoked exit no longer protects it.
+			shakenLoot[loot.id] = nil
+			continue
+		end
+		-- SMOKE (gadgets-patrols): lost in the smoke, or slipping out under it.
+		if shakenLoot[loot.id] == player then
+			continue
+		end
+		if GuardianService.isConfused(player) then
+			shakenLoot[loot.id] = player
+			continue
+		end
+		doorwayExit(loot)
+	end
+end
+
+-- ==========================================================
+-- VISION CONE (gadgets-patrols area)
+-- ==========================================================
+--
+-- A PATROLLING guard that sees a player carrying its OWN room's loot inside
+-- that room raises the doorway alert (doorwayExit: same grace, same chase).
+-- Cheap by construction: VISION_HZ, driven by carriers rather than guards
+-- (at most one guard to test per carrier), distance and angle before the one
+-- raycast, and the raycast reuses clearCatch's parameters.
+
+local VISION_INTERVAL = 1 / PatrolConfig.VISION_HZ
+local VISION_COS = math.cos(math.rad(PatrolConfig.VISION_ANGLE / 2))
+local nextVisionCheck = 0
+
+--- Whether this guard's cone and line of sight reach `target`.
+function GuardianService.canSee(zoneIndex: number, roomIndex: number, target: Vector3): boolean
+	local guardian = guardians[Layout.key(zoneIndex, roomIndex)]
+	local root = guardian and guardian.root
+	if not root then
+		return false
+	end
+	local offset = Vector3.new(target.X - root.Position.X, 0, target.Z - root.Position.Z)
+	local distance = offset.Magnitude
+	if distance > PatrolConfig.VISION_RANGE then
+		return false
+	end
+	if distance > 0.5 then
+		local look = root.CFrame.LookVector
+		local facing = Vector3.new(look.X, 0, look.Z)
+		if facing.Magnitude < 0.01 or facing.Unit:Dot(offset.Unit) < VISION_COS then
+			return false
+		end
+	end
+	return clearCatch(root.Position, target)
+end
+
+local function checkVision()
+	if not PatrolConfig.VISION_ENABLED or LootService.isClosed() then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		local loot = GuardianService.alarmLootFor(player)
+		if not loot or loot.state ~= "Carried" or loot.carrier ~= player or exitedLoot[loot.id]
+			or loot.zoneIndex < 1 or loot.socketIndex < 1 or GuardianService.isConfused(player) then
+			continue
+		end
+		local roomIndex = Layout.roomOfSocket(loot.socketIndex)
+		local guardian = guardians[Layout.key(loot.zoneIndex, roomIndex)]
+		if not guardian or guardian.state ~= "Patrolling" then
+			continue
+		end
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not root or not root:IsA("BasePart") then
+			continue
+		end
+		-- Only a carrier still inside the room: outside it the doorway rule rules.
+		local zone, room = Layout.locate(root.Position)
+		if zone ~= loot.zoneIndex or room ~= roomIndex then
+			continue
+		end
+		if GuardianService.canSee(loot.zoneIndex, roomIndex, root.Position) then
 			doorwayExit(loot)
 		end
 	end
@@ -1822,6 +2214,10 @@ local function step(dt: number)
 	if now >= nextDoorwayCheck then
 		nextDoorwayCheck = now + DOORWAY_INTERVAL
 		checkDoorways()
+	end
+	if now >= nextVisionCheck then
+		nextVisionCheck = now + VISION_INTERVAL
+		checkVision()
 	end
 
 	for _, guardian in guardians do
@@ -1868,12 +2264,24 @@ local function step(dt: number)
 				end
 			end
 			driveSpeed(guardian, humanoid, guardian.baseSpeed, dt)
-			local distance = steer(guardian, humanoid, root, guardian.home.Position, now, dt)
+			-- Home is the post, or the patrol loop (restGoal).
+			local goal = restGoal(guardian)
+			local distance = steer(guardian, humanoid, root, goal, now, dt)
 			-- Cheap distance first; the raycast only near home (see stepRecovery).
-			if distance <= HOME_REACH * ARRIVE_STALL_REACH and clearCatch(root.Position, guardian.home.Position)
+			if distance <= HOME_REACH * ARRIVE_STALL_REACH and clearCatch(root.Position, goal)
 				and arrived(guardian, distance, HOME_REACH, now) then
-				enterSleep(guardian)
+				enterRest(guardian, false)
 			end
+			continue
+		end
+
+		if state == "Patrolling" then
+			stepPatrol(guardian, humanoid, root, now, dt)
+			continue
+		end
+
+		if state == "Searching" then
+			stepSearch(guardian, humanoid, root, now, dt)
 			continue
 		end
 
@@ -1957,7 +2365,13 @@ function GuardianService.start()
 				bestDistance = math.huge,
 				bestAt = 0,
 				walkSpeedPerRate = 1,
+				patrol = {},
+				patrolIndex = 1,
+				pauseUntil = 0,
+				searchUntil = 0,
 			}
+			-- The loop is measured at the height the guard stands at its post.
+			guardian.patrol = patrolRoute(zoneIndex, roomIndex, guardian.home.Position.Y)
 
 			humanoid.WalkSpeed = guardianSpeed(zoneIndex)
 			humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
@@ -1989,7 +2403,8 @@ function GuardianService.start()
 			model.Name ..= "_Room" .. roomIndex
 			model:SetAttribute("ZoneIndex", zoneIndex)
 			model:SetAttribute("RoomIndex", roomIndex)
-			enterSleep(guardian)
+			-- Asleep at the post, or out on patrol in the later zones.
+			enterRest(guardian, true)
 		end
 	end
 
@@ -2004,11 +2419,18 @@ function GuardianService.start()
 		elseif next == "Returning" or next == "Placed" or next == "Spawned" or next == "Retired" then
 			GuardianService.stopChaseFor(loot)
 			exitedLoot[loot.id] = nil -- back in its case: the next steal is quiet again
+			shakenLoot[loot.id] = nil
 		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		externalChasers[player] = nil
+		confusedUntil[player] = nil
+		for id, holder in shakenLoot do
+			if holder == player then
+				shakenLoot[id] = nil
+			end
+		end
 		for _, guardian in guardians do
 			if guardian.target == player then
 				releaseTarget(guardian)
@@ -2126,6 +2548,8 @@ function GuardianService.inspect(zoneIndex: number, roomIndex: number?): { [stri
 		distance = distance,
 		position = if root then root.Position else nil,
 		rooted = guardian.humanoid and guardian.humanoid:GetAttribute("Rooted") == true,
+		patrolActive = patrolActive(guardian),
+		searching = guardian.state == "Searching",
 	}
 end
 
