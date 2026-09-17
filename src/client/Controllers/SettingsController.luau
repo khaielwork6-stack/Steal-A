@@ -24,6 +24,21 @@
 	Applied locally the instant a control moves; saved through SettingsRequest
 	so it survives a rejoin; restored from StatePush.settings on join. Roblox's
 	own volume is untouched - these are mixer buses inside the game.
+
+	PANEL LAYOUT (round3-ui-base-settings, see `arrange`)
+	  * CODES is a bar pinned ABOVE the list (CodesController.attach), so it
+	    is always first and its TextBox stays out of the clip guard.
+	  * The list is Music, Sound Effects, Shadows, VFX, Graphics, Auto Reveal
+	    - forced by LayoutOrder with SortOrder = LayoutOrder (the pack's
+	    order is not trusted: sorted by Name, "AutoReveal" came first).
+	  * Every row keeps the width / height ratio the pack authored (measured
+	    once), written as a pixel height so the list can use
+	    AutomaticCanvasSize without the rows growing with the canvas; rows
+	    never go below a touch-safe height. The canvas therefore always fits
+	    the rows, including the added ones.
+	  * The list is wrapped by ClipSafe.guard and watched by ClipSafe.watch:
+	    the stray green "ON" over the title was a pack toggle drawing outside
+	    the list; nothing inside the list can do that any more.
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -33,6 +48,8 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -46,6 +63,7 @@ local BaseEarningsController = require(script.Parent.BaseEarningsController)
 local AttractionSignController = require(script.Parent.AttractionSignController)
 local HatchController = require(script.Parent.HatchController)
 local SpinWheelController = require(script.Parent.SpinWheelController)
+local CodesController = require(script.Parent.CodesController)
 
 local SettingsController = {}
 
@@ -62,7 +80,21 @@ local restored = false
 
 local ON_COLOR = Color3.fromRGB(88, 220, 110)
 local OFF_COLOR = Color3.fromRGB(232, 74, 78)
-local IDLE_COLOR = Color3.fromRGB(120, 128, 146)
+local IDLE_COLOR = Color3.fromRGB(96, 104, 124)
+
+-- [round3-ui-base-settings] Row geometry (see `arrange`).
+--- Row order in the list; anything else keeps its order after these.
+local ROW_ORDER: { [string]: number } = { Music = 10, Sound_Effects = 20, Shadows = 30, VFX = 40, Graphics = 50, AutoReveal = 60 }
+--- Width / height used when a row could not be measured.
+local DEFAULT_RATIO = 6.5
+--- Smallest row height in screen pixels (the toggles sit inside it).
+local MIN_ROW_TOUCH = 62
+local MIN_ROW_DESKTOP = 42
+--- The CODES bar is this much taller than a toggle row (box + result line).
+local CODES_HEIGHT = 1.45
+local MIN_CODES_TOUCH = 92
+local MIN_CODES_DESKTOP = 66
+local LIST_GAP = 8
 
 -- ==========================================================
 -- APPLY
@@ -253,6 +285,13 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 	if label and title and title:IsA("TextLabel") then
 		title.Text = label
 	end
+	-- [round3-ui-base-settings] Readable at the 0.72 phone scale.
+	if title and title:IsA("TextLabel") then
+		local limit = title:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
+		limit.MinTextSize = 12
+		limit.MaxTextSize = math.max(limit.MaxTextSize, 30)
+		limit.Parent = title
+	end
 
 	local function face(button: GuiButton): GuiObject?
 		local inner = button:FindFirstChild("Frame")
@@ -262,9 +301,13 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 	-- The word on each button, since the pack's art carries none.
 	local onWord = if words then words[1] else "ON"
 	local offWord = if words then words[2] else "OFF"
+	local wordLabels: { [GuiButton]: TextLabel } = {}
 	for _, pair in { { onButton, onWord }, { offButton, offWord } } do
 		local button = pair[1] :: GuiButton
-		if not button:FindFirstChild("Word") then
+		local existing = button:FindFirstChild("Word")
+		if existing and existing:IsA("TextLabel") then
+			wordLabels[button] = existing
+		else
 			local word = Instance.new("TextLabel")
 			word.Name = "Word"
 			word.BackgroundTransparency = 1
@@ -277,6 +320,7 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 			word.Text = pair[2] :: string
 			word.ZIndex = 7
 			word.Parent = button
+			wordLabels[button] = word
 		end
 	end
 
@@ -292,6 +336,15 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 		end
 		onButton.BackgroundTransparency = if state then 0 else 0.35
 		offButton.BackgroundTransparency = if state then 0.35 else 0
+		-- The chosen word is bright, the other one clearly faded.
+		local onLabel = wordLabels[onButton]
+		local offLabel = wordLabels[offButton]
+		if onLabel then
+			onLabel.TextTransparency = if state then 0 else 0.5
+		end
+		if offLabel then
+			offLabel.TextTransparency = if state then 0.5 else 0
+		end
 	end
 	paint()
 
@@ -323,6 +376,169 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 end
 
 -- ==========================================================
+-- LAYOUT  (round3-ui-base-settings)
+-- ==========================================================
+
+local function authoredRatio(row: GuiObject): number?
+	local size = row.AbsoluteSize
+	if size.X > 4 and size.Y > 4 then
+		return size.X / size.Y
+	end
+	return nil
+end
+
+--- Orders and sizes the rows, pins the CODES bar above the list and wraps
+--- the list in the clip guard. Yields until the pack's own layout has been
+--- computed once, because the row proportions are read from it.
+local function arrange(panel: GuiObject, list: ScrollingFrame, codesTemplate: GuiObject?)
+	-- Sizes are computed for a closed panel too; if they are not yet, wait
+	-- for the first open.
+	for _ = 1, 30 do
+		local shadows = list:FindFirstChild("Shadows")
+		if list.AbsoluteSize.X > 0 and shadows and shadows:IsA("GuiObject") and shadows.AbsoluteSize.Y > 0 then
+			break
+		end
+		task.wait()
+	end
+	if list.AbsoluteSize.X <= 0 and not panel.Visible then
+		panel:GetPropertyChangedSignal("Visible"):Wait()
+		task.wait()
+	end
+
+	-- ---------- measure (before anything moves) ----------
+	local shadows = list:FindFirstChild("Shadows")
+	local base = if shadows and shadows:IsA("GuiObject") then authoredRatio(shadows) else nil
+	local baseRatio = base or DEFAULT_RATIO
+	local ratios: { [GuiObject]: number } = {}
+	for _, child in list:GetChildren() do
+		if child:IsA("GuiObject") then
+			-- Copies of Shadows share its shape even while still hidden.
+			local copy = child.Name == "Graphics" or child.Name == "AutoReveal"
+			ratios[child] = if copy then baseRatio else (authoredRatio(child) or baseRatio)
+		end
+	end
+
+	-- ---------- order + layout ----------
+	for row in ratios do
+		local order = ROW_ORDER[row.Name]
+		row.LayoutOrder = order or (100 + row.LayoutOrder)
+		-- The height is ours now; an aspect lock would fight it.
+		for _, constraint in row:GetChildren() do
+			if constraint:IsA("UIAspectRatioConstraint") then
+				constraint:Destroy()
+			end
+		end
+	end
+	local grid = list:FindFirstChildOfClass("UIGridLayout")
+	if grid then
+		grid:Destroy() -- fixed cells would override the row heights
+	end
+	local layout = list:FindFirstChildOfClass("UIListLayout")
+	if not layout then
+		local made = Instance.new("UIListLayout")
+		made.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		made.Padding = UDim.new(0, LIST_GAP)
+		made.Parent = list
+		layout = made
+	end
+	;(layout :: UIListLayout).SortOrder = Enum.SortOrder.LayoutOrder
+	if not list:FindFirstChildOfClass("UIPadding") then
+		local padding = Instance.new("UIPadding")
+		padding.PaddingTop = UDim.new(0, 6)
+		padding.PaddingBottom = UDim.new(0, 12)
+		padding.Parent = list
+	end
+	list.ScrollingEnabled = true
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
+	list.ScrollBarThickness = if Device.isTouch() then 8 else 6
+	list.CanvasSize = UDim2.new()
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.ClipsDescendants = true
+
+	-- ---------- clip guard + pinned CODES bar ----------
+	local group = ClipSafe.guard(list)
+	local inner: GuiObject = group or list
+	local holder = Instance.new("Frame")
+	holder.Name = "SettingsBody"
+	holder.BackgroundTransparency = 1
+	holder.AnchorPoint = inner.AnchorPoint
+	holder.Position = inner.Position
+	holder.Size = inner.Size
+	holder.ZIndex = inner.ZIndex
+	holder.Parent = inner.Parent
+	inner.AnchorPoint = Vector2.zero
+	inner.Position = UDim2.new()
+	inner.Size = UDim2.fromScale(1, 1)
+	inner.Parent = holder
+	ClipSafe.watch(list)
+
+	local shadowsRow = if shadows and shadows:IsA("GuiObject") then shadows else nil
+	local rowWidth = if shadowsRow then shadowsRow.Size.X else UDim.new(0.95, 0)
+	local bar = Instance.new("Frame")
+	bar.Name = "CodesBar"
+	bar.BackgroundTransparency = 1
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.new(0.5, 0, 0, 2)
+	bar.Size = UDim2.new(rowWidth.Scale, rowWidth.Offset, 0, 80)
+	bar.ZIndex = holder.ZIndex
+	bar.Parent = holder
+	local built = pcall(function()
+		CodesController.attach(bar, codesTemplate)
+	end)
+	if not built then
+		warn("[SettingsController] the CODES bar could not be built.")
+		bar:Destroy()
+	end
+
+	-- ---------- heights (pixel-exact, follow the panel's size) ----------
+	local lastSignature = ""
+	local function resize()
+		local window = list.AbsoluteWindowSize.X
+		if window <= 0 then
+			return
+		end
+		local factor = ClipSafe.scaleChain(list)
+		local touch = Device.isTouch()
+		local minRow = if touch then MIN_ROW_TOUCH else MIN_ROW_DESKTOP
+		local heights: { [GuiObject]: number } = {}
+		local parts = {}
+		for row, ratio in ratios do
+			if row.Parent == list then
+				local widthPx = window * row.Size.X.Scale + row.Size.X.Offset * factor
+				local height = math.floor(math.max(widthPx / ratio, minRow) / factor + 0.5)
+				heights[row] = height
+				table.insert(parts, height)
+			end
+		end
+		local shadowsHeight = if shadowsRow and heights[shadowsRow] then heights[shadowsRow] * factor else minRow
+		local minCodes = if touch then MIN_CODES_TOUCH else MIN_CODES_DESKTOP
+		local codesHeight = math.floor(math.max(shadowsHeight * CODES_HEIGHT, minCodes) / factor + 0.5)
+		table.insert(parts, codesHeight)
+		local signature = table.concat(parts, ",")
+		if signature == lastSignature then
+			return
+		end
+		lastSignature = signature
+		for row, height in heights do
+			row.Size = UDim2.new(row.Size.X.Scale, row.Size.X.Offset, 0, height)
+		end
+		if bar.Parent then
+			bar.Size = UDim2.new(rowWidth.Scale, rowWidth.Offset, 0, codesHeight)
+			inner.Position = UDim2.fromOffset(0, codesHeight + LIST_GAP)
+			inner.Size = UDim2.new(1, 0, 1, -(codesHeight + LIST_GAP))
+		else
+			inner.Position = UDim2.new()
+			inner.Size = UDim2.fromScale(1, 1)
+		end
+	end
+	task.wait()
+	resize()
+	holder:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		task.defer(resize)
+	end)
+end
+
+-- ==========================================================
 -- START
 -- ==========================================================
 
@@ -332,12 +548,18 @@ function SettingsController.start()
 	local frames = ui and ui:FindFirstChild("Frames")
 	local panel = frames and frames:FindFirstChild("Settings")
 	local list = panel and panel:FindFirstChild("ScrollingFrame")
-	if not list then
+	if not panel or not panel:IsA("GuiObject") or not list or not list:IsA("ScrollingFrame") then
 		warn("[SettingsController] Frames.Settings.ScrollingFrame not found - settings disabled.")
 		return
 	end
 
 	applyAll()
+
+	-- [round3-ui-base-settings] A pristine copy of the Shadows row for the
+	-- CODES bar's look, taken before any row is bound (no captions, no
+	-- connections). Parented nowhere.
+	local shadowsSource = list:FindFirstChild("Shadows")
+	local codesTemplate: GuiObject? = if shadowsSource and shadowsSource:IsA("GuiObject") then shadowsSource:Clone() else nil
 
 	local setMusic: ((number) -> ())? = nil
 	local setSfx: ((number) -> ())? = nil
@@ -438,6 +660,18 @@ function SettingsController.start()
 			end
 		end)
 	end
+
+	-- [round3-ui-base-settings] Order, sizes, canvas, CODES bar, clip guard.
+	local settingsPanel = panel :: GuiObject
+	local settingsList = list :: ScrollingFrame
+	task.spawn(function()
+		local ok, err = pcall(function()
+			arrange(settingsPanel, settingsList, codesTemplate)
+		end)
+		if not ok then
+			warn(`[SettingsController] panel layout failed: {err}`)
+		end
+	end)
 
 	-- Restore from the save on the first push that carries settings; later
 	-- pushes echo what we sent, so only a genuine difference repaints.

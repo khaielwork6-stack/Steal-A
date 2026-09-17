@@ -87,6 +87,17 @@ BaseThemeConfig.DEFAULT_PEDESTAL = "Default"
 --- Requests per second on BaseThemeRequest, per player.
 BaseThemeConfig.REQUESTS_PER_SECOND = 3
 
+--- [round3-ui-base-settings] Icons for the Upgrades panel's tab bar and the
+--- BASE page's section headers. "rbxassetid://0" = placeholder: the pack's
+--- upgrade arrow for TREADMILL, a drawn mini plot for BASE, a drawn swatch
+--- for the sections. See docs/codex-prompts/round3.md.
+BaseThemeConfig.UiIcons = {
+	TabTreadmill = "rbxassetid://0",
+	TabBase = "rbxassetid://0",
+	SectionThemes = "rbxassetid://0",
+	SectionPedestals = "rbxassetid://0",
+} :: { [string]: string }
+
 -- ==========================================================
 -- THEMES (cheapest first; the order is the display order)
 -- ==========================================================

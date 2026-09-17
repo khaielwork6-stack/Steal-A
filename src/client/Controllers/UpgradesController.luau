@@ -77,6 +77,12 @@ local PRICE_RETRY_AFTER = 30
 -- Guards overlapping fit passes when the viewport changes rapidly.
 local fitToken = 0
 
+-- [round3-ui-base-settings] Extra panel scale while the BASE tab is open
+-- (BaseThemeController asks through the attach hook), and the fit pass to
+-- re-run when it changes. The fit pass still clamps the result to the screen.
+local contentBoost = 1
+local refitPanel: (() -> ())? = nil
+
 -- ==========================================================
 -- HELPERS
 -- ==========================================================
@@ -717,7 +723,15 @@ local function buildPanel(ui: ScreenGui): boolean
 	-- [fusion-autoreveal-bases] TREADMILL | BASE tabs and the BASE page
 	-- (themes, pedestal skins). Its own module; it only shrinks the card.
 	local attached, attachError = pcall(function()
-		require(script.Parent.BaseThemeController).attach(found, scroll, kept :: Frame)
+		require(script.Parent.BaseThemeController).attach(found, scroll, kept :: Frame, {
+			setBoost = function(value: number)
+				contentBoost = value
+				local refit = refitPanel
+				if refit then
+					refit()
+				end
+			end,
+		})
 	end)
 	if not attached then
 		warn(`[UpgradesController] BASE section failed: {attachError}`)
@@ -825,7 +839,7 @@ function UpgradesController.start()
 		local undoHud = if hudScale and hudScale.Scale > 0 then 1 / hudScale.Scale else 1
 		-- Short viewports get an extra nudge: height is what runs out first.
 		local shortBoost = math.clamp(420 / math.max(camera.ViewportSize.Y, 1), 1, 1.3)
-		local wanted = math.clamp(undoHud * shortBoost, 1, 1.75)
+		local wanted = math.clamp(undoHud * shortBoost * contentBoost, 1, 1.75 * contentBoost)
 		;(panelScale :: UIScale).Scale = wanted
 
 		-- Then shrink until it actually fits. The pack's header is anchored at
@@ -849,7 +863,14 @@ function UpgradesController.start()
 				end
 				local top = header.AbsolutePosition.Y
 				local bottom = (panel :: Frame).AbsolutePosition.Y + (panel :: Frame).AbsoluteSize.Y
-				if (top >= 4 and bottom <= camera.ViewportSize.Y - 4) or (panelScale :: UIScale).Scale <= 0.85 then
+				-- Sideways too: the BASE boost makes the panel wider as well.
+				local left = (panel :: Frame).AbsolutePosition.X
+				local right = left + (panel :: Frame).AbsoluteSize.X
+				local fits = top >= 4
+					and bottom <= camera.ViewportSize.Y - 4
+					and left >= 4
+					and right <= camera.ViewportSize.X - 4
+				if fits or (panelScale :: UIScale).Scale <= 0.85 then
 					return
 				end
 				;(panelScale :: UIScale).Scale -= 0.05
@@ -857,6 +878,7 @@ function UpgradesController.start()
 		end)
 	end
 
+	refitPanel = applyPanelScale
 	applyPanelScale()
 	local camera = workspace.CurrentCamera
 	if camera then

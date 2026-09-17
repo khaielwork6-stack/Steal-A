@@ -1436,6 +1436,17 @@ return function(): Report
 		check(CrewConfig.BONUS_FRACTION <= 1, "the crew bonus is a fraction of the item's income")
 	end
 
+	-- ==========================================================
+	-- UPGRADES BASE TAB + SETTINGS ICONS (round3-ui-base-settings)
+	-- ==========================================================
+	do
+		local BaseThemeConfig = require(script.Parent.BaseThemeConfig)
+		for _, key in { "TabTreadmill", "TabBase", "SectionThemes", "SectionPedestals" } do
+			local icon = BaseThemeConfig.UiIcons[key]
+			check(type(icon) == "string" and string.sub(icon, 1, 13) == "rbxassetid://", `BaseThemeConfig.UiIcons.{key} must be an rbxassetid:// string`)
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
