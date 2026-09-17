@@ -1,6 +1,12 @@
 # Loot art review — 2026-09-16
 
-94 generated-mesh replacements; 2 items retain their original art. Each sheet contains eight actual Roblox front views and their black silhouettes.
+96 generated-mesh replacements; no items retain old art. Each sheet contains eight actual Roblox front views and their black silhouettes.
+
+## Final two items
+
+![Front, three-quarter and silhouette review](sheets/final-two-review.jpg)
+
+All 96 finished models are baked into the Edit place. Fresh Play reused all 96 with zero LoadAsset calls. The owner must Save and Publish the place to deploy these instances; see [BAKING.md](BAKING.md).
 
 ## zone01 museum
 

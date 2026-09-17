@@ -1,11 +1,11 @@
 {
-  "generated": 94,
-  "retainedOldArt": [
-    "SecretLab_SecretFormula",
-    "Grandma_CandyBowl"
-  ],
+  "generated": 96,
+  "retainedOldArt": [],
   "normalization": {
-    "ok": 96
+    "ok": 96,
+    "missing": 0,
+    "stale": 0,
+    "withoutArt": 0
   },
   "upright": {
     "items": 96,
@@ -15,14 +15,11 @@
   "assetAudit": {
     "maximumParts": 16,
     "failures": [],
-    "checks": 4318,
-    "generated": 94,
-    "scaleBuilds": 564,
-    "effectBuilds": 846,
-    "oldArt": [
-      "SecretLab_SecretFormula",
-      "Grandma_CandyBowl"
-    ]
+    "checks": 4410,
+    "generated": 96,
+    "scaleBuilds": 576,
+    "effectBuilds": 864,
+    "oldArt": []
   },
   "validate": {
     "passed": 1667,
@@ -79,10 +76,11 @@
     "failed": []
   },
   "boot": {
-    "generatedMeshes": 94,
-    "workers": 8,
-    "meshSeconds": 5.6067542,
-    "serverSeconds": 6.32,
+    "generatedMeshes": 96,
+    "cachedModels": 96,
+    "networkLoads": 0,
+    "meshSeconds": 0.0010881,
+    "serverSeconds": 0.99,
     "containers": 12,
     "sockets": 96
   },
@@ -125,7 +123,30 @@
     "speedPower": 1339738258
   },
   "limitations": [
-    "Two item generations unresolved; original art retained.",
-    "Actual mobile hardware performance not verified; Studio samples were approximately 15 FPS with both baseline and full base."
-  ]
+    "Owner must Save and Publish baked instances; published group-server verification remains pending.",
+    "Actual mobile hardware performance not verified; prior Studio samples were approximately 15 FPS with both baseline and full base."
+  ],
+  "oldArt": [],
+  "cachedModels": 96,
+  "runtimeLoadAssetCalls": 0,
+  "assetSetupSeconds": 0.0010881,
+  "serverBootSeconds": 0.99,
+  "visualReview": "Passed actual Roblox front, three-quarter and silhouette captures; final-two-review.jpg and refreshed zones 4, 9, 10.",
+  "publication": "Owner must Save and Publish the edited place; git alone does not deploy baked instances.",
+  "currentPassAccountChanges": "None; no grants or account fixtures used.",
+  "lootAudit": {
+    "items": 96,
+    "counts": {
+      "ok": 96
+    },
+    "note": "* = computed on the fly (no row yet); the paste-ready table was printed to the output"
+  },
+  "cleanup": {
+    "temporarySourcesRemoved": true,
+    "bakedModelsPreserved": 96,
+    "bakedParts": 382,
+    "originalArtBackupPreserved": true,
+    "containersPreserved": 12,
+    "studioLeftInEdit": true
+  }
 }

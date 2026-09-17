@@ -6,6 +6,25 @@ local InsertService = game:GetService("InsertService")
 local ServerStorage = game:GetService("ServerStorage")
 local LootModel = require(game:GetService("ReplicatedStorage").Shared.Util.LootModel)
 local Builder = {}
+-- Bump when shared authoring changes; per-item revisions cover local changes.
+local ART_VERSION = 2
+local networkLoads = 0
+local function loadAsset(assetId: number): Model
+ networkLoads += 1
+ return InsertService:LoadAsset(assetId)
+end
+local function versionFor(def: any): string
+ local base=string.format("%d:%d:%d",ART_VERSION,def.asset,def.revision or 1)
+ return if def.additionalAssets then base..":"..table.concat(def.additionalAssets,",") else base
+end
+local function isCurrent(model: Instance?, def: any): boolean
+ if not model or not model:IsA("Model") or not model.PrimaryPart then return false end
+ if model:GetAttribute("ProceduralItemArt")~=1 or model:GetAttribute("ItemArtVersion")~=versionFor(def) then return false end
+ if model:GetAttribute("ItemArtAssetId")~=def.asset or model:GetAttribute("ItemArtFallback") then return false end
+ local count=0
+ for _,part in model:GetDescendants() do if part:IsA("BasePart") then count+=1 end end
+ return count==model:GetAttribute("ItemArtPartCount")
+end
 -- Saved-place aliases remain intact. Unfinished replacements (or a transient
 -- published-asset outage) retain this exact prior art under the durable ID.
 local LEGACY_NAMES: {[string]: string} = {
@@ -17,8 +36,21 @@ local LEGACY_NAMES: {[string]: string} = {
 }
 type Finish = {material: Enum.Material?, color: Color3?, transparency: number?, glow: boolean?,
 	mode: string?, speed: number?, axis: string?, clearTexture: boolean?}
-type Definition = {asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
+type Definition = {revision: number?, additionalAssets: {number}?, asset: number, primary: string, meshes: {[string]: string}, finishes: {[string]: Finish}?, authorRotation: CFrame?}
 local DEFINITIONS: {[string]: Definition} = {
+	-- Studio MCP generate_mesh, 5136680d-1be8-4d88-8b53-67717387228d (2026-09-16).
+	-- Empty plate generated separately: 924d74e8-5a7d-4669-b489-082801c85101 / model 134967079944754.
+	Grandma_CandyBowl = {revision=2,asset=118335755745507,additionalAssets={134967079944754},primary="cookies_geom",meshes={
+		["cookies_geom"]="rbxassetid://125746011321253",
+		["plate_geom"]="rbxassetid://133374951030376",
+	},finishes={cookies_geom={material=Enum.Material.SmoothPlastic},plate_geom={material=Enum.Material.SmoothPlastic}}},
+	-- Separate Studio meshes: jar 6fb65bd2-fa43-4e82-8266-d6d75f248af7; creature 4e8d7e5f-b5c6-421e-85e1-8dc0522a5893.
+	SecretLab_SecretFormula = {asset=79232455189752,additionalAssets={123713422108541},primary="jar_geom",meshes={
+		["lid_geom"]="rbxassetid://90311349781801",
+		["jar_geom"]="rbxassetid://91204403336413",
+		["creature_geom"]="rbxassetid://135066657753512",
+	},finishes={jar_geom={material=Enum.Material.Glass,transparency=0.87,clearTexture=true,color=Color3.fromRGB(222,255,237)},lid_geom={material=Enum.Material.Metal},creature_geom={material=Enum.Material.SmoothPlastic,mode="Hover",speed=1.0}}},
+
 	-- Studio MCP generate_mesh, a3e1ebcb-a58e-4335-900e-a61d23584a73 (2026-09-16).
 	SecretLab_ChemicalCylinder = {asset=110305125083895, primary="cylinder_geom", meshes={
 		["window_geom"]="rbxassetid://84697275082637",
@@ -584,7 +616,7 @@ local DEFINITIONS: {[string]: Definition} = {
 		["crown_geom"] = "rbxassetid://90848254590877",
 	} },
 	-- Studio MCP generate_mesh, 5ceb5209-8f30-482d-973a-cb57135cf284 (2026-09-16).
-	Area51_AlienArtifact = { asset = 84840189777251, primary = "outer_frame_geom", meshes = {
+	Area51_AlienArtifact = { revision = 2, asset = 84840189777251, primary = "outer_frame_geom", meshes = {
 		["inverted_core_geom"] = "rbxassetid://113141367053240",
 		["outer_frame_geom"] = "rbxassetid://125908590874969",
 	} },
@@ -636,7 +668,7 @@ end
 -- Reusable generated halo accent from the Nemes Mask (Studio generate_mesh,
 -- fc853e38 job / model 74512256472323); never a primitive replacement body.
 local function generatedHalo(model: Model, name: string, cf: CFrame, size: Vector3): MeshPart
-	local imported = InsertService:LoadAsset(74512256472323)
+	local imported = loadAsset(74512256472323)
 	local ring = imported:FindFirstChild("outer_halo_geom", true)
 	assert(ring and ring:IsA("MeshPart") and ring.MeshId=="rbxassetid://100980557126559", "Generated halo mesh changed")
 	ring.Parent = model
@@ -769,8 +801,11 @@ local function decorate(model: Model, id: string)
 			CFrame.new(crown.Position + Vector3.new(crown.Size.X * 0.57, 0.35, 0)), purple)
 		motion(satellite, "Orbit", 0.5)
 	elseif id == "Area51_AlienArtifact" then
-		local core = mesh("inverted_core")
-		neon(core, Color3.fromRGB(88, 255, 32))
+		local frame,core = mesh("outer_frame"),mesh("inverted_core")
+  frame.TextureID=""
+  for _,d in frame:GetChildren() do if d:IsA("SurfaceAppearance") then d:Destroy() end end
+  frame.Color,frame.Material=Color3.fromRGB(12,15,19),Enum.Material.Metal
+  neon(core,Color3.fromRGB(88,255,32),true)
 		motion(core, "Spin", -0.4)
 	elseif id == "NorthPole_ChristmasStar" then
 		neon(mesh("inner_halo"), pearl, true)
@@ -830,7 +865,24 @@ local function finalDetails(model: Model, id: string)
    p.Shape=Enum.PartType.Block; p.Transparency=0.4
   end
  end
- if id=="Bank_CashBag" then
+
+ if id=="Grandma_CandyBowl" then
+  local cookies,plate=mesh("cookies"),mesh("plate")
+  plate.Size=Vector3.new(cookies.Size.X*1.12,cookies.Size.Y*0.10,cookies.Size.X*1.12)
+  plate.CFrame=CFrame.new(cookies.Position+Vector3.new(0,-cookies.Size.Y*0.5-plate.Size.Y*0.30,0))
+  accent(model,"WarmSugarGlint",Vector3.one*0.12,CFrame.new(cookies.Position+Vector3.new(cookies.Size.X*0.15,cookies.Size.Y*0.49,cookies.Size.Z*0.15)),Color3.fromRGB(255,208,125))
+ elseif id=="SecretLab_SecretFormula" then
+  local jar,lid,creature=mesh("jar"),mesh("lid"),mesh("creature")
+  jar.Size*=Vector3.new(1.25,0.70,1.25)
+  lid.Size*=Vector3.new(1.25,0.85,1.25)
+  lid.CFrame=CFrame.new(jar.Position+Vector3.new(0,jar.Size.Y*0.5+lid.Size.Y*0.15,0))
+  local fit=math.min(jar.Size.X*0.66/creature.Size.X,jar.Size.Y*0.66/creature.Size.Y,jar.Size.Z*0.66/creature.Size.Z)
+  creature.Size*=fit
+  creature.CFrame=CFrame.new(jar.Position+Vector3.new(0,-jar.Size.Y*0.05,0))
+  local fluid=accent(model,"SpecimenFluid",jar.Size*Vector3.new(0.82,0.68,0.82),CFrame.new(jar.Position+Vector3.new(0,-jar.Size.Y*0.08,0)),Color3.fromRGB(102,255,69))
+  fluid.Material,fluid.Transparency=Enum.Material.Glass,0.86
+  accent(model,"SpecimenBubble",Vector3.one*0.10,CFrame.new(creature.Position+Vector3.new(creature.Size.X*0.5,creature.Size.Y*0.35,0)),Color3.fromRGB(102,255,69))
+ elseif id=="Bank_CashBag" then
   local body=mesh("slot")
   local p=accent(model,"PrintSlotGlow",Vector3.new(body.Size.X*0.5,0.09,0.08),CFrame.new(body.Position+Vector3.new(0,body.Size.Y*0.3,body.Size.Z*0.5)),Color3.fromRGB(90,255,145))
   p.Shape=Enum.PartType.Block
@@ -885,12 +937,25 @@ local function finalDetails(model: Model, id: string)
 end
 
 local function construct(id: string, def: Definition): Model
-	local imported = InsertService:LoadAsset(def.asset)
+	local imported = loadAsset(def.asset)
 	local model = Instance.new("Model")
 	model.Name = id
 	model:SetAttribute("ProceduralItemArt", 1)
 	model:SetAttribute("ItemArtAssetId", def.asset)
+	model:SetAttribute("ItemArtVersion",versionFor(def))
 	local ok, err = pcall(function()
+		for _,assetId in def.additionalAssets or {} do
+			local extra=loadAsset(assetId)
+			for _,part in extra:GetDescendants() do
+				if part:IsA("MeshPart") then
+					-- A separately generated component supersedes a mislabeled main-package segment.
+					local prior=imported:FindFirstChild(part.Name,true)
+					if prior and prior:IsA("MeshPart") then prior:Destroy() end
+					part.Parent=imported
+				end
+			end
+			extra:Destroy()
+		end
 		for name, meshId in def.meshes do
 			local part = imported:FindFirstChild(name, true)
 			assert(part and part:IsA("MeshPart"), id .. " missing " .. name)
@@ -966,9 +1031,13 @@ end
 
 function Builder.build()
 	local started = os.clock()
+	networkLoads=0
+	local cached=0
 	local loot = ServerStorage:WaitForChild("GameAssets"):WaitForChild("Loot")
 	local ids: {string} = {}
-	for id in DEFINITIONS do table.insert(ids, id) end
+	for id,def in DEFINITIONS do
+  if isCurrent(loot:FindFirstChild(id),def) then cached+=1 else table.insert(ids,id) end
+ end
 	table.sort(ids)
 	local built: {[string]: Model} = {}
 	local failures: {string} = {}
@@ -1014,11 +1083,18 @@ function Builder.build()
 		table.sort(failures)
 		warn("[ItemAssetBuilder] Retaining previous art after mesh loading failed:\n" .. table.concat(failures, "\n"))
 	end
-	local installed=0
+	local installed=cached
 	for _, id in ids do
 		if built[id] then
 			local previous = loot:FindFirstChild(id)
-			if previous then previous:Destroy() end
+			if previous then
+    -- Preserve the original saved-place art when baking in Edit mode.
+    if not game:GetService("RunService"):IsRunning() and not previous:GetAttribute("ProceduralItemArt") then
+     local backup=loot:FindFirstChild("_OriginalArt")
+     if not backup then backup=Instance.new("Folder"); backup.Name="_OriginalArt"; backup.Parent=loot end
+     if backup:FindFirstChild(id) then previous:Destroy() else previous.Parent=backup end
+    else previous:Destroy() end
+   end
 			built[id].Parent = loot
 			installed+=1
 		else retain(id) end
@@ -1028,10 +1104,14 @@ function Builder.build()
 	for id in LEGACY_NAMES do if not DEFINITIONS[id] then retain(id) end end
 	local seconds = os.clock() - started
 	loot:SetAttribute("ItemArtLoadSeconds", seconds)
+	loot:SetAttribute("ItemArtCachedCount",cached)
+	loot:SetAttribute("ItemArtNetworkLoads",networkLoads)
 	loot:SetAttribute("ItemArtLoadedCount", installed)
 	loot:SetAttribute("ItemArtLoadFailures", #failures)
 	loot:SetAttribute("ItemArtRetainedIds",table.concat(retained,","))
-	print(string.format("[ItemAssetBuilder] %d generated-mesh items installed in %.2fs (%d concurrent workers); %d retained", installed, seconds, workers, #retained))
+	local result={installed=installed,cached=cached,networkLoads=networkLoads,failures=#failures,retained=retained,seconds=seconds}
+ print(string.format("[ItemAssetBuilder] %d generated items ready (%d saved models reused, %d LoadAsset calls) in %.2fs; %d retained",installed,cached,networkLoads,seconds,#retained))
+ return result
 end
 
 return Builder

@@ -1,0 +1,195 @@
+[
+  {
+    "id": "Grandma_CandyBowl",
+    "parts": "plate, cookies",
+    "primary": "cookies_geom",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A round cream ceramic plate holding a neat stack of star- and heart-shaped sugar cookies with bright pastel pink, mint and lemon icing and colourful sprinkles, one cookie propped against the stack. Clearly sculpted icing and chunky rounded biscuit edges. Compact museum collectible, no scene.",
+    "size": {
+      "x": 5,
+      "y": 5,
+      "z": 4
+    },
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"jobId\":\"019e4dbe-0884-4ece-b79d-27419b8c5e15\",\"status\":\"Running\"}"
+        }
+      ],
+      "isError": false
+    },
+    "result": {
+      "status": "Completed",
+      "jobResult": {
+        "structuredContent": {
+          "generationId": "5136680d-1be8-4d88-8b53-67717387228d",
+          "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A round cream ceramic plate holding a neat stack of star- and heart-shaped sugar cookies with bright pastel pink, mint and lemon icing and colourful sprinkles, one cookie propped against the stack. Clearly sculpted icing and chunky rounded biscuit edges. Compact museum collectible, no scene.",
+          "publishedAssetId": "118335755745507",
+          "tag": "Assistant-9b323d11-1e02-423f-b6b4-e128bb79e085"
+        },
+        "content": [
+          {
+            "text": "{\"generationName\":\"Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A round cream ceramic plate holding a neat stack of star- and heart-shaped sugar cookies with bright pastel pink, mint and lemon icing and colourful sprinkles, one cookie propped against the stack. Clearly sculpted icing and chunky rounded biscuit edges. Compact museum collectible, no scene.\",\"tag\":\"Assistant-9b323d11-1e02-423f-b6b4-e128bb79e085\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "asset": {
+      "generationId": "5136680d-1be8-4d88-8b53-67717387228d",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A round cream ceramic plate holding a neat stack of star- and heart-shaped sugar cookies with bright pastel pink, mint and lemon icing and colourful sprinkles, one cookie propped against the stack. Clearly sculpted icing and chunky rounded biscuit edges. Compact museum collectible, no scene.",
+      "publishedAssetId": "118335755745507",
+      "tag": "Assistant-9b323d11-1e02-423f-b6b4-e128bb79e085"
+    },
+    "meshes": [
+      {
+        "name": "cookies_geom",
+        "up": 1,
+        "size": "4.994731426239014, 2.8860840797424316, 3.888112783432007",
+        "mesh": "rbxassetid://125746011321253",
+        "texture": "rbxassetid://134870850318983"
+      },
+      {
+        "name": "plate_geom",
+        "up": 1,
+        "size": "4.992818832397461, 2.897244930267334, 3.880094051361084",
+        "mesh": "rbxassetid://98351592995558",
+        "texture": "rbxassetid://71467611948534"
+      }
+    ]
+  },
+  {
+    "id": "SpecimenJar",
+    "parts": "jar, lid",
+    "primary": "jar_geom",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A squat, wide, EMPTY clear glass specimen jar with a broad brushed steel screw lid. Jar has a rounded bowl-shaped body, short wide neck and a flat stable foot. Empty hollow interior. Width is greater than body height. Clean transparent glass, silver lid, small amber lid marker. NO creature, no liquid, no contents. Broad round silhouette, not a tall cylinder.",
+    "size": {
+      "x": 5,
+      "y": 4,
+      "z": 5
+    },
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"jobId\":\"b966b198-df43-4317-95ed-8cfc04d6f9f7\",\"status\":\"Running\"}"
+        }
+      ],
+      "isError": false
+    },
+    "result": {
+      "status": "Completed",
+      "jobResult": {
+        "structuredContent": {
+          "generationId": "6fb65bd2-fa43-4e82-8266-d6d75f248af7",
+          "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A squat, wide, EMPTY clear glass specimen jar with a broad brushed steel screw lid. Jar has a rounded bowl-shaped body, short wide neck and a flat stable foot. Empty hollow interior. Width is greater than body height. Clean transparent glass, silver lid, small amber lid marker. NO creature, no liquid, no contents. Broad round silhouette, not a tall cylinder.",
+          "publishedAssetId": "79232455189752",
+          "tag": "Assistant-8d4d23e0-c1fc-4c48-8895-21fdf2a32a93"
+        },
+        "content": [
+          {
+            "text": "{\"generationName\":\"Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A squat, wide, EMPTY clear glass specimen jar with a broad brushed steel screw lid. Jar has a rounded bowl-shaped body, short wide neck and a flat stable foot. Empty hollow interior. Width is greater than body height. Clean transparent glass, silver lid, small amber lid marker. NO creature, no liquid, no contents. Broad round silhouette, not a tall cylinder.\",\"tag\":\"Assistant-8d4d23e0-c1fc-4c48-8895-21fdf2a32a93\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "asset": {
+      "generationId": "6fb65bd2-fa43-4e82-8266-d6d75f248af7",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A squat, wide, EMPTY clear glass specimen jar with a broad brushed steel screw lid. Jar has a rounded bowl-shaped body, short wide neck and a flat stable foot. Empty hollow interior. Width is greater than body height. Clean transparent glass, silver lid, small amber lid marker. NO creature, no liquid, no contents. Broad round silhouette, not a tall cylinder.",
+      "publishedAssetId": "79232455189752",
+      "tag": "Assistant-8d4d23e0-c1fc-4c48-8895-21fdf2a32a93"
+    },
+    "meshes": [
+      {
+        "name": "lid_geom",
+        "up": 1,
+        "size": "2.5069046020507812, 0.6435542106628418, 2.506807804107666",
+        "mesh": "rbxassetid://90311349781801",
+        "texture": "rbxassetid://112776990028116"
+      },
+      {
+        "name": "jar_geom",
+        "up": 1,
+        "size": "3.1066946983337402, 3.7958009243011475, 3.1075096130371094",
+        "mesh": "rbxassetid://91204403336413",
+        "texture": "rbxassetid://85927579512304"
+      }
+    ]
+  },
+  {
+    "id": "SpecimenCreature",
+    "parts": "creature",
+    "primary": "creature_geom",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A small cute pale-green axolotl-like creature on its own. Rounded plump body, four short feet, broad smiling face, two large shiny eyes, three soft pink external gill fronds on each side of its head, a gently curled paddle tail. Standing upright on its feet, front facing positive Z. Mint green with cream belly and pastel pink gills. Complete freestanding animal figurine; no jar, no container, no liquid.",
+    "size": {
+      "x": 3,
+      "y": 3,
+      "z": 3
+    },
+    "response": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"jobId\":\"0cd03894-65b7-4895-a0ae-49b5e4298d57\",\"status\":\"Running\"}"
+        }
+      ],
+      "isError": false
+    },
+    "result": {
+      "status": "Completed",
+      "jobResult": {
+        "structuredContent": {
+          "generationId": "4e8d7e5f-b5c6-421e-85e1-8dc0522a5893",
+          "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A small cute pale-green axolotl-like creature on its own. Rounded plump body, four short feet, broad smiling face, two large shiny eyes, three soft pink external gill fronds on each side of its head, a gently curled paddle tail. Standing upright on its feet, front facing positive Z. Mint green with cream belly and pastel pink gills. Complete freestanding animal figurine; no jar, no container, no liquid.",
+          "publishedAssetId": "123713422108541",
+          "tag": "Assistant-534e6dd4-db9e-410e-8d50-762598ce6e4f"
+        },
+        "content": [
+          {
+            "text": "{\"generationName\":\"Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A small cute pale-green axolotl-like creature on its own. Rounded plump body, four short feet, broad smiling face, two large shiny eyes, three soft pink external gill fronds on each side of its head, a gently curled paddle tail. Standing upright on its feet, front facing positive Z. Mint green with cream belly and pastel pink gills. Complete freestanding animal figurine; no jar, no container, no liquid.\",\"tag\":\"Assistant-534e6dd4-db9e-410e-8d50-762598ce6e4f\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "asset": {
+      "generationId": "4e8d7e5f-b5c6-421e-85e1-8dc0522a5893",
+      "generationName": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. A small cute pale-green axolotl-like creature on its own. Rounded plump body, four short feet, broad smiling face, two large shiny eyes, three soft pink external gill fronds on each side of its head, a gently curled paddle tail. Standing upright on its feet, front facing positive Z. Mint green with cream belly and pastel pink gills. Complete freestanding animal figurine; no jar, no container, no liquid.",
+      "publishedAssetId": "123713422108541",
+      "tag": "Assistant-534e6dd4-db9e-410e-8d50-762598ce6e4f"
+    },
+    "meshes": [
+      {
+        "name": "creature_geom",
+        "up": 1,
+        "size": "3, 2.621893882751465, 2.7611985206604004",
+        "mesh": "rbxassetid://135066657753512",
+        "texture": "rbxassetid://113096613653208"
+      }
+    ]
+  },
+  {
+    "id": "CookiePlate",
+    "itemId": "Grandma_CandyBowl",
+    "prompt": "Premium Roblox simulator collectible, stylized realism like a handmade museum amphora: authentic real-world proportions, smooth curved surfaces, bright saturated clean colors, restrained smooth painted texture variation, no noisy photographic textures, no voxel or primitive-block appearance. Upright object, Y up, front facing positive Z, around five studs tall. Build the described body as carefully sculpted textured meshes. No scene, no floor, no background, no text labels. An EMPTY round cream ceramic dessert plate on its own, wide shallow dish with a gently raised scalloped rim and a thin pastel pink painted edge. Smooth handmade glazed ceramic, elegant clean cream finish. No food, no objects on the dish. Broad low circular silhouette, upright resting level.",
+    "generationId": "924d74e8-5a7d-4669-b489-082801c85101",
+    "publishedAssetId": "134967079944754",
+    "meshId": "133374951030376",
+    "textureId": "138370398049713",
+    "reason": "Original plate segment duplicated the cookie stack; replaced after actual visual inspection.",
+    "attempts": [
+      {
+        "jobId": "7bfdcd19-e6b7-461e-8de2-a962e96c5e37",
+        "error": "Mesh generation failed with error: Model generation should only be called from the server."
+      },
+      {
+        "jobId": "8e8dc2a7-30eb-4422-9b9e-1a1dfdf164cc",
+        "result": "Completed in Edit mode"
+      }
+    ]
+  }
+]

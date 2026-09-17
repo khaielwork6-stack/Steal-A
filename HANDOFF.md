@@ -5245,3 +5245,62 @@ twelve unlocked slots and SpeedPower 1,339,738,258. Temporary capacity/storage
 upgrades, rewards, discoveries, settings and earnings were discarded. Existing
 items were never moved, sold or stored. Keep §47's real-DataStore warning in
 force for every future review.
+
+
+## 51. Embed all 96 loot assets before publishing (2026-09-17)
+
+The experience is group-owned; the generated model packages belong to the
+owner's user account. A successful Studio LoadAsset is not evidence that a
+published group server can load those packages. The finished models have now
+been installed in Edit under ServerStorage.GameAssets.Loot, using their durable
+ItemIds. Original ItemId-named art is preserved in Loot._OriginalArt; original
+alias-named imports and all sealed-container templates remain intact.
+
+ItemAssetBuilder is still the recipe source of truth, but now recognizes
+current saved models before making any network request. ItemArtVersion includes
+the shared ART_VERSION, published package ID, per-item revision and additional
+component package IDs. Reuse also checks ProceduralItemArt, ItemArtAssetId,
+PrimaryPart and ItemArtPartCount. A current model is not rebuilt or rescaled.
+Missing/outdated models retain the concurrent load-and-retry path. Failed
+replacements still preserve existing art with ItemArtFallback as before.
+
+Do not depend on runtime loading to deploy future art edits. Bump the local
+revision for a material/geometry change, rebuild and bake the changed model,
+then Save and Publish the place. Git alone does not deploy these instances.
+The data-only Studio MCP workflow is documented in tools/art-review/BAKING.md.
+Edit MCP cannot require this privileged module directly; use supported asset
+insertion plus the exported finished part data, without changing capabilities.
+
+The new cookie, jar and creature generations succeeded on their first attempts.
+Grandma_CandyBowl uses the requested pastel star/heart sugar-cookie concept.
+SecretLab_SecretFormula uses separately generated jar and creature packages,
+with a clear Glass jar, translucent green fluid and a centered hovering
+creature; its overall dimensions are a squat 6.45 x 5.00 x 6.45 studs.
+Area51_AlienArtifact keeps its geometry but now has a near-black metallic frame
+and a single acid-green emissive core. Exact new prompts, model IDs and mesh IDs
+are recorded in tools/art-review/generations/final-two.json and the builder.
+
+Fresh Play verified 96 current saved models reused, zero LoadAsset calls,
+zero retained originals and zero loading failures. Asset setup took 0.00109s;
+total bootstrap took 0.99s. Server logs again validated 12/12 original container
+models and 96 sockets in 24 guarded rooms. Only the affected normalization rows
+changed; item IDs, economy, rarity, gameplay and containers are unchanged.
+
+Live checks passed: lootAudit 96 ok, upright 0 offenders, validate 1,667,
+economyTests 202,434, museumTests 1,684. The generated-art audit passed 4,410
+checks, 576 scale builds and 864 mutation/aura builds; maximum part count 16.
+No account fixtures or grants were used during this follow-up.
+
+Final actual front/three-quarter/silhouette review passed. Inspection caught a
+duplicate cookie stack mislabeled as its plate; a separately generated empty
+ceramic plate now replaces that segment. Its generation ID and package ID are
+recorded with the recipe. Cookie art has three parts; the specimen has five.
+Refreshed zone 4, 9 and 10 silhouette sheets and final-two-review.jpg are in
+tools/art-review/sheets. No unresolved items or retained old art remain.
+
+All 98 temporary import packages were removed, along with the subsequent
+plate import and bake helper copy. Studio was left in Edit with all 96 baked
+models (382 parts), the original-art backup and all twelve container models.
+The owner must now Save and Publish the place. A published group-server check
+has not been performed. The prior physical-phone performance limitation from
+§50 remains.
