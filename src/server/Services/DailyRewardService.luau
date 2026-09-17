@@ -171,6 +171,8 @@ function DailyRewardService.claim(player: Player): (boolean, string)
 	end
 
 	lastClaimable[player] = false
+	-- Streak milestones (the 7-day badge) listen on the shared progress bus.
+	require(script.Parent.ProgressEvents).fire(player, "dailyStreak", status.nextStreak, { day = status.day })
 	StateService.pushNow(player)
 	DailyRewardService.sendPreview(player)
 	if DataService.isPersistent() then

@@ -157,7 +157,9 @@ local function build(player: Player): ClientState?
 
 	local state = {
 		cash = profile.Cash,
-		income = EconomyService.getIncome(player),
+		-- [social pass] What is actually paid: the friend / Premium boost
+		-- included (EconomyService "SOCIAL BOOST"). Formulas keep getIncome.
+		income = EconomyService.getPaidIncome(player),
 		speedPower = profile.SpeedPower,
 		walkSpeed = GameConfig.walkSpeedFromPower(profile.SpeedPower),
 		baseActivated = profile.BaseActivated,

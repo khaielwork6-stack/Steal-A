@@ -201,5 +201,14 @@ end)
 startLater("DailyRewardController", function()
 	require(script.Controllers.DailyRewardController).start()
 end)
+-- [social pass] The Invite button, the friend / Premium boost pills and the
+-- one-time favourite / notification prompts after a reveal; and the
+-- server-wide banner + chat line for Mythic-or-better reveals.
+startLater("SocialController", function()
+	require(script.Controllers.SocialController).start()
+end)
+startLater("RevealAnnounceController", function()
+	require(script.Controllers.RevealAnnounceController).start()
+end)
 
 print("[Client] controllers started")

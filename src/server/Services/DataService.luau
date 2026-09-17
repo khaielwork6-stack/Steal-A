@@ -279,6 +279,21 @@ export type Profile = {
 	-- (floor(os.time() / 86400)) of the last claim. 0 / 0 = never claimed.
 	DailyStreak: number,
 	DailyLastClaimDay: number,
+	-- [social pass] Additive, no schema bump (reconcile fills and repairs).
+	-- Written only by SocialService.
+	--   ReferredBy            UserId of the player whose invite brought this
+	--                         account in on its FIRST session (0 = none).
+	--   ReferralState         "" none, "pending" (inviter not paid yet),
+	--                         "paid", "capped" (inviter over the daily cap),
+	--                         "failed" (mailbox refused after retries).
+	--   ReferralPlaySeconds   play accrued toward paying the inviter.
+	--   FavoritePrompted      the one-time "favourite this game" prompt ran.
+	--   NotificationsPrompted the one-time notification opt-in prompt ran.
+	ReferredBy: number,
+	ReferralState: string,
+	ReferralPlaySeconds: number,
+	FavoritePrompted: boolean,
+	NotificationsPrompted: boolean,
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -352,6 +367,12 @@ local function defaultProfile(): Profile
 		RedeemedCodes = {},
 		DailyStreak = 0,
 		DailyLastClaimDay = 0,
+		-- [social pass]
+		ReferredBy = 0,
+		ReferralState = "",
+		ReferralPlaySeconds = 0,
+		FavoritePrompted = false,
+		NotificationsPrompted = false,
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -981,6 +1002,25 @@ local function reconcile(profile: Profile): Profile
 	end
 	profile.DailyStreak = math.floor(finite(profile.DailyStreak))
 	profile.DailyLastClaimDay = math.floor(finite(profile.DailyLastClaimDay))
+	-- [social pass] Referral record and the one-time prompt flags. A broken
+	-- referral record reads as "none": the worst that costs is one unpaid
+	-- invite reward, never a second payment ("paid" is kept verbatim).
+	local referredBy = tonumber(profile.ReferredBy)
+	if referredBy == nil or referredBy ~= referredBy or referredBy < 0 or referredBy % 1 ~= 0 then
+		referredBy = 0
+	end
+	profile.ReferredBy = referredBy :: number
+	local referralStates = { [""] = true, pending = true, paid = true, capped = true, failed = true }
+	if type(profile.ReferralState) ~= "string" or not referralStates[profile.ReferralState] then
+		profile.ReferralState = if profile.ReferredBy > 0 then "paid" else ""
+	end
+	profile.ReferralPlaySeconds = math.floor(finite(profile.ReferralPlaySeconds))
+	if type(profile.FavoritePrompted) ~= "boolean" then
+		profile.FavoritePrompted = false
+	end
+	if type(profile.NotificationsPrompted) ~= "boolean" then
+		profile.NotificationsPrompted = false
+	end
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile
