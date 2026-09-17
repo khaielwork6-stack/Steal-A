@@ -396,9 +396,21 @@ function TutorialService.start()
 	task.spawn(function()
 		while true do
 			task.wait(0.5)
-			maintainTutorialLoot()
+			-- Each step protected: one bad socket or one bad profile must not
+			-- end the tutorial for the whole server for the rest of its life.
+			local maintained, maintainErr = pcall(function()
+				maintainTutorialLoot()
+			end)
+			if not maintained then
+				warn(`[TutorialService] tutorial loot upkeep failed: {maintainErr}`)
+			end
 			for _, player in Players:GetPlayers() do
-				evaluate(player)
+				local ok, err = pcall(function()
+					evaluate(player)
+				end)
+				if not ok then
+					warn(`[TutorialService] tutorial step failed for {player.Name}: {err}`)
+				end
 			end
 		end
 	end)

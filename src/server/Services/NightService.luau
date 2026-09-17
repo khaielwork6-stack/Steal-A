@@ -94,6 +94,16 @@ local function publish()
 	ReplicatedStorage:SetAttribute("NightSeconds", NightConfig.NIGHT_SECONDS)
 end
 
+--- Runs one transition step PROTECTED. A step that throws is logged and the
+--- transition carries on: the one outcome that must never happen is a Night
+--- that fails half-way and leaves the world closed for the rest of the server.
+local function safely(label: string, fn: (...any) -> ...any, ...: any)
+	local ok, err = pcall(fn, ...)
+	if not ok then
+		warn(`[NightService] {label} failed: {err}`)
+	end
+end
+
 function NightService.getPhase(): Phase
 	return phase
 end
@@ -318,18 +328,22 @@ local function beginNight()
 		return
 	end
 	phase = "Night"
-	publish()
+	safely("publishing Night", publish)
 
 	-- Close first, so nothing can be started in the frames between here and
 	-- the teleport. Then every steal in progress is cancelled - the item goes
 	-- straight back to its socket, nobody carries anything into the lobby -
 	-- every chase ends and every guardian is back on its post, and only
 	-- then is anyone moved.
-	LootService.setClosed(true)
+	--
+	-- Every step below is wrapped in `safely`: the phase is already Night, and
+	-- endNight (which reopens the world) only runs if the scheduler keeps
+	-- going, so nothing in here may throw out of the transition.
+	safely("closing the zones", LootService.setClosed, true)
 	for _, player in Players:GetPlayers() do
-		CarryService.cancelForNight(player)
+		safely(`cancelling {player.Name}'s carry`, CarryService.cancelForNight, player)
 	end
-	GuardianService.resetAll()
+	safely("resetting guardians", GuardianService.resetAll)
 
 	-- TOLD ONLY TO THE PEOPLE IT HAPPENED TO. This used to be an `announce`,
 	-- which put a banner across the screen of every player in the server -
@@ -337,9 +351,11 @@ local function beginNight()
 	-- nor affected. It exists to explain a teleport, so it goes to whoever was
 	-- teleported and nobody else. The Nightfall pill tells everyone else all
 	-- they need to know.
-	for _, entry in returnEveryone() do
-		StateService.notify(entry.player, "info", "NIGHT — LOOT REFRESHING", "night")
-	end
+	safely("returning everyone home", function()
+		for _, entry in returnEveryone() do
+			StateService.notify(entry.player, "info", "NIGHT — LOOT REFRESHING", "night")
+		end
+	end)
 
 	-- The reroll happens while the zones are shut, a beat after the lights go
 	-- down so the client has finished its transition before the world changes
@@ -347,7 +363,7 @@ local function beginNight()
 	local thisCycle = cycleNumber
 	task.delay(NightConfig.REFRESH_DELAY_SECONDS, function()
 		if cycleNumber == thisCycle then
-			runRefresh()
+			safely("the Night refresh", runRefresh)
 		end
 	end)
 
@@ -360,7 +376,7 @@ local function beginNight()
 	)
 	task.delay(announceAt, function()
 		if cycleNumber == thisCycle and phase == "Night" then
-			flushSpotlights()
+			safely("the spawn calls", flushSpotlights)
 		end
 	end)
 end
@@ -371,7 +387,8 @@ local function endNight()
 	end
 	-- If a hitch carried the clock straight through the Night, the refresh
 	-- has not happened yet: do it NOW, before reopening, atomically with it.
-	runRefresh()
+	-- Protected, like every step here: whatever fails, the world reopens.
+	safely("the dawn refresh", runRefresh)
 
 	-- BACKSTOP, AND IT HAS TO BE HERE - before the cycle number moves on.
 	-- flushSpotlights is keyed to the cycle it flushed, so calling it after
@@ -379,15 +396,15 @@ local function endNight()
 	-- that night's timed flush. Measured: every night after the first kept
 	-- its two spawn calls queued until dawn. In the ordinary case the timer
 	-- has already run three seconds ago and this does nothing.
-	flushSpotlights()
+	safely("the dawn spawn calls", flushSpotlights)
 
 	phase = "Day"
 	cycleNumber += 1
 	cycleStart = workspace:GetServerTimeNow()
 	warned = false
-	publish()
+	safely("publishing Day", publish)
 
-	LootService.setClosed(false)
+	safely("reopening the zones", LootService.setClosed, false)
 
 	-- RETIRED: the "All loot refreshed! Go steal something!" banner. It fired
 	-- server-wide every cycle, told nobody anything the reopened zones do not
@@ -482,20 +499,27 @@ function NightService.start()
 	task.spawn(function()
 		while true do
 			task.wait(0.25)
-			local now = workspace:GetServerTimeNow()
-			if phase == "Day" then
-				local ends = dayEndsAt()
-				if not warned and now >= ends - NightConfig.WARNING_SECONDS then
-					warned = true
-					StateService.announce("info", `NIGHT FALLS IN {NightConfig.WARNING_SECONDS} SECONDS`, "night")
+			-- One failed pass is logged and the next runs a quarter-second later;
+			-- the scheduler itself must never die, or the cycle stops for good.
+			local ok, err = pcall(function()
+				local now = workspace:GetServerTimeNow()
+				if phase == "Day" then
+					local ends = dayEndsAt()
+					if not warned and now >= ends - NightConfig.WARNING_SECONDS then
+						warned = true
+						StateService.announce("info", `NIGHT FALLS IN {NightConfig.WARNING_SECONDS} SECONDS`, "night")
+					end
+					if now >= ends then
+						beginNight()
+					end
+				else
+					if now >= nightEndsAt() then
+						endNight()
+					end
 				end
-				if now >= ends then
-					beginNight()
-				end
-			else
-				if now >= nightEndsAt() then
-					endNight()
-				end
+			end)
+			if not ok then
+				warn(`[NightService] scheduler pass failed: {err}`)
 			end
 		end
 	end)
@@ -506,7 +530,12 @@ function NightService.start()
 		while true do
 			task.wait(NightConfig.GROWTH_TICK_SECONDS)
 			local now = os.clock()
-			tickGrowth(now - last)
+			local ok, err = pcall(function()
+				tickGrowth(now - last)
+			end)
+			if not ok then
+				warn(`[NightService] growth tick failed: {err}`)
+			end
 			last = now
 		end
 	end)

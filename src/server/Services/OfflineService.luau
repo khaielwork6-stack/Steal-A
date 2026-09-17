@@ -47,7 +47,19 @@ local settled: { [Player]: boolean } = {}
 --- Stamps the departure clock and rate. Called from DataService's before-save
 --- hook, so it covers autosave, PlayerRemoving and BindToClose without three
 --- separate paths.
+---
+--- NOT BEFORE THE ABSENCE IS SETTLED. A save can happen before `settle` runs
+--- (a receipt or a spin landing in the first seconds of a join); stamping
+--- then would overwrite LastLeaveTimestamp with "now" and the away time the
+--- player is owed would be gone before it was ever measured.
+---
+--- The rate is EconomyService's cached income, which stays valid through the
+--- leave-save: EconomyService clears it in DataService.onAfterRelease, after
+--- that save, not on its own PlayerRemoving (whose order is not guaranteed).
 function OfflineService.stamp(player: Player, profile: DataService.Profile)
+	if not settled[player] then
+		return
+	end
 	profile.LastLeaveTimestamp = os.time()
 	profile.OfflineCashRate = math.max(0, math.floor(EconomyService.getIncome(player)))
 end
@@ -73,8 +85,7 @@ function OfflineService.settle(player: Player)
 	if left > 0 and rate > 0 then
 		local offlineSeconds = math.clamp(now - left, 0, GameConfig.OFFLINE_EARNINGS_MAX_SECONDS)
 		-- OFFLINE_EFFICIENCY is the share of the live rate paid per offline
-		-- second (GameConfig). It is 1 until a traced value replaces it; see
-		-- GameConfig.OFFLINE_STATUS - parity is not claimed for this number.
+		-- second (GameConfig): 0.5, the owner's choice of 2026-09-17.
 		local offlineCash = math.floor(rate * offlineSeconds * GameConfig.OFFLINE_EFFICIENCY)
 		if offlineCash > 0 then
 			profile.PendingOfflineCash += offlineCash
@@ -152,8 +163,13 @@ function OfflineService.start()
 		end
 	end)
 
-	Players.PlayerRemoving:Connect(function(player)
+	-- AFTER the leave-save, not on PlayerRemoving: the leave-save's stamp is
+	-- skipped for a player who is not marked settled, so clearing the mark
+	-- first (handler order is not guaranteed) would lose the departure time.
+	DataService.onAfterRelease(function(player)
 		settled[player] = nil
+	end)
+	Players.PlayerRemoving:Connect(function(player)
 		claimLimiter:release(player)
 	end)
 

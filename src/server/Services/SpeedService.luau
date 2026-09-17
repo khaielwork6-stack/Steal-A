@@ -605,69 +605,81 @@ end
 
 --- One authoritative tick. Every condition is re-checked here; nothing is
 --- cached from the client.
+--- One player's training tick. Split out of the loop so each player runs in
+--- their own pcall: a single bad profile or character must not stop the
+--- treadmill for everyone else on the server.
+local function trainPlayer(player: Player)
+	local profile = DataService.get(player)
+	if not profile then
+		return
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		publishRunning(player, character, nil)
+		return
+	end
+
+	if not isOnOwnTreadmill(player) then
+		publishRunning(player, character, nil)
+		return
+	end
+
+	local tier = TreadmillConfig.tier(profile.TreadmillLevel)
+	if not tier then
+		publishRunning(player, character, nil)
+		return
+	end
+
+	-- Visible to everyone: the stride rate is the SAME function of the
+	-- player's real WalkSpeed the runner's own client uses, so the runner
+	-- and the spectators see the same pace.
+	publishRunning(player, character, TreadmillConfig.runAnimationRate(GameConfig.walkSpeedFromPower(profile.SpeedPower)))
+
+	local before = profile.SpeedPower
+	-- THE TRAINING CALCULATION (TreadmillConfig.gainPerTick):
+	--
+	--     gain = TRAINING_BASE_GAIN x treadmill.factor x (1 + (trail - 1) + (pass - 1))
+	--
+	-- The treadmill factor multiplies on its own; the equipped trail's factor
+	-- and the Speed-pass tier ADD above their base of 1 and never multiply
+	-- each other. Nothing here touches `profile.SpeedPower` except the gain:
+	-- multiplying the saved total would compound on every purchase.
+	local bonus = TreadmillConfig.bonusFactor(CarryService.trailMultiplierFor(player), SpeedService.trainingMultiplier(player))
+	profile.SpeedPower += TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
+	SpeedService.applyMovement(player)
+	StateService.markDirty(player)
+
+	-- The training has been PAID. Anything watching for "they used the
+	-- treadmill" hears about it here and nowhere earlier. In a pcall so
+	-- one listener cannot break the tick for every player on the server.
+	local trained, trainedErr = pcall(SpeedService.onTrained, player)
+	if not trained then
+		warn(`[SpeedService] training listener failed for {player.Name}: {trainedErr}`)
+	end
+
+	-- Crossing a zone's recommended Speed is the single moment the long
+	-- treadmill grind pays off, so it gets its own cue. THE CUE ONLY: the
+	-- "<ZONE> UNLOCKED" toast used to land mid-screen over the runner and
+	-- the reward popups; the zone gate's sign and the Index still show
+	-- the unlock. Compared against the value BEFORE the tick, so it fires
+	-- exactly once per gate however large the increment was.
+	for _, zone in ZoneConfig.Zones do
+		if zone.recommendedSpeed > before and zone.recommendedSpeed <= profile.SpeedPower then
+			StateService.sound(player, "ZoneUnlock")
+			break
+		end
+	end
+end
+
 local function trainingTick()
 	for _, player in Players:GetPlayers() do
-		local profile = DataService.get(player)
-		if not profile then
-			continue
-		end
-
-		local character = player.Character
-		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
-		if not humanoid or humanoid.Health <= 0 then
-			publishRunning(player, character, nil)
-			continue
-		end
-
-		if not isOnOwnTreadmill(player) then
-			publishRunning(player, character, nil)
-			continue
-		end
-
-		local tier = TreadmillConfig.tier(profile.TreadmillLevel)
-		if not tier then
-			publishRunning(player, character, nil)
-			continue
-		end
-
-		-- Visible to everyone: the stride rate is the SAME function of the
-		-- player's real WalkSpeed the runner's own client uses, so the runner
-		-- and the spectators see the same pace.
-		publishRunning(player, character, TreadmillConfig.runAnimationRate(GameConfig.walkSpeedFromPower(profile.SpeedPower)))
-
-		local before = profile.SpeedPower
-		-- THE TRAINING CALCULATION (TreadmillConfig.gainPerTick):
-		--
-		--     gain = TRAINING_BASE_GAIN x treadmill.factor x (1 + (trail - 1) + (pass - 1))
-		--
-		-- The treadmill factor multiplies on its own; the equipped trail's factor
-		-- and the Speed-pass tier ADD above their base of 1 and never multiply
-		-- each other. Nothing here touches `profile.SpeedPower` except the gain:
-		-- multiplying the saved total would compound on every purchase.
-		local bonus = TreadmillConfig.bonusFactor(CarryService.trailMultiplierFor(player), SpeedService.trainingMultiplier(player))
-		profile.SpeedPower += TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
-		SpeedService.applyMovement(player)
-		StateService.markDirty(player)
-
-		-- The training has been PAID. Anything watching for "they used the
-		-- treadmill" hears about it here and nowhere earlier. In a pcall so
-		-- one listener cannot break the tick for every player on the server.
-		local trained, trainedErr = pcall(SpeedService.onTrained, player)
-		if not trained then
-			warn(`[SpeedService] training listener failed for {player.Name}: {trainedErr}`)
-		end
-
-		-- Crossing a zone's recommended Speed is the single moment the long
-		-- treadmill grind pays off, so it gets its own cue. THE CUE ONLY: the
-		-- "<ZONE> UNLOCKED" toast used to land mid-screen over the runner and
-		-- the reward popups; the zone gate's sign and the Index still show
-		-- the unlock. Compared against the value BEFORE the tick, so it fires
-		-- exactly once per gate however large the increment was.
-		for _, zone in ZoneConfig.Zones do
-			if zone.recommendedSpeed > before and zone.recommendedSpeed <= profile.SpeedPower then
-				StateService.sound(player, "ZoneUnlock")
-				break
-			end
+		local ok, err = pcall(function()
+			trainPlayer(player)
+		end)
+		if not ok then
+			warn(`[SpeedService] training tick failed for {player.Name}: {err}`)
 		end
 	end
 end

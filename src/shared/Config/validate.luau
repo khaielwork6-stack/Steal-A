@@ -422,6 +422,16 @@ return function(): Report
 
 	check(GameConfig.OFFLINE_EFFICIENCY > 0 and GameConfig.OFFLINE_EFFICIENCY <= 1, "OFFLINE_EFFICIENCY must be in (0, 1]")
 	check(GameConfig.OFFLINE_STATUS == "BLOCKED_OFFLINE_COEFFICIENT" or GameConfig.OFFLINE_STATUS == "VERIFIED", "OFFLINE_STATUS must be declared")
+
+	-- DATA (session lock, save retries, mailbox). A stale window shorter than
+	-- a few autosaves would let a second server steal a LIVE session.
+	check(GameConfig.DATA_LOCK_STALE_SECONDS >= GameConfig.AUTOSAVE_INTERVAL * 5, "DATA_LOCK_STALE_SECONDS must be at least 5 autosaves")
+	check(GameConfig.DATA_LOCK_WAIT_SECONDS > 0 and GameConfig.DATA_LOCK_RETRY_SECONDS > 0, "session lock wait and retry must be positive")
+	check(GameConfig.DATA_LOCK_WAIT_SECONDS < GameConfig.DATA_LOCK_STALE_SECONDS, "DATA_LOCK_WAIT_SECONDS must be shorter than the stale window")
+	check(GameConfig.DATA_RELEASE_SAVE_ATTEMPTS >= 1, "the leave-save needs at least one attempt")
+	check(GameConfig.DATA_SHUTDOWN_WAIT_SECONDS > 0 and GameConfig.DATA_SHUTDOWN_WAIT_SECONDS < 30, "DATA_SHUTDOWN_WAIT_SECONDS must fit inside BindToClose's 30s")
+	check(GameConfig.MAILBOX_CAPACITY >= 1 and GameConfig.MAILBOX_POLL_SECONDS > 0, "mailbox capacity and poll must be positive")
+	check(GameConfig.MAILBOX_DELIVERED_MEMORY >= GameConfig.MAILBOX_CAPACITY, "MAILBOX_DELIVERED_MEMORY must cover a full mailbox")
 	check(GameConfig.SELL_STRIPS_MUTATION == true, "a sale prices the item with its mutation stripped")
 
 	-- ==========================================================

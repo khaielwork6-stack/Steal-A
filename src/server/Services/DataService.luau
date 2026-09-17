@@ -13,11 +13,63 @@
 	    A player who disconnects mid-carry loses the carry; the item returns to
 	    its origin socket.
 	  * Autosave on an interval, on PlayerRemoving, and on BindToClose.
-	  * Session locking is deliberately not attempted here; Roblox's own
-	    single-server-per-user guarantee plus UpdateAsync is sufficient for v1.
+
+	SESSION LOCKING
+	  Roblox does NOT guarantee one server per user: on a fast server hop the
+	  new server's join can read the profile before the old server's leave-save
+	  has landed, and a plain "last writer wins" save then rolls the player back
+	  (or duplicates what they carried across). So every stored document names
+	  the ONE session allowed to write it:
+
+	      document.SessionLock = { JobId = <session id>, PlaceId, At = os.time() }
+
+	  The document is still the profile table itself (plus that one field), so
+	  every save written before locking existed loads unchanged - it simply has
+	  no lock, which reads as "free".
+
+	  LOAD (UpdateAsync). Absent, ours, or stale lock (At older than
+	  DATA_LOCK_STALE_SECONDS) -> take it and read the profile in the same
+	  atomic step. Held by another LIVE session -> write nothing, wait
+	  DATA_LOCK_RETRY_SECONDS and look again; that server's leave-save clears
+	  the lock within seconds. After DATA_LOCK_WAIT_SECONDS it is taken over
+	  anyway (the other server is hung or the player is genuinely in two
+	  places); from that moment every save the old session attempts is refused
+	  below, so nothing it writes can overwrite the newer session.
+
+	  SAVE (UpdateAsync). The stored lock must still be OURS, else the write is
+	  cancelled (the transform returns nil), the session is marked LOST, the
+	  player is kicked with an explanation and that profile is never written by
+	  this server again. Otherwise the profile is written with a refreshed At.
+	  A lock that is simply MISSING also counts as "not ours": only a release
+	  (ours or another server's) clears it, so a missing lock means another
+	  session has been and gone since we loaded.
+
+	  RELEASE (leave / shutdown), in this order:
+	      1. before-release hooks  (state held back during play is committed)
+	      2. save with the lock CLEARED, retried with backoff
+	      3. drop the profile from memory, then the after-release hooks
+	  The lock is cleared in the SAME write that stores the final profile, so
+	  a new server can never read the profile between "lock gone" and "final
+	  data written".
+
+	  STUDIO. game.JobId is "" there, so the session id is "studio-<GUID>",
+	  generated once per server run: two Studio test servers are two sessions.
+
+	  The lock lives ONLY in the stored document. The in-memory profile never
+	  carries it (it is stripped on load and added to a shallow copy on save),
+	  so it cannot leak to a client, a push, or a persistTest round trip.
+
+	SAVE COALESCING
+	  At most ONE UpdateAsync per player is in flight. A save requested while one
+	  is running is queued; however many arrive, exactly one more write runs
+	  after the current one, and every caller waiting on it gets THAT write's
+	  result - which, having started after their call, covers their state.
+	  `save` therefore still yields and still answers "is the state as of my
+	  call durable?", which is what ProcessReceipt relies on.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -204,14 +256,39 @@ export type Profile = {
 	-- is gone for good. Separate from "all three done" so the completion
 	-- animation gets a moment to play before the panel is retired forever.
 	StarterTasksClosed: boolean,
+	-- The ids of MailboxService entries already granted to this profile, newest
+	-- last, capped at GameConfig.MAILBOX_DELIVERED_MEMORY. Durable because it
+	-- is what makes delivery idempotent: an entry granted and saved but not
+	-- yet removed from the mailbox (a crash in between) is recognised here
+	-- and only removed the second time, never granted again. Added by
+	-- `reconcile` (an empty list is the only correct value for an old save),
+	-- so no schema bump was needed.
+	DeliveredMail: { string },
+	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
+	-- SESSION LOCKING section in the header.
+	SessionLock: SessionLock?,
+}
+
+export type SessionLock = {
+	JobId: string,
+	PlaceId: number,
+	At: number,
 }
 
 local store: DataStore? = nil
 local profiles: { [Player]: Profile } = {}
 local loading: { [Player]: boolean } = {}
 
---- Studio without API access must still boot and be playable.
-local useDataStore = false
+--- True when saves go to a DataStore. A LIVE server always does: an outage
+--- there is handled by load's retry-and-kick path, never by quietly running
+--- on blank in-memory profiles (players would look wiped and receipts would
+--- be granted unsaved). Only Studio without API access falls back to memory,
+--- decided by the probe in `start`.
+local useDataStore = not RunService:IsStudio()
+
+--- This server's session id for the lock. JobId is empty in Studio, so
+--- Studio gets a GUID of its own, fixed for the life of this server.
+local sessionId: string = if game.JobId ~= "" then game.JobId else "studio-" .. HttpService:GenerateGUID(false)
 
 local function defaultProfile(): Profile
 	return {
@@ -255,6 +332,9 @@ local function defaultProfile(): Profile
 		SpinProgress = 0,
 		StarterTasks = {},
 		StarterTasksClosed = false,
+		DeliveredMail = {},
+		-- Never set in memory; see SessionLock above.
+		SessionLock = nil,
 	}
 end
 
@@ -842,6 +922,30 @@ local function reconcile(profile: Profile): Profile
 	profile.OfflineCashRate = math.floor(finite(profile.OfflineCashRate))
 	profile.PendingOfflineCash = math.floor(finite(profile.PendingOfflineCash))
 
+	-- MAILBOX IDEMPOTENCY. Only string ids are kept, newest last, capped. A
+	-- non-table is replaced with an empty list - the worst that costs is one
+	-- mailbox entry that was granted AND is still in the mailbox being granted
+	-- again, which needs a crash in a sub-second window on top of a corrupt
+	-- save.
+	local delivered: { string } = {}
+	if type(profile.DeliveredMail) == "table" then
+		for _, id in profile.DeliveredMail do
+			if type(id) == "string" then
+				table.insert(delivered, id)
+			end
+		end
+	end
+	while #delivered > GameConfig.MAILBOX_DELIVERED_MEMORY do
+		table.remove(delivered, 1)
+	end
+	profile.DeliveredMail = delivered
+
+	-- The session lock is document metadata, never profile state. `load`
+	-- strips it before this runs; clearing it here as well means a profile
+	-- reconciled from any other source (a test round trip, a hand-built
+	-- record) can never carry one into memory or out to a client.
+	profile.SessionLock = nil
+
 	-- Recompute every stored item's economy from the live config. Runs on EVERY
 	-- load, deliberately: saved income is a cache of a config value, never a
 	-- source of truth, so this is what stops an old economy living on inside
@@ -868,19 +972,95 @@ end
 --- Exposed for the regression tests only: the same repair pass a load runs.
 DataService.reconcile = reconcile
 
-local function key(player: Player): string
-	return "player_" .. player.UserId
+local function keyFor(userId: number): string
+	return "player_" .. userId
 end
 
---- Blocks until the profile is available. Returns nil if the player left first.
+local function key(player: Player): string
+	return keyFor(player.UserId)
+end
+
+--- How many times a load retries a DataStore ERROR (not a held lock) before
+--- the player is kicked.
+local LOAD_ATTEMPTS = 4
+
+--- Fires (player) whenever a load FINISHES - loaded, failed or abandoned -
+--- so waitForProfile can wake on the event instead of polling.
+local loadFinished = Instance.new("BindableEvent")
+
+--- Players whose session was taken over by another server. Never saved again.
+local sessionLost: { [Player]: boolean } = {}
+
+--- UserIds with a lock-clearing write in flight on THIS server (a release, or
+--- an abandoned load unlocking). A rejoin of the same user waits for it: that
+--- write carries our own session id, so without the wait the new load would
+--- take "our" lock and the old write would then clear it under the new session.
+local releasing: { [number]: boolean } = {}
+
+--- Players whose `release` is running, so PlayerRemoving and BindToClose never
+--- both write the same profile.
+local releasingPlayers: { [Player]: boolean } = {}
+
+--- UpdateAsync calls made by saves this server run. Read by the coalescing test.
+local writeCount = 0
+
+--- Blocks until the profile is available. Returns nil if the load failed, the
+--- player left first, or the optional timeout passed.
+---
+--- Event-based: wakes the moment the load finishes (however long it takes -
+--- a join waiting on another server's session lock can take 20s) or the
+--- player leaves. With no timeout it cannot hang: every load ends in a stored
+--- profile or a kick, and both wake this.
 function DataService.waitForProfile(player: Player, timeout: number?): Profile?
-	local deadline = os.clock() + (timeout or 10)
-	while not profiles[player] and os.clock() < deadline do
-		if not player.Parent then
-			return nil
-		end
-		task.wait(0.05)
+	local ready = profiles[player]
+	if ready then
+		return ready
 	end
+	if not player.Parent then
+		return nil
+	end
+
+	-- Nothing between the check above and these connections yields, so a load
+	-- that finishes cannot slip between them.
+	local thread = coroutine.running()
+	local finished = false
+	local connections: { RBXScriptConnection } = {}
+	local timer: thread? = nil
+	local function finish()
+		if finished then
+			return
+		end
+		finished = true
+		for _, connection in connections do
+			connection:Disconnect()
+		end
+		if timer and timer ~= coroutine.running() then
+			pcall(task.cancel, timer)
+		end
+		if coroutine.status(thread) == "suspended" then
+			task.spawn(thread)
+		end
+	end
+	table.insert(
+		connections,
+		loadFinished.Event:Connect(function(who: Player)
+			if who == player then
+				finish()
+			end
+		end)
+	)
+	table.insert(
+		connections,
+		player.AncestryChanged:Connect(function()
+			if not player.Parent then
+				finish()
+			end
+		end)
+	)
+	if timeout then
+		timer = task.delay(timeout, finish)
+	end
+	coroutine.yield()
 	return profiles[player]
 end
 
@@ -894,8 +1074,238 @@ end
 --- so it needs to distinguish "the save failed" from "there is no DataStore in
 --- this environment". Studio without API access is the latter: nothing can be
 --- persisted, and refusing every receipt there would make purchases untestable.
+---
+--- ALWAYS true on a live server, even while the DataStore is down: there a
+--- failed save must read as a failed save (receipt left open), never as "no
+--- persistence here". So `not isPersistent()` can only ever be true in Studio.
 function DataService.isPersistent(): boolean
-	return useDataStore and store ~= nil
+	return useDataStore
+end
+
+--- True only in Studio with DataStore access off: profiles live in memory and
+--- nothing is saved. The exact complement of isPersistent, named for callers
+--- that want to say "this shortcut is Studio-only" out loud.
+function DataService.isStudioMemoryMode(): boolean
+	return not useDataStore
+end
+
+--- True once another server has taken this player's save over. Nothing of
+--- theirs is written by this server again; they are being kicked.
+function DataService.isSessionLost(player: Player): boolean
+	return sessionLost[player] == true
+end
+
+-- ==========================================================
+-- SESSION LOCK PRIMITIVES
+-- ==========================================================
+--
+-- Both take the store and key explicitly so the Studio test
+-- (DebugCommands/Data) can exercise them on a THROWAWAY key instead of a
+-- real player's save.
+
+local function openStore(): DataStore?
+	if store then
+		return store
+	end
+	local ok, opened = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = opened
+	end
+	return store
+end
+
+local function newLock(): SessionLock
+	return { JobId = sessionId, PlaceId = game.PlaceId, At = os.time() }
+end
+
+--- True when `lock` belongs to ANOTHER session that is still fresh enough to
+--- be alive. Absent, ours, unreadable or stale all read as free.
+local function heldByOther(lock: any, now: number): boolean
+	if type(lock) ~= "table" or lock.JobId == sessionId then
+		return false
+	end
+	local at = tonumber(lock.At)
+	if at == nil or at ~= at then
+		return false
+	end
+	return now - at < GameConfig.DATA_LOCK_STALE_SECONDS
+end
+
+type ClaimOutcome = "taken" | "held" | "corrupt"
+
+--- ONE atomic read-and-lock. "taken" returns the stored document (the lock
+--- now ours; a brand-new key gets a locked default profile written straight
+--- away so a second server cannot also believe it is empty). "held" writes
+--- nothing. "corrupt" (a stored value that is not a table) writes nothing.
+local function claim(target: DataStore, storeKey: string, takeover: boolean): (ClaimOutcome, any, any)
+	local outcome: ClaimOutcome = "corrupt"
+	local document: any = nil
+	local holder: any = nil
+	target:UpdateAsync(storeKey, function(stored: any): any
+		-- UpdateAsync may run this more than once (a write conflict retries
+		-- it), so every run decides from scratch.
+		document = nil
+		holder = nil
+		if stored == nil then
+			local fresh = defaultProfile() :: any
+			fresh.SessionLock = newLock()
+			outcome = "taken"
+			document = fresh
+			return fresh
+		end
+		if type(stored) ~= "table" then
+			outcome = "corrupt"
+			return nil
+		end
+		local lock = stored.SessionLock
+		if heldByOther(lock, os.time()) then
+			holder = lock.JobId
+			if not takeover then
+				outcome = "held"
+				return nil
+			end
+		end
+		stored.SessionLock = newLock()
+		outcome = "taken"
+		document = stored
+		return stored
+	end)
+	return outcome, document, holder
+end
+
+--- ONE guarded write. Writes `profile` (a shallow copy, plus the lock) only
+--- if the stored lock is still ours. Returns (written, rejected, holder):
+--- `rejected` means the lock was someone else's or missing and nothing was
+--- written; an ERROR is thrown, so callers pcall this.
+local function writeGuarded(target: DataStore, storeKey: string, profile: any, clearLock: boolean): (boolean, boolean, any)
+	local rejected = false
+	local holder: any = nil
+	writeCount += 1
+	target:UpdateAsync(storeKey, function(stored: any): any
+		rejected = false
+		holder = nil
+		local lock = if type(stored) == "table" then stored.SessionLock else nil
+		if type(lock) ~= "table" or lock.JobId ~= sessionId then
+			rejected = true
+			holder = if type(lock) == "table" then lock.JobId else nil
+			return nil
+		end
+		-- A SHALLOW copy, so the live profile never carries the lock. The copy
+		-- shares every nested table with the live profile, exactly as the old
+		-- "return profile" did; the value is encoded before this call returns.
+		local document = table.clone(profile)
+		document.SessionLock = if clearLock then nil else newLock()
+		return document
+	end)
+	return not rejected, rejected, holder
+end
+
+--- Clears our lock without writing any profile data. Used when a load took
+--- the lock but the profile never went live (the player left mid-load, or
+--- the document could not be read), so their next join is not made to wait.
+local function unlockOnly(userId: number)
+	local target = store
+	if not target then
+		return
+	end
+	releasing[userId] = true
+	for attempt = 1, 3 do
+		local ok, err = pcall(function()
+			target:UpdateAsync(keyFor(userId), function(stored: any): any
+				if type(stored) ~= "table" or type(stored.SessionLock) ~= "table" or stored.SessionLock.JobId ~= sessionId then
+					return nil
+				end
+				stored.SessionLock = nil
+				return stored
+			end)
+		end)
+		if ok then
+			break
+		end
+		warn(`[DataService] unlock attempt {attempt} failed for user {userId}: {err}`)
+		if attempt < 3 then
+			task.wait(attempt)
+		end
+	end
+	releasing[userId] = nil
+end
+
+--- Marks a player's session as lost and removes them. Idempotent.
+local function loseSession(player: Player, holder: any)
+	if sessionLost[player] then
+		return
+	end
+	sessionLost[player] = true
+	warn(
+		`[DataService] {player.Name}'s save is now owned by another session ({tostring(holder or "lock released")}); `
+			.. "this server will never write it again"
+	)
+	if player.Parent then
+		pcall(function()
+			player:Kick("Your progress was opened in another server. Please rejoin to keep playing.")
+		end)
+	end
+end
+
+--- Waits for any lock-clearing write for this user on this server, then
+--- takes the lock (waiting out another live session, then taking it over).
+--- Returns ("ok", document) | ("left", nil) | ("failed", reason).
+local function acquire(player: Player): (string, any)
+	local userId = player.UserId
+
+	local releaseDeadline = os.clock() + 60
+	while releasing[userId] do
+		if not player.Parent then
+			return "left", nil
+		end
+		if os.clock() >= releaseDeadline then
+			return "failed", "an earlier leave-save for this player is still running"
+		end
+		task.wait(0.1)
+	end
+
+	local storeKey = key(player)
+	local waitStarted = os.clock()
+	local failures = 0
+	local toldWaiting = false
+	while true do
+		if not player.Parent then
+			return "left", nil
+		end
+		local takeover = os.clock() - waitStarted >= GameConfig.DATA_LOCK_WAIT_SECONDS
+		local target = openStore()
+		local ok: boolean, outcome: any, document: any, holder: any
+		if target then
+			ok, outcome, document, holder = pcall(claim, target, storeKey, takeover)
+		else
+			ok, outcome = false, "the DataStore could not be opened"
+		end
+
+		if ok and outcome == "taken" then
+			if holder ~= nil then
+				warn(`[DataService] took over {player.Name}'s save from session {tostring(holder)} after waiting {GameConfig.DATA_LOCK_WAIT_SECONDS}s`)
+			end
+			return "ok", document
+		elseif ok and outcome == "held" then
+			if not toldWaiting then
+				toldWaiting = true
+				print(`[DataService] {player.Name}'s save is still held by session {tostring(holder)}; waiting for it to be released`)
+			end
+			task.wait(GameConfig.DATA_LOCK_RETRY_SECONDS)
+		elseif ok then
+			return "failed", "the stored profile is not a table"
+		else
+			failures += 1
+			warn(`[DataService] load attempt {failures} failed for {player.Name}: {outcome}`)
+			if failures >= LOAD_ATTEMPTS then
+				-- No sleep after the last attempt: the kick goes out now.
+				return "failed", tostring(outcome)
+			end
+			task.wait(2 ^ failures)
+		end
+	end
 end
 
 function DataService.load(player: Player)
@@ -905,33 +1315,38 @@ function DataService.load(player: Player)
 	loading[player] = true
 
 	local profile: Profile? = nil
+	local failure: string? = nil
+	local lockTaken = false
 
-	if useDataStore and store then
-		local attempts = 0
-		while attempts < 4 and not profile do
-			attempts += 1
-			local target = store :: DataStore
-			local ok, result = pcall(function()
-				return target:GetAsync(key(player))
+	if useDataStore then
+		local status, detail = acquire(player)
+		if status == "ok" then
+			lockTaken = true
+			-- migrate and reconcile run PROTECTED: a malformed document used to
+			-- throw here, leave `loading` set forever and soft-lock the player.
+			local ok, result = pcall(function(): Profile
+				local document = detail :: any
+				document.SessionLock = nil
+				return reconcile(migrate(document :: Profile))
 			end)
 			if ok then
-				profile = if result then migrate(result :: Profile) else defaultProfile()
+				profile = result
 			else
-				warn(`[DataService] load attempt {attempts} failed for {player.Name}: {result}`)
-				task.wait(2 ^ attempts)
+				failure = `the stored profile could not be read: {result}`
 			end
+		elseif status == "failed" then
+			failure = tostring(detail)
 		end
-
-		if not profile then
-			-- Never hand out a fresh profile after a failed read: that would let
-			-- a save overwrite real progress. Kick instead.
-			warn(`[DataService] giving up loading {player.Name}; removing to protect their save`)
-			loading[player] = nil
-			player:Kick("Could not load your save. Please rejoin in a moment.")
-			return
-		end
+		-- "left": nothing was locked and there is nobody to kick.
 	else
-		profile = defaultProfile()
+		local ok, result = pcall(function(): Profile
+			return reconcile(defaultProfile())
+		end)
+		if ok then
+			profile = result
+		else
+			failure = tostring(result)
+		end
 	end
 
 	loading[player] = nil
@@ -941,12 +1356,31 @@ function DataService.load(player: Player)
 	-- them, so `release` already ran and nothing will ever run it again: a
 	-- profile stored now would sit in memory for the life of the server and be
 	-- re-saved on every autosave, spending DataStore budget on a ghost.
-	if not player.Parent then
+	if profile and player.Parent then
+		profiles[player] = profile
+		loadFinished:Fire(player)
 		return
 	end
 
-	profiles[player] = reconcile(profile :: Profile)
+	if lockTaken then
+		-- The lock is ours but the profile never went live: give it back so the
+		-- next join does not wait DATA_LOCK_WAIT_SECONDS for nothing.
+		task.spawn(unlockOnly, player.UserId)
+	end
+	if failure then
+		-- Never hand out a fresh profile after a failed read: that would let
+		-- a save overwrite real progress. Kick instead.
+		warn(`[DataService] giving up loading {player.Name} ({failure}); removing to protect their save`)
+		if player.Parent then
+			player:Kick("Could not load your save. Please rejoin in a moment.")
+		end
+	end
+	loadFinished:Fire(player)
 end
+
+-- ==========================================================
+-- SAVING
+-- ==========================================================
 
 --- Runs on the profile immediately before EVERY save - autosave, leave and
 --- shutdown alike - so a service can stamp last-moment state (the offline
@@ -957,32 +1391,143 @@ function DataService.onBeforeSave(fn: (Player, Profile) -> ())
 	table.insert(beforeSave, fn)
 end
 
-function DataService.save(player: Player): boolean
-	local profile = profiles[player]
-	if not profile then
-		return false
-	end
+local function runBeforeSave(player: Player, profile: Profile)
 	for _, fn in beforeSave do
 		local ok, err = pcall(fn, player, profile)
 		if not ok then
 			warn(`[DataService] before-save hook failed for {player.Name}: {err}`)
 		end
 	end
-	if not useDataStore or not store then
+end
+
+type SaveWaiter = { id: number, thread: thread }
+type SaveQueue = {
+	--- The newest request id handed out.
+	requested: number,
+	running: boolean,
+	waiters: { SaveWaiter },
+	--- A release has begun: every write from here on clears the lock.
+	releasing: boolean,
+	--- A lock-clearing write has landed: nothing more may be written.
+	released: boolean,
+}
+local saveQueues: { [Player]: SaveQueue } = {}
+
+--- The one writer per player. Each pass covers every request made before it
+--- started; requests made while it runs are covered by exactly one more pass.
+local function runQueue(player: Player, queue: SaveQueue)
+	while true do
+		local covering = queue.requested
+		local ok = false
+		local profile = profiles[player]
+		local target = openStore()
+		if profile and target and not sessionLost[player] and not queue.released then
+			-- The hooks run per WRITE, right before it, so what they stamp (the
+			-- offline clock) is as fresh as the data it is saved with.
+			runBeforeSave(player, profile)
+			local clearLock = queue.releasing
+			local called, written, rejected, holder = pcall(writeGuarded, target, key(player), profile, clearLock)
+			if not called then
+				warn(`[DataService] save failed for {player.Name}: {written}`)
+			elseif rejected then
+				loseSession(player, holder)
+			else
+				ok = written == true
+				if ok and clearLock then
+					queue.released = true
+				end
+			end
+		elseif profile and not target then
+			warn(`[DataService] save skipped for {player.Name}: the DataStore could not be opened`)
+		end
+
+		-- Answer everyone this pass covered. Detached first: a woken caller may
+		-- call save again straight away, and must land in the fresh list.
+		local current = queue.waiters
+		queue.waiters = {}
+		local wake: { thread } = {}
+		for _, waiter in current do
+			if waiter.id <= covering then
+				table.insert(wake, waiter.thread)
+			else
+				table.insert(queue.waiters, waiter)
+			end
+		end
+		for _, thread in wake do
+			-- A caller cancelled while waiting is dead; resuming it would throw
+			-- and stop this writer for good.
+			if coroutine.status(thread) == "suspended" then
+				task.spawn(thread, ok)
+			end
+		end
+
+		if queue.requested == covering then
+			break
+		end
+	end
+	queue.running = false
+end
+
+--- Queues a write and yields for the result of the write that covers it.
+local function requestSave(player: Player, release: boolean): boolean
+	local profile = profiles[player]
+	if not profile then
+		return false
+	end
+	if not useDataStore then
+		-- Studio memory mode: the hooks still run (they keep session state
+		-- consistent), nothing is written.
+		runBeforeSave(player, profile)
+		return false
+	end
+	if sessionLost[player] then
 		return false
 	end
 
-	local target = store :: DataStore
-	local ok, err = pcall(function()
-		target:UpdateAsync(key(player), function()
-			return profile
-		end)
-	end)
-
-	if not ok then
-		warn(`[DataService] save failed for {player.Name}: {err}`)
+	local queue = saveQueues[player]
+	if not queue then
+		queue = { requested = 0, running = false, waiters = {}, releasing = false, released = false }
+		saveQueues[player] = queue
 	end
-	return ok
+	if release then
+		queue.releasing = true
+	end
+	if queue.released then
+		return false
+	end
+
+	queue.requested += 1
+	table.insert(queue.waiters, { id = queue.requested, thread = coroutine.running() })
+	if not queue.running then
+		queue.running = true
+		-- DEFERRED, never spawned: the writer may finish without yielding (no
+		-- store), and it must not try to wake this thread before it has
+		-- yielded below.
+		task.defer(runQueue, player, queue)
+	end
+	local written = coroutine.yield()
+	return written == true
+end
+
+--- Saves the profile. Yields; true once the profile AS IT WAS AT THIS CALL is
+--- durably written. Concurrent calls are coalesced (see the header).
+function DataService.save(player: Player): boolean
+	return requestSave(player, false)
+end
+
+--- Saves made by this server so far. Studio test support only.
+function DataService.debugWriteCount(): number
+	return writeCount
+end
+
+--- The lock primitives, for the Studio test on a THROWAWAY key only.
+function DataService.debugLockApi(): { [string]: any }
+	return {
+		sessionId = sessionId,
+		claim = claim,
+		writeGuarded = writeGuarded,
+		heldByOther = heldByOther,
+	}
 end
 
 --- Runs on a profile when its player LEAVES, before the leave-save writes it.
@@ -1000,6 +1545,28 @@ function DataService.onBeforeRelease(fn: (Player, Profile) -> ())
 	table.insert(beforeRelease, fn)
 end
 
+--- Runs AFTER a player's profile has been saved and dropped (or, if it never
+--- loaded, when they leave). The place to clear per-player caches that the
+--- leave-save still reads - EconomyService's income cache feeds the offline
+--- rate stamped by that save, so it must outlive it, and a plain
+--- PlayerRemoving handler has no guaranteed order relative to this one.
+local afterRelease: { (Player) -> () } = {}
+
+function DataService.onAfterRelease(fn: (Player) -> ())
+	table.insert(afterRelease, fn)
+end
+
+local function runAfterRelease(player: Player)
+	for _, fn in afterRelease do
+		local ok, err = pcall(function()
+			fn(player)
+		end)
+		if not ok then
+			warn(`[DataService] after-release hook failed for {player.Name}: {err}`)
+		end
+	end
+end
+
 --- Runs the release hooks without releasing. Exposed for the debug bridge, so
 --- the leave path can be exercised in a solo Studio session.
 function DataService.runBeforeRelease(player: Player)
@@ -1015,18 +1582,79 @@ function DataService.runBeforeRelease(player: Player)
 	end
 end
 
+--- The leave path. ORDER MATTERS:
+---   1. before-release hooks - commit anything held back during play, so the
+---      final write includes it;
+---   2. the final save, which CLEARS the lock in the same write, retried with
+---      backoff (a transient DataStore error must not lose the session);
+---   3. drop the profile, then the after-release hooks (cache cleanup).
+--- Idempotent: a second call (PlayerRemoving racing BindToClose) waits for the
+--- first instead of writing again.
 function DataService.release(player: Player)
+	if releasingPlayers[player] then
+		while releasingPlayers[player] do
+			task.wait(0.1)
+		end
+		return
+	end
+	if not profiles[player] then
+		-- Never loaded, or already released. Nothing to write; the caches may
+		-- still hold something for them.
+		loading[player] = nil
+		runAfterRelease(player)
+		return
+	end
+
+	local userId = player.UserId
+	releasingPlayers[player] = true
+	releasing[userId] = true
+
+	-- 1.
 	DataService.runBeforeRelease(player)
-	DataService.save(player)
+
+	-- 2.
+	if useDataStore then
+		local attempts = GameConfig.DATA_RELEASE_SAVE_ATTEMPTS
+		for attempt = 1, attempts do
+			if sessionLost[player] then
+				-- Another server owns the save; retrying could only be refused.
+				break
+			end
+			if requestSave(player, true) then
+				break
+			end
+			if sessionLost[player] then
+				break
+			end
+			if attempt == attempts then
+				warn(
+					`[DataService] leave-save for {player.Name} failed {attempts} times; their lock stays until the next join takes it over`
+				)
+				break
+			end
+			warn(`[DataService] leave-save attempt {attempt} failed for {player.Name}; retrying`)
+			task.wait(math.min(2 ^ attempt, 8))
+		end
+	else
+		requestSave(player, true)
+	end
+
+	-- 3.
 	profiles[player] = nil
 	loading[player] = nil
+	saveQueues[player] = nil
+	sessionLost[player] = nil
+	releasing[userId] = nil
+	releasingPlayers[player] = nil
+	runAfterRelease(player)
 end
 
 function DataService.start()
-	if useDataStore == false then
+	if RunService:IsStudio() then
+		-- The in-memory fallback exists for STUDIO ONLY: without API access the
+		-- probe throws, and the game must still boot and be playable.
 		local ok = pcall(function()
 			local opened = DataStoreService:GetDataStore(STORE_NAME)
-			-- A cheap probe: in Studio without API access this throws.
 			opened:GetAsync("__probe")
 			store = opened
 		end)
@@ -1034,6 +1662,30 @@ function DataService.start()
 		if not ok then
 			warn("[DataService] DataStores unavailable (Studio API access off) - running with in-memory profiles")
 		end
+	else
+		-- A LIVE server always persists. The probe is diagnostics only and runs
+		-- in the background so boot is never held up; if the DataStore really is
+		-- down, each join retries and kicks rather than handing out a blank
+		-- profile that a later save would write over real progress.
+		useDataStore = true
+		openStore()
+		task.spawn(function()
+			for attempt = 1, 5 do
+				local target = openStore()
+				local ok, err = pcall(function()
+					if not target then
+						error("GetDataStore failed")
+					end
+					target:GetAsync("__probe")
+				end)
+				if ok then
+					return
+				end
+				warn(`[DataService] DataStore probe {attempt}/5 failed: {err}`)
+				task.wait(2 ^ attempt)
+			end
+			warn("[DataService] DataStores still unreachable - joins will retry and kick rather than load blank profiles")
+		end)
 	end
 
 	for _, player in Players:GetPlayers() do
@@ -1046,23 +1698,53 @@ function DataService.start()
 		DataService.release(player)
 	end)
 
+	-- Autosave. Each write also refreshes the session lock's stamp, which is
+	-- what keeps a live session well inside DATA_LOCK_STALE_SECONDS.
 	task.spawn(function()
 		while true do
 			task.wait(GameConfig.AUTOSAVE_INTERVAL)
+			local due: { Player } = {}
 			for player in profiles do
+				table.insert(due, player)
+			end
+			for _, player in due do
 				task.spawn(DataService.save, player)
 			end
 		end
 	end)
 
+	-- SHUTDOWN. Every loaded profile goes through the full release (hooks,
+	-- lock-clearing save, retries), and the close waits until they have all
+	-- finished - including leave-saves PlayerRemoving had already started -
+	-- or DATA_SHUTDOWN_WAIT_SECONDS pass. `release` is idempotent, so the
+	-- PlayerRemoving the shutdown itself triggers does not write again.
 	game:BindToClose(function()
-		if RunService:IsStudio() then
+		if not useDataStore then
 			return
 		end
+		local due: { Player } = {}
 		for player in profiles do
-			task.spawn(DataService.save, player)
+			table.insert(due, player)
 		end
-		task.wait(3)
+		local pending = #due
+		for _, player in due do
+			task.spawn(function()
+				local ok, err = pcall(function()
+					DataService.release(player)
+				end)
+				if not ok then
+					warn(`[DataService] shutdown release failed for {player.Name}: {err}`)
+				end
+				pending -= 1
+			end)
+		end
+		local deadline = os.clock() + GameConfig.DATA_SHUTDOWN_WAIT_SECONDS
+		while (pending > 0 or next(releasingPlayers) ~= nil or next(releasing) ~= nil) and os.clock() < deadline do
+			task.wait(0.1)
+		end
+		if pending > 0 or next(releasingPlayers) ~= nil then
+			warn(`[DataService] shutdown: {pending} final save(s) still running after {GameConfig.DATA_SHUTDOWN_WAIT_SECONDS}s`)
+		end
 	end)
 end
 
