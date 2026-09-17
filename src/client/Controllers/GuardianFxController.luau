@@ -92,6 +92,14 @@ local function poseFor(entry: Posed, now: number): CFrame
 		elseif state == "Waking" then
 			local shake = math.sin(now * 46) * math.rad(7)
 			return CFrame.new(0, 0.25, 0) * CFrame.Angles(math.rad(-8), shake, shake * 0.6)
+		elseif state == "Searching" then
+			-- gadgets-patrols: lost the thief in the smoke, peering about.
+			return CFrame.new(0, 0.1, 0) * CFrame.Angles(math.rad(-4), math.sin(now * 3) * math.rad(18), 0)
+		elseif state == "Patrolling" and not walking then
+			-- A stroll, not the comic sprint: slow, small bob, no lean.
+			local t = now * tuning.cycle * 0.35
+			return CFrame.new(0, math.abs(math.sin(t)) * tuning.bob * 0.3, 0)
+				* CFrame.Angles(tuning.walkLean, math.sin(t * 0.5) * tuning.yaw * 0.4, math.sin(t * 0.5) * tuning.roll * 0.3)
 		end
 	end
 
@@ -158,7 +166,7 @@ local function puff(adornee: BasePart, stage: number, headY: number)
 	end)
 end
 
-local function alertPop(adornee: BasePart, headY: number)
+local function alertPop(adornee: BasePart, headY: number, symbol: string?, color: Color3?)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "AlertPop"
 	gui.Size = UDim2.fromScale(0.5, 0.5)
@@ -173,9 +181,9 @@ local function alertPop(adornee: BasePart, headY: number)
 	text.BackgroundTransparency = 1
 	text.Font = Enum.Font.FredokaOne
 	text.TextScaled = true
-	text.TextColor3 = ALERT_COLOR
+	text.TextColor3 = color or ALERT_COLOR
 	text.TextStrokeTransparency = 0.15
-	text.Text = "!"
+	text.Text = symbol or "!"
 	text.Parent = gui
 
 	TweenService:Create(gui, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -188,6 +196,12 @@ local function alertPop(adornee: BasePart, headY: number)
 		out.Completed:Wait()
 		gui:Destroy()
 	end)
+end
+
+--- gadgets-patrols: the grey "?" over a guard that lost its thief in smoke.
+local SEARCH_COLOR = Color3.fromRGB(200, 206, 220)
+local function searchPop(adornee: BasePart, headY: number)
+	alertPop(adornee, headY, "?", SEARCH_COLOR)
 end
 
 --- The whole body goes red for a beat. A Highlight covers every part of a rig
@@ -276,6 +290,7 @@ local function runEffects(model: Model, root: BasePart)
 
 	local stage = 0
 	local previous = model:GetAttribute("State")
+	local base = model:GetAttribute("BaseGuardian") == true
 
 	-- STATE CHANGES ARE EVENTS, not a per-frame poll (security pass B8b):
 	-- this used to read the attribute on every Heartbeat for every guardian.
@@ -296,10 +311,21 @@ local function runEffects(model: Model, root: BasePart)
 			alertFlash(model)
 		end
 		if wasSleeping and state ~= "Sleeping" then
-			-- Woke up: kill the Zzz immediately, then react.
+			-- Woke up: kill the Zzz immediately, then react. Going out on
+			-- patrol (gadgets-patrols) is not an alert.
 			clearPuffs(model)
+			if state ~= "Patrolling" then
+				alertPop(root, headroom() + ALERT_HEADROOM)
+				alertFlash(model)
+			end
+		elseif (state :: any) == "Waking" and not base then
+			-- A patrolling (or walking-home) guard raising the alarm gets
+			-- the same "!" a sleeping one does.
 			alertPop(root, headroom() + ALERT_HEADROOM)
 			alertFlash(model)
+		end
+		if state == "Searching" then
+			searchPop(root, headroom() + ALERT_HEADROOM)
 		end
 	end)
 

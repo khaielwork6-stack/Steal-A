@@ -25,6 +25,10 @@ local crouched: { [Player]: boolean } = {}
 local cooldown: { [Player]: { [number]: number } } = {}
 --- Studio test hook: players the detector ignores (see setExempt).
 local exempt: { [Player]: boolean } = {}
+--- The Laser Jammer gadget (gadgets-patrols area): os.clock until which the
+--- detector ignores this player. Server-owned and time-limited, live and in
+--- Studio alike - deliberately NOT the Studio-only `exempt` above.
+local jammedUntil: { [Player]: number } = {}
 local metrics = { queries = 0, narrowChecks = 0, trips = 0, lastStepMs = 0, maxStepMs = 0 }
 local overlap = OverlapParams.new()
 overlap.FilterType = Enum.RaycastFilterType.Include
@@ -82,6 +86,14 @@ local function step()
 			continue
 		end
 		if exempt[player] then previous[player] = nil; continue end
+		-- Jammed: no sample is kept either, so the first sample after the jam
+		-- ends is a fresh one and never sweeps back across the jammed path.
+		local jam = jammedUntil[player]
+		if jam then
+			if jam > started then previous[player] = nil; continue end
+			jammedUntil[player] = nil
+			player:SetAttribute("GadgetJamUntil", nil)
+		end
 		if crouched[player] then LaserService.setCrouched(player, true) end
 		-- Feet follow the actual rig, so jumping clears low beams. Crouching
 		-- changes this laser silhouette AND costs walk speed (applied through
@@ -151,6 +163,32 @@ function LaserService.setExempt(player: Player, on: boolean)
 	end
 end
 
+--- The Laser Jammer. The detector ignores `player` for `seconds` (server
+--- clock). A second jam extends, never shortens. The replicated
+--- `GadgetJamUntil` attribute (server time) is presentation only: every
+--- client draws the effect on the jammed player, and the jammed player's own
+--- client flickers the beams (GadgetFxController).
+function LaserService.jam(player: Player, seconds: number): boolean
+	if type(seconds) ~= "number" or seconds ~= seconds or seconds <= 0 then
+		return false
+	end
+	local now = os.clock()
+	local untilTime = math.max(jammedUntil[player] or 0, now + math.min(seconds, 30))
+	jammedUntil[player] = untilTime
+	player:SetAttribute("GadgetJamUntil", workspace:GetServerTimeNow() + (untilTime - now))
+	return true
+end
+
+function LaserService.isJammed(player: Player): boolean
+	return (jammedUntil[player] or 0) > os.clock()
+end
+
+--- Ends a jam at once (Night, debug cleanup).
+function LaserService.clearJam(player: Player)
+	jammedUntil[player] = nil
+	player:SetAttribute("GadgetJamUntil", nil)
+end
+
 function LaserService.snapshot(): any
 	local out: any = table.clone(metrics)
 	out.fields, out.hz = #fields, 1 / INTERVAL
@@ -172,6 +210,8 @@ function LaserService.start()
 		player.CharacterAdded:Connect(function()
 			local wasCrouched = crouched[player]
 			previous[player], crouched[player], cooldown[player] = nil, nil, nil
+			-- Nor does a jam: it belonged to the body that used it.
+			if jammedUntil[player] then LaserService.clearJam(player) end
 			-- A crouch does not survive a respawn, and neither may its speed cost.
 			if wasCrouched then task.defer(LaserService.onPostureChanged, player) end
 		end)
@@ -181,6 +221,7 @@ function LaserService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		previous[player], crouched[player], cooldown[player] = nil, nil, nil
 		exempt[player] = nil
+		jammedUntil[player] = nil
 		limiter:release(player)
 	end)
 	local accumulated = 0

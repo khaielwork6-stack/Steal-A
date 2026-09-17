@@ -124,6 +124,15 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==========================================================
+	-- GADGETS-PATROLS AREA (docs/handoff-parts/gadgets-patrols.md)
+	-- ==========================================================
+	-- client -> server. ("buy", gadgetKey) or ("use", gadgetKey, targetPoint?).
+	-- A KEY, never a price or a count; the target point is only a hint for the
+	-- Grappling Hook and is re-validated with the server's own raycast from
+	-- the player's verified position. Rate limited in GadgetService.
+	"GadgetRequest",
 }
 
 local folder: Folder

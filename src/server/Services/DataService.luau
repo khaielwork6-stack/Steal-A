@@ -82,6 +82,8 @@ local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local SpinWheelConfig = require(ReplicatedStorage.Shared.Config.SpinWheelConfig)
 local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
+-- GADGETS-PATROLS AREA: the Gadgets field's keys and carry limits.
+local GadgetConfig = require(ReplicatedStorage.Shared.Config.GadgetConfig)
 
 local SCHEMA_VERSION = 13
 local STORE_NAME = "PlayerProfiles_v1"
@@ -270,6 +272,12 @@ export type Profile = {
 	-- `reconcile` (an empty list is the only correct value for an old save),
 	-- so no schema bump was needed.
 	DeliveredMail: { string },
+	-- ==== GADGETS-PATROLS AREA ====
+	-- Consumable gadgets bought with Cash, by GadgetConfig key (Smoke,
+	-- Jammer, Grapple) -> count carried. Durable: they were paid for. Added
+	-- by `reconcile` (empty = none), so no schema bump. Written only by
+	-- GadgetService.
+	Gadgets: { [string]: number },
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -339,6 +347,8 @@ local function defaultProfile(): Profile
 		StarterTasks = {},
 		StarterTasksClosed = false,
 		DeliveredMail = {},
+		-- GADGETS-PATROLS AREA: no gadgets until bought.
+		Gadgets = {},
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -950,6 +960,21 @@ local function reconcile(profile: Profile): Profile
 		table.remove(delivered, 1)
 	end
 	profile.DeliveredMail = delivered
+
+	-- ==== GADGETS-PATROLS AREA ====
+	-- Only known gadget keys, as whole counts clamped to the carry limit. A
+	-- corrupt value becomes 0 (the safe direction: never more than was paid).
+	do
+		local gadgets: { [string]: number } = {}
+		local saved = if type(profile.Gadgets) == "table" then profile.Gadgets :: any else {}
+		for key, def in GadgetConfig.Gadgets do
+			local count = saved[key]
+			if type(count) == "number" and count == count and count > 0 then
+				gadgets[key] = math.min(math.floor(count), def.maxCarried)
+			end
+		end
+		profile.Gadgets = gadgets
+	end
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile
