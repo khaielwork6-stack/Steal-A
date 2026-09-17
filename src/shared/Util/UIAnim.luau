@@ -117,6 +117,11 @@ function UIAnim.punchRotation(target: GuiObject, degrees: number?)
 	if not target then
 		return
 	end
+	-- [round3-ui-base-settings] A rotated element escapes its list's clip
+	-- (see Shared.Util.ClipSafe); buttons inside scrolling lists opt out.
+	if target:GetAttribute("_NoRotationPunch") then
+		return
+	end
 	local resting = target:GetAttribute("_RestRotation")
 	if resting == nil then
 		resting = target.Rotation
@@ -255,6 +260,10 @@ end
 
 --- Expanding circle from the press point. Purely decorative; safe to no-op.
 function UIAnim.ripple(button: GuiButton, at: Vector3?)
+	-- [round3-ui-base-settings] No extra CanvasGroup inside a clipped list.
+	if button:GetAttribute("_NoRipple") then
+		return
+	end
 	local size = button.AbsoluteSize
 	if size.X <= 0 or size.Y <= 0 then
 		return
