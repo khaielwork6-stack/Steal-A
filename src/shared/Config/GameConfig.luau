@@ -477,7 +477,7 @@ GameConfig.NEXT_UPDATE_IMAGE = 115680004637965 :: number?
 
 -- ==========================================================
 -- DATA: SESSION LOCK, SAVE RETRIES, MAILBOX (data area)
--- ===================================================
+-- ==========================================================
 --
 -- See DataService's header for the session-lock design and MailboxService's
 -- for the mailbox. Server-only numbers; they live here so validate.luau can
@@ -505,7 +505,8 @@ GameConfig.MAILBOX_POLL_SECONDS = 30
 --- Must be at least MAILBOX_CAPACITY so a whole mailbox can never be granted
 --- twice.
 GameConfig.MAILBOX_DELIVERED_MEMORY = 100
-=======
+
+-- ==========================================================
 -- CLIENT MOTION (client performance pass)
 -- ==========================================================
 
