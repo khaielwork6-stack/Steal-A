@@ -125,6 +125,11 @@ end
 -- SETTINGS GEAR
 -- ==========================================================
 
+--- The gear's visible disc, and the smallest on-screen touch target it may
+--- have AFTER MainUI's UIScale (Apple / Google guidance: 44 px).
+local GEAR_FACE = 44
+local GEAR_MIN_TARGET = 44
+
 local function buildSettingsGear(ui: ScreenGui, oldButton: GuiButton?)
 	if ui:FindFirstChild("SettingsGear") then
 		return
@@ -152,25 +157,53 @@ local function buildSettingsGear(ui: ScreenGui, oldButton: GuiButton?)
 
 	-- Named "Settings" so the pack opens Frames.Settings for it. Round, black,
 	-- white gear: the reference's minimal direction.
+	--
+	-- TOUCH TARGET. MainUI carries a UIScale (0.85, or 0.72 on a phone - see
+	-- HUDController.applyScale), so a 44 px button was really a 32 px target
+	-- under a thumb. The BUTTON is now an invisible hit area sized so that it
+	-- is still >= 44 px after that scale; the round face inside it keeps the
+	-- old 44 px look.
 	local button = Instance.new("ImageButton")
 	button.Name = "Settings"
-	button.Size = UDim2.fromOffset(44, 44)
+	button.Size = UDim2.fromOffset(GEAR_FACE, GEAR_FACE)
 	button.Position = UDim2.fromScale(0.5, 0.5)
 	button.AnchorPoint = Vector2.new(0.5, 0.5)
-	button.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-	button.BackgroundTransparency = 0.08
+	button.BackgroundTransparency = 1
 	button.AutoButtonColor = false
 	button.Image = ""
 	button.ZIndex = 6
 	button.Parent = holder
+
+	local face = Instance.new("Frame")
+	face.Name = "Face"
+	face.Size = UDim2.fromOffset(GEAR_FACE, GEAR_FACE)
+	face.Position = UDim2.fromScale(0.5, 0.5)
+	face.AnchorPoint = Vector2.new(0.5, 0.5)
+	face.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+	face.BackgroundTransparency = 0.08
+	face.Active = false
+	face.ZIndex = 6
+	face.Parent = button
 	local round = Instance.new("UICorner")
 	round.CornerRadius = UDim.new(1, 0)
-	round.Parent = button
+	round.Parent = face
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Color = Color3.fromRGB(255, 255, 255)
 	stroke.Transparency = 0.75
-	stroke.Parent = button
+	stroke.Parent = face
+
+	local uiScale = ui:FindFirstChildWhichIsA("UIScale")
+	local function sizeHitArea()
+		local scale = if uiScale then math.max(uiScale.Scale, 0.1) else 1
+		local side = math.max(GEAR_FACE, math.ceil(GEAR_MIN_TARGET / scale))
+		button.Size = UDim2.fromOffset(side, side)
+		holder.Size = UDim2.new(0, math.max(56, side + 4), 1, 0)
+	end
+	sizeHitArea()
+	if uiScale then
+		uiScale:GetPropertyChangedSignal("Scale"):Connect(sizeHitArea)
+	end
 
 	local gear = Instance.new("ImageLabel")
 	gear.Name = "Gear"
@@ -181,7 +214,7 @@ local function buildSettingsGear(ui: ScreenGui, oldButton: GuiButton?)
 	gear.Position = UDim2.fromScale(0.5, 0.5)
 	gear.AnchorPoint = Vector2.new(0.5, 0.5)
 	gear.ZIndex = 7
-	gear.Parent = button
+	gear.Parent = face
 	local ratio = Instance.new("UIAspectRatioConstraint")
 	ratio.AspectRatio = 1
 	ratio.Parent = gear
@@ -799,9 +832,27 @@ function HUDLayoutController.start()
 	buildStatCard(ui)
 	lockVerticalScroll(ui)
 
-	if Device.isTouch() then
+	-- Once per session: applyTouchLayout wires its own refit listeners, so it
+	-- must not be run twice. A session that BECOMES touch (the Studio emulator
+	-- switched, a keyboard detached) gets it then. The reverse is not undone:
+	-- the touch layout is usable with a mouse, and a live desktop re-layout
+	-- would need every property it rewrote remembered.
+	local touchApplied = false
+	local function applyTouchOnce()
+		if touchApplied then
+			return
+		end
+		touchApplied = true
 		applyTouchLayout(ui)
 	end
+	if Device.isTouch() then
+		applyTouchOnce()
+	end
+	Device.onTouchChanged(function(touch)
+		if touch then
+			applyTouchOnce()
+		end
+	end)
 
 	-- The gear pops in with the rest of the HUD rather than appearing.
 	local gear = ui:FindFirstChild("SettingsGear", true)

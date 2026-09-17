@@ -7,9 +7,11 @@
 
 	WHY ONE MANAGER
 	Seven plots x fourteen slots is ninety-eight displays. A script per pedestal
-	(the simulator default) is ninety-eight loops; this is one RenderStepped
-	connection over a registry, and it only animates what is near the camera.
-	Distant plots are re-checked twice a second and otherwise cost nothing.
+	(the simulator default) is ninety-eight loops; this is one Heartbeat
+	connection over a registry. Displays near the camera move every frame;
+	far ones every CLIENT_FAR_MOTION_INTERVAL. All moves of a frame go to the
+	engine in one workspace:BulkMoveTo (PivotBatch), and this loop also drives
+	ItemArtMotionController right after, so sub-parts follow the same frame.
 
 	COSMETIC ONLY, CLIENT ONLY
 	The server places every trophy and never moves it again (except a growth
@@ -27,7 +29,13 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local ItemArtReady = require(game:GetService("ReplicatedStorage").Shared.Util.ItemArtReady)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ItemArtReady = require(ReplicatedStorage.Shared.Util.ItemArtReady)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local PivotBatch = require(ReplicatedStorage.Shared.Util.PivotBatch)
+
+local ItemArtMotionController = require(script.Parent.ItemArtMotionController)
 
 local DisplayFxController = {}
 
@@ -37,8 +45,10 @@ local player = Players.LocalPlayer
 -- TUNING
 -- ==========================================================
 
---- Only displays within this many studs of the camera are animated.
-local ANIMATE_DISTANCE = 260
+--- Displays within this many studs of the camera move every frame (and
+--- bob); farther ones are re-posed every FAR_INTERVAL seconds.
+local ANIMATE_DISTANCE = GameConfig.CLIENT_MOTION_CULL_RADIUS
+local FAR_INTERVAL = GameConfig.CLIENT_FAR_MOTION_INTERVAL
 --- How often the near/far set is re-evaluated.
 local CULL_INTERVAL = 0.5
 
@@ -71,9 +81,14 @@ type Display = {
 	spin: number,
 	bob: number,
 	near: boolean,
+	--- os.clock() at which a FAR display is next re-posed.
+	nextFarMove: number,
+	--- Part offsets for the batched move (PivotBatch).
+	cache: PivotBatch.Cache,
 }
 
 local displays: { [Model]: Display } = {}
+local batch = PivotBatch.newBatch()
 local emptySlots: { [BasePart]: boolean } = {}
 local nearSlots: { [BasePart]: boolean } = {}
 local reducedEffects = false
@@ -145,7 +160,11 @@ local function registerTrophy(model: Model)
 		phase = math.random() * math.pi * 2,
 		spin = SPIN_BASE / math.max(1, math.sqrt(visual)),
 		bob = if visual <= BOB_MAX_SCALE then BOB_AMPLITUDE / math.max(1, visual) else 0,
-		near = false,
+		-- Unknown until the first cull: treat as near so a new trophy is posed
+		-- straight away.
+		near = true,
+		nextFarMove = os.clock() + math.random() * FAR_INTERVAL,
+		cache = PivotBatch.newCache(model),
 	}
 	if reducedEffects then
 		for _, descendant in model:GetDescendants() do
@@ -158,6 +177,10 @@ local function registerTrophy(model: Model)
 end
 
 local function unregisterTrophy(model: Model)
+	local display = displays[model]
+	if display then
+		PivotBatch.release(display.cache)
+	end
 	displays[model] = nil
 end
 
@@ -219,32 +242,43 @@ local function cull(cameraPosition: Vector3)
 	end
 end
 
-local function step(_dt: number)
-	local camera = workspace.CurrentCamera
-	if not camera then
-		return
-	end
-	local now = os.clock()
-	if now - lastCull >= CULL_INTERVAL then
-		lastCull = now
-		cull(camera.CFrame.Position)
-	end
+local function moveDisplays(now: number)
+	-- Graphics LOW: trophies hold whatever pose they are in. The angle stays a
+	-- function of the clock, so switching back to HIGH makes each trophy step
+	-- once to where the clock says and then turn on - a single step, at the
+	-- moment the player changed the setting.
+	local frozen = Effects.isLowGraphics()
 
 	for model, display in displays do
 		if not model.Parent then
-			displays[model] = nil
+			unregisterTrophy(model)
+			continue
+		end
+		if frozen then
 			continue
 		end
 		-- EVERY display turns, near or far. The angle is a function of the
 		-- clock, not a counter that only advanced while the camera was close,
 		-- so a pedestal seen from the avenue is at exactly the angle it would
 		-- have reached had it been watched the whole time - no frozen pose,
-		-- no jump on approach. The near set still gates the extras below.
+		-- no jump on approach. Far displays are just re-posed less often
+		-- (CLIENT_FAR_MOTION_INTERVAL), each on its own staggered schedule so
+		-- they never all land on one frame. The near set also gates the bob.
+		if not display.near then
+			if now < display.nextFarMove then
+				continue
+			end
+			display.nextFarMove = now + FAR_INTERVAL
+		end
 
 		-- Capture the authored pose the first time we touch it, and again if
 		-- the server re-seated the model for growth.
 		local growth = tonumber(model:GetAttribute("GrowthApplied"))
 		if not display.base or growth ~= display.growthSeen then
+			-- A re-seat moved the parts: their cached offsets are stale too.
+			if display.base then
+				display.cache.dirty = true
+			end
 			display.base = model:GetPivot()
 			display.growthSeen = growth
 			-- Continuous from the first frame: the turn starts from the
@@ -264,10 +298,38 @@ local function step(_dt: number)
 		local slotX, slotZ = display.slot.Position.X, display.slot.Position.Z
 		local about = CFrame.new(slotX, base.Position.Y, slotZ)
 		local relative = about:ToObjectSpace(base)
-		model:PivotTo(about * CFrame.Angles(0, angle, 0) * relative + Vector3.new(0, bob, 0))
+		PivotBatch.queue(batch, model, display.cache, about * CFrame.Angles(0, angle, 0) * relative + Vector3.new(0, bob, 0))
 	end
 
-	if reducedEffects then
+	-- One engine call for every trophy moved this frame.
+	if not PivotBatch.flush(batch) then
+		for _, display in displays do
+			display.cache.dirty = true
+		end
+	end
+end
+
+local function step(_dt: number)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local now = os.clock()
+	if now - lastCull >= CULL_INTERVAL then
+		lastCull = now
+		cull(camera.CFrame.Position)
+	end
+
+	moveDisplays(now)
+
+	-- The per-part item-art motion is driven from HERE, after the trophies
+	-- have been moved: it poses sub-parts relative to each trophy's primary
+	-- part, so it has to read this frame's primary CFrame, not last frame's.
+	-- Two independent Heartbeat connections ran in an unspecified order and
+	-- could lag the sub-parts one frame behind the body.
+	ItemArtMotionController.step(now)
+
+	if reducedEffects or Effects.isReduced() then
 		return
 	end
 	-- Breathing frames, only on empty slots that are near.

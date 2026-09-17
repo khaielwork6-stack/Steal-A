@@ -34,6 +34,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
 local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -76,6 +77,8 @@ local RAINBOW = ColorSequence.new({
 --- Seconds for one full sweep. Slow enough to read as a shimmer rather than a
 --- strobe, which matters on a button a child is looking at all session.
 local RAINBOW_PERIOD = 3.6
+--- The chest's FREE! sign only animates within this many studs of the camera.
+local SIGN_ANIMATE_DISTANCE = 220
 local rainbowConnection: RBXScriptConnection? = nil
 local chestSignConnection: RBXScriptConnection? = nil
 local CLAIMED_COLOR = Color3.fromRGB(150, 156, 170)
@@ -413,7 +416,7 @@ end
 --
 -- The server builds the sign white under a gradient; this sweeps the same
 -- rainbow the GIFT button wears across it and lets it breathe, so the word
--- reads as the same offer from across the lobby. One RenderStepped, one
+-- reads as the same offer from across the lobby. One Heartbeat (near only), one
 -- gradient offset, one UIScale - and it stops the moment the gift is
 -- claimed (see repaint).
 
@@ -434,10 +437,32 @@ local function dressChestSign()
 	local scale = text:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 	scale.Parent = text
 	local phase = math.random() * math.pi * 2
-	chestSignConnection = RunService.RenderStepped:Connect(function()
+	local anchor = body :: Instance
+	local resting = false
+	-- Heartbeat, and only while it can be seen: this ran every rendered frame
+	-- for the whole session until the gift was claimed, even from the far end
+	-- of the map. Reduced Effects parks it at rest.
+	chestSignConnection = RunService.Heartbeat:Connect(function()
 		if not text.Parent then
 			return
 		end
+		local camera = workspace.CurrentCamera
+		local far = camera ~= nil
+			and anchor:IsA("BasePart")
+			and (anchor.Position - camera.CFrame.Position).Magnitude > SIGN_ANIMATE_DISTANCE
+		if far then
+			return
+		end
+		if Effects.isReduced() then
+			if not resting then
+				resting = true
+				rainbow.Offset = Vector2.zero
+				rainbow.Rotation = 0
+				scale.Scale = 1
+			end
+			return
+		end
+		resting = false
 		local t = os.clock() / RAINBOW_PERIOD
 		rainbow.Offset = Vector2.new((t % 1) * 2 - 1, 0)
 		rainbow.Rotation = math.sin(t * math.pi * 2) * 14
@@ -533,10 +558,31 @@ local function buildOpener(ui: ScreenGui)
 		if rainbowConnection then
 			rainbowConnection:Disconnect()
 		end
-		rainbowConnection = RunService.RenderStepped:Connect(function()
+		local resting = false
+		-- Heartbeat rather than RenderStepped, skipped while the button cannot
+		-- be seen (hidden, its HUD suppressed, its ScreenGui off), and parked at
+		-- rest under Reduced Effects.
+		rainbowConnection = RunService.Heartbeat:Connect(function()
 			if not button.Parent or not button.Visible then
 				return
 			end
+			local screen = button:FindFirstAncestorOfClass("ScreenGui")
+			if screen and not screen.Enabled then
+				return
+			end
+			if top and top:IsA("GuiObject") and not top.Visible then
+				return
+			end
+			if Effects.isReduced() then
+				if not resting then
+					resting = true
+					gradient.Offset = Vector2.zero
+					gradient.Rotation = 0
+					scale.Scale = 1
+				end
+				return
+			end
+			resting = false
 			local t = os.clock() / RAINBOW_PERIOD
 			gradient.Offset = Vector2.new((t % 1) * 2 - 1, 0)
 			gradient.Rotation = math.sin(t * math.pi * 2) * 12
@@ -580,7 +626,7 @@ function GroupGiftController.start()
 		end
 	end)
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end

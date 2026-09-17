@@ -62,13 +62,19 @@ local function findTitle(root: Instance): TextLabel?
 end
 
 local function retire(container: CanvasGroup)
-	if not container.Parent then
-		return
-	end
-
+	-- Out of `live` FIRST, whatever state the toast is in. This used to return
+	-- early for an unparented container before removing it, so a toast whose
+	-- holder had been destroyed stayed in `live` forever and the MAX_ON_SCREEN
+	-- loop in show() retired the same dead toast in an endless loop - a hard
+	-- client freeze.
 	local index = table.find(live, container)
 	if index then
 		table.remove(live, index)
+	end
+
+	if not container.Parent then
+		container:Destroy()
+		return
 	end
 
 	local width = container.Size.X
@@ -107,7 +113,9 @@ local STYLES: { [string]: Style } = {
 --- Shows one toast. `kind` picks the pack frame; `message` is written to the
 --- clone only; `style` (optional) recolours the title and lets it dwell longer.
 function ToastController.show(kind: string, message: string, style: string?)
-	if not holder then
+	-- A holder that has left the tree (MainUI rebuilt) cannot show anything;
+	-- its toasts are exactly the dead entries retire() now cleans up.
+	if not holder or not holder.Parent then
 		return
 	end
 
@@ -122,8 +130,17 @@ function ToastController.show(kind: string, message: string, style: string?)
 		return
 	end
 
-	while #live >= MAX_ON_SCREEN do
-		retire(live[1])
+	-- Bounded as well as correct: at most one pass per live toast, and a toast
+	-- retire() somehow failed to remove is dropped by hand, so this can never
+	-- spin forever again.
+	local guard = #live
+	while #live >= MAX_ON_SCREEN and guard > 0 do
+		guard -= 1
+		local oldest = live[1]
+		retire(oldest)
+		if live[1] == oldest then
+			table.remove(live, 1)
+		end
 	end
 
 	local target = template.Size

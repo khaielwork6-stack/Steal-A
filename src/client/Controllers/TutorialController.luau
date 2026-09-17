@@ -21,10 +21,7 @@
 ]]
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-
-local Remotes = require(ReplicatedStorage:WaitForChild("Shared").Remotes)
 
 local TutorialController = {}
 
@@ -78,7 +75,7 @@ local function ensureArrow(): Part
 end
 
 function TutorialController.start()
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local tutorial = state and state.tutorial
 		if not tutorial then
 			currentTarget = nil

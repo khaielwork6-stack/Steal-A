@@ -471,16 +471,43 @@ end
 -- should. Cast from the CAMERA, not the character: what matters is whether
 -- the player can SEE it, and at a base a pedestal often stands between the
 -- torso and the prompt while the card is plainly in view.
-local function hasLineOfSight(part: BasePart): boolean
+--
+-- COST. This ran for every shown prompt on every Heartbeat, building a new
+-- RaycastParams and filter table each time. Now: one RaycastParams reused,
+-- one filter array reused, and each part's answer cached for LOS_INTERVAL
+-- (~12 Hz) - a card appearing a twelfth of a second late is invisible.
+--
+-- RespectCanCollide: decor is non-collidable (MapBuilder makes 3598 parts
+-- hollow), so a hedge or a lamp post must not blank the card while walls and
+-- floors do. The old test only looked at the FIRST hit, so a non-collidable
+-- lamp in front of a wall let the card through the wall; the cast now passes
+-- through non-collidable parts and stops at the first solid one.
+local LOS_INTERVAL = 1 / 12
+local losParams = RaycastParams.new()
+losParams.FilterType = Enum.RaycastFilterType.Exclude
+losParams.IgnoreWater = true
+losParams.RespectCanCollide = true
+local losFilter: { Instance } = {}
+local losVisible: { [BasePart]: boolean } = {}
+local losCheckedAt: { [BasePart]: number } = {}
+
+local function forgetLineOfSight(part: Instance?)
+	if part and part:IsA("BasePart") then
+		losVisible[part] = nil
+		losCheckedAt[part] = nil
+	end
+end
+
+local function castLineOfSight(part: BasePart): boolean
 	local camera = workspace.CurrentCamera
 	if not camera then
 		return true
 	end
 
-	local ignore: { Instance } = {}
+	table.clear(losFilter)
 	local character = player.Character
 	if character then
-		table.insert(ignore, character)
+		table.insert(losFilter, character)
 	end
 	-- The prompt part's whole model: loot sits on an anchor welded inside the
 	-- item, and a base slot's prompt lives on the pad under the pedestal.
@@ -489,22 +516,26 @@ local function hasLineOfSight(part: BasePart): boolean
 	if model and model ~= workspace then
 		owner = model
 	end
-	table.insert(ignore, owner)
-
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = ignore
-	params.IgnoreWater = true
+	table.insert(losFilter, owner)
+	losParams.FilterDescendantsInstances = losFilter
 
 	local origin = camera.CFrame.Position
 	local delta = part.Position - origin
 	if delta.Magnitude < 0.1 then
 		return true
 	end
-	local hit = workspace:Raycast(origin, delta, params)
-	-- Decor is already non-collidable (MapBuilder makes 3598 parts hollow), so
-	-- a hedge or a lamp post does not blank the card; walls and floors do.
-	return hit == nil or hit.Instance.CanCollide == false
+	return workspace:Raycast(origin, delta, losParams) == nil
+end
+
+local function hasLineOfSight(part: BasePart, now: number): boolean
+	local checked = losCheckedAt[part]
+	if checked and now - checked < LOS_INTERVAL then
+		return losVisible[part] == true
+	end
+	local visible = castLineOfSight(part)
+	losVisible[part] = visible
+	losCheckedAt[part] = now
+	return visible
 end
 
 --- Nearest currently-shown prompt, so walking past a row of slots highlights
@@ -521,16 +552,18 @@ local function pickNearest(): ProximityPrompt?
 		return nil
 	end
 
+	local now = os.clock()
 	local best, bestDistance = nil, math.huge
 	for prompt in shown do
 		local part = prompt.Parent
 		if prompt.Enabled and part and part:IsA("BasePart") and prompt:IsDescendantOf(workspace) then
 			local distance = (part.Position - origin.Position).Magnitude
-			if distance < bestDistance and hasLineOfSight(part) then
+			if distance < bestDistance and hasLineOfSight(part, now) then
 				best, bestDistance = prompt, distance
 			end
 		else
 			shown[prompt] = nil
+			forgetLineOfSight(part)
 		end
 	end
 	return best
@@ -693,15 +726,14 @@ function InteractController.start()
 
 	-- Suppress Roblox's built-in prompt UI everywhere, including prompts
 	-- created later at runtime.
+	-- Through the shared WorldIndex (one workspace scan for all controllers).
+	-- PromptShown below still forces Custom as a backstop.
 	local function makeCustom(instance: Instance)
 		if instance:IsA("ProximityPrompt") then
 			instance.Style = Enum.ProximityPromptStyle.Custom
 		end
 	end
-	for _, descendant in workspace:GetDescendants() do
-		makeCustom(descendant)
-	end
-	workspace.DescendantAdded:Connect(makeCustom)
+	require(script.Parent.Parent.WorldIndex).watch("ProximityPrompt", makeCustom)
 
 	ProximityPromptService.PromptShown:Connect(function(prompt)
 		prompt.Style = Enum.ProximityPromptStyle.Custom
@@ -709,6 +741,7 @@ function InteractController.start()
 	end)
 	ProximityPromptService.PromptHidden:Connect(function(prompt)
 		shown[prompt] = nil
+		forgetLineOfSight(prompt.Parent)
 		if holding == prompt then
 			endTouchHold()
 		end

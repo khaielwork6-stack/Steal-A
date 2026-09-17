@@ -14,10 +14,6 @@
 	so overlapping events cannot leave the HUD hidden or restore it twice.
 ]]
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
-
 local UIStateController = require(script.Parent.UIStateController)
 
 local CarryUIController = {}
@@ -25,7 +21,7 @@ local CarryUIController = {}
 local CLAIM = "carry"
 
 function CarryUIController.start()
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end

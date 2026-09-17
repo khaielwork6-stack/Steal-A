@@ -555,7 +555,7 @@ function TrailShopController.start()
 		frames.ChildAdded:Connect(watch)
 	end
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state then
 			return
 		end

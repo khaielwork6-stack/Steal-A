@@ -29,7 +29,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 
 local ChaseWarningController = {}
 
@@ -217,6 +217,28 @@ local function beat()
 	end
 end
 
+--- Reduced Effects: a gentle, steady tint and a steady RUN!!. No full-screen
+--- flashing - the information (you are being chased) is still all there.
+local STATIC_WASH_TRANSPARENCY = 0.88
+local STATIC_EDGE_TRANSPARENCY = 0.5
+
+local function showStatic()
+	local fade = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	if washFrame then
+		TweenService:Create(washFrame, fade, { BackgroundTransparency = STATIC_WASH_TRANSPARENCY }):Play()
+	end
+	for _, strip in edges do
+		TweenService:Create(strip, fade, { BackgroundTransparency = STATIC_EDGE_TRANSPARENCY }):Play()
+	end
+	local label = runLabel
+	if label then
+		TweenService:Create(label, fade, { TextTransparency = 0, TextStrokeTransparency = 0 }):Play()
+	end
+	if runScale then
+		runScale.Scale = 1
+	end
+end
+
 local function stop()
 	if loop then
 		loop:Disconnect()
@@ -260,7 +282,22 @@ local function start()
 	screen.Enabled = true
 	phaseStart = os.clock()
 	lastBeat = -1
+	local wasStatic = false
 	loop = RunService.RenderStepped:Connect(function()
+		-- Reduced Effects: the same warning, without the flashing. Applied once
+		-- per switch, and the pulse resumes on the next beat if the setting is
+		-- turned back off mid-chase.
+		if Effects.isReduced() then
+			if not wasStatic then
+				wasStatic = true
+				showStatic()
+			end
+			return
+		end
+		if wasStatic then
+			wasStatic = false
+			lastBeat = -1
+		end
 		local index = math.floor((os.clock() - phaseStart) / PERIOD)
 		if index ~= lastBeat then
 			lastBeat = index
@@ -289,7 +326,7 @@ function ChaseWarningController.start()
 		evaluate()
 	end)
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end

@@ -55,13 +55,46 @@ function CrouchController.start()
 	gui.Parent = player:WaitForChild("PlayerGui")
 	local made = Instance.new("TextButton")
 	made.Name, made.AnchorPoint = "Crouch", Vector2.new(1, 1)
-	local touchLayout: boolean? = nil
+	-- Touch: left of the shift-lock button, both above the default Jump
+	-- button and placed from Jump's REAL rectangle (a tablet's Jump is far
+	-- bigger than a phone's; the old fixed offsets overlapped it). The side
+	-- matches ShiftLockController's (60% of Jump, 48-72 px). Before the touch
+	-- controls exist, the old fixed spot. Re-run every 0.1 s by the loop below,
+	-- and it only writes when the signature changes.
+	local lastLayout = ""
 	local function layout()
 		local touch = Device.isTouch()
-		if touch == touchLayout then return end
-		touchLayout = touch
-		made.Size = if touch then UDim2.fromOffset(66, 52) else UDim2.fromOffset(124, 38)
-		made.Position = if touch then UDim2.new(1, -96, 1, -108) else UDim2.new(0.5, -160, 1, -20)
+		if not touch then
+			if lastLayout == "desktop" then return end
+			lastLayout = "desktop"
+			gui.IgnoreGuiInset = true
+			made.AnchorPoint = Vector2.new(1, 1)
+			made.Size = UDim2.fromOffset(124, 38)
+			made.Position = UDim2.new(0.5, -160, 1, -20)
+			return
+		end
+		local jump, touchGui = Device.jumpButton()
+		if not jump or not touchGui then
+			if lastLayout == "touch" then return end
+			lastLayout = "touch"
+			gui.IgnoreGuiInset = true
+			made.AnchorPoint = Vector2.new(1, 1)
+			made.Size = UDim2.fromOffset(66, 52)
+			made.Position = UDim2.new(1, -96, 1, -108)
+			return
+		end
+		local position, size = jump.AbsolutePosition, jump.AbsoluteSize
+		local signature = `{position.X},{position.Y},{size.X},{size.Y}`
+		if signature == lastLayout then return end
+		lastLayout = signature
+		-- Same inset rules as the touch controls, so the coordinates agree.
+		gui.IgnoreGuiInset = touchGui.IgnoreGuiInset
+		gui.ScreenInsets = touchGui.ScreenInsets
+		local side = math.clamp(math.floor(size.X * 0.6), 48, 72)
+		made.AnchorPoint = Vector2.new(1, 1)
+		made.Size = UDim2.fromOffset(math.floor(side * 1.27), side)
+		-- Right edge: Jump's right edge, minus the shift-lock button, minus a gap.
+		made.Position = UDim2.fromOffset(position.X + size.X - side - 12, position.Y - 10)
 	end
 	layout()
 	made.BackgroundColor3, made.TextColor3 = Color3.fromRGB(27, 35, 53), Color3.fromRGB(255, 226, 148)

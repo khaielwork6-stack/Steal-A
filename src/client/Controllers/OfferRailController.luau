@@ -405,7 +405,7 @@ function OfferRailController.start()
 		buttons[index]:Destroy()
 	end
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" then
 			return
 		end

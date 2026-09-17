@@ -879,6 +879,17 @@ return function(): Report
 		check(StarterTaskConfig.isComplete(seen), "a checklist with every key must read as complete")
 	end
 
+	-- ==========================================================
+	-- CLIENT MOTION (client performance pass)
+	-- ==========================================================
+	do
+		local radius = GameConfig.CLIENT_MOTION_CULL_RADIUS
+		local interval = GameConfig.CLIENT_FAR_MOTION_INTERVAL
+		check(type(radius) == "number" and radius >= 60, "CLIENT_MOTION_CULL_RADIUS must be a number >= 60 studs")
+		-- Past half a second a far trophy visibly steps as it turns.
+		check(type(interval) == "number" and interval > 0 and interval <= 0.5, "CLIENT_FAR_MOTION_INTERVAL must be in (0, 0.5]")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

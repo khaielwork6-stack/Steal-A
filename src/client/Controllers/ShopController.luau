@@ -484,7 +484,7 @@ end
 
 function ShopController.start()
 	-- Built lazily on the first push, so MainUI is certain to exist.
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		buildShop()
 		if not state then
 			return

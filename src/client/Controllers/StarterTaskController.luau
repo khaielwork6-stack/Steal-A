@@ -37,7 +37,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
-local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -1049,7 +1048,7 @@ function StarterTaskController.start()
 	-- place in the animation.
 	local compact = Device.isTouch()
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local starter = state and state.starter
 		if compact then
 			applyCompact(starter)

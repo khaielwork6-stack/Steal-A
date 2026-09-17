@@ -107,6 +107,21 @@ Remotes.NAMES = {
 	-- minutes." Carries nothing; rate-limited server-side; feeds only the
 	-- free-spin clock's AFK pause. See ActivityController / SpinWheelService.
 	"ActivityPing",
+
+	-- ==========================================================
+	-- CLIENT / STATE PUSH SPLIT (client performance pass)
+	-- ==========================================================
+	-- server -> client. `inventory` and the Index SUMMARY (the `index` field),
+	-- split off StatePush and sent only when their content changed, plus on
+	-- join, respawn and resync. The client StateStore merges them back into
+	-- one state table. Not to be confused with IndexPush above, which is the
+	-- full 96-entry discovery map and is unchanged.
+	"InventoryPush",
+	"IndexSummaryPush",
+	-- client -> server. Carries nothing: "send me everything again". Sent by
+	-- the StateStore on start so a late-starting client cannot miss the join
+	-- push. Rate limited in StateService.
+	"StateSyncRequest",
 }
 
 local folder: Folder

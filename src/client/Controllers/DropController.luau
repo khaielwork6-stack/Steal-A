@@ -34,6 +34,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -221,7 +222,7 @@ function DropController.start()
 		return
 	end
 
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state then
 			return
 		end
@@ -239,6 +240,7 @@ function DropController.start()
 
 	-- Idle breathe, only while shown and only after the entrance has settled, so
 	-- it never fights the slide-in.
+	local resting = false
 	RunService.RenderStepped:Connect(function()
 		local target = button
 		local uiScale = scale
@@ -249,6 +251,16 @@ function DropController.start()
 		if since < 0.45 then
 			return
 		end
+		-- Reduced Effects: the button rests at full size. Reset once on the
+		-- switch, then left alone so the press feedback still works.
+		if Effects.isReduced() then
+			if not resting then
+				resting = true
+				uiScale.Scale = 1
+			end
+			return
+		end
+		resting = false
 		uiScale.Scale = 1 + math.sin(since * IDLE_SPEED) * IDLE_AMPLITUDE
 	end)
 end

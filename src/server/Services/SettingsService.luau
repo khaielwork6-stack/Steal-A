@@ -65,6 +65,15 @@ function SettingsService.apply(player: Player, request: any): boolean
 		settings.ReducedVFX = request.ReducedVFX
 		changed = true
 	end
+	-- Graphics HIGH / LOW (client performance pass). Not in DataService's
+	-- defaults on purpose: a missing key reads as HIGH on the client, so old
+	-- saves need no migration. Written through `any` because the profile
+	-- type does not declare it.
+	local anySettings = settings :: any
+	if type(request.LowGraphics) == "boolean" and request.LowGraphics ~= (anySettings.LowGraphics == true) then
+		anySettings.LowGraphics = request.LowGraphics
+		changed = true
+	end
 
 	if changed then
 		StateService.markDirty(player)

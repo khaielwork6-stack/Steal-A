@@ -469,7 +469,9 @@ local function onPlayer(player: Player)
 		-- AFTER the income is rebuilt: the absence is measured once, banked as
 		-- a pending claim, and the claim modal rides the first push below.
 		OfflineService.settle(player)
-		StateService.pushNow(player)
+		-- `true`: also send inventory and the Index summary, which otherwise
+		-- only travel when they change (StateService "THE SPLIT PUSH").
+		StateService.pushNow(player, true)
 		-- DATA AREA: mail sent while they were away (another server, offline)
 		-- is delivered once the profile is live and settled.
 		task.spawn(MailboxService.deliver, player)
@@ -486,7 +488,9 @@ local function onPlayer(player: Player)
 			if not player.Parent then
 				return
 			end
-			StateService.markDirty(player)
+			-- Full, for the same reason: a late listener needs inventory and
+			-- the Index summary too, and those are not resent unless asked.
+			StateService.markDirty(player, true)
 		end
 	end)
 end

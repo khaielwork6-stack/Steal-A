@@ -28,15 +28,27 @@
 	distance: a crate seen from across the map is at exactly the angle it
 	would have reached had it been watched the whole time, so there is no
 	frozen pose and no jump when it is approached. Forty-eight pivots a frame
-	is nothing. Reduced Effects keeps the turn and drops the hover.
+	is nothing - and now: crates near the camera move every frame, far ones
+	every CLIENT_FAR_MOTION_INTERVAL, all in one workspace:BulkMoveTo
+	(PivotBatch). Reduced Effects keeps the turn and drops the hover;
+	Graphics LOW stops the turn too.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+local PivotBatch = require(ReplicatedStorage.Shared.Util.PivotBatch)
 
 local WorldLootFxController = {}
+
+--- Crates within this radius of the camera move every frame (and hover);
+--- farther ones are re-posed every FAR_INTERVAL seconds. See GameConfig.
+local CULL_RADIUS = GameConfig.CLIENT_MOTION_CULL_RADIUS
+local FAR_INTERVAL = GameConfig.CLIENT_FAR_MOTION_INTERVAL
+local CULL_INTERVAL = 0.5
 
 --- Base turn rate (radians per second) for a 1x item.
 local TURN_RATE = 0.5
@@ -65,10 +77,19 @@ type Entry = {
 	--- Radians per second. The angle at any moment is phase + turn x clock.
 	turn: number,
 	hover: number,
+	--- Within CLIENT_MOTION_CULL_RADIUS of the camera at the last cull.
+	near: boolean,
+	--- os.clock() at which a FAR crate is next re-posed.
+	nextFarMove: number,
+	--- Part offsets for the batched move (PivotBatch).
+	cache: PivotBatch.Cache,
+	ancestry: RBXScriptConnection?,
 }
 
 local entries: { [Model]: Entry } = {}
 local reducedEffects = false
+local batch = PivotBatch.newBatch()
+local lastCull = 0
 
 function WorldLootFxController.setReducedEffects(value: boolean)
 	reducedEffects = value
@@ -87,6 +108,13 @@ local function isSocket(instance: Instance?): boolean
 end
 
 local function unregister(model: Model)
+	local entry = entries[model]
+	if entry then
+		PivotBatch.release(entry.cache)
+		if entry.ancestry then
+			entry.ancestry:Disconnect()
+		end
+	end
 	entries[model] = nil
 end
 
@@ -108,12 +136,17 @@ local function register(model: Model)
 		hoverPhase = 0,
 		turn = TURN_RATE / math.sqrt(math.max(scale, 1)),
 		hover = if scale <= HOVER_MAX_SCALE then HOVER_AMPLITUDE else 0,
+		near = true,
+		nextFarMove = os.clock() + math.random() * FAR_INTERVAL,
+		cache = PivotBatch.newCache(model),
+		ancestry = nil,
 	}
 	entries[model] = entry
 
 	-- The moment it leaves its socket (stolen, refreshed, destroyed) it is the
-	-- server's again.
-	model.AncestryChanged:Connect(function()
+	-- server's again. Unregistered synchronously, before any later frame could
+	-- move a carried crate back to its socket pose.
+	entry.ancestry = model.AncestryChanged:Connect(function()
 		if model.Parent ~= socket then
 			unregister(model)
 		end
@@ -124,16 +157,38 @@ end
 -- FRAME
 -- ==========================================================
 
+local function cull(cameraPosition: Vector3)
+	for _, entry in entries do
+		entry.near = (entry.socket.Position - cameraPosition).Magnitude <= CULL_RADIUS
+	end
+end
+
 local function step()
 	local now = os.clock()
+	local camera = workspace.CurrentCamera
+	if camera and now - lastCull >= CULL_INTERVAL then
+		lastCull = now
+		cull(camera.CFrame.Position)
+	end
+	-- Graphics LOW: crates hold their pose (see DisplayFxController).
+	local frozen = Effects.isLowGraphics()
+	local reduced = reducedEffects or Effects.isReduced()
 
 	for model, entry in entries do
 		if not model.Parent then
 			unregister(model)
 			continue
 		end
-		if now < entry.readyAt then
+		if frozen or now < entry.readyAt then
 			continue
+		end
+		-- Far crates are re-posed on a staggered, slower schedule; the angle is
+		-- still read off the clock, so they never freeze or snap.
+		if not entry.near then
+			if now < entry.nextFarMove then
+				continue
+			end
+			entry.nextFarMove = now + FAR_INTERVAL
 		end
 		if not entry.base then
 			if not model.PrimaryPart then
@@ -149,11 +204,18 @@ local function step()
 		-- just come into view.
 		local angle = entry.phase + entry.turn * now
 		local lift = 0
-		if not reducedEffects and entry.hover > 0 then
+		if not reduced and entry.near and entry.hover > 0 then
 			lift = (math.sin(now * HOVER_RATE + entry.hoverPhase) + 1) * 0.5 * entry.hover
 		end
 		local base = entry.base :: CFrame
-		model:PivotTo(base * CFrame.Angles(0, angle, 0) + Vector3.new(0, lift, 0))
+		PivotBatch.queue(batch, model, entry.cache, base * CFrame.Angles(0, angle, 0) + Vector3.new(0, lift, 0))
+	end
+
+	-- One engine call for every crate moved this frame.
+	if not PivotBatch.flush(batch) then
+		for _, entry in entries do
+			entry.cache.dirty = true
+		end
 	end
 end
 

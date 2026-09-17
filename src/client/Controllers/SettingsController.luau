@@ -11,6 +11,12 @@
 	                          lighting tween (it snaps instead). Nothing that
 	                          carries gameplay information is ever hidden.
 
+	  Graphics HIGH / LOW  -> a row added in code (a copy of Shadows): LOW
+	                          switches decorative lights / particles off and
+	                          stops the trophy and crate spin. See
+	                          GraphicsQualityController. Saved as LowGraphics.
+	VFX also sets the shared Effects.isReduced() flag (Shared.Util.Effects).
+
 	The pack shipped these rows as art with no logic: the third row was even
 	labelled "Textures" over a frame named "Shadows". There is no texture
 	toggle in this game, so the label now says what the row does.
@@ -27,6 +33,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -44,9 +51,11 @@ local SettingsController = {}
 
 local player = Players.LocalPlayer
 
-type Settings = { MusicVolume: number, SfxVolume: number, Shadows: boolean, ReducedVFX: boolean }
+--- LowGraphics: the Graphics HIGH / LOW row (false = HIGH, the default). A
+--- save made before the row existed has no such key and reads as HIGH.
+type Settings = { MusicVolume: number, SfxVolume: number, Shadows: boolean, ReducedVFX: boolean, LowGraphics: boolean }
 
-local current: Settings = { MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true, ReducedVFX = false }
+local current: Settings = { MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true, ReducedVFX = false, LowGraphics = false }
 local restored = false
 
 local ON_COLOR = Color3.fromRGB(88, 220, 110)
@@ -76,6 +85,12 @@ local function applyShadows(on: boolean)
 end
 
 local function applyReduced(reduced: boolean)
+	-- The shared flag first: everything that reads Effects.isReduced() (UIAnim
+	-- punches and pop-ins, the chase pulse, the gift rainbow, the portal /
+	-- slap / guardian-shop spins, the DROP breathe, the treadmill sheen, the
+	-- particle bursts) follows it. The explicit setters below are kept for the
+	-- controllers that already had one.
+	Effects.setReduced(reduced)
 	NightController.setReducedEffects(reduced)
 	DisplayFxController.setReducedEffects(reduced)
 	ItemArtMotionController.setReducedEffects(reduced)
@@ -89,11 +104,18 @@ local function applyReduced(reduced: boolean)
 	SpinWheelController.setReducedEffects(reduced)
 end
 
+--- Graphics LOW: GraphicsQualityController switches decorative lights and
+--- particles off, and the trophy / crate animators stop turning.
+local function applyGraphics(low: boolean)
+	Effects.setLowGraphics(low)
+end
+
 local function applyAll()
 	applyMusic(current.MusicVolume)
 	applySfx(current.SfxVolume)
 	applyShadows(current.Shadows)
 	applyReduced(current.ReducedVFX)
+	applyGraphics(current.LowGraphics)
 end
 
 local function save()
@@ -102,6 +124,7 @@ local function save()
 		SfxVolume = current.SfxVolume,
 		Shadows = current.Shadows,
 		ReducedVFX = current.ReducedVFX,
+		LowGraphics = current.LowGraphics,
 	})
 end
 
@@ -212,7 +235,9 @@ end
 -- TOGGLES
 -- ==========================================================
 
-local function bindToggle(row: Instance, label: string?, initial: boolean, onChange: (boolean) -> ())
+--- `words` replaces the ON / OFF captions (the Graphics row says HIGH / LOW);
+--- the left button is always the `true` state.
+local function bindToggle(row: Instance, label: string?, initial: boolean, onChange: (boolean) -> (), words: { string }?)
 	local body = row:FindFirstChild("Frame")
 	local choose = body and body:FindFirstChild("Choose")
 	local onButton = choose and choose:FindFirstChild("ON")
@@ -232,7 +257,9 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 	end
 
 	-- The word on each button, since the pack's art carries none.
-	for _, pair in { { onButton, "ON" }, { offButton, "OFF" } } do
+	local onWord = if words then words[1] else "ON"
+	local offWord = if words then words[2] else "OFF"
+	for _, pair in { { onButton, onWord }, { offButton, offWord } } do
 		local button = pair[1] :: GuiButton
 		if not button:FindFirstChild("Word") then
 			local word = Instance.new("TextLabel")
@@ -313,6 +340,23 @@ function SettingsController.start()
 	local setSfx: ((number) -> ())? = nil
 	local setShadows: ((boolean) -> ())? = nil
 	local setVfx: ((boolean) -> ())? = nil
+	local setGraphics: ((boolean) -> ())? = nil
+
+	-- The Graphics row does not exist in the pack: it is a copy of the
+	-- Shadows toggle row, made BEFORE that row is bound so the copy carries no
+	-- captions or connections of its own. Placed right after VFX.
+	local shadowsTemplate = list:FindFirstChild("Shadows")
+	local graphicsRow: Instance? = list:FindFirstChild("Graphics")
+	if not graphicsRow and shadowsTemplate then
+		local copy = shadowsTemplate:Clone()
+		copy.Name = "Graphics"
+		local after = list:FindFirstChild("VFX") or shadowsTemplate
+		if copy:IsA("GuiObject") and after:IsA("GuiObject") then
+			copy.LayoutOrder = after.LayoutOrder + 1
+		end
+		copy.Parent = list
+		graphicsRow = copy
+	end
 
 	local music = list:FindFirstChild("Music")
 	if music then
@@ -352,9 +396,18 @@ function SettingsController.start()
 		end)
 	end
 
+	if graphicsRow then
+		-- Left button = HIGH = `true`, so the state is "not low".
+		setGraphics = bindToggle(graphicsRow, "Graphics", not current.LowGraphics, function(high)
+			current.LowGraphics = not high
+			applyGraphics(not high)
+			save()
+		end, { "HIGH", "LOW" })
+	end
+
 	-- Restore from the save on the first push that carries settings; later
 	-- pushes echo what we sent, so only a genuine difference repaints.
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local saved = state and state.settings
 		if type(saved) ~= "table" then
 			return
@@ -364,12 +417,14 @@ function SettingsController.start()
 			SfxVolume = if type(saved.SfxVolume) == "number" then saved.SfxVolume else current.SfxVolume,
 			Shadows = if type(saved.Shadows) == "boolean" then saved.Shadows else current.Shadows,
 			ReducedVFX = if type(saved.ReducedVFX) == "boolean" then saved.ReducedVFX else current.ReducedVFX,
+			LowGraphics = if type(saved.LowGraphics) == "boolean" then saved.LowGraphics else current.LowGraphics,
 		}
 		local differs = not restored
 			or next.MusicVolume ~= current.MusicVolume
 			or next.SfxVolume ~= current.SfxVolume
 			or next.Shadows ~= current.Shadows
 			or next.ReducedVFX ~= current.ReducedVFX
+			or next.LowGraphics ~= current.LowGraphics
 		restored = true
 		if not differs then
 			return
@@ -387,6 +442,9 @@ function SettingsController.start()
 		end
 		if setVfx then
 			setVfx(not current.ReducedVFX)
+		end
+		if setGraphics then
+			setGraphics(not current.LowGraphics)
 		end
 	end)
 end

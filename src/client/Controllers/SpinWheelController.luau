@@ -938,7 +938,7 @@ function SpinWheelController.start()
 	end)
 
 	-- The live wedge figures. Painted only when they change.
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local spin = if type(state) == "table" then state.spinWheel else nil
 		local labels = if type(spin) == "table" then spin.labels else nil
 		if type(labels) ~= "table" then

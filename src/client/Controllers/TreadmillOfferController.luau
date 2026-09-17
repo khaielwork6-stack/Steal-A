@@ -34,6 +34,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
@@ -434,12 +435,27 @@ local function runSheen()
 	sheenToken += 1
 	local mine = sheenToken
 	task.spawn(function()
-		local phase = 0
 		while shown and mine == sheenToken and sheen and sheen.Parent do
-			-- Border light drifts round the frame.
-			if edgeGradient then
-				phase = (phase + 40) % 360
-				TweenService:Create(edgeGradient, TweenInfo.new(SHEEN_PERIOD, Enum.EasingStyle.Linear), { Rotation = phase + 40 }):Play()
+			-- Reduced Effects: no sweep, no drift, no kick. The card itself is
+			-- unchanged; the loop just idles until the setting or the card
+			-- changes.
+			if Effects.isReduced() then
+				task.wait(SHEEN_PERIOD)
+				continue
+			end
+			-- Border light drifts round the frame, always forwards. The old
+			-- `phase = (phase + 40) % 360` wrapped the TARGET back to 40 while
+			-- the gradient sat at 360, so once per lap the light spun all the
+			-- way backwards. Now the wrap is applied to the CURRENT angle
+			-- first (360 and 0 look identical), keeping the tween at +40.
+			local edge = edgeGradient
+			if edge then
+				local from = edge.Rotation
+				if from + 40 > 360 then
+					from -= 360
+					edge.Rotation = from
+				end
+				TweenService:Create(edge, TweenInfo.new(SHEEN_PERIOD, Enum.EasingStyle.Linear), { Rotation = from + 40 }):Play()
 			end
 			-- The badge kicks a little as the sweep passes it.
 			if badgeIcon then
@@ -577,7 +593,7 @@ hide = function()
 end
 
 function TreadmillOfferController.start()
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if not state then
 			return
 		end

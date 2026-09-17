@@ -280,7 +280,7 @@ function BossOfferController.start()
 	-- training pushes speedPower several times a second, so anything less strict
 	-- would dismiss the card the moment the player stepped on a treadmill. A
 	-- grant is at least 150,000 - orders of magnitude past any single tick.
-	Remotes.get("StatePush").OnClientEvent:Connect(function(state)
+	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) ~= "table" or type(state.speedPower) ~= "number" then
 			return
 		end

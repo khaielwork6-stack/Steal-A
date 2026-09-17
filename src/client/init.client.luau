@@ -50,6 +50,7 @@ local BaseEarningsController = require(script.Controllers.BaseEarningsController
 local AttractionSignController = require(script.Controllers.AttractionSignController)
 local SpinWheelController = require(script.Controllers.SpinWheelController)
 local StarterTaskController = require(script.Controllers.StarterTaskController)
+local StateStore = require(script.StateStore)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PngCard = require(ReplicatedStorage.Shared.Util.PngCard)
@@ -60,79 +61,136 @@ local PngUiConfig = require(ReplicatedStorage.Shared.Config.PngUiConfig)
 -- blank card popping in. A courtesy, not a gate: nothing waits on it.
 PngCard.preload(PngUiConfig.allImages())
 
-HUDController.start()
+-- The ONE listener of StatePush / InventoryPush / IndexSummaryPush. Started
+-- before any controller subscribes; a controller that subscribes later still
+-- gets the latest state replayed, so start order no longer decides whether a
+-- panel ever sees the join push.
+StateStore.start()
+
+-- ==========================================================
+-- STARTING CONTROLLERS
+-- ==========================================================
+--
+-- Each start() used to be a plain call in sequence, so ONE throw stopped every
+-- controller after it, and a start() that waits on the world (several wait
+-- 30-60 s for a model) held up everything below it.
+--
+-- Now:
+--   * boot() runs a start() under xpcall and warns with a traceback.
+--   * The HUD and its layout pass still run first and IN ORDER on this thread:
+--     everything below reads MainUI, and the layout pass must run before
+--     anything clones a nav button (Upgrades, Storage). This is the one
+--     deliberate gate, and it was already a gate before.
+--   * Every other controller starts in its own thread, spawned in the original
+--     order. task.spawn runs the new thread immediately up to its first yield,
+--     so controllers that do not yield still finish in the order written (the
+--     comments below that say "after X" still hold); one that yields simply
+--     stops blocking the rest.
+
+local function boot(name: string, start: () -> ())
+	local ok: boolean, err: any = (xpcall :: any)(start, debug.traceback)
+	if not ok then
+		warn(`[Client] {name}.start failed: {err}`)
+	end
+end
+
+local function startLater(name: string, start: () -> ())
+	task.spawn(boot, name, start)
+end
+
+boot("HUDController", HUDController.start)
 -- Right after the HUD binds, before anything clones a nav button: the layout
 -- pass moves Settings out of the rail and recolours the buttons the Upgrades
 -- and Storage openers are cloned from.
-HUDLayoutController.start()
-GuardianFxController.start()
-BasePromptController.start()
-TutorialController.start()
-CombatController.start()
-InteractController.start()
-InventoryController.start()
-IndexController.start()
-UpgradesController.start()
-TreadmillController.start()
-DropController.start()
+boot("HUDLayoutController", HUDLayoutController.start)
+startLater("GuardianFxController", GuardianFxController.start)
+startLater("BasePromptController", BasePromptController.start)
+startLater("TutorialController", TutorialController.start)
+startLater("CombatController", CombatController.start)
+startLater("InteractController", InteractController.start)
+startLater("InventoryController", InventoryController.start)
+startLater("IndexController", IndexController.start)
+startLater("UpgradesController", UpgradesController.start)
+startLater("TreadmillController", TreadmillController.start)
+startLater("DropController", DropController.start)
 -- UI visibility first: the treadmill card and the trail shop both claim through
 -- it, and a claim made before it is listening would never be released.
-UIStateController.start()
-ChaseWarningController.start()
-GroupGiftController.start()
-BaseSignController.start()
-ShopController.start()
-TreadmillOfferController.start()
-BossOfferController.start()
-TrailShopController.start()
-AudioController.start()
-NightController.start()
-DisplayFxController.start()
-require(script.Controllers.ItemArtMotionController).start()
-WorldLootFxController.start()
-ChaseAudioController.start()
-ZonePopupController.start()
-HotbarController.start()
-EventStandController.start()
-OfferRailController.start()
-GuardianShopController.start()
-RobPromptController.start()
-PortalController.start()
-SlapDisplayController.start()
-SettingsController.start()
+-- (UIStateController.start does not yield, so spawn order keeps this true.)
+startLater("UIStateController", UIStateController.start)
+startLater("ChaseWarningController", ChaseWarningController.start)
+startLater("GroupGiftController", GroupGiftController.start)
+startLater("BaseSignController", BaseSignController.start)
+startLater("ShopController", ShopController.start)
+startLater("TreadmillOfferController", TreadmillOfferController.start)
+startLater("BossOfferController", BossOfferController.start)
+startLater("TrailShopController", TrailShopController.start)
+startLater("AudioController", AudioController.start)
+startLater("NightController", NightController.start)
+-- DisplayFx and ItemArtMotion share one per-frame driver now (DisplayFx owns
+-- the loop and calls ItemArtMotion after it has moved the trophies), so their
+-- relative start order no longer matters for correctness.
+startLater("DisplayFxController", DisplayFxController.start)
+startLater("ItemArtMotionController", function()
+	require(script.Controllers.ItemArtMotionController).start()
+end)
+startLater("WorldLootFxController", WorldLootFxController.start)
+startLater("ChaseAudioController", ChaseAudioController.start)
+startLater("ZonePopupController", ZonePopupController.start)
+startLater("HotbarController", HotbarController.start)
+startLater("EventStandController", EventStandController.start)
+startLater("OfferRailController", OfferRailController.start)
+startLater("GuardianShopController", GuardianShopController.start)
+startLater("RobPromptController", RobPromptController.start)
+startLater("PortalController", PortalController.start)
+startLater("SlapDisplayController", SlapDisplayController.start)
+startLater("SettingsController", SettingsController.start)
+-- Applies the Settings panel's Graphics HIGH / LOW to the world (decorative
+-- lights and particles). Listens to the shared Effects flag, so it does not
+-- matter whether it starts before or after the saved setting arrives.
+startLater("GraphicsQualityController", function()
+	require(script.Controllers.GraphicsQualityController).start()
+end)
 -- Touch only: forces landscape and adds the shift-lock button. A no-op on
 -- desktop.
-ShiftLockController.start()
-require(script.Controllers.CrouchController).start()
--- Listens to StatePush for a pending offline payout; shows nothing otherwise.
-OfflineEarningsController.start()
+startLater("ShiftLockController", ShiftLockController.start)
+startLater("CrouchController", function()
+	require(script.Controllers.CrouchController).start()
+end)
+-- Listens to the state store for a pending offline payout; shows nothing
+-- otherwise.
+startLater("OfflineEarningsController", OfflineEarningsController.start)
 -- Mirrors "carrying" into the one HUD claim that leaves only DROP on screen.
-CarryUIController.start()
+startLater("CarryUIController", CarryUIController.start)
 -- Plays the run cycle on OTHER players' characters while the server says
 -- they are training, so a treadmill session is visible from across the plot.
-TreadmillSpectateController.start()
+startLater("TreadmillSpectateController", TreadmillSpectateController.start)
 -- The pedestal countdowns, the HATCH! prompt and the scripted reveal. Draws
 -- only; the server has already committed before any of it plays.
-HatchController.start()
+startLater("HatchController", HatchController.start)
 -- The light-yellow screen flash on a successful escape. Hangs off the same
 -- "Escape" sound cue the chase music stops on, so the two always agree.
-EscapeFlashController.start()
+startLater("EscapeFlashController", EscapeFlashController.start)
 -- The per-item "+$1,512" over your own base, on the income tick that pays it.
-BaseEarningsController.start()
+startLater("BaseEarningsController", BaseEarningsController.start)
 -- The bob on every safe-zone attraction arrow. The signs themselves are built
 -- server-side; only the motion is local.
-AttractionSignController.start()
+startLater("AttractionSignController", AttractionSignController.start)
 -- The free spin: hides every wheel but the one on this player's own plot,
 -- draws its countdown, and plays the spin the server has already decided.
--- AFTER HUDController, which is what starts EffectsController for the burst.
-SpinWheelController.start()
+-- AFTER HUDController, which is what starts EffectsController for the burst
+-- (HUDController runs on this thread above, so that is guaranteed).
+startLater("SpinWheelController", SpinWheelController.start)
 -- The three-row beginner checklist, bottom-right. Renders StatePush.starter
 -- and disappears for good when the server stops sending it.
-StarterTaskController.start()
+startLater("StarterTaskController", StarterTaskController.start)
 -- [monetization pass] The free spin's AFK pause needs to hear that a human is
 -- at the controls; and Instant Reveal is hidden where PolicyService restricts
 -- paid random items (the server refuses it there too).
-require(script.Controllers.ActivityController).start()
-require(script.Controllers.PurchasePolicyController).start()
+startLater("ActivityController", function()
+	require(script.Controllers.ActivityController).start()
+end)
+startLater("PurchasePolicyController", function()
+	require(script.Controllers.PurchasePolicyController).start()
+end)
 
 print("[Client] controllers started")

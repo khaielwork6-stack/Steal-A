@@ -477,7 +477,7 @@ GameConfig.NEXT_UPDATE_IMAGE = 115680004637965 :: number?
 
 -- ==========================================================
 -- DATA: SESSION LOCK, SAVE RETRIES, MAILBOX (data area)
--- ==========================================================
+-- ===================================================
 --
 -- See DataService's header for the session-lock design and MailboxService's
 -- for the mailbox. Server-only numbers; they live here so validate.luau can
@@ -505,5 +505,16 @@ GameConfig.MAILBOX_POLL_SECONDS = 30
 --- Must be at least MAILBOX_CAPACITY so a whole mailbox can never be granted
 --- twice.
 GameConfig.MAILBOX_DELIVERED_MEMORY = 100
+=======
+-- CLIENT MOTION (client performance pass)
+-- ==========================================================
+
+--- Base trophies, zone crates and their animated sub-parts within this many
+--- studs of the camera move every frame. Farther ones still turn - their
+--- angle is always derived from the clock, so nothing freezes or snaps (see
+--- HANDOFF "Map visibility, crate motion") - but are only re-posed every
+--- CLIENT_FAR_MOTION_INTERVAL seconds, which is invisible at that distance.
+GameConfig.CLIENT_MOTION_CULL_RADIUS = 250
+GameConfig.CLIENT_FAR_MOTION_INTERVAL = 0.25
 
 return GameConfig
