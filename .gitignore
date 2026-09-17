@@ -9,3 +9,6 @@ sourcemap.json
 
 # Video reference frames for the map rebuild (local only, not committed)
 /reference/
+
+# Static analysis cache (tools/check.sh downloads it)
+/.luau-types/

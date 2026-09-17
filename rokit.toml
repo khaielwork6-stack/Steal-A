@@ -5,3 +5,7 @@
 
 [tools]
 rojo = "rojo-rbx/rojo@7.7.0"
+StyLua = "JohnnyMorganz/StyLua@2.5.2"
+selene = "Kampfkarren/selene@0.31.0"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.69.0"
+luau = "luau-lang/luau@0.738.0"
