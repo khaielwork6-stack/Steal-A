@@ -2139,6 +2139,29 @@ function DebugService.start()
 		return
 	end
 
+	-- Area command sets live in their own modules under DebugCommands, each
+	-- returning { [name] = function(player, ...) }, so new test commands do not
+	-- all pile into this file. A name defined twice is a bug: warn, keep the first.
+	local extra = script.Parent:FindFirstChild("DebugCommands")
+	if extra then
+		for _, module in extra:GetChildren() do
+			if module:IsA("ModuleScript") then
+				local ok, set = pcall(require, module)
+				if ok and type(set) == "table" then
+					for name, handler in set do
+						if COMMANDS[name] then
+							warn(`[DebugService] {module.Name}.{name} duplicates an existing command - ignored`)
+						else
+							COMMANDS[name] = handler
+						end
+					end
+				else
+					warn(`[DebugService] could not load DebugCommands.{module.Name}: {set}`)
+				end
+			end
+		end
+	end
+
 	local bridge = ServerStorage:FindFirstChild("DebugInvoke")
 	if bridge then
 		bridge:Destroy()
