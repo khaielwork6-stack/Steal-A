@@ -352,7 +352,7 @@ function PlacementService.upgradeStorage(player: Player): (boolean, string?)
 	if not next then
 		return false, "Storage is fully upgraded!"
 	end
-	if not EconomyService.spend(player, next.cost) then
+	if not EconomyService.spend(player, next.cost, "upgrade:storage") then
 		return false, `You need {NumberFormat.cash(next.cost)}.`
 	end
 
@@ -382,7 +382,7 @@ function PlacementService.upgradeCapacity(player: Player): (boolean, string?)
 	end
 
 	-- Atomic: spend first, and only grant if the spend actually succeeded.
-	if not EconomyService.spend(player, next.cost) then
+	if not EconomyService.spend(player, next.cost, "upgrade:capacity") then
 		return false, `You need {NumberFormat.cash(next.cost)}.`
 	end
 

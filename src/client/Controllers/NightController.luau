@@ -537,7 +537,10 @@ local function render()
 		return
 	end
 
-	label.Text = `Nightfall in {clock(left)}`
+	-- [polish-events-analytics] Night Rush (a shorter Day) says so.
+	label.Text = if ReplicatedStorage:GetAttribute("NightRush") == true
+		then `Rush! Night in {clock(left)}`
+		else `Nightfall in {clock(left)}`
 
 	-- The last fifteen seconds turn amber; the last ten breathe; each of the
 	-- last five lands a punch. All from the same clock, no server chatter.

@@ -42,11 +42,42 @@ local listeners: { (Player) -> () } = {}
 --- tool; never saved.
 local awardedBySource: { [Player]: { [string]: number } } = {}
 
-export type CashSource = "passive" | "sell" | "discovery" | "index" | "offline" | "product" | "debug" | "other"
+-- [polish-events-analytics] "spin" (free wheel) and "task" (beginner
+-- checklist) used to be tallied as "other"; analytics tells them apart.
+export type CashSource =
+	"passive"
+	| "sell"
+	| "discovery"
+	| "index"
+	| "offline"
+	| "product"
+	| "debug"
+	| "spin"
+	| "task"
+	| "other"
 
 --- Fires whenever Cash or income changes so StatePush can replicate.
 function EconomyService.onChanged(callback: (Player) -> ())
 	table.insert(listeners, callback)
+end
+
+-- [polish-events-analytics] THE ONE TRANSACTION HOOK. Every Cash change goes
+-- through award/spend below, so this is the single place analytics (and
+-- anything else that needs "what moved, and why") can watch the economy.
+-- fn(player, flow, amount, tag, balanceAfter): flow is "source" (award) or
+-- "sink" (spend); tag is the award's source tag or the spend's sink tag.
+-- Listeners are spawned, so nothing they do can delay or undo the change.
+export type TransactionListener = (Player, string, number, string, number) -> ()
+local transactionListeners: { TransactionListener } = {}
+
+function EconomyService.onTransaction(fn: TransactionListener)
+	table.insert(transactionListeners, fn)
+end
+
+local function reportTransaction(player: Player, flow: string, amount: number, tag: string, balance: number)
+	for _, fn in transactionListeners do
+		task.spawn(fn, player, flow, amount, tag, balance)
+	end
 end
 
 local function notify(player: Player)
@@ -175,6 +206,7 @@ function EconomyService.award(player: Player, amount: number, source: CashSource
 	profile.Lifetime.CashEarned += amount
 	tally(player, source or "other", amount)
 	notify(player)
+	reportTransaction(player, "source", amount, source or "other", profile.Cash)
 end
 
 --- Pays `amount` scaled by the 2x Cash pass. Use for one-off GAMEPLAY
@@ -190,7 +222,9 @@ end
 
 --- Atomic spend: returns false and changes nothing when the player cannot
 --- afford it. Callers must treat false as "purchase did not happen".
-function EconomyService.spend(player: Player, amount: number): boolean
+--- `sink` names what the Cash bought ("upgrade:capacity", "trail:<key>");
+--- it only feeds the transaction hook, and is "other" when omitted.
+function EconomyService.spend(player: Player, amount: number, sink: string?): boolean
 	if amount < 0 then
 		return false
 	end
@@ -200,6 +234,9 @@ function EconomyService.spend(player: Player, amount: number): boolean
 	end
 	profile.Cash -= amount
 	notify(player)
+	if amount > 0 then
+		reportTransaction(player, "sink", amount, sink or "other", profile.Cash)
+	end
 	return true
 end
 

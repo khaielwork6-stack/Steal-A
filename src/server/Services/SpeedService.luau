@@ -102,7 +102,7 @@ function SpeedService.upgradeTreadmill(player: Player): (boolean, string?)
 	end
 
 	-- Atomic: only grant the level if the spend actually succeeded.
-	if not EconomyService.spend(player, next.cost) then
+	if not EconomyService.spend(player, next.cost, "upgrade:treadmill") then
 		return false, `You need {NumberFormat.cash(next.cost)}.`
 	end
 

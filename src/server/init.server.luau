@@ -63,6 +63,8 @@ local SpinWheelService = require(Services.SpinWheelService)
 local StarterTaskService = require(Services.StarterTaskService)
 -- DATA AREA: durable delivery to offline / other-server players.
 local MailboxService = require(Services.MailboxService)
+-- [polish-events-analytics] the progress bus (steal/escape/deliver/reveal).
+local ProgressEvents = require(Services.ProgressEvents)
 local DebugService = require(Services.DebugService)
 
 Players.CharacterAutoLoads = true
@@ -115,8 +117,9 @@ GuardianService.alarmLootFor = CarryService.getCarried
 -- Every hook fires only from a path the SERVER has already committed to: a
 -- carry that is live, a reveal that is flipped, a treadmill tick that has
 -- paid. There is no client message anywhere in this.
-CarryService.setStolenHandler(function(player)
+CarryService.setStolenHandler(function(player, loot)
 	StarterTaskService.complete(player, "steal")
+	ProgressEvents.fire(player, "steal", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
 end)
 SpeedService.onTrained = function(player)
 	StarterTaskService.complete(player, "train")
@@ -304,6 +307,7 @@ GuardianService.setEscapeHandler(function(loot, player)
 		-- cue (ChaseAudioController) and AudioController plays it; the old
 		-- sting-then-cue pair is gone.
 		StateService.sound(player, "Escape")
+		ProgressEvents.fire(player, "escape", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
 	end
 end)
 
@@ -314,6 +318,7 @@ CarryService.setDeliveredHandler(function(player, loot)
 		return
 	end
 	GuardianService.stopChaseFor(loot)
+	ProgressEvents.fire(player, "deliver", 1, { zone = loot.zoneIndex }) -- [polish-events-analytics] progress bus
 
 	-- Deliberately quiet in the normal case. This fires on reaching your own safe
 	-- zone, moments after the escape toast above, and it used to add a SECOND
@@ -342,6 +347,7 @@ HatchService.onHatched = function(player, item)
 	-- HatchService.commit AFTER the flag is flipped, so the reveal is already
 	-- real and irreversible by the time the row is ticked.
 	StarterTaskService.complete(player, "reveal")
+	ProgressEvents.fire(player, "reveal", 1, { itemId = item.ItemId }) -- [polish-events-analytics] progress bus
 
 	local plot = BaseService.getPlot(player)
 	local slots = plot and plot:FindFirstChild("DisplaySlots")
@@ -403,6 +409,30 @@ do
 	LaserService.onPostureChanged = function(player)
 		SpeedService.applyMovement(player)
 	end
+end
+
+-- ==========================================================
+-- POLISH / EVENTS / ANALYTICS (docs/handoff-parts/polish-events-analytics.md)
+-- ==========================================================
+--
+-- Placed before LootService.start (its first rolls read the mutation hook),
+-- NightService.start (its first cycle reads the Day-length hook) and
+-- MonetizationService.start (which installs the wrapped processReceipt).
+do
+	local EventService = require(Services.EventService)
+	local AnalyticsEvents = require(Services.AnalyticsEvents)
+
+	-- Timed events. Both hooks are read at roll time / at dawn; neither
+	-- touches a base table.
+	LootService.mutationTableFor = EventService.mutationTable
+	NightService.daySecondsFor = EventService.daySeconds
+	EventService.start()
+
+	AnalyticsEvents.wrapReceipts(MonetizationService)
+	AnalyticsEvents.start()
+
+	-- The first-join flyover: the `firstSession` push field and FlyoverDone.
+	require(Services.FlyoverService).start()
 end
 
 LootService.start()

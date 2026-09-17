@@ -687,6 +687,21 @@ local function takeCamera(token: number): boolean
 	return true
 end
 
+-- [polish-events-analytics] The first-join flyover (FlyoverController) also
+-- scripts the camera. A reveal always wins: listeners here are told,
+-- synchronously, BEFORE a reveal takes the camera, so the flyover can hand
+-- the player's own camera back first and the reveal saves the right one.
+local revealStartingListeners: { () -> () } = {}
+
+function HatchController.onRevealStarting(fn: () -> ())
+	table.insert(revealStartingListeners, fn)
+end
+
+--- True while a reveal holds (or is handing back) the camera.
+function HatchController.cameraBusy(): boolean
+	return savedCamera ~= nil
+end
+
 --- The shot that frames `stage` from the player's side, `distance` away.
 local function stageShot(stage: Vector3, distance: number, height: number): CFrame
 	local camera = workspace.CurrentCamera
@@ -1251,6 +1266,15 @@ function HatchController.start()
 		-- One sequence at a time. A second cue for the same container cannot
 		-- happen (the server refuses it), and one for another container while
 		-- this plays takes over: the abandoned one checks its token and stops.
+		-- [polish-events-analytics] the flyover gives the camera back first.
+		for _, listener in revealStartingListeners do
+			local ok, err = pcall(function()
+				listener()
+			end)
+			if not ok then
+				warn(`[HatchController] reveal-start listener failed: {err}`)
+			end
+		end
 		revealToken += 1
 		playReveal(slot, payload, revealToken)
 	end)

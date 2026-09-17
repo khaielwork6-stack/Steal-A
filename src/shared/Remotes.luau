@@ -124,6 +124,16 @@ Remotes.NAMES = {
 	-- the StateStore on start so a late-starting client cannot miss the join
 	-- push. Rate limited in StateService.
 	"StateSyncRequest",
+
+	-- ==== POLISH / EVENTS / ANALYTICS ====
+	-- client -> server. One analytics funnel step the client alone can see,
+	-- named by a KEY from AnalyticsEvents' allow-list ("shopOpened"). Carries
+	-- nothing else; rate-limited; grants nothing. See AnalyticsEvents.
+	"AnalyticsClientEvent",
+	-- client -> server. "The first-join flyover has finished (or was
+	-- skipped)." Carries nothing; the server only flips Profile.FlyoverSeen.
+	-- Rate-limited. See FlyoverService.
+	"FlyoverDone",
 }
 
 local folder: Folder

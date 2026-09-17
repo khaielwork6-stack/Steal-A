@@ -76,7 +76,7 @@ function StarterTaskService.complete(player: Player, key: string)
 		-- Exactly the figure the row advertises. Not `earn`: the 2x Cash pass
 		-- would turn a "$500" row into $1,000 and the checklist would be
 		-- telling a lie to the players most likely to notice.
-		EconomyService.award(player, task_.amount, "other")
+		EconomyService.award(player, task_.amount, "task")
 	else
 		profile.SpeedPower += task_.amount
 		SpeedService.applyMovement(player)
