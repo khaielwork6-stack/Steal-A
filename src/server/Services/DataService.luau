@@ -238,6 +238,12 @@ export type Profile = {
 	-- TrapCount to full on every load, so a rejoin is always a clean clip -
 	-- see the TRAPS block there for why it stopped being durable.
 	TrapReadyAt: number,
+	-- [monetization pass] A free-spin prize that has been rolled and spent but
+	-- not yet paid: { Index, Kind, Amount, GuardianKey, At }. Saved with the
+	-- spend and cleared at the landing, so a crash mid-spin pays it on the
+	-- next join instead of losing it. Additive (nil = nothing owed), so no
+	-- schema bump. Written and read only by SpinWheelService.
+	PendingSpinPrize: any?,
 	-- v13. Seconds of ACTUAL PLAY accrued toward the next free spin, 0 to
 	-- SpinWheelConfig.PLAY_SECONDS.
 	--
@@ -872,6 +878,11 @@ local function reconcile(profile: Profile): Profile
 	end
 	if type(profile.PendingReveal) ~= "table" then
 		profile.PendingReveal = nil
+	end
+	-- [monetization pass] Only a table can be a pending spin prize; its
+	-- contents are re-validated by SpinWheelService before anything is paid.
+	if type(profile.PendingSpinPrize) ~= "table" then
+		profile.PendingSpinPrize = nil
 	end
 	if type(profile.TutorialIntroSeen) ~= "boolean" then
 		profile.TutorialIntroSeen = false

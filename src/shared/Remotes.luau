@@ -84,7 +84,8 @@ Remotes.NAMES = {
 	"OfflineClaimRequest",
 	-- server -> the spinning client only. Fired AFTER the wheel has been rolled
 	-- and the prize granted, and it carries ONE number: the winning segment
-	-- index. Everything the animation needs hangs off that through
+	-- index. (Since the monetization pass also a display-only `{ won, amount }`
+	-- table naming the scaled prize; the payout never reads it.) Everything the animation needs hangs off that through
 	-- SpinWheelConfig, which both sides already have - so there is no reward,
 	-- no amount and no odds on the wire, and nothing here can be replayed into
 	-- a second prize. The spin itself is asked for with a ProximityPrompt, not
@@ -100,6 +101,12 @@ Remotes.NAMES = {
 	-- id. World/positional sounds do not use this: the server parents those to
 	-- the part they belong to and they replicate on their own.
 	"SoundCue",
+
+	-- ==== MONETIZATION PASS (spin wheel AFK pause) ====
+	-- client -> server. "This client has seen real input in the last two
+	-- minutes." Carries nothing; rate-limited server-side; feeds only the
+	-- free-spin clock's AFK pause. See ActivityController / SpinWheelService.
+	"ActivityPing",
 }
 
 local folder: Folder

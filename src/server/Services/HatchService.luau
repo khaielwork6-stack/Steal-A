@@ -307,6 +307,13 @@ end
 -- prompt. ProcessReceipt (MonetizationService) is the only thing that grants:
 -- it calls `fulfil`, which marks the exact container ready and commits it.
 
+--- [monetization pass] False for a player whose PolicyService answer
+--- restricts paid random items: Instant Reveal pays to open a container
+--- whose content is unknown. Injected by init from MonetizationService.
+function HatchService.canOfferInstantReveal(_player: Player): boolean
+	return true
+end
+
 --- Opens the purchase prompt for `instanceId`, or explains why not.
 function HatchService.promptInstantReveal(player: Player, instanceId: string): (boolean, string?)
 	local profile = DataService.get(player)
@@ -324,6 +331,9 @@ function HatchService.promptInstantReveal(player: Player, instanceId: string): (
 	if remaining <= 0 then
 		-- Ready already: nothing to sell. The caller reveals it instead.
 		return HatchService.commit(player, instanceId)
+	end
+	if not HatchService.canOfferInstantReveal(player) then
+		return false, "Instant Reveal isn't available for your account - it will reveal for free when the timer ends."
 	end
 
 	local existing = pendingByBuyer[player]

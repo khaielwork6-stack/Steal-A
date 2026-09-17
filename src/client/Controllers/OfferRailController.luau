@@ -72,6 +72,45 @@ local offers: { Offer } = {}
 local latest: any = nil
 local lastSecond = -1
 
+--- The rail and the ScreenGui it lives in, so the motion loop can skip all
+--- work while neither is on screen (a panel open, the HUD hidden).
+local railFrame: Frame? = nil
+local railGui: Instance? = nil
+
+--- Reduced effects: no breathing, no rainbow sweep, no tag wobble - just the
+--- static rail and its countdown. There is no shared Reduced Effects module
+--- in this build yet, so this follows the per-controller setter pattern
+--- (SpinWheelController.setReducedEffects); whoever owns the settings can
+--- call it, and a shared module can replace it in one line.
+local reducedEffects = false
+
+function OfferRailController.setReducedEffects(value: boolean)
+	reducedEffects = value
+	if value then
+		-- Park everything at rest so nothing is frozen mid-sway.
+		for _, offer in offers do
+			offer.scale.Scale = 1
+			if offer.gradient then
+				offer.gradient.Offset = Vector2.zero
+			end
+			offer.tag.Rotation = 10
+		end
+	end
+end
+
+--- True while the rail can actually be seen.
+local function railShown(): boolean
+	local frame = railFrame
+	if not frame or not frame.Visible or not frame.Parent then
+		return false
+	end
+	local gui = railGui
+	if gui and gui:IsA("ScreenGui") and not gui.Enabled then
+		return false
+	end
+	return true
+end
+
 -- ==========================================================
 -- BUILD
 -- ==========================================================
@@ -284,7 +323,15 @@ end
 -- MOTION
 -- ==========================================================
 
+--- On Heartbeat, not RenderStepped: nothing here has to land before the
+--- frame is drawn, and RenderStepped work delays the frame itself.
 local function tick()
+	-- Nothing on screen, nothing to animate. The countdown catches up on the
+	-- first visible frame because it reads the server clock, not a counter.
+	if not railShown() then
+		return
+	end
+
 	local now = os.clock()
 	local serverNow = workspace:GetServerTimeNow()
 	local second = math.floor(serverNow)
@@ -295,14 +342,16 @@ local function tick()
 		if not offer.button.Parent then
 			continue
 		end
-		-- A slow breath, whether or not it is owned.
-		offer.scale.Scale = 1 + math.sin(now * 2.0 + offer.phase) * 0.014
-		if offer.gradient then
-			local t = now / RAINBOW_PERIOD
-			offer.gradient.Offset = Vector2.new((t % 1) * 2 - 1, 0)
-		end
-		if offer.tag.Visible then
-			offer.tag.Rotation = 10 + math.sin(now * 3.1 + offer.phase) * 3
+		if not reducedEffects then
+			-- A slow breath, whether or not it is owned.
+			offer.scale.Scale = 1 + math.sin(now * 2.0 + offer.phase) * 0.014
+			if offer.gradient then
+				local t = now / RAINBOW_PERIOD
+				offer.gradient.Offset = Vector2.new((t % 1) * 2 - 1, 0)
+			end
+			if offer.tag.Visible then
+				offer.tag.Rotation = 10 + math.sin(now * 3.1 + offer.phase) * 3
+			end
 		end
 		if offer.timer and newSecond then
 			local endsAt = offer.endsAt
@@ -323,6 +372,8 @@ function OfferRailController.start()
 		warn("[OfferRailController] the UI FOR ANIMAL + SLAP frame is missing - offers disabled.")
 		return
 	end
+	railFrame = rail
+	railGui = ui
 
 	local buttons: { TextButton } = {}
 	for _, child in rail:GetChildren() do
@@ -362,7 +413,7 @@ function OfferRailController.start()
 		paint(state)
 	end)
 
-	RunService.RenderStepped:Connect(tick)
+	RunService.Heartbeat:Connect(tick)
 end
 
 return OfferRailController

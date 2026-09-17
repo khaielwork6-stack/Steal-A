@@ -20,6 +20,14 @@
 	    SPEED    four developer products
 	Trails are deliberately NOT here - they are sold at the physical Trail Shop.
 	Nor is the Speed multiplier ladder, which belongs on the treadmill.
+
+	CASH PACKS SHOW THIS PLAYER'S AMOUNT (monetization pass). A pack pays
+	max(floor, minutes of the buyer's income) - MonetizationConfig CASH PACKS -
+	so the printed "8M" is only true early on. The server sends the exact
+	figure it would grant right now (StatePush `shop.cashPacks`), and every
+	Cash card carries a ribbon with it: "YOU GET $4.1B". Pack cards without
+	art put it in their title instead. The figure is the server's; nothing
+	here computes an amount.
 ]]
 
 local Players = game:GetService("Players")
@@ -101,6 +109,88 @@ end
 --- Product key -> its card, so a landed purchase can flash the right one.
 local cardByKey: { [string]: GuiObject } = {}
 local lastOwnsCashPass: boolean? = nil
+
+-- ==========================================================
+-- LIVE CASH-PACK AMOUNTS
+-- ==========================================================
+
+--- Where the ribbon sits on a painted Cash card, in fractions of the art.
+--- Bottom-left, clear of the printed R$ button (which starts at x ~0.68).
+--- An estimate until checked against the art in Studio - these two lines
+--- are the only knobs.
+local RIBBON_POSITION = UDim2.fromScale(0.035, 0.93)
+local RIBBON_SIZE = UDim2.fromScale(0.6, 0.2)
+
+--- Product key -> the thing that shows its live amount: a ribbon on a
+--- painted card, or the pack card itself (its title is re-filled).
+local ribbonByKey: { [string]: TextLabel } = {}
+local packCardByKey: { [string]: Frame } = {}
+--- Product key -> the amount currently shown, so a push repaints only what
+--- changed (income ticks push several times a second).
+local shownAmount: { [string]: number } = {}
+
+local function buildRibbon(artwork: ImageLabel): TextLabel
+	local ribbon = Instance.new("TextLabel")
+	ribbon.Name = "LiveAmount"
+	ribbon.AnchorPoint = Vector2.new(0, 1)
+	ribbon.Position = RIBBON_POSITION
+	ribbon.Size = RIBBON_SIZE
+	ribbon.BackgroundColor3 = Color3.fromRGB(14, 40, 24)
+	ribbon.BackgroundTransparency = 0.06
+	ribbon.BorderSizePixel = 0
+	ribbon.Font = Enum.Font.FredokaOne
+	ribbon.TextScaled = true
+	ribbon.TextColor3 = Color3.fromRGB(150, 255, 170)
+	ribbon.Text = ""
+	ribbon.Visible = false
+	ribbon.ZIndex = 8
+	ribbon.Parent = artwork
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.35, 0)
+	corner.Parent = ribbon
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 1.5
+	stroke.Color = Color3.fromRGB(8, 20, 12)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = ribbon
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0.05, 0)
+	pad.PaddingRight = UDim.new(0.05, 0)
+	pad.PaddingTop = UDim.new(0.1, 0)
+	pad.PaddingBottom = UDim.new(0.1, 0)
+	pad.Parent = ribbon
+	return ribbon
+end
+
+local function paintCashAmounts(shop: any)
+	local packs = if type(shop) == "table" then shop.cashPacks else nil
+	if type(packs) ~= "table" then
+		return
+	end
+	for _, product in MonetizationConfig.CashProducts do
+		local amount = tonumber(packs[product.key])
+		if not amount or shownAmount[product.key] == amount then
+			continue
+		end
+		shownAmount[product.key] = amount
+		local ribbon = ribbonByKey[product.key]
+		if ribbon then
+			ribbon.Text = `YOU GET {NumberFormat.cash(amount)}`
+			ribbon.Visible = true
+		end
+		local card = packCardByKey[product.key]
+		if card then
+			ShopKit.fillCard(card, {
+				title = NumberFormat.cash(amount),
+				description = "",
+				price = `R$ {NumberFormat.comma(product.robux)}`,
+				icon = ShopKit.Icons.Cash,
+				color = CASH_COLOR,
+				accent = CASH_ACCENT,
+			})
+		end
+	end
+end
 
 local function scroller(): ScrollingFrame?
 	local ui = ShopKit.mainUi()
@@ -283,6 +373,9 @@ local function buildShop()
 					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 				end)
 				cardByKey[product.key] = png.frame
+				if product.kind == "Cash" then
+					ribbonByKey[product.key] = buildRibbon(png.artwork)
+				end
 				table.insert(cards, png.frame)
 				aspect = aspect or PngUiConfig.aspectFor(layout)
 			else
@@ -304,6 +397,9 @@ local function buildShop()
 						Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 					end)
 					cardByKey[product.key] = card
+					if product.kind == "Cash" then
+						packCardByKey[product.key] = card
+					end
 					table.insert(cards, card)
 				end
 			end
@@ -394,6 +490,9 @@ function ShopController.start()
 			return
 		end
 		refreshOwnership(state.monetization)
+		if built then
+			paintCashAmounts(state.shop)
+		end
 
 		-- Ownership is binary and permanent, so a false -> true flip is a real
 		-- unlock and cannot be confused with anything else. No signal needed.

@@ -10,9 +10,14 @@
 	death, a reset or a fall is, which is exactly why it cannot fire on one.
 
 	ONE CARD, REUSED.
-	The server cooldown is zero - every catch offers - so this is what keeps a bad
-	run from burying the screen. Caught again while it is up and the EXISTING
-	card is re-targeted and re-punched; a second one is never spawned.
+	The server allows one offer per MonetizationConfig.BOSS_OFFER_COOLDOWN
+	(90s since the monetization pass; it used to be every catch). Should a
+	second offer still land while the card is up, the EXISTING card is
+	re-targeted and re-punched; a second one is never spawned.
+
+	WHICH PACK is the server's call (MonetizationConfig.bossOfferFor): the
+	cheapest Speed pack that closes a real share of this player's gap to the
+	zone, never the 1B pack by default. This file just wears that card.
 
 	IT NEVER BLOCKS PLAY.
 	Top-centre, no modal backdrop, an X to dismiss and an auto-dismiss behind it.

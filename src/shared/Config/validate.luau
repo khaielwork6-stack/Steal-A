@@ -720,6 +720,140 @@ return function(): Report
 			SpinWheelConfig.REVEAL_SECONDS + SpinWheelConfig.GRANT_LATENCY_ALLOWANCE < SpinWheelConfig.LOCK_SECONDS,
 			"the prize must be paid before the wheel unlocks for another spin"
 		)
+
+		-- [monetization pass] THE RARE WEDGES STAY RARE. The jackpot and the
+		-- two guardians (the Tiger is a 399 R$ pass) at their reduced odds,
+		-- and never creeping back up unnoticed.
+		for _, segment in segments do
+			if segment.tier == "jackpot" then
+				check(segment.weight <= 8, `the jackpot wedge must weigh at most 8/10000, weighs {segment.weight}`)
+			elseif segment.guardianKey == "Tiger" then
+				check(segment.weight <= 15, `the Tiger wedge must weigh at most 15/10000, weighs {segment.weight}`)
+			elseif segment.guardianKey == "Panda" then
+				check(segment.weight <= 50, `the Panda wedge must weigh at most 50/10000, weighs {segment.weight}`)
+			end
+		end
+
+		-- THE AFK PAUSE. Pings must arrive well inside the idle window, and the
+		-- server's own rate limit must not swallow an honest cadence.
+		check(SpinWheelConfig.IDLE_SECONDS == 120, "the spin clock must pause after 120s without activity")
+		check(
+			SpinWheelConfig.ACTIVITY_PING_SECONDS * 2 <= SpinWheelConfig.IDLE_SECONDS,
+			"two activity pings must fit inside the idle window"
+		)
+		check(
+			SpinWheelConfig.ACTIVITY_PING_MIN_GAP < SpinWheelConfig.ACTIVITY_PING_SECONDS,
+			"the server's ping rate limit must be shorter than the client's cadence"
+		)
+		check(SpinWheelConfig.MOVE_ACTIVITY_STUDS > 0, "movement activity needs a positive threshold")
+
+		-- ZONE-SCALED PRIZES. The floors reproduce the printed art, a fresh
+		-- player is paid exactly the floors (jackpot aside, whose print is 1B),
+		-- and no wedge can ever out-pay the paid product it resembles.
+		local fresh = { baseIncome = 0, highestZone = 1 }
+		local rich = { baseIncome = 1e15, highestZone = ZoneConfig.COUNT }
+		local cheapestSpeedPack = math.huge
+		local speed1B = 0
+		for _, product in MonetizationConfig.SpeedProducts do
+			cheapestSpeedPack = math.min(cheapestSpeedPack, product.amount)
+			speed1B = math.max(speed1B, product.amount)
+		end
+		for _, segment in segments do
+			local floorAmount = SpinWheelConfig.amountFor(segment, fresh)
+			local maxed = SpinWheelConfig.amountFor(segment, rich)
+			if segment.kind == "guardian" then
+				check(floorAmount == 0 and maxed == 0, `spin segment {segment.index} (guardian) must pay no amount`)
+				continue
+			end
+			check(floorAmount == segment.amount, `spin segment {segment.index} must pay its floor to a new player, pays {floorAmount}`)
+			check(maxed >= floorAmount, `spin segment {segment.index} must never scale below its floor`)
+			if segment.tier ~= "jackpot" then
+				local printed = SpinWheelConfig.labelFor(segment, segment.amount)
+				check(printed == segment.label, `spin segment {segment.index}: floor label "{printed}" must match the print "{segment.label}"`)
+			end
+			if segment.kind == "speed" then
+				check(segment.maxAmount ~= nil and (segment.gateFraction or 0) > 0, `spin segment {segment.index} must scale with a cap`)
+				check(maxed <= speed1B, `spin segment {segment.index} must never pay more than the 1B Speed pack`)
+				if segment.tier ~= "jackpot" then
+					check(maxed < 10e6, `common Speed wedge {segment.index} must stay under the 10M pack, pays up to {maxed}`)
+				end
+			else
+				check((segment.incomeSeconds or 0) > 0, `cash spin segment {segment.index} must scale with income`)
+				check(
+					(segment.incomeSeconds or 0) < (MonetizationConfig.CashProducts[1].incomeMinutes or 0) * 60,
+					`cash spin segment {segment.index} must pay less income-time than the smallest Cash pack`
+				)
+			end
+		end
+		check(cheapestSpeedPack > 0, "the Speed packs must pay something")
+		local jackpotLabel = SpinWheelConfig.labelFor(segments[12], 1e9)
+		check(jackpotLabel == segments[12].label, `the jackpot's 1B label "{jackpotLabel}" must match its print`)
+	end
+
+	-- ==========================================================
+	-- MONETIZATION (the 2026-09-17 pass)
+	-- ==========================================================
+	do
+		-- CASH PACKS: same ids and prices, floors and income-minutes both
+		-- rising faster than price, so a bigger pack is never the worse deal.
+		local packs = MonetizationConfig.CashProducts
+		check(#packs == 5, `there must be five Cash packs, found {#packs}`)
+		local expectedPacks = {
+			{ key = "Cash24K", id = 3711390597, robux = 45 },
+			{ key = "Cash200K", id = 3711390623, robux = 85 },
+			{ key = "Cash800K", id = 3711390659, robux = 215 },
+			{ key = "Cash4M", id = 3711390692, robux = 425 },
+			{ key = "Cash8M", id = 3711390722, robux = 679 },
+		}
+		for index, row in expectedPacks do
+			local pack = packs[index]
+			check(
+				pack ~= nil and pack.key == row.key and pack.productId == row.id and pack.robux == row.robux,
+				`Cash pack {index} must keep key {row.key}, id {row.id} and price {row.robux}`
+			)
+		end
+		for index = 2, #packs do
+			local a, b = packs[index - 1], packs[index]
+			check(b.amount / b.robux > a.amount / a.robux, `{b.key}'s floor must be better value per Robux than {a.key}'s`)
+			check(
+				(b.incomeMinutes or 0) / b.robux > (a.incomeMinutes or 0) / a.robux,
+				`{b.key}'s income-minutes must be better value per Robux than {a.key}'s`
+			)
+		end
+		for _, pack in packs do
+			check(MonetizationConfig.cashPackAmount(pack, 0) == pack.amount, `{pack.key} must pay its floor at zero income`)
+			local minutes = pack.incomeMinutes or 0
+			check(
+				MonetizationConfig.cashPackAmount(pack, 1e6) == math.max(pack.amount, 1e6 * minutes * 60),
+				`{pack.key} must pay max(floor, income x minutes)`
+			)
+		end
+		-- The 2x pass and the boosts are divided OUT of the income basis.
+		check(MonetizationConfig.baseIncome(200, 2) * 2 == MonetizationConfig.baseIncome(200, 1), "the 2x Cash pass must not scale purchased packs")
+		check(MonetizationConfig.baseIncome(0 / 0, 1) == 0, "a NaN income must read as zero")
+
+		-- THE RECEIPT FALLBACK is never nothing and grows with the price.
+		check(MonetizationConfig.fallbackCash(7, 0) == 7 * MonetizationConfig.FALLBACK_CASH_PER_ROBUX, "fallback must pay the per-Robux floor at zero income")
+		check(MonetizationConfig.fallbackCash(599, 1e9) > MonetizationConfig.fallbackCash(7, 1e9), "fallback must grow with the price paid")
+		check(MonetizationConfig.fallbackCash(0, 1e9) == 0, "a zero-Robux receipt converts to nothing")
+
+		-- THE BOSS OFFER: a cooldown, no Zone 12, and the cheapest helpful pack.
+		check(MonetizationConfig.BOSS_OFFER_COOLDOWN >= 60, "the boss-loss offer must not show on every catch")
+		check(MonetizationConfig.bossOfferFor(12, 0) == nil, "Zone 12 must not have a boss-loss offer")
+		local nearGate = MonetizationConfig.bossOfferFor(9, ZoneConfig.Zones[9].recommendedSpeed - 1e6)
+		check(nearGate ~= nil and nearGate.key == "Speed150K", "a player 1M short of Zone 9 must be offered the smallest Speed pack")
+		local farFromGate = MonetizationConfig.bossOfferFor(9, 0)
+		check(farFromGate ~= nil and farFromGate.key == "Speed1B", "a player far below Zone 9 may still be offered the 1B pack")
+		local zone1 = MonetizationConfig.bossOfferFor(1, 0)
+		check(zone1 ~= nil and zone1.key == "Speed150K", "Zone 1 must offer the 150K pack")
+		for zoneIndex = 1, 11 do
+			local ceiling = MonetizationConfig.ProductByKey[MonetizationConfig.BossOfferByZone[zoneIndex]]
+			local offered = MonetizationConfig.bossOfferFor(zoneIndex, 0)
+			check(
+				ceiling ~= nil and offered ~= nil and offered.robux <= ceiling.robux,
+				`zone {zoneIndex}'s offer must never exceed its ceiling pack`
+			)
+		end
 	end
 
 	-- ==========================================================
