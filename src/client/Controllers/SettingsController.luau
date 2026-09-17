@@ -307,6 +307,8 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 		local existing = button:FindFirstChild("Word")
 		if existing and existing:IsA("TextLabel") then
 			wordLabels[button] = existing
+			-- A row cloned from Shadows carries its "ON"/"OFF" words; set ours.
+			existing.Text = pair[2] :: string
 		else
 			local word = Instance.new("TextLabel")
 			word.Name = "Word"

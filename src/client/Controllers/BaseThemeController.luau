@@ -122,7 +122,9 @@ local SECTION_H = 36
 --- Screen pixels of list width from which themes get 2 columns, skins 3.
 local WIDE_LIST = 430
 --- Panel scale-up while the BASE tab is open (see the header).
-local BASE_BOOST = 1.15
+--- 1.45 after the Studio review: at 1.15 only one row of cards fitted and the
+--- banner label was clipped. UpgradesController still clamps it on-screen.
+local BASE_BOOST = 1.45
 
 -- ==========================================================
 -- STATE
