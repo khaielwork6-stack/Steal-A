@@ -324,6 +324,9 @@ local function buildShop()
 	-- PASSES ------------------------------------------------------------
 	local passGrid = section(list, "Passes", 10)
 	if passGrid then
+		-- [fusion-autoreveal-bases] The Auto Reveal pass: its own module, one
+		-- more card in this grid (0 while the pass id is unset outside Studio).
+		local passCount = 1 + require(script.Parent.AutoRevealPassCard).build(passGrid, 2)
 		local passLayout = PngUiConfig.card("Pass_Cash2x")
 		if passLayout then
 			local png = buildPngProduct(passGrid, "Card_Cash2x", 1, passLayout, function()
@@ -333,7 +336,7 @@ local function buildShop()
 			cashPassOwnedBadge = buildOwnedBadge(png.artwork)
 			cashPassCard = png.frame
 			table.insert(cards, png.frame)
-			trackGrid(passGrid, 1, PngUiConfig.aspectFor(passLayout))
+			trackGrid(passGrid, passCount, PngUiConfig.aspectFor(passLayout))
 		else
 			local card = ShopKit.card()
 			if card then
@@ -354,7 +357,7 @@ local function buildShop()
 				cashPassCard = card
 				table.insert(cards, card)
 			end
-			trackGrid(passGrid, 1, nil)
+			trackGrid(passGrid, passCount, nil)
 		end
 	end
 

@@ -42,6 +42,9 @@ local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
+-- [fusion-autoreveal-bases] draws the FUSE page.
+local FusionController = require(script.Parent.FusionController)
+
 local InventoryController = {}
 
 local player = Players.LocalPlayer
@@ -106,8 +109,10 @@ local lastCapacity: number? = nil
 --- collections - Game Pass unlocks and the Bat - with EQUIP only, never a
 --- Sell, and they never count against the item capacity: buying a Guardian
 --- must never turn 0/10 into 1/10.
-type Tab = "Items" | "Guardians" | "Weapons"
-local TABS: { Tab } = { "Items", "Guardians", "Weapons" }
+--- [fusion-autoreveal-bases] FUSE is a fourth page, drawn by
+--- FusionController from the same card kit (see `fusionKit` below).
+type Tab = "Items" | "Guardians" | "Weapons" | "Fuse"
+local TABS: { Tab } = { "Items", "Guardians", "Weapons", "Fuse" }
 local activeTab: Tab = "Items"
 local tabButtons: { [string]: TextButton } = {}
 local emptyTitleLabel: TextLabel? = nil
@@ -716,6 +721,10 @@ local function setEmpty(visible: boolean, title: string, hint: string)
 	end
 end
 
+--- [fusion-autoreveal-bases] The card kit lent to the FUSE page. Assigned
+--- below `refresh`, which it needs.
+local fusionKit: () -> FusionController.Kit
+
 local function refresh(state: any)
 	latestState = state
 	local frame = panel
@@ -748,6 +757,10 @@ local function refresh(state: any)
 			end
 			countLabel:SetAttribute("_CountValue", nil)
 			countLabel.Text = `OWNED: {owned}/{#BaseGuardianConfig.Guardians}`
+		elseif activeTab == "Fuse" then
+			-- Fusion only reads Storage, so the same capacity counter applies.
+			countLabel:SetAttribute("_CountValue", nil)
+			countLabel.Text = `{used}/{capacity}`
 		else
 			local owned = 0
 			for _, name in PvPConfig.WeaponOrder do
@@ -795,6 +808,8 @@ local function refresh(state: any)
 		signature = "I|" .. inventorySignature(state.inventory or {})
 	elseif activeTab == "Guardians" then
 		signature = "G|" .. guardianSignature(guardians or {})
+	elseif activeTab == "Fuse" then
+		signature = "F|" .. FusionController.signature(state)
 	else
 		signature = "W|" .. weaponSignature(weapons or {})
 	end
@@ -859,6 +874,10 @@ local function refresh(state: any)
 			end
 		end
 		setEmpty(shown == 0, "No Guardians Owned", "Watch the rotating Guardian shop to unlock one!")
+	elseif activeTab == "Fuse" then
+		clearList()
+		builtSignature = signature
+		FusionController.render(fusionKit(), state)
 	else
 		clearList()
 		builtSignature = signature
@@ -874,6 +893,73 @@ local function refresh(state: any)
 		end
 		setEmpty(shown == 0, "No Weapons", "Every player carries the Bat.")
 	end
+end
+
+-- [fusion-autoreveal-bases] The FUSE page's kit: the same card factory,
+-- button layout, thumbnail and mounting every other page uses.
+local kit: FusionController.Kit? = nil
+fusionKit = function(): FusionController.Kit
+	if kit then
+		return kit
+	end
+	local built: FusionController.Kit = {
+		blankCard = blankCard,
+		layoutActions = layoutActions,
+		tintButton = tintButton,
+		flatten = flatten,
+		paintThumb = function(card: Frame, itemId: string?, rarity: string?, caption: string?, stroke: Color3?)
+			local body = card:FindFirstChild("Frame")
+			local holder = body and body:FindFirstChild("BrainrotFrame")
+			local slot = holder and holder:FindFirstChild("1")
+			if not slot or not slot:IsA("GuiObject") then
+				return
+			end
+			slot.AnchorPoint = Vector2.new(0, 0.5)
+			slot.Position = UDim2.fromScale(CARD.THUMB_LEFT, 0.5)
+			slot.Size = UDim2.fromScale(1, CARD.THUMB_HEIGHT)
+			local slotAspect = slot:FindFirstChildOfClass("UIAspectRatioConstraint")
+			if slotAspect then
+				slotAspect.AspectRatio = 1
+				slotAspect.DominantAxis = Enum.DominantAxis.Height
+			end
+			local edge = slot:FindFirstChildOfClass("UIStroke")
+			if edge then
+				edge.Color = stroke or RarityConfig.Colors[rarity or "Common"] or PLATE_COLOR
+				edge.Thickness = 2
+			end
+			local inner = slot:FindFirstChild("Frame")
+			local icon = inner and inner:FindFirstChild("Icon")
+			if icon and icon:IsA("ImageLabel") then
+				if itemId then
+					ItemThumb.apply(icon, rarity, itemId)
+				else
+					icon.Image = ""
+					icon.BackgroundTransparency = 0
+					icon.BackgroundColor3 = PLATE_COLOR
+				end
+			end
+			local earns = inner and inner:FindFirstChild("Earns")
+			if earns and earns:IsA("TextLabel") then
+				local gradient = earns:FindFirstChildOfClass("UIGradient")
+				if gradient then
+					gradient:Destroy()
+				end
+				earns.Visible = caption ~= nil
+				earns.Text = caption or ""
+				earns.TextColor3 = EQUIPPED_GREEN
+			end
+		end,
+		mountCard = function(card: Frame, key: string, index: number)
+			mountCard(card, key, index)
+		end,
+		setEmpty = setEmpty,
+		refresh = function()
+			builtSignature = nil
+			refresh(latestState)
+		end,
+	}
+	kit = built
+	return built
 end
 
 -- ==========================================================
@@ -973,7 +1059,8 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		button.LayoutOrder = order
 		button.AnchorPoint = Vector2.new(0, 0)
 		button.Position = UDim2.fromScale(0, 0)
-		button.Size = UDim2.fromScale(0.31, 1)
+		-- Four tabs since FUSE (was 0.31 for three).
+		button.Size = UDim2.fromScale(0.235, 1)
 		button.ZIndex = bar.ZIndex
 		UIAnim.claimButton(button)
 		button.Activated:Connect(function()
@@ -987,7 +1074,7 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 	bar:SetAttribute("Active", activeTab)
 	bar:GetAttributeChangedSignal("Active"):Connect(function()
 		local wanted = bar:GetAttribute("Active")
-		if wanted == "Items" or wanted == "Guardians" or wanted == "Weapons" then
+		if wanted == "Items" or wanted == "Guardians" or wanted == "Weapons" or wanted == "Fuse" then
 			selectTab(wanted :: Tab)
 		end
 	end)

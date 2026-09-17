@@ -302,6 +302,46 @@ function HatchConfig.rouletteDelays(rarity: string): { number }
 	return out
 end
 
+-- ==========================================================
+-- THE QUICK REVEAL (auto reveal away from the base)
+-- ==========================================================
+--
+-- An Auto Reveal (AutoRevealService) committed while the owner is NOT near
+-- their base plays no camera fly-in and no roulette: the pedestal does a
+-- small pop instead. The server swaps the container for the item at
+-- `swapAt` and holds the reveal lock for `lock`. The client's pop is timed
+-- to the same numbers.
+HatchConfig.QuickReveal = {
+	--- The container squeezes and fades; the item lands on this beat.
+	swapAt = 0.35,
+	--- Lock: the pop plus the item's bounce, with a small margin.
+	lock = 1.4,
+}
+
+-- ==========================================================
+-- AUTO REVEAL PACING (AutoRevealService)
+-- ==========================================================
+
+--- How often the server looks for a ready container on a pass owner's base.
+HatchConfig.AUTO_REVEAL_POLL = 1.5
+--- Within this many studs of the plot's floor slab centre (or anywhere on
+--- the plot) the owner gets the full reveal with the camera fly-in.
+HatchConfig.AUTO_REVEAL_NEAR_STUDS = 90
+--- Extra seconds between two auto reveals on top of the sequence itself, so
+--- the owner's client finishes one (camera home included) before the next.
+HatchConfig.AUTO_REVEAL_GAP = 1.2
+
+--- Seconds one auto reveal occupies the owner's client, full or quick.
+function HatchConfig.autoRevealSpacing(rarity: string, quick: boolean): number
+	if quick then
+		return HatchConfig.QuickReveal.lock + HatchConfig.AUTO_REVEAL_GAP
+	end
+	return HatchConfig.lockSeconds(rarity)
+		+ HatchConfig.Roulette.cameraHold
+		+ HatchConfig.Roulette.cameraOut
+		+ HatchConfig.AUTO_REVEAL_GAP
+end
+
 --- Decorative fragments on the pop. Never collidable; fewer on a phone.
 HatchConfig.MAX_FRAGMENTS = 12
 HatchConfig.MAX_FRAGMENTS_MOBILE = 6

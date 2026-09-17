@@ -337,7 +337,7 @@ end)
 -- the two colours the burst uses. No income, no odds, nothing the client
 -- could have used before the commit - by then the trophy is already on the
 -- base and every client can see it anyway.
-HatchService.onHatched = function(player, item)
+HatchService.onHatched = function(player, item, options)
 	-- The checklist's "Reveal 1 Item", first: this runs from inside
 	-- HatchService.commit AFTER the flag is flipped, so the reveal is already
 	-- real and irreversible by the time the row is ticked.
@@ -365,6 +365,10 @@ HatchService.onHatched = function(player, item)
 		rarityColor = RarityConfig.Colors[item.Rarity] or Color3.new(1, 1, 1),
 		mutationColor = RarityConfig.MutationColors[RarityConfig.normaliseMutation(item.Mutation)]
 			or Color3.fromRGB(226, 236, 255),
+		-- [fusion-autoreveal-bases] An Auto Reveal while the owner is away
+		-- from their base: no camera fly-in, a small pop on the pedestal.
+		auto = options ~= nil and options.auto == true,
+		skipCamera = options ~= nil and options.quick == true,
 	})
 end
 
@@ -436,6 +440,27 @@ HeistService.start()
 -- Also listens for the plot rebuild: a wheel belongs to whoever holds the plot
 -- it stands on, so it has to be registered before the first plot is handed out.
 SpinWheelService.start()
+
+-- ==========================================================
+-- FUSION / AUTO REVEAL / BASE THEMES (fusion-autoreveal-bases)
+-- ==========================================================
+-- BaseThemeService listens for the plot rebuild (it re-skins pedestals and
+-- pads after every one), so it starts before BaseService hands out plots.
+-- A pass bought or refunded re-paints the plot: the existing ownership hook
+-- is wrapped, not replaced.
+do
+	local FusionService = require(Services.FusionService)
+	local AutoRevealService = require(Services.AutoRevealService)
+	local BaseThemeService = require(Services.BaseThemeService)
+	FusionService.start()
+	AutoRevealService.start()
+	BaseThemeService.start()
+	local ownershipChanged = MonetizationService.onOwnershipChanged
+	MonetizationService.onOwnershipChanged = function(player)
+		ownershipChanged(player)
+		BaseThemeService.refresh(player)
+	end
+end
 
 -- BaseService goes LAST on purpose. Assigning a plot fires the rebuild hook that
 -- creates a player's display-slot prompts, so every listener must already be

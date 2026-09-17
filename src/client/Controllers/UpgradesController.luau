@@ -714,6 +714,14 @@ local function buildPanel(ui: ScreenGui): boolean
 	end
 
 	buildCard(kept, scroll)
+	-- [fusion-autoreveal-bases] TREADMILL | BASE tabs and the BASE page
+	-- (themes, pedestal skins). Its own module; it only shrinks the card.
+	local attached, attachError = pcall(function()
+		require(script.Parent.BaseThemeController).attach(found, scroll, kept :: Frame)
+	end)
+	if not attached then
+		warn(`[UpgradesController] BASE section failed: {attachError}`)
+	end
 
 	found:GetPropertyChangedSignal("Visible"):Connect(function()
 		if found.Visible then

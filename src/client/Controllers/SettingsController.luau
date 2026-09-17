@@ -53,9 +53,11 @@ local player = Players.LocalPlayer
 
 --- LowGraphics: the Graphics HIGH / LOW row (false = HIGH, the default). A
 --- save made before the row existed has no such key and reads as HIGH.
-type Settings = { MusicVolume: number, SfxVolume: number, Shadows: boolean, ReducedVFX: boolean, LowGraphics: boolean }
+--- AutoRevealOff: [fusion-autoreveal-bases] the Auto Reveal pass's switch
+--- (false = ON, the default; the row only shows to a pass owner).
+type Settings = { MusicVolume: number, SfxVolume: number, Shadows: boolean, ReducedVFX: boolean, LowGraphics: boolean, AutoRevealOff: boolean }
 
-local current: Settings = { MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true, ReducedVFX = false, LowGraphics = false }
+local current: Settings = { MusicVolume = 0.7, SfxVolume = 0.8, Shadows = true, ReducedVFX = false, LowGraphics = false, AutoRevealOff = false }
 local restored = false
 
 local ON_COLOR = Color3.fromRGB(88, 220, 110)
@@ -125,6 +127,7 @@ local function save()
 		Shadows = current.Shadows,
 		ReducedVFX = current.ReducedVFX,
 		LowGraphics = current.LowGraphics,
+		AutoRevealOff = current.AutoRevealOff,
 	})
 end
 
@@ -357,6 +360,21 @@ function SettingsController.start()
 		copy.Parent = list
 		graphicsRow = copy
 	end
+	-- [fusion-autoreveal-bases] The Auto Reveal row: another Shadows copy,
+	-- after Graphics, shown only while the player owns the pass.
+	local setAutoReveal: ((boolean) -> ())? = nil
+	local autoRevealRow: Instance? = list:FindFirstChild("AutoReveal")
+	if not autoRevealRow and shadowsTemplate then
+		local copy = shadowsTemplate:Clone()
+		copy.Name = "AutoReveal"
+		local after = graphicsRow or list:FindFirstChild("VFX") or shadowsTemplate
+		if copy:IsA("GuiObject") and after:IsA("GuiObject") then
+			copy.LayoutOrder = after.LayoutOrder + 1
+			copy.Visible = false
+		end
+		copy.Parent = list
+		autoRevealRow = copy
+	end
 
 	local music = list:FindFirstChild("Music")
 	if music then
@@ -405,6 +423,22 @@ function SettingsController.start()
 		end, { "HIGH", "LOW" })
 	end
 
+	if autoRevealRow then
+		-- Left button = ON = `true`, so the state is "not off".
+		setAutoReveal = bindToggle(autoRevealRow, "Auto Reveal", not current.AutoRevealOff, function(on)
+			current.AutoRevealOff = not on
+			save()
+		end)
+		require(script.Parent.Parent.StateStore).subscribe(function(state)
+			local info = state and state.autoReveal
+			local owned = type(info) == "table" and info.owned == true
+			local row = autoRevealRow
+			if row and row:IsA("GuiObject") and row.Visible ~= owned then
+				row.Visible = owned
+			end
+		end)
+	end
+
 	-- Restore from the save on the first push that carries settings; later
 	-- pushes echo what we sent, so only a genuine difference repaints.
 	require(script.Parent.Parent.StateStore).subscribe(function(state)
@@ -418,6 +452,7 @@ function SettingsController.start()
 			Shadows = if type(saved.Shadows) == "boolean" then saved.Shadows else current.Shadows,
 			ReducedVFX = if type(saved.ReducedVFX) == "boolean" then saved.ReducedVFX else current.ReducedVFX,
 			LowGraphics = if type(saved.LowGraphics) == "boolean" then saved.LowGraphics else current.LowGraphics,
+			AutoRevealOff = if type(saved.AutoRevealOff) == "boolean" then saved.AutoRevealOff else current.AutoRevealOff,
 		}
 		local differs = not restored
 			or next.MusicVolume ~= current.MusicVolume
@@ -425,6 +460,7 @@ function SettingsController.start()
 			or next.Shadows ~= current.Shadows
 			or next.ReducedVFX ~= current.ReducedVFX
 			or next.LowGraphics ~= current.LowGraphics
+			or next.AutoRevealOff ~= current.AutoRevealOff
 		restored = true
 		if not differs then
 			return
@@ -445,6 +481,9 @@ function SettingsController.start()
 		end
 		if setGraphics then
 			setGraphics(not current.LowGraphics)
+		end
+		if setAutoReveal then
+			setAutoReveal(not current.AutoRevealOff)
 		end
 	end)
 end

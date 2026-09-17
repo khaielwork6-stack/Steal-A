@@ -82,6 +82,8 @@ local PvPConfig = require(ReplicatedStorage.Shared.Config.PvPConfig)
 local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
 local SpinWheelConfig = require(ReplicatedStorage.Shared.Config.SpinWheelConfig)
 local StarterTaskConfig = require(ReplicatedStorage.Shared.Config.StarterTaskConfig)
+-- [fusion-autoreveal-bases]
+local BaseThemeConfig = require(ReplicatedStorage.Shared.Config.BaseThemeConfig)
 
 local SCHEMA_VERSION = 13
 local STORE_NAME = "PlayerProfiles_v1"
@@ -270,9 +272,22 @@ export type Profile = {
 	-- `reconcile` (an empty list is the only correct value for an old save),
 	-- so no schema bump was needed.
 	DeliveredMail: { string },
+	-- [fusion-autoreveal-bases] Base customisation (BaseThemeService).
+	-- `owned` holds CASH unlocks only, theme and pedestal keys in one
+	-- namespace (validate keeps them unique); Robux themes are answered by
+	-- their Game Pass, never stored. Filled in by `reconcile` for old saves,
+	-- so no schema bump.
+	BaseTheme: BaseThemeState,
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
+}
+
+-- [fusion-autoreveal-bases]
+export type BaseThemeState = {
+	owned: { [string]: boolean },
+	equippedTheme: string,
+	equippedPedestal: string,
 }
 
 export type SessionLock = {
@@ -339,6 +354,12 @@ local function defaultProfile(): Profile
 		StarterTasks = {},
 		StarterTasksClosed = false,
 		DeliveredMail = {},
+		-- [fusion-autoreveal-bases] Everyone starts on the free defaults.
+		BaseTheme = {
+			owned = {},
+			equippedTheme = BaseThemeConfig.DEFAULT_THEME,
+			equippedPedestal = BaseThemeConfig.DEFAULT_PEDESTAL,
+		},
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -950,6 +971,34 @@ local function reconcile(profile: Profile): Profile
 		table.remove(delivered, 1)
 	end
 	profile.DeliveredMail = delivered
+
+	-- [fusion-autoreveal-bases] BASE THEME. Repaired only as far as it has
+	-- to be: a non-table is replaced, `owned` keeps every string key set to
+	-- true (a theme removed from config may come back, and a purchase must
+	-- not be dropped), and an equipped key that is not in the config falls
+	-- back to the free default. Whether a Robux theme is still OWNED is
+	-- BaseThemeService's question, asked when it is applied.
+	do
+		local theme = (profile :: any).BaseTheme
+		if type(theme) ~= "table" then
+			theme = {}
+		end
+		local owned: { [string]: boolean } = {}
+		if type(theme.owned) == "table" then
+			for key, value in theme.owned do
+				if type(key) == "string" and value == true then
+					owned[key] = true
+				end
+			end
+		end
+		local equippedTheme = if type(theme.equippedTheme) == "string" and BaseThemeConfig.ThemeByKey[theme.equippedTheme]
+			then theme.equippedTheme
+			else BaseThemeConfig.DEFAULT_THEME
+		local equippedPedestal = if type(theme.equippedPedestal) == "string" and BaseThemeConfig.PedestalByKey[theme.equippedPedestal]
+			then theme.equippedPedestal
+			else BaseThemeConfig.DEFAULT_PEDESTAL
+		profile.BaseTheme = { owned = owned, equippedTheme = equippedTheme, equippedPedestal = equippedPedestal }
+	end
 
 	-- The session lock is document metadata, never profile state. `load`
 	-- strips it before this runs; clearing it here as well means a profile
