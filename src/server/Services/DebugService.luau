@@ -1800,20 +1800,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return rows
 	end,
 
-	--- Sets SpeedPower directly, so the "a player below the gate gets caught, a
-	--- player at the gate escapes" acceptance test can be run without grinding a
-	--- treadmill for it. Server-side only, exactly like every other grant.
-	--- The Night, on demand: `night begin` / `night end`, else the status.
-	night = function(_player, action: string?)
-		local NightService = require(script.Parent.NightService)
-		if action == "begin" then
-			NightService.forceNight()
-		elseif action == "end" then
-			NightService.forceDay()
-		end
-		return NightService.status()
-	end,
-
 	--- Offline earnings without the wait. `simulate <secondsAway> <rate>`
 	--- stamps a fake departure and settles it (negative seconds = never
 	--- left); `claim` asks OfflineService to pay exactly as the remote does;
@@ -1841,6 +1827,9 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Sets SpeedPower directly, so the "a player below the gate gets caught, a
+	--- player at the gate escapes" acceptance test can be run without grinding a
+	--- treadmill for it. Server-side only, exactly like every other grant.
 	setSpeed = function(player, power: number)
 		local profile = DataService.get(player)
 		if not profile then
