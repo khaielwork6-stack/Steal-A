@@ -13,7 +13,7 @@
 	WHAT THE SERVER OWNS
 	  * The clock. `Profile.SpinProgress` is seconds of ACTUAL PLAY, folded in
 	    once a second from real elapsed time while the player is in the server.
-	    Nothing accrues while they are away, and the ten minutes cannot be
+	    Nothing accrues while they are away, and the five minutes cannot be
 	    served by leaving.
 	  * The roll. `SpinWheelConfig.roll` against a Random this module owns.
 	  * The prize. Decided at the roll, PAID WHEN THE WHEEL HAS LANDED.
@@ -296,7 +296,7 @@ local function onTriggered(player: Player, wheel: Wheel)
 
 	-- LOCK AND SPEND, with no yield between them. From here the spin has
 	-- happened: the progress is gone even if everything below fails, which is
-	-- the safe direction - a lost spin is recoverable in ten minutes, a
+	-- the safe direction - a lost spin is recoverable in five minutes, a
 	-- double-paid one is not.
 	wheel.lockedUntil = os.clock() + SpinWheelConfig.LOCK_SECONDS
 	wheel.model:SetAttribute(ATTR_SPINNING, true)
@@ -327,7 +327,7 @@ local function onTriggered(player: Player, wheel: Wheel)
 
 	-- The spend is durable now; the prize is saved the moment it is paid. If
 	-- the server went down in the four seconds between, the spin is lost and
-	-- comes back in ten minutes - the safe direction, where the alternative
+	-- comes back in five minutes - the safe direction, where the alternative
 	-- is a prize paid twice.
 	if DataService.isPersistent() then
 		task.spawn(DataService.save, player)

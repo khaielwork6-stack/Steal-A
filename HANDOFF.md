@@ -5304,3 +5304,64 @@ models (382 parts), the original-art backup and all twelve container models.
 The owner must now Save and Publish the place. A published group-server check
 has not been performed. The prior physical-phone performance limitation from
 §50 remains.
+
+## 52. Casino roulette reveal with a camera fly-in; free spin every 5 minutes (2026-09-17)
+
+### The reveal (owner: "lottery / casino feeling", about 3 seconds, fast ticking slowing to the reveal)
+
+The black-silhouette roulette (8-12 changes) is replaced by a full-colour run:
+
+1. **Camera.** The reveal takes the camera (`Scriptable`) and flies it in
+   (0.45s) to a shot of a stage 7 studs above the pedestal, from the side the
+   player was already looking from. It creeps ~18% closer during the spin,
+   kicks slightly on the slow clicks, shakes on the pop, drops to the real
+   item on the pedestal, holds 0.9s and flies home (0.5s) to where the
+   player's camera should be *now* (it keeps the offset from the character,
+   so a player who walked off during the reveal is not sent back to a stale
+   spot). Then the camera goes back to its previous type. One owner: a second
+   reveal mid-flight takes the camera without re-saving it.
+2. **Roulette.** `HatchConfig.rouletteDelays(rarity)` is a braking curve:
+   0.045s between changes at the start, up to 0.5s, over 2.2s (Common) to
+   2.6s (Divine), then a 0.6s fake-out and the prize. That is ~28-33 changes
+   and ~3.2-3.5s of spin. Items come from the zone plus one zone either side
+   (full colour, effects stripped, pivot moved to the box centre), in seven
+   size classes from 0.35x to 1.6x of the stage, never the same class or item
+   twice running. **The fake-out frame is the rarest item from the prize's
+   own zone**, shown at hero size: the wheel seems to stop on it, then clicks
+   over. A neon plate, a light and an outline under/around the stage take the
+   rarity colour of whatever is showing. Each change punches in 25% bigger
+   (once the wheel is slow enough to see it) and plays one `RevealCycle`
+   tick: pitch 1.35 falling to 0.9, volume 45% rising to 100%, and the prize
+   tick is the heaviest.
+3. **Sound.** `RevealPop` is 4.55s long. It still starts on the first frame,
+   and the prize now lands at 4.0-4.5s, where it peaks.
+4. **Unchanged.** The server commits first. The atomic swap (the incoming
+   item is concealed until the pop), `ItemArtReady`, the pop and the bounce
+   all work as before. Server scheduling still comes only from
+   `HatchConfig.swapAt` / `lockSeconds`, which now derive from
+   `rouletteDelays`. Reduced Effects removes the vignette and the shake. The
+   fly-in stays, because it is the feature.
+
+Measured in Studio (one client, Studio at ~16 fps baseline): Zone 1 Epic prize,
+29 scheduled changes, swap at 4.04s, lock 5.30s. The client saw 27 distinct
+items (two were shorter than a frame at 16 fps), sizes 2-11 studs, and every
+item at the exact screen centre ~16 studs away. The real item landed at the
+centre ~21 studs away. The camera was back to `Custom` at 6.5s, with no
+`RevealRoulette` or `RevealVisual` left over. The frame rate during a reveal
+was no lower than at idle. The MCP `screen_capture` tool times out while the
+camera is scripted, so the framing was checked with `WorldToViewportPoint`,
+not screenshots. **Worth a look on a real phone.**
+
+`DebugInvoke("revealDemo", name, zoneIndex?, keepSeconds?)` plays a REAL
+reveal of the rarest item in that zone that the player has **already
+discovered** (so the Index and its discovery reward are untouched). It puts
+the item in a free slot, ripens it, commits it, and removes it again
+`lockSeconds + keepSeconds` later. Income was verified back to the exact
+pre-test value. It needs a free slot and a discovered item in that zone (the
+owner's profile has nothing discovered in Zone 6).
+
+### Free spin: 10 -> 5 minutes of play
+
+`SpinWheelConfig.PLAY_SECONDS = 300`, with the matching pin in `validate`.
+Everything else reads the constant; comments are updated. The boot log reads
+"300s of play per spin". `validate` 1,667 checks, 0 failures.

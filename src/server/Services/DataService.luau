@@ -251,7 +251,7 @@ local function defaultProfile(): Profile
 		OfflineCashRate = 0,
 		PendingOfflineCash = 0,
 		TrapReadyAt = 0,
-		-- A brand-new player starts the full ten minutes from their first spin.
+		-- A brand-new player starts the full five minutes from their first spin.
 		SpinProgress = 0,
 		StarterTasks = {},
 		StarterTasksClosed = false,

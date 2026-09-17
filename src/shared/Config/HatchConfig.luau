@@ -161,7 +161,7 @@ HatchConfig.LOCK_SECONDS = HatchConfig.TOTAL_SECONDS + 0.6
 -- depends on the prize's rarity, so the two timings the server needs cannot
 -- be constants any more. They are derived from the very same numbers the
 -- client animates to, which is what keeps the swap atomic: the pedestal is
--- rebuilt on the exact frame the winning silhouette bursts.
+-- rebuilt on the exact frame the winning item bursts.
 --
 -- The old constants above are kept because they still describe the reveal's
 -- own phases; nothing should read them for scheduling.
@@ -169,20 +169,19 @@ HatchConfig.LOCK_SECONDS = HatchConfig.TOTAL_SECONDS + 0.6
 --- Seconds from the reveal cue to the pop frame, for a prize of this rarity.
 --- The server rebuilds the pedestal exactly here.
 function HatchConfig.swapAt(rarity: string): number
-	local steps = HatchConfig.silhouetteSteps(rarity)
-	local delays = HatchConfig.cycleDelays(steps)
+	local delays = HatchConfig.rouletteDelays(rarity)
 	-- Every wait EXCEPT the last. The final change lands on the prize and is
-	-- held for holdSeconds instead of waiting delays[steps], so counting that
-	-- entry would schedule the swap half a second after the burst and leave
-	-- the client staring at a held silhouette waiting for an item to arrive.
+	-- held for holdSeconds instead, so counting that entry (always 0 anyway)
+	-- would only obscure where the swap lands.
 	local roulette = 0
-	for index = 1, steps - 1 do
+	for index = 1, #delays - 1 do
 		roulette += delays[index]
 	end
-	return HatchConfig.Reveal.lift.duration + roulette + HatchConfig.Silhouette.holdSeconds
+	return HatchConfig.Reveal.lift.duration + roulette + HatchConfig.Roulette.holdSeconds
 end
 
---- The whole sequence, pop and item bounce included.
+--- The whole sequence, pop and item bounce included. The camera's admiring
+--- hold and return run after this on the client and lock nothing.
 function HatchConfig.totalSeconds(rarity: string): number
 	return HatchConfig.swapAt(rarity)
 		+ HatchConfig.Reveal.pop.duration
@@ -198,90 +197,108 @@ function HatchConfig.lockSeconds(rarity: string): number
 	return HatchConfig.totalSeconds(rarity) + 0.6
 end
 
---- The single sound of the reveal, played by the owner's client on the pop
---- frame and nowhere else.
+--- The build-up under the whole reveal (4.5s long), played by the owner's
+--- client on the first frame so its peak lands on the pop.
 HatchConfig.POP_SOUND = "RevealPop"
 
 -- ==========================================================
--- THE SILHOUETTE ROULETTE
+-- THE ROULETTE
 -- ==========================================================
 --
--- Between the lift and the pop, the container is replaced by a run of solid
--- black item silhouettes that cycles fast and slows to a stop on the real
--- reward.
+-- Between the lift and the pop, the container is replaced by a casino-style
+-- run of items, in full colour and in wildly different sizes, flicking past
+-- faster than the eye can name them and then slowing, tick by tick, onto the
+-- real reward. The camera flies in to the stage for it (2026-09-17, owner:
+-- "lottery / casino feeling", about three seconds, fast ticking slowing to
+-- the reveal).
 --
 -- IT IS PURE PRESENTATION. The server rolled the prize, committed it, started
--- the income and only then told the client to animate. The last silhouette is
--- READ from that payload, never chosen here, so nothing in this file or in
--- the controller that consumes it can change what a player receives, reroll
--- it, or alter the odds. A player who tampers with the animation gets a
--- tampered animation and the same item.
+-- the income and only then told the client to animate. The last item is READ
+-- from that payload, never chosen here, so nothing in this file or in the
+-- controller that consumes it can change what a player receives, reroll it,
+-- or alter the odds. A player who tampers with the animation gets a tampered
+-- animation and the same item.
 
-HatchConfig.Silhouette = {
-	--- Cue played on every silhouette change. Never on a timer of its own.
+HatchConfig.Roulette = {
+	--- Cue played on every change. Never on a timer of its own.
 	sound = "RevealCycle",
-	--- Steps at the bottom and top of the rarity ladder. A Common settles
-	--- quickly; a Divine keeps the player guessing for as long as the design
-	--- allows. Both stay inside the eight-to-twelve the brief asks for.
-	minSteps = 8,
-	maxSteps = 12,
-	--- The delay ramp, first switch to last. A ramp above 1 holds the fast
-	--- flicker for longer and then slows hard, which is what reads as a wheel
-	--- losing momentum rather than as a linear slideshow.
-	firstDelay = 0.09,
-	lastDelay = 0.50,
-	ramp = 2.1,
-	--- THE FAKE-OUT: one beat longer than the ramp would give, then one more
-	--- change. The wheel looks like it has stopped, and has not.
-	fakeOutDelay = 0.74,
-	--- How long the winning silhouette holds before it becomes the item.
-	holdSeconds = 0.62,
-	--- Largest dimension a silhouette is fitted to before its size class is
-	--- applied. Everything is framed against this, so a Colossal reward and a
-	--- coin both arrive on screen at a readable size.
+	--- How long the wheel runs at full speed-to-slow before the fake-out, for
+	--- the weakest and the strongest rarity. A rarer prize spins longer.
+	spinCommon = 2.2,
+	spinDivine = 2.6,
+	--- The delay curve: first change to last. A ramp well above 1 keeps the
+	--- blur going for most of the spin and then brakes hard, which reads as a
+	--- wheel losing momentum rather than as a slideshow slowing down.
+	firstDelay = 0.045,
+	lastDelay = 0.5,
+	ramp = 2.8,
+	--- THE FAKE-OUT: the wheel appears to stop on a tempting item, holds, and
+	--- then clicks over once more onto the prize.
+	fakeOutDelay = 0.6,
+	--- How long the winner holds, turning, before it becomes the real item.
+	holdSeconds = 0.5,
+	--- Largest dimension an item is fitted to before its size class applies.
 	stageSpan = 7,
-	--- Size classes the decoys are drawn from. The brief asks for tiny through
-	--- huge in the same cycle; without this every silhouette is fitted to the
-	--- same box and the run reads as one shape flickering in place.
-	sizeClasses = { 0.40, 0.60, 0.85, 1.0, 1.3, 1.65 },
-	--- The winner is always shown at hero size, whatever size it really is.
-	finalClass = 1.0,
-	--- How high above the pedestal the stage floats, in stage spans.
-	stageLift = 0.85,
-	--- PlaybackSpeed of the cue: bright and quick at the start, heavier as the
+	--- Size classes the decoys are drawn from, tiny to huge, never the same
+	--- class twice running.
+	sizeClasses = { 0.35, 0.5, 0.7, 0.9, 1.15, 1.35, 1.6 },
+	--- The winner is shown at hero size, whatever size it really is.
+	finalClass = 1.15,
+	--- How high above the pedestal the stage floats, in stage spans. Clears
+	--- the largest class.
+	stageLift = 1.0,
+	--- Each change lands with a punch: it appears this much bigger and snaps
+	--- down over punchSeconds (only once the wheel is slow enough to see it).
+	punch = 1.25,
+	punchSeconds = 0.12,
+	--- The stage turns continuously, faster while the wheel is fast.
+	spinFast = 9,
+	spinSlow = 1.2,
+	--- PlaybackSpeed of the tick: bright and quick at the start, heavier as the
 	--- wheel slows, heaviest on the winning frame.
-	pitchFirst = 1.16,
-	pitchLast = 0.86,
-	pitchFinal = 0.72,
-	--- A reveal cannot be skipped before this much of it has played.
-	minBeforeSkip = 1.2,
+	pitchFirst = 1.35,
+	pitchLast = 0.9,
+	pitchFinal = 0.75,
+	--- Tick loudness, as a share of the cue's own volume: quieter in the blur,
+	--- where two dozen shots overlap, full as each change becomes distinct.
+	volumeFirst = 0.45,
+	volumeLast = 1.0,
+	--- Neighbouring zones whose items join the decoys, each side.
+	neighbourZones = 1,
+	--- THE CAMERA. Distance from the stage in stage spans, height above it,
+	--- the fly-in and fly-back times, how long it stays on the revealed item,
+	--- how much closer it creeps during the spin, and the shake on the pop.
+	cameraDistance = 2.4,
+	cameraHeight = 0.35,
+	cameraIn = 0.45,
+	cameraOut = 0.5,
+	cameraHold = 0.9,
+	cameraCreep = 0.18,
+	shake = 0.35,
+	shakeSeconds = 0.3,
 }
 
---- How many silhouettes this rarity's roulette runs through. A rarer prize
---- earns a longer wheel; the range is the brief's eight to twelve either way.
-function HatchConfig.silhouetteSteps(rarity: string): number
+--- The delay AFTER each change, in order: the braking curve, then the
+--- fake-out beat, then 0 for the winner (which is held, not waited on). Pure
+--- and deterministic, so the server and the client agree to the frame on
+--- where the swap lands.
+function HatchConfig.rouletteDelays(rarity: string): { number }
+	local cfg = HatchConfig.Roulette
 	local rank = RarityConfig.rank(rarity)
 	local top = math.max(#RarityConfig.Order, 1)
 	local alpha = math.clamp((rank - 1) / math.max(top - 1, 1), 0, 1)
-	local cfg = HatchConfig.Silhouette
-	return math.floor(cfg.minSteps + (cfg.maxSteps - cfg.minSteps) * alpha + 0.5)
-end
+	local spin = cfg.spinCommon + (cfg.spinDivine - cfg.spinCommon) * alpha
 
---- The delay AFTER each silhouette change, in order, including the fake-out
---- beat. Returned as a list so the caller simply walks it: change, play the
---- cue, wait delays[index]. Pure, so the pacing can be read off without
---- running a reveal.
-function HatchConfig.cycleDelays(steps: number): { number }
-	local cfg = HatchConfig.Silhouette
-	local count = math.max(math.floor(steps), 3)
-	local out = table.create(count)
-	for index = 1, count do
-		local alpha = (index - 1) / (count - 1)
-		out[index] = cfg.firstDelay + (cfg.lastDelay - cfg.firstDelay) * (alpha ^ cfg.ramp)
+	local out: { number } = {}
+	local elapsed = 0
+	while elapsed < spin and #out < 80 do
+		local t = math.min(elapsed / spin, 1)
+		local delay = cfg.firstDelay + (cfg.lastDelay - cfg.firstDelay) * (t ^ cfg.ramp)
+		table.insert(out, delay)
+		elapsed += delay
 	end
-	-- The fake-out replaces the penultimate wait: the wheel appears to stop,
-	-- then turns once more onto the prize.
-	out[count - 1] = cfg.fakeOutDelay
+	table.insert(out, cfg.fakeOutDelay)
+	table.insert(out, 0)
 	return out
 end
 

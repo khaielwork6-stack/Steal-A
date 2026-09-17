@@ -34,7 +34,7 @@
 	animation, so a held key cannot start a second sequence either.
 
 	THE SWAP. The commit does NOT rebuild the pedestal at once. It tells the
-	owner's client to start the animation and rebuilds SWAP_AT seconds later,
+	owner's client to start the animation and rebuilds HatchConfig.swapAt seconds later,
 	on the pop frame, so the container stays in the world until the exact
 	moment the item replaces it. That is what removes the old gap where the
 	container vanished a second before anything renderable arrived.

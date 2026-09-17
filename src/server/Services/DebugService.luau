@@ -511,6 +511,97 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
+	--- Plays a REAL reveal on this player's base and then takes the test item
+	--- away again, so the roulette can be watched without keeping anything:
+	---   revealDemo(zoneIndex?, keepSeconds?)
+	--- Uses the rarest item in that zone the player has ALREADY discovered, so
+	--- the Index and its discovery reward are untouched. The item is removed
+	--- keepSeconds (default 3) after the reveal lock lifts, however the reveal
+	--- went. Returns the roulette timing the server scheduled.
+	revealDemo = function(player, zoneIndex: number?, keepSeconds: number?)
+		local HatchService = require(script.Parent.HatchService)
+		local HatchConfig = require(ReplicatedStorage.Shared.Config.HatchConfig)
+		local profile = DataService.get(player)
+		if not profile then
+			return { error = "no profile" }
+		end
+		local zone = math.clamp(math.floor(tonumber(zoneIndex) or 1), 1, #LootConfig.Items)
+		local def = nil
+		for _, candidate in LootConfig.pool(zone) do
+			if profile.Index[candidate.id] then
+				def = candidate
+			end
+		end
+		if not def then
+			return { error = `nothing discovered in zone {zone}` }
+		end
+		local free = BaseService.freeSlots(player)
+		if #free == 0 then
+			return { error = "no free slot" }
+		end
+		local rolled = ScaleConfig.clampScale(ScaleConfig.rollScale(zone))
+		local item = {
+			InstanceId = HttpService:GenerateGUID(false),
+			ItemId = def.id,
+			ZoneId = zone,
+			Rarity = def.rarity,
+			Size = RarityConfig.sizeLabelFor(rolled),
+			Mutation = "Normal",
+			BaseIncome = def.income,
+			FinalIncome = RarityConfig.finalIncome(def.income, rolled, "Normal"),
+			SlotIndex = free[1],
+			Scale = rolled,
+			VisualScale = rolled,
+			SizeVisualVersion = RarityConfig.SIZE_VISUAL_VERSION,
+			EconomyScaleVersion = ScaleConfig.ECONOMY_SCALE_VERSION,
+			MaturationSeconds = ScaleConfig.maturationSeconds(def.growthSeconds, rolled),
+			GrowthSeconds = 0,
+			Hatched = false,
+			SpawnToken = HttpService:GenerateGUID(false),
+		}
+		table.insert(profile.DisplayItems, item)
+		HatchService.beginIncubation(player, item)
+		item.HatchEndsAt = os.time() - 1
+
+		local function removeTestItem()
+			for index, row in profile.DisplayItems do
+				if row.InstanceId == item.InstanceId then
+					table.remove(profile.DisplayItems, index)
+					break
+				end
+			end
+			if player.Parent then
+				BaseService.rebuildDisplays(player)
+				EconomyService.recalculate(player)
+				StateService.pushNow(player)
+			end
+		end
+
+		BaseService.rebuildDisplays(player)
+		EconomyService.recalculate(player)
+		StateService.pushNow(player)
+		-- Let the sealed container replicate before the cue names it.
+		task.wait(1)
+		local ok, reason = HatchService.commit(player, item.InstanceId)
+		local lock = HatchConfig.lockSeconds(def.rarity)
+		task.delay(lock + (tonumber(keepSeconds) or 3), removeTestItem)
+		if not ok then
+			removeTestItem()
+		end
+		local delays = HatchConfig.rouletteDelays(def.rarity)
+		return {
+			revealed = ok,
+			reason = reason,
+			item = def.id,
+			rarity = def.rarity,
+			slot = item.SlotIndex,
+			changes = #delays,
+			swapAt = HatchConfig.swapAt(def.rarity),
+			lockSeconds = lock,
+			removedAfter = lock + (tonumber(keepSeconds) or 3),
+		}
+	end,
+
 	--- Fires the REAL HatchRequest handler `times` in a burst, from the server,
 	--- to prove the rate limiter and the commit guard together let exactly one
 	--- reward through:   spamHatch(instanceId?, times?)
@@ -1829,7 +1920,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 	end,
 
 	--- Hands the caller their next spin immediately, so the wheel can be
-	--- tested without playing for ten minutes. Grants nothing itself: the
+	--- tested without playing for five minutes. Grants nothing itself: the
 	--- prompt, the roll and the payout all still go through the real path.
 	spinReady = function(player)
 		local SpinWheelService = require(script.Parent.SpinWheelService)

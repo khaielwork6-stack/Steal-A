@@ -65,10 +65,10 @@ SpinWheelConfig.PIXELS_PER_STUD = 80
 -- THE TIMER
 -- ==========================================================
 
---- Ten minutes of ACTUAL PLAY between spins. Accrued while the player is in
+--- Five minutes of ACTUAL PLAY between spins (was ten; owner, 2026-09-17). Accrued while the player is in
 --- the server and nowhere else - see SpinWheelService, which is why this is a
 --- duration and not a wall-clock interval.
-SpinWheelConfig.PLAY_SECONDS = 600
+SpinWheelConfig.PLAY_SECONDS = 300
 
 --- How often the server folds elapsed play into the saved progress.
 SpinWheelConfig.TICK_SECONDS = 1
@@ -227,7 +227,7 @@ end
 -- ==========================================================
 
 --- THE LENGTH OF THE SPIN. Long enough to build and release, short enough
---- that a player earning one of these every ten minutes is never waiting on
+--- that a player earning one of these every five minutes is never waiting on
 --- it. Five turns in three and a half seconds is a genuine whip round the
 --- wheel - the first turn is gone in under half a second - not a slow drift.
 SpinWheelConfig.SPIN_SECONDS = 3.4

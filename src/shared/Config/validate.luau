@@ -692,7 +692,7 @@ return function(): Report
 			"segment 12's centre must be half a wedge anticlockwise of the pointer"
 		)
 
-		check(SpinWheelConfig.PLAY_SECONDS == 600, "the free spin must be earned every 10 minutes of play")
+		check(SpinWheelConfig.PLAY_SECONDS == 300, "the free spin must be earned every 5 minutes of play")
 		check(SpinWheelConfig.WHEEL_IMAGE:match("^rbxassetid://%d+$") ~= nil, "the wheel image must be an rbxassetid")
 		check(
 			SpinWheelConfig.LOCK_SECONDS > SpinWheelConfig.SPIN_SECONDS + SpinWheelConfig.RESULT_SECONDS,
