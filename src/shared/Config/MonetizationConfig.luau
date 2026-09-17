@@ -125,7 +125,7 @@ MonetizationConfig.SlapPass = { key = "Slap", gamePassId = 1968935748, robux = 2
 -- would own the new premium track.
 MonetizationConfig.SeasonPremiumPass = {
 	key = "SeasonPremium",
-	gamePassId = 0,
+	gamePassId = 1982246812,
 	robux = 199,
 	label = "Season Pass Premium",
 } :: SimplePass
@@ -497,15 +497,15 @@ end
 -- receipt can never carry it anyway. The Gift section of the shop stays
 -- hidden until at least one id is set.
 MonetizationConfig.GiftProducts = {
-	{ key = "GiftCash24K", productId = 0, robux = 45, kind = "Gift", amount = 75e3, label = "75K", giftOf = "Cash24K" },
-	{ key = "GiftCash200K", productId = 0, robux = 85, kind = "Gift", amount = 200e3, label = "200K", giftOf = "Cash200K" },
-	{ key = "GiftCash800K", productId = 0, robux = 215, kind = "Gift", amount = 800e3, label = "800K", giftOf = "Cash800K" },
-	{ key = "GiftCash4M", productId = 0, robux = 425, kind = "Gift", amount = 4e6, label = "4M", giftOf = "Cash4M" },
-	{ key = "GiftCash8M", productId = 0, robux = 679, kind = "Gift", amount = 8e6, label = "8M", giftOf = "Cash8M" },
-	{ key = "GiftSpeed150K", productId = 0, robux = 69, kind = "Gift", amount = 150e3, label = "150K", giftOf = "Speed150K" },
-	{ key = "GiftSpeed1M", productId = 0, robux = 215, kind = "Gift", amount = 1e6, label = "1M", giftOf = "Speed1M" },
-	{ key = "GiftSpeed10M", productId = 0, robux = 595, kind = "Gift", amount = 10e6, label = "10M", giftOf = "Speed10M" },
-	{ key = "GiftSpeed1B", productId = 0, robux = 2549, kind = "Gift", amount = 1e9, label = "1B", giftOf = "Speed1B" },
+	{ key = "GiftCash24K", productId = 3713252836, robux = 45, kind = "Gift", amount = 75e3, label = "75K", giftOf = "Cash24K" },
+	{ key = "GiftCash200K", productId = 3713252845, robux = 85, kind = "Gift", amount = 200e3, label = "200K", giftOf = "Cash200K" },
+	{ key = "GiftCash800K", productId = 3713252847, robux = 215, kind = "Gift", amount = 800e3, label = "800K", giftOf = "Cash800K" },
+	{ key = "GiftCash4M", productId = 3713252854, robux = 425, kind = "Gift", amount = 4e6, label = "4M", giftOf = "Cash4M" },
+	{ key = "GiftCash8M", productId = 3713252859, robux = 679, kind = "Gift", amount = 8e6, label = "8M", giftOf = "Cash8M" },
+	{ key = "GiftSpeed150K", productId = 3713252863, robux = 69, kind = "Gift", amount = 150e3, label = "150K", giftOf = "Speed150K" },
+	{ key = "GiftSpeed1M", productId = 3713252865, robux = 215, kind = "Gift", amount = 1e6, label = "1M", giftOf = "Speed1M" },
+	{ key = "GiftSpeed10M", productId = 3713252871, robux = 595, kind = "Gift", amount = 10e6, label = "10M", giftOf = "Speed10M" },
+	{ key = "GiftSpeed1B", productId = 3713252877, robux = 2549, kind = "Gift", amount = 1e9, label = "1B", giftOf = "Speed1B" },
 } :: { ProductDef }
 
 for _, product in MonetizationConfig.GiftProducts do
@@ -644,13 +644,13 @@ MonetizationConfig.MAX_SPEED_MULTIPLIER =
 
 --- Sealed containers reveal themselves when their timer ends while the
 --- owner is online (AutoRevealService). Suggested 199 R$.
-MonetizationConfig.AutoRevealPass = { key = "AutoReveal", gamePassId = 0, robux = 199, label = "Auto Reveal" } :: SimplePass
+MonetizationConfig.AutoRevealPass = { key = "AutoReveal", gamePassId = 1985618401, robux = 199, label = "Auto Reveal" } :: SimplePass
 
 --- Robux-exclusive base themes (BaseThemeConfig rows name these by key).
 MonetizationConfig.ThemePasses = {
 	-- Suggested 149 R$ each.
-	{ key = "ThemeNeonNight", gamePassId = 0, robux = 149, label = "Neon Night Theme" },
-	{ key = "ThemeRoyalGold", gamePassId = 0, robux = 149, label = "Royal Gold Theme" },
+	{ key = "ThemeNeonNight", gamePassId = 1986506321, robux = 149, label = "Neon Night Theme" },
+	{ key = "ThemeRoyalGold", gamePassId = 1985804347, robux = 149, label = "Royal Gold Theme" },
 } :: { SimplePass }
 
 MonetizationConfig.ThemePassByKey = {} :: { [string]: SimplePass }
