@@ -39,17 +39,18 @@ local player = Players.LocalPlayer
 --- pack's own open/close logic. The DROP button is not in it either - it is
 --- the one thing a carrier keeps. The offer rail is matched by prefix because
 --- the pack named it with a trailing space.
-local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "CrewCard", "EventPill" }
+local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "EventPill" }
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
-local HUD_SCREENS = { "HotbarUI", "TouchGui", "CrouchUI", "ShiftLockUI" }
+local HUD_SCREENS = { "HotbarUI", "TouchGui", "ShiftLockUI" }
 --- Claims a screen stays up for (round3-gameplay): a carrier keeps the
 --- hotbar so the gadgets on 3-5 stay usable (HotbarController shows only the
 --- gadget slots during a carry). Any OTHER claim still hides it.
 local SCREEN_KEEP: { [string]: { [string]: true } } = {
-	HotbarUI = { carry = true }, TouchGui = { carry = true },
-	CrouchUI = { carry = true }, ShiftLockUI = { carry = true },
+	HotbarUI = { carry = true }, TouchGui = { carry = true }, ShiftLockUI = { carry = true },
 }
+--- How often the watchdog below checks that a held claim still has an owner.
+local WATCHDOG_SECONDS = 1
 
 --- Claims tied to the character's life, released on respawn. Everything else
 --- (panel claims) is released by its panel.
@@ -159,7 +160,11 @@ local function applyHidden()
 			local tween = TweenService:Create(scale, UIAnim.SHRINK, { Scale = 0.8 })
 			tween:Play()
 			tween.Completed:Once(function()
-				if anyClaim() then
+				-- Only finish hiding what is STILL ours to hide. `Completed`
+				-- also fires when a later popIn cancels this tween, and a claim
+				-- taken in the meantime by someone else must not turn that
+				-- cancelled shrink into a hide that nobody remembers to undo.
+				if anyClaim() and remembered[element] ~= nil then
 					element.Visible = false
 				end
 				scale.Scale = 1
@@ -281,6 +286,45 @@ function UIStateController.start()
 		end
 		for _,frame in frames:GetChildren() do watch(frame) end
 		frames.ChildAdded:Connect(watch)
+
+		-- THE WATCHDOG. "All the UI vanished after a reveal and never came
+		-- back" is, every time, a claim whose owner is gone: a panel that was
+		-- destroyed or re-parented without its Visible ever flipping, a
+		-- controller whose release path errored mid-flight. The HUD then
+		-- stays hidden for the rest of the session with nothing left to
+		-- release it. Once a second: a panel claim whose frame is no longer
+		-- a visible child of Frames is dropped, and if that leaves no claim
+		-- at all, the HUD is restored exactly as a release would have.
+		task.spawn(function()
+			while true do
+				task.wait(WATCHDOG_SECONDS)
+				local dropped = false
+				for reason, held in claims do
+					if held and reason:sub(1, 6) == "panel:" then
+						local frame = frames:FindFirstChild(reason:sub(7))
+						if not (frame and frame:IsA("GuiObject") and frame.Visible and frame.Parent == frames) then
+							claims[reason] = nil
+							dropped = true
+						end
+					end
+				end
+				if dropped and not anyClaim() then
+					applyRestored()
+				elseif dropped then
+					refreshScreens()
+				end
+				-- Belt and braces: nothing claimed, yet something we hid is
+				-- still hidden (a restore that was interrupted). Put it back.
+				if not anyClaim() then
+					for element, was in remembered do
+						if element:IsA("GuiObject") and was == true and not element.Visible and element.Parent then
+							remembered[element] = nil
+							element.Visible = true
+						end
+					end
+				end
+			end
+		end)
 	end)
 	-- A respawn rebuilds nothing here (MainUI has ResetOnSpawn = false), but a
 	-- claim held across one would leave the HUD hidden with the thing that

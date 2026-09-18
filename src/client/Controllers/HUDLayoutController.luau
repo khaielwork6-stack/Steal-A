@@ -319,6 +319,10 @@ local function statRow(parent: Instance, spec: { key: string, icon: string, colo
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextScaled = true
 		label.TextColor3 = spec.color
+		-- With no plate behind it the number needs its own edge to stay
+		-- legible over grass, sky and the lobby's white walls.
+		label.TextStrokeColor3 = Color3.fromRGB(10, 12, 24)
+		label.TextStrokeTransparency = 0.1
 		label.ZIndex = 6
 		local limit = label:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
 		limit.MinTextSize = 12
@@ -337,14 +341,17 @@ local function buildStatCard(ui: ScreenGui)
 		return
 	end
 
-	-- The card: the pack's button anatomy at panel size - plate, inner face with
-	-- studs and gradient - so it is unmistakably the same kit as the rail.
+	-- NO BOX. The three figures sit straight on the world, bottom-left, each
+	-- an icon and a bold outlined number - the way the reference games draw
+	-- them. The plate / studded face / gradient card this used to be was one
+	-- more bordered rectangle on a HUD the owner asked to have fewer of, and
+	-- on a phone it ate a corner of the play area to frame three numbers.
 	local card = Instance.new("Frame")
 	card.Name = "StatHUD"
 	card.AnchorPoint = Vector2.new(0, 1)
 	card.Position = UDim2.new(0, 14, 1, -14)
 	card.Size = UDim2.fromScale(0.16, 0.155)
-	card.BackgroundColor3 = Color3.fromRGB(16, 22, 44)
+	card.BackgroundTransparency = 1
 	card.BorderSizePixel = 0
 	card.ZIndex = 4
 	card.Parent = ui
@@ -352,52 +359,13 @@ local function buildStatCard(ui: ScreenGui)
 	limit.MinSize = Vector2.new(170, 90)
 	limit.MaxSize = Vector2.new(300, 112)
 	limit.Parent = card
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = card
-	local plateStroke = Instance.new("UIStroke")
-	plateStroke.Thickness = 2
-	plateStroke.Color = Color3.fromRGB(0, 0, 0)
-	plateStroke.Parent = card
-
-	local face = Instance.new("Frame")
-	face.Name = "Frame"
-	face.Size = UDim2.new(1, -6, 1, -6)
-	face.Position = UDim2.fromScale(0.5, 0.5)
-	face.AnchorPoint = Vector2.new(0.5, 0.5)
-	face.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	face.BorderSizePixel = 0
-	face.ZIndex = 5
-	face.Parent = card
-	local faceCorner = Instance.new("UICorner")
-	faceCorner.CornerRadius = UDim.new(0, 10)
-	faceCorner.Parent = face
-	local gradient = Instance.new("UIGradient")
-	gradient.Rotation = 90
-	gradient.Color = ColorSequence.new(Color3.fromRGB(44, 58, 104), Color3.fromRGB(24, 32, 64))
-	gradient.Parent = face
-	local studs = Instance.new("ImageLabel")
-	studs.Name = "Studs"
-	studs.BackgroundTransparency = 1
-	studs.Image = "rbxassetid://76728843491214"
-	studs.ImageTransparency = 0.82
-	studs.ScaleType = Enum.ScaleType.Tile
-	studs.TileSize = UDim2.fromOffset(28, 28)
-	studs.Size = UDim2.fromScale(1, 1)
-	studs.ZIndex = 5
-	studs.Parent = face
-	local studsCorner = Instance.new("UICorner")
-	studsCorner.CornerRadius = UDim.new(0, 10)
-	studsCorner.Parent = studs
 
 	local rows = Instance.new("Frame")
 	rows.Name = "Rows"
 	rows.BackgroundTransparency = 1
-	rows.Size = UDim2.new(1, -10, 1, -8)
-	rows.Position = UDim2.fromScale(0.5, 0.5)
-	rows.AnchorPoint = Vector2.new(0.5, 0.5)
+	rows.Size = UDim2.fromScale(1, 1)
 	rows.ZIndex = 6
-	rows.Parent = face
+	rows.Parent = card
 	local list = Instance.new("UIListLayout")
 	list.FillDirection = Enum.FillDirection.Vertical
 	list.SortOrder = Enum.SortOrder.LayoutOrder
@@ -731,14 +699,18 @@ local function layoutTouchStats(ui: ScreenGui)
 	if not cardHud or not cardHud:IsA("GuiObject") then
 		return
 	end
-	-- Top-left, under Roblox's menu and chat buttons, above the menu block.
-	cardHud.AnchorPoint = Vector2.new(0, 0)
-	cardHud.Position = UDim2.fromOffset(12, 50)
-	cardHud.Size = UDim2.fromOffset(156, 70)
+	-- BOTTOM-LEFT on touch (it was top-left, under the Roblox buttons): the
+	-- corner the reference games keep their money in, below the menu block
+	-- and beside the thumbstick's resting spot, so nothing in the top-left
+	-- competes with Roblox's own buttons and the numbers are where a thumb
+	-- never covers them.
+	cardHud.AnchorPoint = Vector2.new(0, 1)
+	cardHud.Position = UDim2.new(0, 12, 1, -10)
+	cardHud.Size = UDim2.fromOffset(164, 78)
 	local limit = cardHud:FindFirstChildOfClass("UISizeConstraint")
 	if limit then
-		limit.MinSize = Vector2.new(140, 64)
-		limit.MaxSize = Vector2.new(170, 76)
+		limit.MinSize = Vector2.new(150, 70)
+		limit.MaxSize = Vector2.new(180, 84)
 	end
 	for _, label in cardHud:GetDescendants() do
 		if label:IsA("TextLabel") then
@@ -755,10 +727,13 @@ local function layoutTouchPanels(ui: ScreenGui)
 	if not frames or not frames:IsA("GuiObject") then
 		return
 	end
-	-- The container takes almost the whole viewport; each panel almost all of
-	-- the container. Their aspect constraints (FitWithinMaxSize) keep every
-	-- panel its authored shape, so this only ever grows them, never distorts.
-	frames.Size = UDim2.fromScale(0.96, 1)
+	-- The container takes most of the viewport and each panel most of the
+	-- container - but not all of either. At 0.94 x 0.9 a panel reached the
+	-- phone's edges and covered the Roblox buttons, the jump button and the
+	-- thumbstick; at 0.86 x 0.82 it reads as a window over the game with the
+	-- controls still visible around it. Their aspect constraints
+	-- (FitWithinMaxSize) keep every panel its authored shape.
+	frames.Size = UDim2.fromScale(0.92, 1)
 
 	local function grow(panel: Instance)
 		if not panel:IsA("GuiObject") then
@@ -766,7 +741,7 @@ local function layoutTouchPanels(ui: ScreenGui)
 		end
 		panel.AnchorPoint = Vector2.new(0.5, 0.5)
 		panel.Position = UDim2.fromScale(0.5, 0.52)
-		panel.Size = UDim2.fromScale(0.94, 0.9)
+		panel.Size = UDim2.fromScale(0.86, 0.82)
 		-- Bounded text: everything in a panel scales, and a two-word label in
 		-- a big row would otherwise outgrow the button beside it.
 		for _, label in panel:GetDescendants() do

@@ -44,16 +44,11 @@ local function paint(owned: boolean, configured: boolean, robux: number)
 		return
 	end
 	local icon = if AutoRevealPassCard.ICON ~= "rbxassetid://0" then AutoRevealPassCard.ICON else ShopKit.Icons.Shop
+	-- Owned means gone from the shop (ShopController re-fits the section);
+	-- the toggle lives in Settings, where an owner goes looking for it.
+	frame.Visible = not owned
 	if owned then
-		ShopKit.fillCard(frame, {
-			title = "AUTO REVEAL",
-			description = "OWNED - toggle it in Settings.",
-			price = "",
-			icon = icon,
-			color = OWNED_COLOR,
-			accent = ACCENT,
-			hidePrice = true,
-		})
+		return
 	else
 		ShopKit.fillCard(frame, {
 			title = MonetizationConfig.AutoRevealPass.label,

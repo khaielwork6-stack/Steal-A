@@ -72,7 +72,6 @@ local cashPassOwnedBadge: Frame? = nil
 
 --- The art's tint while the pass is owned: greyed, clearly spent, still
 --- readable. White is the untouched print.
-local ART_OWNED_TINT = Color3.fromRGB(118, 122, 134)
 local ART_LIVE_TINT = Color3.fromRGB(255, 255, 255)
 
 --- A small round green check in the art's top-right corner: the one mark
@@ -276,7 +275,23 @@ local function fitGrid(grid: Frame, count: number, aspect: number?)
 	local factor = ClipSafe.scaleChain(list)
 	local columns = if width < 540 then 1 else 2
 	local cellWidth = width * (if columns == 1 then 0.94 else CELL_WIDTH) / factor
-	local cellHeight = math.max(190 / factor, cellWidth / (aspect or PACK_CARD_ASPECT))
+	-- A painted card's cell is EXACTLY its art's height. The old 190px floor
+	-- was taller than a phone-width card, so every cell carried dead space
+	-- under its art and the rows sat with one big gap and one small one
+	-- (seen in the owner's phone capture of the Cash section). Pack cards,
+	-- whose height the art does not dictate, keep the floor.
+	local cellHeight = if aspect then cellWidth / aspect else math.max(190 / factor, cellWidth / PACK_CARD_ASPECT)
+	-- Hidden cards (an owned pass) take no cell: the grid packs the rest and
+	-- must be sized for the cards that are actually showing.
+	local visible = 0
+	for _, child in grid:GetChildren() do
+		if child:IsA("GuiObject") and child.Visible then
+			visible += 1
+		end
+	end
+	if visible > 0 then
+		count = visible
+	end
 	local rows = math.max(1, math.ceil(count / columns))
 	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
 	grid.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
@@ -478,29 +493,26 @@ local function refreshOwnership(monetization: any)
 	if not card or not monetization then
 		return
 	end
-	-- Painted card: once owned the whole print is greyed, a green check sits
-	-- in its corner, and the card stops taking clicks. No text is laid over
-	-- the art - the tint says "spent" on its own.
+	-- OWNED MEANS GONE. A pass the player already has is not for sale, so its
+	-- card leaves the shop rather than sitting there greyed with a tick: the
+	-- section packs up around it (fitGrid counts visible cards). It used to
+	-- stay as a dimmed "spent" card, which read as one more thing to buy.
+	local owns = monetization.ownsCashPass == true
+	card.Visible = not owns
 	local png = cashPassPng
 	if png then
-		local owns = monetization.ownsCashPass == true
-		png.artwork.ImageColor3 = if owns then ART_OWNED_TINT else ART_LIVE_TINT
+		png.artwork.ImageColor3 = ART_LIVE_TINT
 		if cashPassOwnedBadge then
-			cashPassOwnedBadge.Visible = owns
+			cashPassOwnedBadge.Visible = false
 		end
 		png.setInteractive(not owns)
-		return
 	end
-	if monetization.ownsCashPass and card:IsA("Frame") then
-		ShopKit.fillCard(card, {
-			title = "2X CASH",
-			description = "OWNED - every dollar you earn is doubled.",
-			price = "",
-			icon = ShopKit.Icons.Cash,
-			color = PASS_COLOR,
-			accent = PASS_ACCENT,
-			hidePrice = true,
-		})
+end
+
+--- Re-sizes every section for the cards it is showing now.
+local function refitAll()
+	for _, entry in fitted do
+		fitGrid(entry.grid, entry.count, entry.aspect)
 	end
 end
 
@@ -515,6 +527,9 @@ function ShopController.start()
 		if built then
 			paintCashAmounts(state.shop)
 			require(script.Parent.GiftShopSection).update(state) -- [trading-gifting-boards]
+			-- After every owner (this file, AutoRevealPassCard) has shown or
+			-- hidden its card for this push.
+			task.defer(refitAll)
 		end
 
 		-- Ownership is binary and permanent, so a false -> true flip is a real

@@ -153,6 +153,10 @@ end)
 -- Touch only: forces landscape and adds the shift-lock button. A no-op on
 -- desktop.
 startLater("ShiftLockController", ShiftLockController.start)
+-- The character never trips into FallingDown / Ragdoll at this game's speeds.
+startLater("TripGuardController", function()
+	require(script.Controllers.TripGuardController).start()
+end)
 startLater("CrouchController", function()
 	require(script.Controllers.CrouchController).start()
 end)

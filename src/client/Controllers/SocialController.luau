@@ -27,6 +27,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SocialService = game:GetService("SocialService")
 
 local SocialConfig = require(ReplicatedStorage.Shared.Config.SocialConfig)
+local Device = require(ReplicatedStorage.Shared.Util.Device)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
@@ -290,11 +291,19 @@ local function buildPills(ui: ScreenGui): (Pill?, Pill?)
 	local strip = Instance.new("Frame")
 	strip.Name = "SocialBoosts"
 	strip.BackgroundTransparency = 1
-	-- To the RIGHT of the stat card, bottom-aligned: above it the left rail
-	-- (now five buttons tall with Trade) ran into the pills (seen in Studio).
-	strip.AnchorPoint = Vector2.new(0, 1)
-	strip.Position = UDim2.new(1, 8, 1, 0)
-	strip.Size = UDim2.fromOffset(260, PILL_HEIGHT)
+	-- Desktop: to the RIGHT of the stat figures, bottom-aligned (above them
+	-- the left rail ran into the pills). Touch: ABOVE the figures instead -
+	-- the figures now live bottom-left, and to their right is the hotbar.
+	-- MobileHudLayout re-places this for landscape phones.
+	if Device.isTouch() then
+		strip.AnchorPoint = Vector2.new(0, 1)
+		strip.Position = UDim2.new(0, 0, 0, -4)
+		strip.Size = UDim2.fromOffset(220, PILL_HEIGHT)
+	else
+		strip.AnchorPoint = Vector2.new(0, 1)
+		strip.Position = UDim2.new(1, 8, 1, 0)
+		strip.Size = UDim2.fromOffset(260, PILL_HEIGHT)
+	end
 	strip.ZIndex = 6
 	strip.Parent = anchor
 	local list = Instance.new("UIListLayout")

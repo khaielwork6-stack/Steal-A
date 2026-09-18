@@ -19,13 +19,7 @@ function MobileHudLayout.start(ui: ScreenGui)
 		if stats and stats:IsA("GuiObject") then
 			local limit = stats:FindFirstChildOfClass("UISizeConstraint")
 			if limit then limit.MinSize, limit.MaxSize = Vector2.zero, Vector2.new(math.huge, math.huge) end
-			place(stats, 8, 58, 144, 38)
-			local boosts = stats:FindFirstChild("SocialBoosts")
-			if boosts and boosts:IsA("GuiObject") then
-				boosts.AnchorPoint = Vector2.zero
-				boosts.Position = UDim2.new(1, 8 / factor, 0, 0)
-				boosts.Size = UDim2.fromOffset(106 / factor, 24 / factor)
-			end
+			-- Placed with the clocks below, once the viewport height is known.
 		end
 		local buttons = ui:FindFirstChild("Buttons")
 		local left = buttons and buttons:FindFirstChild("Left")
@@ -82,18 +76,10 @@ function MobileHudLayout.start(ui: ScreenGui)
 				end
 			end
 		end
-		local crew = ui:FindFirstChild("CrewCard")
-		if crew and crew:IsA("GuiObject") then
-			place(crew, -8, 70, 112, 56, true)
-			crew.AutomaticSize = Enum.AutomaticSize.None
-			local rows = crew:FindFirstChild("Rows")
-			if rows and rows:IsA("GuiObject") then rows.Visible = false end -- Full roster/invites remain in the Crew panel.
-			local opener = crew:FindFirstChild("Crew")
-			if opener and opener:IsA("GuiButton") then opener.Active = true; opener.Size = UDim2.new(1, 0, 0, 48 / factor) end
-		end
 		for _, rail in ui:GetChildren() do
 			if rail:IsA("GuiObject") and rail.Name:find("UI FOR ANIMAL", 1, true) == 1 then
-				place(rail, -8, 138, 112, 52, true)
+				-- Straight under the top strip now that the CREW card is gone.
+				place(rail, -8, 64, 112, 52, true)
 				local grid = rail:FindFirstChildOfClass("UIGridLayout")
 				if grid then
 					grid.FillDirection, grid.FillDirectionMaxCells = Enum.FillDirection.Horizontal, 2
@@ -101,9 +87,23 @@ function MobileHudLayout.start(ui: ScreenGui)
 				end
 			end
 		end
-		for _, spec in { {"NightTimer", 76}, {"EventPill", 108} } do
+		-- The two clocks: bottom-right, left of the jump button, Nightfall
+		-- lowest and the event pill stacked above it (compact: icon + time).
+		local height = camera.ViewportSize.Y
+		for _, spec in { {"NightTimer", 36}, {"EventPill", 68} } do
 			local pill = ui:FindFirstChild(spec[1] :: string)
-			if pill and pill:IsA("GuiObject") then place(pill, -136, spec[2] :: number, 164, 26, true) end
+			if pill and pill:IsA("GuiObject") then place(pill, -124, height - (spec[2] :: number), 96, 26, true) end
+		end
+		-- The stat figures (no box) sit bottom-left; the boost pills above
+		-- them, small, so neither reaches the thumbstick's resting spot.
+		if stats and stats:IsA("GuiObject") then
+			place(stats, 8, height - 8 - 66, 140, 66)
+			local boosts = stats:FindFirstChild("SocialBoosts")
+			if boosts and boosts:IsA("GuiObject") then
+				boosts.AnchorPoint = Vector2.new(0, 1)
+				boosts.Position = UDim2.new(0, 0, 0, -4 / factor)
+				boosts.Size = UDim2.fromOffset(200 / factor, 20 / factor)
+			end
 		end
 	end
 	local function schedule() task.defer(fit) end

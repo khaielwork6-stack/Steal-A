@@ -78,16 +78,16 @@ local function buildPill(ui: Instance)
 	local touch = Device.isTouch()
 	local frame = Instance.new("Frame")
 	frame.Name = "EventPill"
-	-- Next to the Nightfall pill (NightController): below it on touch (top
-	-- right), to its left on desktop (bottom right), same height.
+	-- COMPACT, and stacked on the Nightfall pill (NightController): directly
+	-- above it on touch (bottom-right, left of the jump button), to its left
+	-- on desktop (bottom-right), same height. Icon and time only.
+	frame.AnchorPoint = Vector2.new(1, 1)
 	if touch then
-		frame.AnchorPoint = Vector2.new(1, 0)
-		frame.Position = UDim2.new(1, -190, 0, 54)
-		frame.Size = UDim2.fromOffset(176, 30)
+		frame.Position = UDim2.new(1, -132, 1, -46)
+		frame.Size = UDim2.fromOffset(104, 28)
 	else
-		frame.AnchorPoint = Vector2.new(1, 1)
-		frame.Position = UDim2.new(1, -250, 1, -12)
-		frame.Size = UDim2.fromOffset(250, 38)
+		frame.Position = UDim2.new(1, -156, 1, -12)
+		frame.Size = UDim2.fromOffset(132, 36)
 	end
 	frame.BackgroundColor3 = Color3.fromRGB(30, 22, 58)
 	frame.BackgroundTransparency = 0.1
@@ -159,13 +159,15 @@ local function paintPill()
 		key = event.key
 		color = event.color
 		image = event.icon
-		text = if event.endsAt > 0 then `{event.title} · {countdown(event.endsAt - now)}` else event.title
+		-- The time alone; the event's own icon is its name. No icon
+		-- configured: a lightning bolt, the one glyph every event shares.
+		text = if event.endsAt > 0 then countdown(event.endsAt - now) else "ON"
 	elseif upcoming and upcoming.startsAt > now then
 		key = "next:" .. upcoming.key
 		color = Color3.fromRGB(190, 190, 210)
 		local def = EventConfig.ByKey[upcoming.key]
 		image = if def then def.icon else ""
-		text = `{upcoming.title} in {countdown(upcoming.startsAt - now)}`
+		text = countdown(upcoming.startsAt - now)
 	end
 
 	local show = text ~= nil and not hudSuppressed() and player:GetAttribute("FlyoverActive") ~= true
@@ -173,17 +175,18 @@ local function paintPill()
 		frame.Visible = false
 		return
 	end
-	label.Text = text :: string
 	stroke.Color = color
 	local hasIcon = isSet(image)
 	icon.Visible = hasIcon
 	if hasIcon then
 		icon.Image = image
-		label.Position = UDim2.fromOffset(36, 0)
-		label.Size = UDim2.new(1, -44, 1, 0)
+		label.Text = text :: string
+		label.Position = UDim2.fromOffset(34, 0)
+		label.Size = UDim2.new(1, -40, 1, 0)
 	else
-		label.Position = UDim2.fromOffset(10, 0)
-		label.Size = UDim2.new(1, -20, 1, 0)
+		label.Text = `⚡ {text :: string}`
+		label.Position = UDim2.fromOffset(8, 0)
+		label.Size = UDim2.new(1, -16, 1, 0)
 	end
 	local wasVisible = frame.Visible
 	frame.Visible = true

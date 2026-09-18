@@ -310,12 +310,25 @@ local function paintSlap(offer: Offer, weapons: any)
 end
 
 local function paint(state: any)
+	local showing = 0
 	for _, offer in offers do
 		if offer.kind == "guardian" and type(state.guardians) == "table" then
 			paintGuardian(offer, state.guardians)
 		elseif offer.kind == "slap" and type(state.weapons) == "table" then
 			paintSlap(offer, state.weapons)
 		end
+		-- OWNED MEANS GONE. An offer for something the player already has is
+		-- not an offer; the tile leaves the rail (it used to stay, reading
+		-- OWNED and breathing at them). The rail itself goes when both are
+		-- owned, so the right edge is clear.
+		offer.button.Visible = not offer.owned
+		if not offer.owned then
+			showing += 1
+		end
+	end
+	local rail = railFrame
+	if rail then
+		rail.Visible = showing > 0
 	end
 end
 

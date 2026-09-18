@@ -650,6 +650,17 @@ DebugService.start()
 -- the carry penalty are applied in exactly one place.
 local function onPlayer(player: Player)
 	player.CharacterAdded:Connect(function(character)
+		-- No engine trips. At this game's WalkSpeeds a wall put the Humanoid
+		-- into FallingDown for seconds; the client (TripGuardController) is
+		-- the authority for its own character, and this covers the moments
+		-- the server holds the physics (a RagdollService launch, a teleport).
+		task.spawn(function()
+			local humanoid = character:WaitForChild("Humanoid", 10)
+			if humanoid and humanoid:IsA("Humanoid") then
+				humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+				humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+			end
+		end)
 		task.spawn(function()
 			-- Respawns land the player where BaseService says home is: the hub
 			-- circle until their first steal, their own plot after. Before the

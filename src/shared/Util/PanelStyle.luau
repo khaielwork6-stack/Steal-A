@@ -2,6 +2,7 @@
 -- Presentation shared by the Round 3 panels. Sizes below are SCREEN pixels,
 -- so MainUI's phone UIScale cannot quietly shrink a 44px action into a 30px one.
 local ClipSafe = require(script.Parent.ClipSafe)
+local Device = require(script.Parent.Device)
 local PanelStyle = {}
 
 function PanelStyle.corner(object: GuiObject, radius: number)
@@ -82,7 +83,29 @@ local function fills(object: GuiObject, parent: GuiObject): boolean
 	return inner.X / outer.X >= 0.82 and inner.Y / outer.Y >= 0.82
 end
 
---- Switches off the inner border of every plate/body pair under `root`.
+--- The body is stretched over the whole plate. The pack insets it a few
+--- percent at the bottom (Size.Y 0.935-0.967, anchored just above centre) so
+--- the plate shows as a lip - which, next to the plate's own stroke, reads as
+--- a second thin outline even once the body's stroke is off. One border means
+--- one: the body covers the plate edge to edge and takes the plate's corner
+--- radius so no plate peeks out at the corners.
+local function coverPlate(body: GuiObject, plate: GuiObject)
+	if body.AutomaticSize ~= Enum.AutomaticSize.None or not body:IsA("Frame") then
+		return
+	end
+	body.AnchorPoint = Vector2.new(0.5, 0.5)
+	body.Position = UDim2.fromScale(0.5, 0.5)
+	body.Size = UDim2.fromScale(1, 1)
+	local plateCorner = plate:FindFirstChildOfClass("UICorner")
+	if plateCorner then
+		local corner = body:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+		corner.CornerRadius = plateCorner.CornerRadius
+		corner.Parent = body
+	end
+end
+
+--- Switches off the inner border of every plate/body pair under `root`, and
+--- stretches the body over the plate (see coverPlate).
 function PanelStyle.singleBorder(root: Instance)
 	local function apply(object: Instance)
 		local stroke = borderOf(object)
@@ -93,6 +116,7 @@ function PanelStyle.singleBorder(root: Instance)
 		local parent = object.Parent
 		if parent and parent:IsA("GuiObject") and borderOf(parent) and fills(object :: GuiObject, parent) then
 			stroke.Enabled = false
+			coverPlate(object :: GuiObject, parent)
 		end
 	end
 	apply(root)
@@ -164,7 +188,13 @@ function PanelStyle.window(frame: Frame, width: number, height: number)
 		if not camera or not frame.Parent then return end
 		local viewport = camera.ViewportSize
 		local factor = ClipSafe.scaleChain(frame)
-		frame.Size = UDim2.fromOffset(math.min(width, viewport.X - 32) / factor, math.min(height, viewport.Y - (if viewport.Y < 500 then 16 else 88)) / factor)
+		-- On touch a panel stops short of the screen edges (86% x 84%): the
+		-- Roblox top-left buttons, the jump button and the thumbstick all stay
+		-- reachable around it, and a panel that fills the phone edge to edge
+		-- reads as a new screen rather than a window over the game.
+		local maxWidth = if Device.isTouch() then viewport.X * 0.86 else viewport.X - 32
+		local maxHeight = if Device.isTouch() then viewport.Y * 0.84 else viewport.Y - (if viewport.Y < 500 then 16 else 88)
+		frame.Size = UDim2.fromOffset(math.min(width, maxWidth) / factor, math.min(height, maxHeight) / factor)
 		local top = frame:FindFirstChild("Top")
 		if top and top:IsA("GuiObject") then
 			local ratio = top:FindFirstChildOfClass("UIAspectRatioConstraint")

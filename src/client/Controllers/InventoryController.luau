@@ -1584,24 +1584,37 @@ local function buildOpener(ui: ScreenGui)
 	end
 
 	-- A count badge so a full storage is obvious without opening the panel.
+	-- A round counter on the corner, big enough to read at a glance: white
+	-- digits with a dark outline on a solid disc, over the tile's top-right.
+	-- The old badge was a squat rounded rectangle with dark-on-orange text at
+	-- a third of the tile's height, and on a phone the number was a smudge.
 	local badge = Instance.new("TextLabel")
 	badge.Name = "Badge"
 	badge.AnchorPoint = Vector2.new(1, 0)
-	badge.Position = UDim2.new(1, 4, 0, -4)
-	badge.Size = UDim2.fromScale(0.42, 0.32)
+	badge.Position = UDim2.new(1, 8, 0, -8)
+	badge.Size = UDim2.fromScale(0.46, 0.46)
 	badge.BackgroundColor3 = Color3.fromRGB(255, 176, 46)
 	badge.Font = Enum.Font.FredokaOne
 	badge.TextScaled = true
-	badge.TextColor3 = Color3.fromRGB(40, 28, 8)
+	badge.TextColor3 = Color3.fromRGB(255, 255, 255)
+	badge.TextStrokeColor3 = Color3.fromRGB(20, 22, 30)
+	badge.TextStrokeTransparency = 0.15
 	badge.Text = "0"
-	badge.ZIndex = 6
+	badge.ZIndex = 8
 	badge.Visible = false
 	badge.Parent = opener
+	local badgeRound = Instance.new("UIAspectRatioConstraint")
+	badgeRound.AspectRatio = 1
+	badgeRound.Parent = badge
+	local badgePad = Instance.new("UIPadding")
+	badgePad.PaddingLeft, badgePad.PaddingRight = UDim.new(0.14, 0), UDim.new(0.14, 0)
+	badgePad.PaddingTop, badgePad.PaddingBottom = UDim.new(0.1, 0), UDim.new(0.1, 0)
+	badgePad.Parent = badge
 	local badgeCorner = Instance.new("UICorner")
-	badgeCorner.CornerRadius = UDim.new(0.35, 0)
+	badgeCorner.CornerRadius = UDim.new(1, 0)
 	badgeCorner.Parent = badge
 	local badgeStroke = Instance.new("UIStroke")
-	badgeStroke.Thickness = 2
+	badgeStroke.Thickness = 2.5
 	badgeStroke.Color = Color3.fromRGB(20, 22, 30)
 	badgeStroke.Parent = badge
 	openerBadge = badge

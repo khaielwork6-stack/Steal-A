@@ -61,10 +61,15 @@ local player = Players.LocalPlayer
 --- Bottom-right on desktop. On touch that corner belongs to Jump and the
 --- shift lock, so the pill moves to the top strip, left of the settings
 --- gear and offer tiles, where nothing else lives.
+--- COMPACT: the moon and the time, nothing else ("🌙 3:35"). The words
+--- ("Nightfall in", "Rush! Night in", "Night Reset") are gone - the moon is
+--- the label, and the Night Rush has its own pill (EventController). On
+--- touch it sits bottom-right, to the left of the jump button, where the
+--- reference games keep theirs; on desktop, the bottom-right corner.
 local TOUCH = require(ReplicatedStorage.Shared.Util.Device).isTouch()
-local PILL_POSITION = if TOUCH then UDim2.new(1, -190, 0, 16) else UDim2.new(1, -16, 1, -12)
-local PILL_ANCHOR = if TOUCH then Vector2.new(1, 0) else Vector2.new(1, 1)
-local PILL_SIZE = if TOUCH then UDim2.fromOffset(176, 32) else UDim2.fromOffset(222, 38)
+local PILL_POSITION = if TOUCH then UDim2.new(1, -132, 1, -12) else UDim2.new(1, -16, 1, -12)
+local PILL_ANCHOR = Vector2.new(1, 1)
+local PILL_SIZE = if TOUCH then UDim2.fromOffset(104, 28) else UDim2.fromOffset(132, 36)
 
 local COLOR_CALM = Color3.fromRGB(226, 232, 244)
 local COLOR_WARN = Color3.fromRGB(255, 196, 92)
@@ -201,8 +206,8 @@ local function buildPill(ui: ScreenGui)
 	local icon = Instance.new("TextLabel")
 	icon.Name = "Icon"
 	icon.BackgroundTransparency = 1
-	icon.Size = UDim2.new(0, 30, 1, 0)
-	icon.Position = UDim2.new(0, 8, 0, 0)
+	icon.Size = UDim2.new(0, 26, 1, 0)
+	icon.Position = UDim2.new(0, 6, 0, 0)
 	icon.Font = Enum.Font.FredokaOne
 	icon.TextScaled = true
 	icon.Text = "🌙"
@@ -210,25 +215,25 @@ local function buildPill(ui: ScreenGui)
 	icon.ZIndex = 6
 	icon.Parent = frame
 	local iconLimit = Instance.new("UITextSizeConstraint")
-	iconLimit.MaxTextSize = 22
+	iconLimit.MaxTextSize = 20
 	iconLimit.Parent = icon
 
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, -50, 1, 0)
-	label.Position = UDim2.new(0, 42, 0, 0)
+	label.Size = UDim2.new(1, -40, 1, 0)
+	label.Position = UDim2.new(0, 34, 0, 0)
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextColor3 = COLOR_CALM
 	label.TextStrokeTransparency = 0.5
-	label.Text = "Nightfall in —"
+	label.Text = "—"
 	label.ZIndex = 6
 	label.Parent = frame
 	local limit = Instance.new("UITextSizeConstraint")
 	limit.MinTextSize = 12
-	limit.MaxTextSize = 22
+	limit.MaxTextSize = 20
 	limit.Parent = label
 
 	pill = frame
@@ -521,13 +526,13 @@ local function render()
 	end
 
 	if left == math.huge then
-		label.Text = if night then "Night — Refreshing" else "Nightfall in —"
+		label.Text = "—"
 		return
 	end
 
 	local whole = math.ceil(left)
 	if night then
-		label.Text = `Night Reset {clock(left)}`
+		label.Text = clock(left)
 		if whole ~= lastWholeSecond then
 			lastWholeSecond = whole
 			if not reducedEffects and pillScale then
@@ -537,10 +542,9 @@ local function render()
 		return
 	end
 
-	-- [polish-events-analytics] Night Rush (a shorter Day) says so.
-	label.Text = if ReplicatedStorage:GetAttribute("NightRush") == true
-		then `Rush! Night in {clock(left)}`
-		else `Nightfall in {clock(left)}`
+	-- The time alone. A Night Rush (a shorter Day) is the EventPill's news;
+	-- this pill never says more than the moon and the clock.
+	label.Text = clock(left)
 
 	-- The last fifteen seconds turn amber; the last ten breathe; each of the
 	-- last five lands a punch. All from the same clock, no server chatter.

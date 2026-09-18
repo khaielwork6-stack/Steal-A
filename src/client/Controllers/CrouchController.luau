@@ -6,11 +6,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
-local Device = require(ReplicatedStorage.Shared.Util.Device)
-local UIState = require(script.Parent.UIStateController)
 local CrouchController = {}
 local player = Players.LocalPlayer
-local button: TextButton?
 local desired = false
 local poses: { [Model]: { { motor: Motor6D, rest: CFrame, crouch: CFrame } } } = {}
 
@@ -50,62 +47,10 @@ local function pose(character: Model, on: boolean)
 end
 
 function CrouchController.start()
-	local gui = Instance.new("ScreenGui")
-	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset, gui.DisplayOrder = "CrouchUI", false, true, 8
-	gui.Parent = player:WaitForChild("PlayerGui")
-	local made = Instance.new("TextButton")
-	made.Name, made.AnchorPoint = "Crouch", Vector2.new(1, 1)
-	-- Touch: left of the shift-lock button, both above the default Jump
-	-- button and placed from Jump's REAL rectangle (a tablet's Jump is far
-	-- bigger than a phone's; the old fixed offsets overlapped it). The side
-	-- matches ShiftLockController's (60% of Jump, 48-72 px). Before the touch
-	-- controls exist, the old fixed spot. Re-run every 0.1 s by the loop below,
-	-- and it only writes when the signature changes.
-	local lastLayout = ""
-	local function layout()
-		local touch = Device.isTouch()
-		if not touch then
-			if lastLayout == "desktop" then return end
-			lastLayout = "desktop"
-			gui.IgnoreGuiInset = true
-			made.AnchorPoint = Vector2.new(1, 1)
-			made.Size = UDim2.fromOffset(124, 38)
-			made.Position = UDim2.new(0.5, -160, 1, -20)
-			return
-		end
-		local jump, touchGui = Device.jumpButton()
-		if not jump or not touchGui then
-			if lastLayout == "touch" then return end
-			lastLayout = "touch"
-			gui.IgnoreGuiInset = true
-			made.AnchorPoint = Vector2.new(1, 1)
-			made.Size = UDim2.fromOffset(66, 52)
-			made.Position = UDim2.new(1, -96, 1, -108)
-			return
-		end
-		local position, size = jump.AbsolutePosition, jump.AbsoluteSize
-		local signature = `{position.X},{position.Y},{size.X},{size.Y}`
-		if signature == lastLayout then return end
-		lastLayout = signature
-		-- Same inset rules as the touch controls, so the coordinates agree.
-		gui.IgnoreGuiInset = touchGui.IgnoreGuiInset
-		gui.ScreenInsets = touchGui.ScreenInsets
-		local side = math.clamp(math.floor(size.X * 0.6), 48, 72)
-		made.AnchorPoint = Vector2.new(1, 1)
-		made.Size = UDim2.fromOffset(math.floor(side * 1.27), side)
-		-- Right edge: Jump's right edge, minus the shift-lock button, minus a gap.
-		made.Position = UDim2.fromOffset(position.X + size.X - side - 12, position.Y - 10)
-	end
-	layout()
-	made.BackgroundColor3, made.TextColor3 = Color3.fromRGB(27, 35, 53), Color3.fromRGB(255, 226, 148)
-	made.Font, made.TextSize, made.BorderSizePixel = Enum.Font.GothamBold, 12, 0
-	made.Text, made.Visible, made.Parent = "CROUCH [C]", false, gui
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius, corner.Parent = UDim.new(0, 12), made
-	local stroke = Instance.new("UIStroke")
-	stroke.Color, stroke.Thickness, stroke.Parent = Color3.fromRGB(188, 147, 70), 2, made
-	button = made
-	made.Activated:Connect(toggle)
+	-- NO BUTTON. The on-screen CROUCH / STAND button is gone on every device
+	-- (owner's call: it crowded the bottom-right with the jump button and the
+	-- shift lock, and the pose is only ever needed under a laser). Crouching
+	-- is the C key / R3; the pose and the server round-trip are unchanged.
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if not processed and (input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.ButtonR3) then toggle() end
 	end)
@@ -122,21 +67,15 @@ function CrouchController.start()
 		elapsed += dt
 		if elapsed < 0.1 then return end
 		elapsed = 0
-		layout()
 		for _, other in Players:GetPlayers() do
 			local character = other.Character
 			if character then pose(character, character:GetAttribute("LaserCrouched") == true) end
 		end
 		for character in poses do if not character.Parent then poses[character] = nil end end
+		-- Standing back up when the player leaves the lasers' half of the map.
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local on = character and character:GetAttribute("LaserCrouched") == true
-		local visible = root ~= nil and root:IsA("BasePart") and root.Position.Z >= 0
-			and (not UIState.isSuppressed() or UIState.hasClaim("carry"))
-		made.Visible = visible
-		made.BackgroundColor3 = if on then Color3.fromRGB(112, 39, 48) else Color3.fromRGB(27, 35, 53)
-		made.Text = if Device.isTouch() then (if on then "STAND" else "CROUCH") else (if on then "STAND [C]" else "CROUCH [C]")
-		if not visible then desired = false end
+		if not (root and root:IsA("BasePart") and root.Position.Z >= 0) then desired = false end
 	end)
 end
 

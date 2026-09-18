@@ -56,11 +56,13 @@ local LOCK_OFFSET = Vector3.new(1.75, 0, 0)
 local YAW_STEP = "ShiftLockYaw"
 local YAW_PRIORITY = Enum.RenderPriority.Camera.Value + 1
 
---- Button size bounds (pixels). 44 is the smallest comfortable touch target.
-local MIN_SIZE = 48
-local MAX_SIZE = 72
---- Gap between the button and the top of Jump.
-local GAP = 10
+--- Button size bounds (pixels). Deliberately UNDER the 44 px touch minimum:
+--- this is a toggle a thumb visits once, not a control it works, and at 44
+--- it crowded the jump button it now sits under.
+local MIN_SIZE = 34
+local MAX_SIZE = 48
+--- Gap between the button and the bottom of Jump.
+local GAP = 6
 --- Where it sits before the touch controls exist (the old fixed spot).
 local FALLBACK_POSITION = UDim2.new(1, -30, 1, -108)
 local FALLBACK_SIZE = 52
@@ -213,11 +215,22 @@ local function layout()
 	-- one coordinate space and the numbers below can be used directly.
 	gui.IgnoreGuiInset = touchGui.IgnoreGuiInset
 	gui.ScreenInsets = touchGui.ScreenInsets
-	local side = math.clamp(math.floor(size.X * 0.6), MIN_SIZE, MAX_SIZE)
+	-- BELOW Jump, and smaller (45% of it, 34-48 px), tucked into the corner
+	-- where a thumb resting on Jump never lands. It used to sit ABOVE Jump at
+	-- 60%, right in the path of a thumb sliding up to jump. When the screen
+	-- bottom leaves no room under Jump, it goes to Jump's left instead,
+	-- bottom-aligned, still out of the jump path.
+	local side = math.clamp(math.floor(size.X * 0.45), MIN_SIZE, MAX_SIZE)
 	made.Size = UDim2.fromOffset(side, side)
-	-- Right edge flush with Jump's, bottom just above Jump's top.
-	made.AnchorPoint = Vector2.new(1, 1)
-	made.Position = UDim2.fromOffset(position.X + size.X, position.Y - GAP)
+	local screenBottom = gui.AbsoluteSize.Y
+	local below = position.Y + size.Y + GAP
+	if screenBottom <= 0 or below + side <= screenBottom - 4 then
+		made.AnchorPoint = Vector2.new(1, 0)
+		made.Position = UDim2.fromOffset(position.X + size.X, below)
+	else
+		made.AnchorPoint = Vector2.new(1, 1)
+		made.Position = UDim2.fromOffset(position.X - GAP, position.Y + size.Y)
+	end
 end
 
 local function build()

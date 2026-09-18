@@ -25,7 +25,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local CrewConfig = require(ReplicatedStorage.Shared.Config.CrewConfig)
-local Device = require(ReplicatedStorage.Shared.Util.Device)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local StateStore = require(script.Parent.Parent.StateStore)
@@ -47,7 +46,6 @@ local GOLD = Color3.fromRGB(255, 210, 90)
 local ROW_HEIGHT = 68
 
 local crew: any = nil
-local cardList: Frame? = nil
 local panelList: ScrollingFrame? = nil
 local leaveButton: TextButton? = nil
 
@@ -111,116 +109,6 @@ local function clear(container: Instance)
 		if child:IsA("GuiObject") then
 			child:Destroy()
 		end
-	end
-end
-
--- ==========================================================
--- CARD (HUD)
--- ==========================================================
-
-local function buildCard(ui: Instance)
-	local card = Instance.new("Frame")
-	card.Name = "CrewCard"
-	-- Top right, under the QUESTS button: at mid-height it covered the offer
-	-- rail (guardian sale / Slap cards) - seen in Studio.
-	card.AnchorPoint = Vector2.new(1, 0)
-	card.Position = UDim2.new(1, -10, 0, if Device.isTouch() then 58 else 72)
-	card.Size = UDim2.fromOffset(if Device.isTouch() then 138 else 150, 0)
-	card.AutomaticSize = Enum.AutomaticSize.Y
-	card.BackgroundColor3 = PANEL
-	card.BackgroundTransparency = 0
-	PanelStyle.gradient(card, Color3.fromRGB(36, 72, 115), Color3.fromRGB(20, 27, 61))
-	round(card, 14)
-	stroke(card, TEAL, 2)
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 6)
-	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 6), UDim.new(0, 6)
-	pad.Parent = card
-	local layout = Instance.new("UIListLayout")
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 4)
-	layout.Parent = card
-
-	-- THE OPENER. Named like the panel so the pack's script opens Frames.Crew
-	-- with it; deliberately NOT claimed. Frames.Crew exists before this is
-	-- parented (the pack pairs the two when it first sees the button).
-	local opener = Instance.new("TextButton")
-	opener.Name = "Crew"
-	opener.LayoutOrder = 0
-	opener.Size = UDim2.new(1, 0, 0, 52)
-	PanelStyle.gradient(opener, Color3.fromRGB(82, 248, 195), Color3.fromRGB(15, 147, 144))
-	opener.BackgroundColor3 = TEAL
-	opener.Font, opener.TextScaled, opener.TextColor3 = FONT, true, WHITE
-	opener.Text = "CREW +"
-	round(opener, 12)
-	stroke(opener, Color3.fromRGB(10, 90, 80), 2)
-	local openerPad = Instance.new("UIPadding")
-	openerPad.PaddingTop, openerPad.PaddingBottom = UDim.new(0.16, 0), UDim.new(0.16, 0)
-	openerPad.Parent = opener
-	if CrewConfig.Icons.Crew ~= "rbxassetid://0" then
-		local icon = Instance.new("ImageLabel")
-		icon.BackgroundTransparency = 1
-		icon.Image = CrewConfig.Icons.Crew
-		icon.Size = UDim2.fromScale(0.3, 0.85)
-		icon.Position = UDim2.fromScale(0.02, 0.075)
-		icon.ScaleType = Enum.ScaleType.Fit
-		icon.Parent = opener
-	end
-
-	local list = Instance.new("Frame")
-	list.Name = "Rows"
-	list.LayoutOrder = 1
-	list.BackgroundTransparency = 1
-	list.Size = UDim2.fromScale(1, 0)
-	list.AutomaticSize = Enum.AutomaticSize.Y
-	local listLayout = Instance.new("UIListLayout")
-	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Padding = UDim.new(0, 3)
-	listLayout.Parent = list
-	list.Parent = card
-	cardList = list
-
-	card.Parent = ui
-	opener.Parent = card
-end
-
-local function renderCard()
-	local list = cardList
-	if not list then
-		return
-	end
-	clear(list)
-	local opener = list.Parent and list.Parent:FindFirstChild("Crew")
-	local members = if crew then crew.members or {} else {}
-	if opener and opener:IsA("TextButton") then
-		opener.Text = if #members > 0 then `CREW {#members}/{crew.max or CrewConfig.MAX_MEMBERS}` else "CREW +"
-	end
-	local order = 0
-	for _, member in members do
-		order += 1
-		local row = Instance.new("Frame")
-		row.BackgroundTransparency = 1
-		row.LayoutOrder = order
-		row.Size = UDim2.new(1, 0, 0, 26)
-		local star = if member.leader then "★ " else ""
-		label(row, star .. tostring(member.name), UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), if member.leader then GOLD else WHITE)
-		row.Parent = list
-	end
-	for _, invite in if crew then crew.invites or {} else {} do
-		order += 1
-		local row = Instance.new("Frame")
-		row.BackgroundTransparency = 1
-		row.LayoutOrder = order
-		row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-		label(row, `{invite.name} invites you`, UDim2.fromScale(0.5, 0.8), UDim2.fromScale(0, 0.1))
-		local inviter = tonumber(invite.userId)
-		button(row, "CrewAcceptQuick", "✓", TEAL, UDim2.new(0.23, 0, 0, ROW_HEIGHT - 4), UDim2.fromScale(0.52, 0.5), function()
-			send("accept", inviter)
-		end)
-		button(row, "CrewDeclineQuick", "✕", RED, UDim2.new(0.23, 0, 0, ROW_HEIGHT - 4), UDim2.fromScale(0.77, 0.5), function()
-			send("decline", inviter)
-		end)
-		row.Parent = list
 	end
 end
 
@@ -450,7 +338,7 @@ local function renderTags()
 end
 
 local function render()
-	renderCard()
+	-- (the HUD card is gone; the roster lives in the panel)
 	renderPanel()
 	renderTags()
 end
@@ -466,11 +354,10 @@ function CrewController.start()
 		warn("[CrewController] MainUI missing - crew UI disabled")
 		return
 	end
-	-- The panel first: the opener must find Frames.Crew when the pack sees it.
-	local hasPanel = buildPanel(ui)
-	if hasPanel then
-		buildCard(ui)
-	end
+	-- NO HUD CARD. The "CREW +" button under QUESTS is gone on every device
+	-- (owner's call). The panel is still built so an existing crew keeps its
+	-- tags, invites and the Frames.Crew panel; nothing on the HUD opens it now.
+	buildPanel(ui)
 
 	-- The provider builds a fresh table every push; redraw only when its
 	-- content changed, or every button would be rebuilt under the finger.
