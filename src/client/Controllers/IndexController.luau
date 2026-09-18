@@ -16,15 +16,18 @@
 	Both are lifted out as templates on startup and the rest of the demo cards are
 	destroyed. Nothing here re-authors a card.
 
-	WHY ZONE TABS RATHER THAN ONE LONG SCROLL
-	The grid is four cards wide, so a zone's eight items are exactly two rows. One
-	tab per zone therefore fills the grid perfectly with no ragged rows, and it
-	gives the per-zone claim button somewhere honest to live. The tabs are cloned
-	from a real pack button so they inherit its art.
+	ONE PAGE, NOT TWELVE (owner, 2026-09-18)
+	It used to be twelve pages behind twelve tiny tabs. The tabs carried no
+	text - the pack button they were cloned from has no Title in that slot -
+	eight cards never filled the frame, and finding anything meant guessing
+	which numbered square to press.
 
-	The tabs are stamped `_UIHandlerSetup` on purpose. The pack skips any button
-	already carrying that attribute, which is how we claim a button for our own
-	binding - without it the pack would try to open a panel named "Zone1".
+	Now the scroll STACKS a section per zone: a header carrying the zone's
+	emoji, name, accent bar, found count and its own claim button, then that
+	zone's eight cards four across. The whole 96 reads as one collection you
+	move down, every claim sits with the set it belongs to, and the list fills
+	the panel edge to edge because there is no tab strip or bottom bar left to
+	leave room for.
 ]]
 
 local Players = game:GetService("Players")
@@ -54,25 +57,22 @@ local DIM = Color3.fromRGB(86, 92, 104)
 local CLAIMABLE = Color3.fromRGB(72, 200, 108)
 local CLAIMED = Color3.fromRGB(96, 104, 122)
 local INCOMPLETE = Color3.fromRGB(58, 64, 78)
+--- Gap between cards, and the room the scrollbar needs on the right.
+local CARD_GAP = 8
+local SCROLLBAR = 10
 
 local panel: Frame? = nil
 local scroll: ScrollingFrame? = nil
 local foundTemplate: Frame? = nil
 local lockedTemplate: Frame? = nil
 local counterLabel: TextLabel? = nil
-local claimButton: TextButton? = nil
-local claimLabel: TextLabel? = nil
 local openerBadge: TextLabel? = nil
-local tabs: { [number]: TextButton } = {}
 
-local selectedZone = 1
 local discovered: { [string]: boolean } = {}
 local summary: any = nil
 local lastDiscoveredCount: number? = nil
---- The zone header above the grid: "Zone 7 · Gym 💪 · 3/8 found".
-local zoneTitle: TextLabel? = nil
 --- The preview models on the cards currently shown, turned slowly while the
---- panel is open. Only ever the eight of the selected zone.
+--- panel is open.
 local turning: { Model } = {}
 --- Radians per second a discovered item turns in its card.
 local TURN_RATE = 0.7
@@ -102,11 +102,6 @@ local function flatten(label: TextLabel?, color: Color3)
 	end
 	label.TextColor3 = color
 end
-
---- Claims a button for our own input handling. See UIAnim.claimButton for why
---- a cloned pack button is inert until both its Active flag and its handler
---- attributes are corrected.
-local claimForUs = UIAnim.claimButton
 
 -- ==========================================================
 -- CARDS
@@ -185,145 +180,232 @@ local function buildCard(def: any, known: boolean, order: number): Frame?
 end
 
 -- ==========================================================
--- RENDER
+-- ZONE SECTIONS (one page, no tabs)
 -- ==========================================================
+--
+-- The panel used to be twelve pages behind twelve tiny tabs: the tabs
+-- carried no text (the pack button they were cloned from has no Title in
+-- that slot), eight cards never filled the frame, and finding anything meant
+-- guessing which numbered square to press. It is ONE scroll now, in zone
+-- order, with a headed section per zone - so the whole 96 reads as a
+-- collection you move down, and every zone's claim sits in its own header.
 
-local function clearGrid()
+--- Per-zone widgets, so a repaint touches only what changed.
+type Section = {
+	header: Frame,
+	title: TextLabel,
+	count: TextLabel,
+	claim: TextButton,
+	claimLabel: TextLabel,
+	grid: Frame,
+}
+local sections: { [number]: Section } = {}
+
+--- The claim button in one zone's header: what it says, and whether it does
+--- anything. Exactly the three states the old bottom bar had.
+local function paintSection(index: number)
+	local section = sections[index]
+	local zone = ZoneConfig.Zones[index]
+	if not section or not zone then
+		return
+	end
+	local row = summary and summary.zones and summary.zones[index]
+	local found = if row then row.discovered else 0
+	local total = if row then row.total else #(LootConfig.Items[index] or {})
+	local complete = total > 0 and found >= total
+
+	section.count.Text = `{found}/{total}`
+	section.count.TextColor3 = if complete then CLAIMABLE else Color3.fromRGB(176, 184, 200)
+
+	local reward = IndexConfig.zoneReward(index)
+	local claimable = row ~= nil and row.claimable == true
+	local claimed = row ~= nil and row.claimed == true
+	section.claim.Visible = reward ~= nil
+	if not reward then
+		return
+	end
+	section.claim.Active = claimable
+	section.claim.Selectable = claimable
+	-- A zone set pays SPEED, not cash (IndexConfig.zoneReward).
+	local prize = `+{NumberFormat.short(reward.speed or 0)} SPEED`
+	if claimed then
+		section.claimLabel.Text = "CLAIMED"
+		section.claim.BackgroundColor3 = CLAIMED
+	elseif claimable then
+		section.claimLabel.Text = `CLAIM {prize}`
+		section.claim.BackgroundColor3 = CLAIMABLE
+	else
+		section.claimLabel.Text = prize
+		section.claim.BackgroundColor3 = INCOMPLETE
+	end
+end
+
+--- One zone's block: a header carrying the zone's name, its accent, its
+--- found count and its claim button, then a grid of its eight cards.
+local function buildSection(index: number, list: ScrollingFrame)
+	local zone = ZoneConfig.Zones[index]
+	local pool = LootConfig.Items[index]
+	if not zone or not pool then
+		return
+	end
+
+	local header = Instance.new("Frame")
+	header.Name = `ZoneHeader_{index}`
+	header.LayoutOrder = index * 10
+	header.BackgroundColor3 = Color3.fromRGB(26, 30, 48)
+	header.BorderSizePixel = 0
+	header.Size = UDim2.new(1, 0, 0, 38)
+	header.ZIndex = 5
+	header.Parent = list
+	local headerCorner = Instance.new("UICorner")
+	headerCorner.CornerRadius = UDim.new(0, 10)
+	headerCorner.Parent = header
+	-- The zone's own colour, as a bar down the left edge: twelve sections
+	-- scrolling past need something other than their words to tell them apart.
+	local accent = Instance.new("Frame")
+	accent.Name = "Accent"
+	accent.BackgroundColor3 = zone.color
+	accent.BorderSizePixel = 0
+	accent.Size = UDim2.new(0, 5, 0.7, 0)
+	accent.Position = UDim2.new(0, 0, 0.15, 0)
+	accent.ZIndex = 6
+	accent.Parent = header
+	local accentCorner = Instance.new("UICorner")
+	accentCorner.CornerRadius = UDim.new(1, 0)
+	accentCorner.Parent = accent
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.AnchorPoint = Vector2.new(0, 0.5)
+	title.Position = UDim2.new(0, 14, 0.5, 0)
+	title.Size = UDim2.new(0.5, 0, 0.7, 0)
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextColor3 = Color3.fromRGB(240, 244, 252)
+	title.Text = `{zone.emoji}  {string.upper(zone.name)}`
+	title.ZIndex = 7
+	title.Parent = header
+	local titleLimit = Instance.new("UITextSizeConstraint")
+	titleLimit.MaxTextSize = 20
+	titleLimit.Parent = title
+
+	local count = Instance.new("TextLabel")
+	count.Name = "Count"
+	count.BackgroundTransparency = 1
+	count.AnchorPoint = Vector2.new(0, 0.5)
+	count.Position = UDim2.new(0.5, 6, 0.5, 0)
+	count.Size = UDim2.new(0.12, 0, 0.6, 0)
+	count.Font = Enum.Font.GothamBold
+	count.TextScaled = true
+	count.TextXAlignment = Enum.TextXAlignment.Left
+	count.TextColor3 = Color3.fromRGB(176, 184, 200)
+	count.Text = ""
+	count.ZIndex = 7
+	count.Parent = header
+	local countLimit = Instance.new("UITextSizeConstraint")
+	countLimit.MaxTextSize = 15
+	countLimit.Parent = count
+
+	local claim = Instance.new("TextButton")
+	claim.Name = "Claim"
+	claim.Text = ""
+	claim.AutoButtonColor = false
+	claim.AnchorPoint = Vector2.new(1, 0.5)
+	claim.Position = UDim2.new(1, -8, 0.5, 0)
+	claim.Size = UDim2.new(0.34, 0, 0.72, 0)
+	claim.BackgroundColor3 = INCOMPLETE
+	claim.BorderSizePixel = 0
+	claim.ZIndex = 7
+	claim.Parent = header
+	local claimCorner = Instance.new("UICorner")
+	claimCorner.CornerRadius = UDim.new(0, 8)
+	claimCorner.Parent = claim
+	local claimEdge = Instance.new("UIStroke")
+	claimEdge.Color = Color3.fromRGB(16, 18, 26)
+	claimEdge.Thickness = 2
+	claimEdge.StrokeSizingMode = Enum.StrokeSizingMode.FixedSize
+	claimEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	claimEdge.Parent = claim
+	local claimText = Instance.new("TextLabel")
+	claimText.Name = "Label"
+	claimText.BackgroundTransparency = 1
+	claimText.AnchorPoint = Vector2.new(0.5, 0.5)
+	claimText.Position = UDim2.fromScale(0.5, 0.5)
+	claimText.Size = UDim2.fromScale(0.92, 0.7)
+	claimText.Font = Enum.Font.FredokaOne
+	claimText.TextScaled = true
+	claimText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	claimText.TextStrokeColor3 = Color3.fromRGB(16, 18, 26)
+	claimText.TextStrokeTransparency = 0.3
+	claimText.Text = ""
+	claimText.ZIndex = 8
+	claimText.Parent = claim
+	local claimLimit = Instance.new("UITextSizeConstraint")
+	claimLimit.MaxTextSize = 14
+	claimLimit.Parent = claimText
+	UIAnim.claimButton(claim)
+	claim.Activated:Connect(function()
+		-- The server re-checks the set is complete and unclaimed; this only asks.
+		Remotes.get("IndexClaimRequest"):FireServer(index)
+		UIAnim.punch(claim, 0.12)
+	end)
+
+	local grid = Instance.new("Frame")
+	grid.Name = `ZoneGrid_{index}`
+	grid.LayoutOrder = index * 10 + 1
+	grid.BackgroundTransparency = 1
+	grid.Size = UDim2.new(1, 0, 0, 120)
+	grid.Parent = list
+	local layout = Instance.new("UIGridLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent = grid
+
+	sections[index] = {
+		header = header,
+		title = title,
+		count = count,
+		claim = claim,
+		claimLabel = claimText,
+		grid = grid,
+	}
+end
+
+--- Fills every zone's grid. Called on the first push and whenever a new item
+--- is discovered - a card changes template (locked -> found), so the cell is
+--- rebuilt rather than repainted.
+local function renderAll()
 	local list = scroll
 	if not list then
 		return
 	end
-	-- Filter on what to KEEP. Filtering on a row's class is what let the old
-	-- Storage panel leak an empty-state label once per refresh.
-	for _, child in list:GetChildren() do
-		if not child:IsA("UILayout") then
-			child:Destroy()
-		end
-	end
-end
-
---- Repaints a zone tab from its summary row.
-local function paintTab(index: number)
-	local tab = tabs[index]
-	if not tab then
-		return
-	end
-
-	local row = summary and summary.zones and summary.zones[index]
-	local selected = index == selectedZone
-
-	local color = INCOMPLETE
-	if row then
-		if row.claimable then
-			color = CLAIMABLE
-		elseif row.claimed then
-			color = CLAIMED
-		end
-	end
-
-	tab.BackgroundColor3 = color
-	tab.BackgroundTransparency = if selected then 0 else 0.45
-
-	local title = labelIn(tab, "Title")
-	if title then
-		title.Text = tostring(index)
-		title.TextColor3 = if selected then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(206, 212, 224)
-	end
-
-	local stroke = tab:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		stroke.Color = if selected then Color3.fromRGB(255, 255, 255) else Color3.fromRGB(24, 26, 34)
-		stroke.Transparency = if selected then 0 else 0.4
-	end
-end
-
---- The bottom bar. It only ever offers the SELECTED zone's reward, so the player
---- always knows exactly what they are claiming.
-local function paintClaim()
-	local button, label = claimButton, claimLabel
-	if not button or not label then
-		return
-	end
-
-	local row = summary and summary.zones and summary.zones[selectedZone]
-	local zone = ZoneConfig.Zones[selectedZone]
-	if not row or not zone then
-		return
-	end
-
-	-- A set claim pays SPEED. Cash comes per item, the moment each is first
-	-- placed (the discovery reward), and there is no income percentage.
-	local reward = IndexConfig.zoneReward(selectedZone)
-
-	-- `Active` is doing real work here, not just styling: with it false the
-	-- button stops firing Activated at all, so an unclaimable bar is genuinely
-	-- inert rather than merely looking it. The server re-checks regardless.
-	button.Selectable = row.claimable
-
-	if row.claimable then
-		button.BackgroundColor3 = CLAIMABLE
-		button.BackgroundTransparency = 0
-		button.Active = true
-		label.Text = `CLAIM  +{NumberFormat.short(reward.speed)} SPEED`
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	elseif row.claimed then
-		button.BackgroundColor3 = CLAIMED
-		button.BackgroundTransparency = 0.25
-		button.Active = false
-		label.Text = `{string.upper(zone.name)} SET CLAIMED`
-		label.TextColor3 = Color3.fromRGB(214, 220, 232)
-	else
-		button.BackgroundColor3 = INCOMPLETE
-		button.BackgroundTransparency = 0.25
-		button.Active = false
-		label.Text = `{row.discovered}/{row.total} FOUND  -  REWARD +{NumberFormat.short(reward.speed)} SPEED`
-		label.TextColor3 = Color3.fromRGB(176, 184, 200)
-	end
-end
-
---- The header line for the selected zone, from the same summary the tabs use.
-local function paintZoneTitle()
-	local label = zoneTitle
-	local zone = ZoneConfig.Zones[selectedZone]
-	if not label or not zone then
-		return
-	end
-	local row = summary and summary.zones and summary.zones[selectedZone]
-	local found = if row then `{row.discovered}/{row.total} found` else ""
-	label.Text = `Zone {selectedZone}  ·  {zone.name} {zone.emoji}  ·  {found}`
-end
-
-local function renderZone()
-	local pool = LootConfig.Items[selectedZone]
-	if not pool or not scroll then
-		return
-	end
-
-	clearGrid()
 	table.clear(turning)
 	local cards: { GuiObject } = {}
-	for order, def in pool do
-		local card = buildCard(def, discovered[def.id] == true, order)
-		if card then
-			card.Parent = scroll
-			table.insert(cards, card)
-		end
-	end
-	-- Cards settle in one after another rather than all at once; a short
-	-- step so eight of them are done in a quarter of a second.
-	if panel and panel.Visible then
-		ShopKit.cascadeIn(cards, 0.025)
-	end
-
 	for index = 1, ZoneConfig.COUNT do
-		paintTab(index)
+		local section = sections[index]
+		local pool = LootConfig.Items[index]
+		if section and pool then
+			for _, child in section.grid:GetChildren() do
+				if not child:IsA("UILayout") then
+					child:Destroy()
+				end
+			end
+			for order, def in pool do
+				local card = buildCard(def, discovered[def.id] == true, order)
+				if card then
+					card.Parent = section.grid
+					table.insert(cards, card)
+				end
+			end
+		end
+		paintSection(index)
 	end
-	paintZoneTitle()
-	paintClaim()
+	if panel and panel.Visible then
+		ShopKit.cascadeIn(cards, 0.006)
+	end
 end
-
---- Header counter. Owned here rather than in HUDController so the panel has a
---- single writer.
 local function paintCounter()
 	local label = counterLabel
 	if not label or not summary then
@@ -337,14 +419,6 @@ local function paintCounter()
 		UIAnim.punch(label, 0.2)
 	end
 	lastDiscoveredCount = summary.discovered
-end
-
-local function selectZone(index: number)
-	selectedZone = math.clamp(index, 1, ZoneConfig.COUNT)
-	renderZone()
-	if scroll then
-		scroll.CanvasPosition = Vector2.new(0, 0)
-	end
 end
 
 -- ==========================================================
@@ -383,132 +457,6 @@ local function takeCardTemplates(ui: ScreenGui, list: ScrollingFrame)
 			child:Destroy()
 		end
 	end
-end
-
-local function buildTabs(frame: Frame, source: TextButton)
-	local strip = Instance.new("ScrollingFrame")
-	strip.Name = "ZoneTabs"
-	strip.BorderSizePixel = 0
-	strip.CanvasSize = UDim2.new()
-	strip.AutomaticCanvasSize = Enum.AutomaticSize.X
-	strip.ScrollingDirection = Enum.ScrollingDirection.X
-	-- The pack initializes every scrolling frame as vertical; preserve this tab strip.
-	strip:GetPropertyChangedSignal("ScrollingDirection"):Connect(function()
-		if strip.ScrollingDirection ~= Enum.ScrollingDirection.X then
-			strip.ScrollingDirection = Enum.ScrollingDirection.X
-		end
-	end)
-	strip.ScrollBarThickness = 3
-	strip.AnchorPoint = Vector2.new(0.5, 0.5)
-	strip.Position = UDim2.fromScale(0.5, 0.255)
-	strip.Size = UDim2.fromScale(0.94, 0.075)
-	strip.BackgroundTransparency = 1
-	strip.Parent = frame
-
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	layout.VerticalAlignment = Enum.VerticalAlignment.Center
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0.008, 0)
-	layout.Parent = strip
-
-	for index = 1, ZoneConfig.COUNT do
-		local tab = source:Clone()
-		tab.Name = `ZoneTab{index}`
-		tab.LayoutOrder = index
-		tab.Size = UDim2.fromScale(0.072, 1)
-		tab.Position = UDim2.fromScale(0, 0)
-		tab.AnchorPoint = Vector2.new(0, 0)
-		tab.Text = ""
-		tab.AutoButtonColor = false
-
-		-- The clone carries the source button's aspect lock and its icon; a
-		-- numbered tab wants neither.
-		local aspect = tab:FindFirstChildOfClass("UIAspectRatioConstraint")
-		if aspect then
-			aspect:Destroy()
-		end
-		local body = tab:FindFirstChild("Frame")
-		if body then
-			body:Destroy() -- the source's inner art is an icon plate, not a label
-		end
-
-		local title = labelIn(tab, "Title")
-		if not title then
-			local made = Instance.new("TextLabel")
-			made.Name = "Title"
-			made.BackgroundTransparency = 1
-			made.Size = UDim2.fromScale(1, 1)
-			made.Font = Enum.Font.GothamBold
-			made.TextScaled = true
-			made.Parent = tab
-			title = made
-		else
-			title.Size = UDim2.fromScale(1, 1)
-			title.Position = UDim2.fromScale(0.5, 0.5)
-			title.AnchorPoint = Vector2.new(0.5, 0.5)
-			title.TextScaled = true
-		end
-		flatten(title, Color3.fromRGB(230, 236, 248))
-
-		claimForUs(tab)
-		tab.Activated:Connect(function()
-			selectZone(index)
-		end)
-
-		tab.Parent = strip
-		tabs[index] = tab
-	end
-end
-
-local function buildClaimBar(frame: Frame, source: TextButton)
-	local button = source:Clone()
-	button.Name = "ClaimSet"
-	button.AnchorPoint = Vector2.new(0.5, 0.5)
-	button.Position = UDim2.fromScale(0.5, 0.915)
-	button.Size = UDim2.fromScale(0.86, 0.085)
-	button.Text = ""
-	button.AutoButtonColor = false
-
-	local aspect = button:FindFirstChildOfClass("UIAspectRatioConstraint")
-	if aspect then
-		aspect:Destroy()
-	end
-	local body = button:FindFirstChild("Frame")
-	if body then
-		body:Destroy()
-	end
-
-	local label = labelIn(button, "Title")
-	if not label then
-		local made = Instance.new("TextLabel")
-		made.Name = "Title"
-		made.BackgroundTransparency = 1
-		made.Parent = button
-		label = made
-	end
-	label.Size = UDim2.fromScale(0.94, 0.7)
-	label.Position = UDim2.fromScale(0.5, 0.5)
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.Text = ""
-	flatten(label, Color3.fromRGB(255, 255, 255))
-
-	claimForUs(button)
-	button.Activated:Connect(function()
-		local row = summary and summary.zones and summary.zones[selectedZone]
-		if not row or not row.claimable then
-			return
-		end
-		UIAnim.punch(button, 0.3)
-		Remotes.get("IndexClaimRequest"):FireServer("claim", selectedZone)
-	end)
-
-	button.Parent = frame
-	claimButton = button
-	claimLabel = label
 end
 
 local function buildPanel(ui: ScreenGui): boolean
@@ -554,38 +502,27 @@ local function buildPanel(ui: ScreenGui): boolean
 	list.ScrollBarThickness = 4
 	list.ScrollingDirection = Enum.ScrollingDirection.Y
 
-	-- The zone header: which zone, its name and accent, how much of it is found.
-	local header = Instance.new("TextLabel")
-	header.Name = "ZoneTitle"
-	header.BackgroundTransparency = 1
-	header.AnchorPoint = Vector2.new(0.5, 0.5)
-	header.Position = UDim2.fromScale(0.5, 0.32)
-	header.Size = UDim2.fromScale(0.9, 0.052)
-	header.Font = Enum.Font.FredokaOne
-	header.TextScaled = true
-	header.TextColor3 = Color3.fromRGB(236, 240, 250)
-	header.TextStrokeTransparency = 0.6
-	header.Text = ""
-	header.ZIndex = 5
-	header.Parent = frame
-	zoneTitle = header
-
-	local grid = list:FindFirstChildOfClass("UIGridLayout")
-	if grid then
-		-- Four across, two rows: exactly one zone's eight items.
-		grid.CellSize = UDim2.fromScale(0.225, 0.46)
-		grid.CellPadding = UDim2.fromScale(0.03, 0.04)
-		grid.SortOrder = Enum.SortOrder.LayoutOrder
-		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	-- The scroll STACKS sections now, so the pack's grid layout on it has to
+	-- go: each zone keeps its own grid, inside its own frame.
+	local packGrid = list:FindFirstChildOfClass("UIGridLayout")
+	if packGrid then
+		packGrid:Destroy()
 	end
+	local stack = Instance.new("UIListLayout")
+	stack.FillDirection = Enum.FillDirection.Vertical
+	stack.SortOrder = Enum.SortOrder.LayoutOrder
+	stack.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	stack.Padding = UDim.new(0, 6)
+	stack.Parent = list
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 4)
+	pad.PaddingBottom = UDim.new(0, 10)
+	pad.Parent = list
 
-	local opener = ui:FindFirstChild("Buttons")
-	local source = opener and opener:FindFirstChild("Left") and opener.Left:FindFirstChild("Index")
-	if source and source:IsA("TextButton") then
-		buildTabs(frame, source)
-		buildClaimBar(frame, source)
-	else
-		warn("[IndexController] Buttons.Left.Index missing - tabs and claim bar not built.")
+	-- ONE PAGE: a headed section per zone, stacked down the scroll. No tabs
+	-- and no bottom bar - each zone's claim lives in its own header.
+	for index = 1, ZoneConfig.COUNT do
+		buildSection(index, list)
 	end
 
 
@@ -597,29 +534,37 @@ local function buildPanel(ui: ScreenGui): boolean
 		local headerHeight = if topFrame and topFrame:IsA("GuiObject") then topFrame.AbsoluteSize.Y / factor else 52 / factor
 		local features = frame:FindFirstChild("Features")
 		if features and features:IsA("GuiObject") then features.Visible = false end
-		local strip = frame:FindFirstChild("ZoneTabs")
-		if strip and strip:IsA("ScrollingFrame") then
-			strip.AnchorPoint = Vector2.new(0.5, 0)
-			strip.Position = UDim2.new(0.5, 0, 0, headerHeight + 4 / factor)
-			strip.Size = UDim2.new(0.94, 0, 0, 50 / factor)
-			for _, tab in strip:GetChildren() do
-				if tab:IsA("GuiButton") then tab.Size = UDim2.fromOffset(48 / factor, 48 / factor) end
-			end
-		end
-		header.Position = UDim2.new(0.5, 0, 0, headerHeight + 69 / factor)
-		header.Size = UDim2.new(0.94, 0, 0, 24 / factor)
+		-- ONE SCROLL, edge to edge under the header. No tab strip, no zone
+		-- title line and no bottom claim bar to leave room for, so the list
+		-- gets all of it.
 		list.AnchorPoint = Vector2.new(0.5, 0)
-		list.Position = UDim2.new(0.5, 0, 0, headerHeight + 84 / factor)
-		list.Size = UDim2.new(0.94, 0, 0, math.max(50 / factor, h - headerHeight - 148 / factor))
+		list.Position = UDim2.new(0.5, 0, 0, headerHeight + 8 / factor)
+		list.Size = UDim2.new(0.95, 0, 0, math.max(60 / factor, h - headerHeight - 20 / factor))
 		list.ClipsDescendants = true
-		if grid then
-			grid.CellSize = UDim2.new(0.225, 0, 0, 112 / factor)
-			grid.CellPadding = UDim2.new(0.03, 0, 0, 8 / factor)
-		end
-		if claimButton then
-			claimButton.AnchorPoint = Vector2.new(0.5, 1)
-			claimButton.Position = UDim2.new(0.5, 0, 1, -8 / factor)
-			claimButton.Size = UDim2.new(0.94, 0, 0, 48 / factor)
+
+		-- Four cards across each zone's grid, sized from the list's real
+		-- width so the cells stay square-ish at any panel size, and the grid
+		-- is set to exactly its two rows (AutomaticSize cannot measure a
+		-- UIGridLayout).
+		local inner = list.AbsoluteSize.X / factor
+		if inner > 0 then
+			local cell = (inner - 3 * CARD_GAP - SCROLLBAR) / 4
+			-- Cells are WIDER than tall: at 0.92 a zone was 400px of scroll and the
+				-- page ran to 5,200. 0.62 keeps the art readable and halves that.
+				local cellHeight = math.max(92 / factor, cell * 0.62)
+			for index = 1, ZoneConfig.COUNT do
+				local section = sections[index]
+				if section then
+					local layout = section.grid:FindFirstChildOfClass("UIGridLayout")
+					if layout then
+						layout.CellSize = UDim2.fromOffset(cell, cellHeight)
+						layout.CellPadding = UDim2.fromOffset(CARD_GAP, CARD_GAP)
+					end
+					local rows = math.ceil(#(LootConfig.Items[index] or {}) / 4)
+					section.grid.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * CARD_GAP)
+					section.header.Size = UDim2.new(1, 0, 0, math.max(34 / factor, 38 / factor))
+				end
+			end
 		end
 	end
 	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitIndex)
@@ -682,7 +627,7 @@ function IndexController.start()
 
 	Remotes.get("IndexPush").OnClientEvent:Connect(function(payload)
 		discovered = (payload and payload.discovered) or {}
-		renderZone()
+		renderAll()
 	end)
 
 	require(script.Parent.Parent.StateStore).subscribe(function(state)
@@ -693,10 +638,8 @@ function IndexController.start()
 		paintCounter()
 
 		for index = 1, ZoneConfig.COUNT do
-			paintTab(index)
+			paintSection(index)
 		end
-		paintZoneTitle()
-		paintClaim()
 
 		if openerBadge then
 			local waiting = summary.claimable or 0
@@ -719,7 +662,7 @@ function IndexController.start()
 		frame:GetPropertyChangedSignal("Visible"):Connect(function()
 			if frame.Visible then
 				Remotes.get("IndexClaimRequest"):FireServer("sync")
-				renderZone()
+				renderAll()
 			end
 		end)
 	end
@@ -735,7 +678,7 @@ function IndexController.start()
 		end
 	end)
 
-	selectZone(1)
+	renderAll()
 end
 
 return IndexController
