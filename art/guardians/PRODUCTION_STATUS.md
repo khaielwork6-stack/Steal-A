@@ -1,45 +1,80 @@
-# Zone guardian production
+# Zone guardians — installed 2026-09-18
 
-## Approved
+All 12 approved designs were created with Roblox AI mesh generation, cleaned and
+reduced in Blender, uploaded under group **3774675**, and installed in
+`ServerStorage.GameAssets.Guardians`. Previous zone models are preserved in
+`ServerStorage.GameAssets.GuardiansOld`; `VaultGuardian` is retained.
 
-All twelve concepts approved by the owner on 2026-09-18: "all 12 designs look good".
-The newer requirements in `docs/MODEL_STANDARDS.md` supersede the original R15
-Humanoid specification. Exact production bounds are in `production.json`.
+## Verified
 
-## Completed preparation
+- One skinned MeshPart per model; **3,742–3,746 triangles**, including props.
+- Eleven deforming imported bones, AnimationController and Animator. Blender
+  authoring rigs have 15 bones; the importer omits four unused hand/forearm bones.
+  Arms and held props move rigidly about shoulder bones; legs use blended weights.
+- Every imported vertex has normalized bone weights. No Parts, Unions, scripts,
+  sounds or lights inside the model assets.
+- Four SurfaceAppearance maps per model, each **1024×1024**, inspected in Studio.
+  Meshes, maps, idle and walk clips individually verified as group-owned.
+- Requested heights and chosen XYZ bounds within **0.002 studs** after import
+  quantization. Floor Y=0, front -Z. Imported UV/position probes match the authored
+  Blender source within **0.001 studs**.
+- Walk and idle tracks loaded and advanced with Animator:StepAnimations in Edit.
+  Four phases per clip checked on every model. Maximum sampled lowest-vertex
+  floor deviation **0.018 studs** (Frost Yeti idle).
+- Both guardian-key configurations match and were observed synced through Rojo.
+  Audio IDs and gameplay tuning retained.
+- `tools/check.sh`: zero hard errors. `selene --allow-warnings src`:
+  **0 errors, 88 warnings, 0 parse errors**.
 
-- Confirmed the connected place is Steal & Run! (134344354476234), group 3774675.
-- Pulled master with `--ff-only`: already up to date at 6a4094e.
-- Required static baseline: `tools/check.sh` had zero hard errors.
-- Preserved the existing unrelated vault/UI working-tree changes.
-- Added `tools/audit-zone-guardians.luau` for production validation. It has not
-  run against new models; no new guardian has passed validation yet.
+## Evidence and editable sources
 
-## Current interruption
+- `production.json`: approved names, dimensions and requirements.
+- `installed-assets.json`, `ASSETS.md`: model, mesh, map and animation IDs.
+- `studio-production-audit.json`: complete pre-install audit; these same
+  instances were moved into the final folder.
+- `studio-playback-proof.json`, `studio-orientation-proof.json`,
+  `studio-installation.json`: Edit-mode proof and installation.
+- `models/<name>/<name>.blend`: editable rigged Blender source.
+- `models/<name>/{ColorMap,NormalMap,RoughnessMap,MetalnessMap}.png`: final maps.
+- `models/<name>/review-stride.png`: sampled walk render.
+- `models/<name>/walk-validation.json`: 25 authored frames and grounding checks.
+- `references/`: isolated approved characters used for mesh generation.
+- Raw mesh exports, transfer chunks, portable Blender, GLB/FBX intermediates,
+  source texture copies and Blender backups remain local and git-ignored.
 
-Studio was in Play. It was stopped for the owner's Edit-only workflow, and an
-Edit query confirmed the correct place and group. Studio then returned to Play
-while the first mesh generation was starting. Job
-`7bb4504a-ba69-434c-ab2d-434af04735d8` failed with:
-`Model generation should only be called from the server.`
+## Integration and limitations
 
-Do not retry or repeatedly stop another task's test session until Studio access
-is settled. The owner has been asked whether Studio can remain in Edit for this
-work, or another task needs it and local preparation should proceed first.
+GuardianService opts into bone playback only for `SkinnedGuardian=true`.
+`WalkAnimationId` and `IdleAnimationId` select group-owned clips. Existing
+Humanoid and base-pet paths are retained. Shared idle: **112229916598460**.
+Each body has a grounded walk. Iron Knight, Iron Titan and Wrecking Foreman
+keep their carrying arm pose.
 
-## Remaining
+The final meshes interpret the approved illustrations within the requested
+budgets; small lettering, facial detail and fabric ornament are simplified.
+No sound/light/emitter extras were added.
 
-1. Validate the first AI-generated mesh's skinning, complete PBR maps, exact
-   bounds and group publication before scaling up to all twelve.
-2. Build and visually inspect all twelve; validate triangle/texture budgets,
-   surface maps, bones, weights, ownership and animations.
-3. Add the minimal AnimationController support to GuardianService, preserving
-   its existing pet and Humanoid paths and all gameplay tuning.
-4. Preserve old zone models under GuardiansOld; install the validated models
-   and update both guardian-key configurations.
-5. Verify in Edit mode, run static gates, commit/push only this task's files,
-   and remind the owner to save/publish the place. Live chase testing remains
-   unverified while the owner's Edit-only requirement applies.
+The owner's Edit-only instruction was respected. Live chase/catch/return,
+ragdoll, multiplayer replication and actual phone FPS/Reduced Effects remain
+unverified. Direct Edit execution of GuardianService was blocked by the MCP
+module capability boundary; that boundary was not bypassed.
 
-No new guardian model was uploaded or installed, and no gameplay source file
-was changed during this production preparation.
+**Save and Publish the real place in Studio.** GitHub/Rojo stores code; model
+instances live in the place. Never publish a blank `rojo build` output.
+
+## Published assets
+
+| Guardian | Model | Mesh | Walk | Triangles |
+|---|---:|---:|---:|---:|
+| Zone01_NightWatchman | 117258647809929 | 128147656032099 | 77873181533906 | 3746 |
+| Zone02_GhostCaptain | 106218046978146 | 110204265686441 | 129460518585346 | 3746 |
+| Zone03_IronKnight | 95211809388527 | 138003853483666 | 133929564764513 | 3746 |
+| Zone04_GreyAgent | 116073469252475 | 132320853559207 | 83393328520236 | 3744 |
+| Zone05_FrostYeti | 136776006650388 | 121033984987910 | 124961619562758 | 3746 |
+| Zone06_Mummy | 131950233845240 | 126953642288898 | 118265765349487 | 3744 |
+| Zone07_IronTitan | 89644975750699 | 74219427770620 | 105113659859492 | 3744 |
+| Zone08_VaultBot | 129725400419992 | 72095754787245 | 70898087955433 | 3742 |
+| Zone09_LabMutant | 89743820400468 | 137725323385980 | 110642740743201 | 3744 |
+| Zone10_Granny | 112261096982364 | 114078670090986 | 106380125174585 | 3746 |
+| Zone11_WreckingForeman | 117578208048861 | 88965310161217 | 128537006584199 | 3744 |
+| Zone12_SkyMarshal | 137258400817760 | 114532512055871 | 105207620813029 | 3742 |

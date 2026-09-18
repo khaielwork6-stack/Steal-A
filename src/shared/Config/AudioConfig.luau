@@ -39,7 +39,7 @@ AudioConfig.Cues = {
 	-- ---------- world: guardians and impacts ----------
 	--- Fires once when a steal wakes a BOSS zone guardian.
 	BossAlert = { id = asset(81845122657643), volume = 1.0, category = "world", rollOff = 220 },
-	--- Fires once when a steal wakes a regular (police) guardian - Zone 1's Cop.
+	--- Fires once when a steal wakes a regular (police) guardian - Zone 1's Night Watchman.
 	PoliceWhistle = { id = asset(9125775207), volume = 0.9, category = "world", rollOff = 220 },
 	--- Fallbacks for a guardian catch when a zone has no entry in GuardianHits.
 	BossHit = { id = asset(112515497365718), volume = 1.0, category = "world", rollOff = 160 },
@@ -124,18 +124,18 @@ AudioConfig.Cues = {
 -- so Audio.playAt pools and replicates them like everything else.
 
 AudioConfig.GuardianHits = {
-	[1] = 4817107360, -- Cop
-	[2] = 82006088019283, -- Pirate Captain
-	[3] = 132851203831922, -- King / Royal Guard
-	[4] = 109316755832781, -- Agent
-	[5] = 146163493, -- Santa
+	[1] = 4817107360, -- Night Watchman
+	[2] = 82006088019283, -- Ghost Captain
+	[3] = 132851203831922, -- Iron Knight
+	[4] = 109316755832781, -- Grey Agent
+	[5] = 146163493, -- Frost Yeti
 	[6] = 135076986499326, -- Mummy
-	[7] = 84636875169658, -- Bodybuilder
-	[8] = 132610889906698, -- Bank Guard
-	[9] = 18891669527, -- Mad Scientist
-	[10] = 126619107266979, -- Grandma
-	[11] = 139965044905843, -- Foreman
-	[12] = 111155812664366, -- Airport Security
+	[7] = 84636875169658, -- Iron Titan
+	[8] = 132610889906698, -- Vault Bot
+	[9] = 18891669527, -- Lab Mutant
+	[10] = 126619107266979, -- Granny
+	[11] = 139965044905843, -- Wrecking Foreman
+	[12] = 111155812664366, -- Sky Marshal
 } :: { [number]: number }
 
 for zoneIndex, id in AudioConfig.GuardianHits do

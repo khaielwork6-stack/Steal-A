@@ -1,0 +1,90 @@
+{
+  "files": [
+    {
+      "chunks": 121,
+      "name": "texture_1",
+      "length": 2880572
+    },
+    {
+      "chunks": 150,
+      "name": "texture_2",
+      "length": 3598296
+    },
+    {
+      "chunks": 109,
+      "name": "texture_3",
+      "length": 2612036
+    },
+    {
+      "chunks": 150,
+      "name": "texture_4",
+      "length": 3586240
+    },
+    {
+      "chunks": 121,
+      "name": "texture_5",
+      "length": 2890372
+    },
+    {
+      "chunks": 134,
+      "name": "texture_6",
+      "length": 3215548
+    },
+    {
+      "chunks": 39,
+      "name": "mesh",
+      "length": 917460
+    }
+  ],
+  "name": "Zone02_GhostCaptain",
+  "parts": [
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "head_geom",
+      "texture": "texture_1"
+    },
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "left arm_geom",
+      "texture": "texture_2"
+    },
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "left leg_geom",
+      "texture": "texture_3"
+    },
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "right arm_geom",
+      "texture": "texture_4"
+    },
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "right leg_geom",
+      "texture": "texture_5"
+    },
+    {
+      "textureSize": [
+        1024,
+        1024
+      ],
+      "name": "torso_geom",
+      "texture": "texture_6"
+    }
+  ]
+}

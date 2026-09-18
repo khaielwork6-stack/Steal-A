@@ -1,0 +1,54 @@
+{
+  "name": "Zone06_Mummy",
+  "parts": [
+    {
+      "part": "head_geom",
+      "triangles": 1164,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left arm_geom",
+      "triangles": 1754,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left leg_geom",
+      "triangles": 2002,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right arm_geom",
+      "triangles": 2236,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right leg_geom",
+      "triangles": 1892,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "torso_geom",
+      "triangles": 2806,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    }
+  ],
+  "triangles": 3744,
+  "bones": 15,
+  "vertices": 1880,
+  "size": [
+    9.5,
+    14,
+    5.6
+  ],
+  "textureResolution": 1024,
+  "allVerticesWeighted": true,
+  "status": "Installed; Studio geometry, texture, ownership and bone playback checks passed",
+  "importedDeformingBones": 11,
+  "importedTriangles": 3744
+}

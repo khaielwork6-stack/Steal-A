@@ -1,0 +1,54 @@
+{
+  "name": "Zone11_WreckingForeman",
+  "parts": [
+    {
+      "part": "head_geom",
+      "triangles": 1044,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left arm_geom",
+      "triangles": 1808,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left leg_geom",
+      "triangles": 2216,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right arm_geom",
+      "triangles": 1352,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right leg_geom",
+      "triangles": 1976,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "torso_geom",
+      "triangles": 3542,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    }
+  ],
+  "triangles": 3744,
+  "bones": 15,
+  "vertices": 1860,
+  "size": [
+    26,
+    34,
+    16.5
+  ],
+  "textureResolution": 1024,
+  "allVerticesWeighted": true,
+  "status": "Installed; Studio geometry, texture, ownership and bone playback checks passed",
+  "importedDeformingBones": 11,
+  "importedTriangles": 3744
+}

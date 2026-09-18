@@ -1,0 +1,54 @@
+{
+  "name": "Zone07_IronTitan",
+  "parts": [
+    {
+      "part": "head_geom",
+      "triangles": 524,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left arm_geom",
+      "triangles": 3140,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left leg_geom",
+      "triangles": 1196,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right arm_geom",
+      "triangles": 2250,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right leg_geom",
+      "triangles": 1218,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "torso_geom",
+      "triangles": 3482,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    }
+  ],
+  "triangles": 3744,
+  "bones": 15,
+  "vertices": 1882,
+  "size": [
+    19.5,
+    17,
+    8.2
+  ],
+  "textureResolution": 1024,
+  "allVerticesWeighted": true,
+  "status": "Installed; Studio geometry, texture, ownership and bone playback checks passed",
+  "importedDeformingBones": 11,
+  "importedTriangles": 3744
+}

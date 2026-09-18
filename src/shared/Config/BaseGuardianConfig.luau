@@ -5,7 +5,7 @@
 	they are, how the three-hour global rotation is derived, how the Guardian
 	Bay is sized, and how a base guardian chases.
 
-	NOT the zone guardians (the Cop, the Pirate Captain...). Those live in
+	NOT the zone guardians (the Night Watchman, the Ghost Captain...). Those live in
 	ZoneConfig / GuardianService and wake on a steal. These stand in a bay at
 	the back of a player's plot and defend it against other players.
 
@@ -147,7 +147,7 @@ end
 -- ==========================================================
 
 --- Costume height in studs, in the bay and on the shop pedestal. A little
---- taller than a player so it reads as a defender, well under the Cop's 7.
+--- taller than a player so it reads as a defender, well under the Night Watchman's 7.
 BaseGuardianConfig.HEIGHT = 6
 --- The bay platform: square, at the back corner of the plot on the two pad
 --- cells the display grid leaves empty (see MapBuilder.buildBase).

@@ -10,7 +10,7 @@
 
 	HEIGHT IS MEASURED, NOT ASSUMED. Both billboards used to hang a fixed 3.4
 	and 4.2 studs over the HumanoidRootPart. That is right for a stock R6 rig
-	and wrong for every imported boss: the Mummy, the Bodybuilder and the rest
+	and wrong for every imported boss: the Mummy, the Iron Titan and the rest
 	are far taller, so their Zzz sat inside the chest and read as missing. The
 	offset now comes from the model's own bounding box, once, when it is first
 	seen.
@@ -266,15 +266,15 @@ end
 --- WHY THE OUTER LOOP EXISTS. This used to be a single `WaitForChild(root, 15)`
 --- and a Heartbeat connection, and it is why the far bosses had no Zzz: with
 --- streaming on, a guardian at the end of the world has NO PARTS on a client
---- standing in the lobby - measured, Grandma, the Foreman and Airport Security
+--- standing in the lobby - measured, the legacy zone 10-12 guardians
 --- all replicate as an empty model - so the wait timed out, the watcher
 --- returned, and that boss never slept again for the rest of the session, even
 --- once the player walked up to it. Waiting again is the whole fix.
 local function runEffects(model: Model, root: BasePart)
 	-- MEASURED WHEN USED, not once. GetBoundingBox covers the whole rig, hats
-	-- included, so a 5-stud Cop and a 37-stud boss both get their billboard in
+	-- included, so a small tutorial guardian and a 37-stud boss both get their billboard in
 	-- clear air over the top of the model - but a model that is still
-	-- STREAMING IN measures short (the Foreman came out 4 studs low when this
+	-- STREAMING IN measures short (the legacy construction guardian came out 4 studs low when this
 	-- was cached at stream-in), so it is re-read at the moment a billboard is
 	-- made. That is once per 0.85s per visible guardian, and only when the
 	-- camera is close enough to draw one.

@@ -1,0 +1,54 @@
+{
+  "name": "Zone09_LabMutant",
+  "parts": [
+    {
+      "part": "head_geom",
+      "triangles": 604,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left arm_geom",
+      "triangles": 1726,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left leg_geom",
+      "triangles": 1822,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right arm_geom",
+      "triangles": 2092,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right leg_geom",
+      "triangles": 1822,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "torso_geom",
+      "triangles": 3876,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    }
+  ],
+  "triangles": 3744,
+  "bones": 15,
+  "vertices": 1874,
+  "size": [
+    20,
+    24.5,
+    12
+  ],
+  "textureResolution": 1024,
+  "allVerticesWeighted": true,
+  "status": "Installed; Studio geometry, texture, ownership and bone playback checks passed",
+  "importedDeformingBones": 11,
+  "importedTriangles": 3744
+}

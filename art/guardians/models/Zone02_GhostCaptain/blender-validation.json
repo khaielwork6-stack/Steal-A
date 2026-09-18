@@ -1,0 +1,54 @@
+{
+  "name": "Zone02_GhostCaptain",
+  "parts": [
+    {
+      "part": "head_geom",
+      "triangles": 1842,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left arm_geom",
+      "triangles": 1272,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "left leg_geom",
+      "triangles": 1772,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right arm_geom",
+      "triangles": 1524,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "right leg_geom",
+      "triangles": 1436,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    },
+    {
+      "part": "torso_geom",
+      "triangles": 4102,
+      "boundaryBefore": 0,
+      "boundaryAfter": 0
+    }
+  ],
+  "triangles": 3746,
+  "bones": 15,
+  "vertices": 1877,
+  "size": [
+    5.8,
+    7.8,
+    3.2
+  ],
+  "textureResolution": 1024,
+  "allVerticesWeighted": true,
+  "status": "Installed; Studio geometry, texture, ownership and bone playback checks passed",
+  "importedDeformingBones": 11,
+  "importedTriangles": 3746
+}

@@ -34,3 +34,18 @@ sourcemap.json
 /art/round3/models/*/*.glb
 /art/round3/models/*/mesh.json
 /art/round3/models/*/*.png
+
+# Local guardian authoring runtime and lossless Studio transfer chunks
+/art/guardians/.tools/
+/art/guardians/models/*/*.b64
+
+# Guardian intermediate exports; editable .blend sources and final PBR maps
+# stay in git. Published model IDs are recorded in installed-assets.json.
+/art/guardians/models/*/*.blend1
+/art/guardians/models/*/*.glb
+/art/guardians/models/*/*.fbx
+/art/guardians/models/*/mesh.json
+/art/guardians/models/*/skinned-mesh.json
+/art/guardians/models/*/texture_*.png
+/art/guardians/models/*/AlphaBake.png
+/art/guardians/models/*/*.log

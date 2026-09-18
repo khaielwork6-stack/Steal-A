@@ -1,0 +1,116 @@
+[
+  {
+    "zone": 2,
+    "name": "Zone02_GhostCaptain",
+    "jobId": "b63c3e3c-1b82-42a4-b93e-75ded1d103b7",
+    "status": "Completed",
+    "generationId": "08c95074-5be4-485c-835d-9b1454a7e50d",
+    "generationName": "ONE complete game-ready cartoon character GhostCaptain. A skeletal ghost pirate captain: tricorn hat with a torn feather, tattered teal-and-gold coat, a bony jaw with a gold tooth, one glowing green eye socket, a hook for the left hand. Prop: a rusted cutlass in the right hand. Lower body fades into a translucent teal wisp (a single tapered mesh at 40% transparency) with two distinguishable legs under it. Signature colour: sea-teal #1FA3A0 with bone white.  Style matches a premium Roblox simulator: chunky rounded sculpted forms, large head and hands, clean dark painted crease outlines, bright saturated colors and glossy highlights. Strong readable silhouette and oversized signature prop, vivid palette, no text. Full closed clean geometry with no disconnected floating scraps. Neutral standing rigging pose with clearly separated legs, relaxed arms spread slightly away from torso, the prop held securely attached to the correct hand; no pedestal, scenery, lights, scripts, particles or other characters. Model the character AND its signature props together under3500 triangles total. Face -Z, Y up. Desired full model bounds 5.8 wide x 7.8 high x 3.2 deep studs. Prioritize the distinctive face, costume, headwear, proportions and signature prop.",
+    "publishedAssetId": "102810033968511",
+    "tag": "Assistant-608c2d5a-6d0e-43e9-8ffc-37032f88e5be"
+  },
+  {
+    "zone": 3,
+    "name": "Zone03_IronKnight",
+    "jobId": "82567702-b5e4-4da3-9498-09ff924148a6",
+    "status": "Failed",
+    "error": [
+      {
+        "text": "Mesh generation failed with error: Moderation failed",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "zone": 4,
+    "name": "Zone04_GreyAgent",
+    "jobId": "a4ae94f6-21c9-4252-b16b-221e602c0d2f",
+    "status": "Failed",
+    "error": [
+      {
+        "text": "Mesh generation failed with error: Moderation failed",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "zone": 5,
+    "name": "Zone05_FrostYeti",
+    "jobId": "65dc86c2-ff9b-4617-8f97-d97d33e008f5",
+    "status": "Completed",
+    "generationId": "4299736c-5d59-4982-91c4-e96ecb2ac560",
+    "generationName": "Complete stylized cartoon game character FrostYeti. An abominable snowman: shaggy white-blue fur, a huge under-bite with two tusks, tiny angry eyes under a heavy brow, icicles hanging from the arms and chin. Wears a stolen red Santa hat, too small for its head. Prop: a frozen candy-cane club the size of a lamppost. Signature colour: ice white with a glacier blue #7FD3FF underside. Fur is sculpted into big simple clumps, not strands. Premium bright colorful Roblox simulator art: chunky rounded sculpted shapes, large expressive face and hands, clean painted dark seams and broad highlights. Neutral standing pose, feet on the same floor, arms slightly separated from torso, signature prop held securely in hand and included in model. Exactly one character, no base or pedestal, no scene or loose floating pieces. Clean closed mesh surfaces, readable silhouette, sculpted costume details. Face -Z with Y up. Height 11.5 studs; width 10.5; depth 5.8. Character and all props combined under3500 triangles. No scripts, sounds, lights or particle emitters; only the modeled character and props.",
+    "publishedAssetId": "77657773336420",
+    "tag": "Assistant-09cd0185-e7b2-4dc3-9161-e07f0b0ab6a6"
+  },
+  {
+    "zone": 6,
+    "name": "Zone06_Mummy",
+    "jobId": "6ceadfff-f78e-466a-87d9-26d864257039",
+    "status": "Completed",
+    "generationId": "c578662a-9aa7-4617-9bc7-14c234b40fae",
+    "generationName": "Complete stylized cartoon game character Mummy. A towering bandaged mummy, bandages loose and trailing at the wrists and one leg, gaps showing dark leathery skin, two glowing amber eyes deep in the wrappings. A cracked gold-and-lapis pharaoh's collar and a broken headdress. Prop: an ankh-topped staff. Signature colour: linen #E8DCB8 with gold #F2B233 and lapis #1F4FB0 accents.  Premium bright colorful Roblox simulator art: chunky rounded sculpted shapes, large expressive face and hands, clean painted dark seams and broad highlights. Neutral standing pose, feet on the same floor, arms slightly separated from torso, signature prop held securely in hand and included in model. Exactly one character, no base or pedestal, no scene or loose floating pieces. Clean closed mesh surfaces, readable silhouette, sculpted costume details. Face -Z with Y up. Height 14 studs; width 9.5; depth 5.6. Character and all props combined under3500 triangles. No scripts, sounds, lights or particle emitters; only the modeled character and props.",
+    "publishedAssetId": "71402082040601",
+    "tag": "Assistant-677c9566-fc7a-4be1-9522-8d3c65123919"
+  },
+  {
+    "zone": 7,
+    "name": "Zone07_IronTitan",
+    "jobId": "d3a5a997-8121-4ecc-b48a-14b991a0163d",
+    "status": "Failed",
+    "error": [
+      {
+        "text": "Mesh generation failed with error: Moderation failed",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "zone": 8,
+    "name": "Zone08_VaultBot",
+    "jobId": "f2cb3c2c-268c-4020-8eca-016727c03ba9",
+    "status": "Completed",
+    "generationId": "4c6099cb-e252-4f02-9ee6-d43692682580",
+    "generationName": "Complete stylized cartoon game character VaultBot. The first non-human: a heavy security robot built like a walking bank vault. A cylindrical vault-door torso with a spinning-handle detail on the chest, riveted steel limbs, a single red camera-lens eye in a slot, a police light on the head (static red dome, no Light). Prop: a riot shield in the left arm with a dollar-sign emblem. Signature colour: gunmetal #5B6470 with gold #E0B341 rivets and the red eye.  Premium bright colorful Roblox simulator art: chunky rounded sculpted shapes, large expressive face and hands, clean painted dark seams and broad highlights. Neutral standing pose, feet on the same floor, arms slightly separated from torso, signature prop held securely in hand and included in model. Exactly one character, no base or pedestal, no scene or loose floating pieces. Clean closed mesh surfaces, readable silhouette, sculpted costume details. Face -Z with Y up. Height 20.5 studs; width 19; depth 10.5. Character and all props combined under3500 triangles. No scripts, sounds, lights or particle emitters; only the modeled character and props.",
+    "publishedAssetId": "73569293284341",
+    "tag": "Assistant-28a7f7b4-b9db-4e54-a1f3-011a48d836d3"
+  },
+  {
+    "zone": 9,
+    "name": "Zone09_LabMutant",
+    "jobId": "f702e241-d860-455d-904c-7d8f335bf175",
+    "status": "Timeout"
+  },
+  {
+    "zone": 10,
+    "name": "Zone10_Granny",
+    "jobId": "23d49770-a85e-4450-9830-e153cce61a2a",
+    "status": "Failed",
+    "error": [
+      {
+        "text": "Mesh generation failed with error: Moderation failed",
+        "type": "text"
+      }
+    ]
+  },
+  {
+    "zone": 11,
+    "name": "Zone11_WreckingForeman",
+    "jobId": "07dae888-3b18-4811-ae31-229478d2a336",
+    "status": "Completed",
+    "generationId": "0ce651ee-0b79-4ff0-80a6-51332ab1afc9",
+    "generationName": "Complete stylized cartoon game character WreckingForeman. A giant foreman: yellow hard hat, orange hi-vis vest over a checked shirt, a huge belly, work gloves, steel-toe boots. Prop: a jackhammer held like a rifle. Signature colour: safety orange #FF7A1A with hi-vis yellow #FFE01A stripes. Big square jaw, cigar-less (keep it clean), an angry unibrow. Premium bright colorful Roblox simulator art: chunky rounded sculpted shapes, large expressive face and hands, clean painted dark seams and broad highlights. Neutral standing pose, feet on the same floor, arms slightly separated from torso, signature prop held securely in hand and included in model. Exactly one character, no base or pedestal, no scene or loose floating pieces. Clean closed mesh surfaces, readable silhouette, sculpted costume details. Face -Z with Y up. Height 34 studs; width 26; depth 16.5. Character and all props combined under3500 triangles. No scripts, sounds, lights or particle emitters; only the modeled character and props.",
+    "publishedAssetId": "71567653380433",
+    "tag": "Assistant-d7119b69-c87e-44e0-b805-eadca46cb54b"
+  },
+  {
+    "zone": 12,
+    "name": "Zone12_SkyMarshal",
+    "jobId": "8be05acf-779e-4d13-884e-c8a1873dffc5",
+    "status": "Completed",
+    "generationId": "aedf21f8-1d84-4968-a9ef-2edfa86a42db",
+    "generationName": "Complete stylized cartoon game character SkyMarshal. The endgame: frighteningly huge, simple shapes. A towering airport security marshal in a black tactical uniform with hi-vis chevrons, a peaked cap with a silver wing badge, mirrored aviators, an earpiece. Prop: a metal-detector wand in one hand and a small quad-rotor drone (static, no motion) hovering by welded rods over the other shoulder with a red lens. Signature colour: black with aviation white and a red #FF3B3B lens/chevron accent. Every detail must be big - at 40 studs, small details turn to noise. Premium bright colorful Roblox simulator art: chunky rounded sculpted shapes, large expressive face and hands, clean painted dark seams and broad highlights. Neutral standing pose, feet on the same floor, arms slightly separated from torso, signature prop held securely in hand and included in model. Exactly one character, no base or pedestal, no scene or loose floating pieces. Clean closed mesh surfaces, readable silhouette, sculpted costume details. Face -Z with Y up. Height 40 studs; width 27; depth 17. Character and all props combined under3500 triangles. No scripts, sounds, lights or particle emitters; only the modeled character and props.",
+    "publishedAssetId": "136673882914625",
+    "tag": "Assistant-cf67b162-dcaf-4109-bcbc-d99c56053d29"
+  }
+]

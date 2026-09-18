@@ -252,7 +252,7 @@ GameConfig.LOOT_WORLD_HEIGHT = 5 -- loose in a zone socket, must read at distanc
 GameConfig.LOOT_TROPHY_HEIGHT = 6 -- on a base pedestal, seen up close
 
 -- Guardians grow zone by zone, so walking into a later zone reads as dangerous
--- before the player has read a single number. Zone 1's Cop is the baseline the
+-- before the player has read a single number. Zone 1's Night Watchman is the baseline the
 -- tutorial was tuned against and does not move.
 GameConfig.GUARDIAN_HEIGHT = 7 -- zone 1; every other zone is authored relative to this
 

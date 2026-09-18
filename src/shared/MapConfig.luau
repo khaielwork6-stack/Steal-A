@@ -202,18 +202,18 @@ MapConfig.GUARD_ROW_OFFSET = -14 -- studs behind the socket it serves
 -- ZONES
 -- ==========================================================
 MapConfig.ZONES = {
-	{ id = "Zone01_Museum", name = "Museum", guardian = "Cop" },
-	{ id = "Zone02_Pirate", name = "Pirate Island", guardian = "PirateCaptain" },
-	{ id = "Zone03_Castle", name = "Castle", guardian = "RoyalGuard" },
-	{ id = "Zone04_Area51", name = "Area 51", guardian = "Agent" },
-	{ id = "Zone05_NorthPole", name = "North Pole", guardian = "ElfGuard" },
-	{ id = "Zone06_Egypt", name = "Ancient Egypt", guardian = "MummyGuardian" },
-	{ id = "Zone07_Gym", name = "Gym", guardian = "Bodybuilder" },
-	{ id = "Zone08_Bank", name = "Bank", guardian = "BankGuard" },
-	{ id = "Zone09_SecretLab", name = "Secret Lab", guardian = "MadScientist" },
-	{ id = "Zone10_Grandma", name = "Grandma's House", guardian = "Grandma" },
-	{ id = "Zone11_Construction", name = "Construction Site", guardian = "Foreman" },
-	{ id = "Zone12_Airport", name = "Airport", guardian = "AirportSecurity" },
+	{ id = "Zone01_Museum", name = "Museum", guardian = "NightWatchman" },
+	{ id = "Zone02_Pirate", name = "Pirate Island", guardian = "GhostCaptain" },
+	{ id = "Zone03_Castle", name = "Castle", guardian = "IronKnight" },
+	{ id = "Zone04_Area51", name = "Area 51", guardian = "GreyAgent" },
+	{ id = "Zone05_NorthPole", name = "North Pole", guardian = "FrostYeti" },
+	{ id = "Zone06_Egypt", name = "Ancient Egypt", guardian = "Mummy" },
+	{ id = "Zone07_Gym", name = "Gym", guardian = "IronTitan" },
+	{ id = "Zone08_Bank", name = "Bank", guardian = "VaultBot" },
+	{ id = "Zone09_SecretLab", name = "Secret Lab", guardian = "LabMutant" },
+	{ id = "Zone10_Grandma", name = "Grandma's House", guardian = "Granny" },
+	{ id = "Zone11_Construction", name = "Construction Site", guardian = "WreckingForeman" },
+	{ id = "Zone12_Airport", name = "Airport", guardian = "SkyMarshal" },
 }
 
 -- ==========================================================

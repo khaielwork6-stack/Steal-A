@@ -458,12 +458,25 @@ GuardianService.assignPlayerCollision = assignPlayerCollision
 
 --- The part names a standard skeleton must have for Roblox's own walk cycle to
 --- find its joints. An animation's poses are matched by PART name, so a rig
---- with a Humanoid but home-made limbs (the Grandma: one "feet" part) would
+--- with a Humanoid but home-made limbs (the legacy single-foot costume) would
 --- load the animation and move nothing - it is treated as a prop instead.
 local RIG_SIGNATURES: { [string]: { string } } = {
 	R6 = { "HumanoidRootPart", "Torso", "Left Leg", "Right Leg", "Left Arm", "Right Arm" },
 	R15 = { "HumanoidRootPart", "LowerTorso", "UpperTorso", "LeftUpperLeg", "RightUpperLeg" },
 }
+
+-- Zone guardian art uses bone skinning. Keep its animation host separate
+-- from the Humanoid/Motor6D path used by existing avatars and base pets.
+local function boneController(shell: Instance): AnimationController?
+	if shell:GetAttribute("SkinnedGuardian") ~= true then
+		return nil
+	end
+	local controller = shell:FindFirstChildWhichIsA("AnimationController", true)
+	if controller and shell:FindFirstChildWhichIsA("Bone", true) then
+		return controller
+	end
+	return nil
+end
 
 --- The costume's own standard skeleton, if it has one: its Humanoid and the
 --- HumanoidRootPart its joint tree hangs from. Nil for props and custom rigs.
@@ -501,7 +514,7 @@ local function shellSkeleton(shell: Model): (Humanoid?, BasePart?)
 		end
 	end
 	if motors < #signature - 1 then
-		return nil, nil -- named like a rig, jointed like a prop (the Elf Guard)
+		return nil, nil -- named like a rig, jointed like a prop (a legacy unjointed guard)
 	end
 	return humanoid, rootPart
 end
@@ -607,12 +620,13 @@ local function dressRig(model: Model, root: BasePart, shell: Model, shellRotatio
 		end
 	end
 
-	if skeletonHumanoid then
+	local animationHost = skeletonHumanoid or boneController(shell)
+	if animationHost then
 		-- Created on the server, before the model replicates, so every client
 		-- receives the tracks the server plays on it.
-		if not skeletonHumanoid:FindFirstChildOfClass("Animator") then
+		if not animationHost:FindFirstChildOfClass("Animator") then
 			local animator = Instance.new("Animator")
-			animator.Parent = skeletonHumanoid
+			animator.Parent = animationHost
 		end
 		shell:SetAttribute("Rigged", true)
 	end
@@ -1766,6 +1780,22 @@ local function prepareWalk(model: Model): (AnimationTrack?, AnimationTrack?, num
 	local shell = model:FindFirstChild("Shell")
 	if not shell or shell:GetAttribute("Rigged") ~= true or shell:GetAttribute("PetRig") == true then
 		return nil, nil, 1
+	end
+	local controller = boneController(shell)
+	if controller then
+		local animator = controller:FindFirstChildOfClass("Animator")
+		local walkId = shell:GetAttribute("WalkAnimationId")
+		local idleId = shell:GetAttribute("IdleAnimationId")
+		if not animator or typeof(walkId) ~= "string" or typeof(idleId) ~= "string" then
+			return nil, nil, 1
+		end
+		local walk = loadTrack(animator, walkId, Enum.AnimationPriority.Movement, `bone walk for {model.Name}`)
+		if not walk then
+			return nil, nil, 1
+		end
+		local idle = loadTrack(animator, idleId, Enum.AnimationPriority.Idle, `bone idle for {model.Name}`)
+		local height = tonumber(model:GetAttribute("Height")) or STANDARD_RIG_HEIGHT
+		return walk, idle, 16 * math.max(height / STANDARD_RIG_HEIGHT, 0.5)
 	end
 	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)
 	local animator = if humanoid then humanoid:FindFirstChildOfClass("Animator") else nil

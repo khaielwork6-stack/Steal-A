@@ -10,7 +10,7 @@
   "rig": "Skinned MeshParts; AnimationController/Animator",
   "artSource": "zone-guardians-2026-09",
   "dimensionsIncludeProps": true,
-  "status": "Approved concepts; production validation pending",
+  "status": "Installed in Studio Edit mode; asset and bone-playback audits passed; Save & Publish required",
   "guardians": [
     {"zone":1,"name":"Zone01_NightWatchman","size":[5.2,7,3.3]},
     {"zone":2,"name":"Zone02_GhostCaptain","size":[5.8,7.8,3.2]},

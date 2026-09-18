@@ -1,0 +1,1413 @@
+{
+  "Zone01_NightWatchman_RigPrototype_v1": {
+    "status": "uncertain",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "1819f538896369e167af8e015b5e923fdc4bdecd54c9f5008b2faad163cb97a3",
+    "file": "art/guardians/models/Zone01_NightWatchman/Zone01_NightWatchman.glb"
+  },
+  "Zone01_Watchman_Rig_v2": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "1819f538896369e167af8e015b5e923fdc4bdecd54c9f5008b2faad163cb97a3",
+    "file": "art/guardians/models/Zone01_NightWatchman/Zone01_NightWatchman.glb",
+    "operationPath": "/assets/v1/operations/df3e5f3f-88e6-4355-8671-743b4e68b22a",
+    "assetId": "123574595247211",
+    "response": {
+      "path": "assets/123574595247211",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:29:35.094557500Z",
+      "assetId": "123574595247211",
+      "displayName": "Steal and Run - Zone01_Watchman_Rig_v2",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "ZoneGuardian_Walk_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "49f8e5da179b273469bd6481412e1f3c3841d8f53da4f715e3479cdf47f3df52",
+    "file": "art/guardians/animations/ZoneGuardian_Walk.rbxm",
+    "operationPath": "/assets/v1/operations/1794ae5e-3928-410b-a6be-196fc7e38585",
+    "assetId": "126562490264044",
+    "response": {
+      "path": "assets/126562490264044",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:32:55.142124600Z",
+      "assetId": "126562490264044",
+      "displayName": "Steal and Run - ZoneGuardian_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "ZoneGuardian_Idle_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "a4fba2b54cc6f3898f54707ef66319a4da689b028a4eb12c00c0e56c44762a83",
+    "file": "art/guardians/animations/ZoneGuardian_Idle.rbxm",
+    "operationPath": "/assets/v1/operations/3cec5366-3693-4fdf-8b6a-1f9cfc85f33e",
+    "assetId": "112229916598460",
+    "response": {
+      "path": "assets/112229916598460",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:32:57.831280700Z",
+      "assetId": "112229916598460",
+      "displayName": "Steal and Run - ZoneGuardian_Idle_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone02_GhostCaptain_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "2e16a277234f737a096b30d517a484a484be718309b60a1c8803a61238b8e2bc",
+    "file": "art/guardians/concepts/Zone02_GhostCaptain.png",
+    "operationPath": "/assets/v1/operations/ab6bff72-2666-4334-adf3-dde42e938173",
+    "assetId": "87126588335877",
+    "response": {
+      "path": "assets/87126588335877",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:39:20.275626300Z",
+      "assetId": "87126588335877",
+      "displayName": "Steal and Run - Zone02_GhostCaptain_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone01_NightWatchman_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "c570b5ce341b8cfd368c74d7eb4be2106a758e2fa3d8019e4cc3782d868603f1",
+    "file": "art/guardians/concepts/Zone01_NightWatchman.png",
+    "operationPath": "/assets/v1/operations/989030f6-ee70-4881-94b2-0c9e0434b795",
+    "assetId": "127854000804060",
+    "response": {
+      "path": "assets/127854000804060",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:04.016846Z",
+      "assetId": "127854000804060",
+      "displayName": "Steal and Run - Zone01_NightWatchman_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone03_IronKnight_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "9fc89f32052a91a3555b041784e926a304905bb7aec662a91503f1badc96a2d8",
+    "file": "art/guardians/concepts/Zone03_IronKnight.png",
+    "operationPath": "/assets/v1/operations/733eea4b-99cf-44a9-a7dc-754fc9cced9f",
+    "assetId": "88586591863155",
+    "response": {
+      "path": "assets/88586591863155",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:11.241651400Z",
+      "assetId": "88586591863155",
+      "displayName": "Steal and Run - Zone03_IronKnight_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone04_GreyAgent_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "78bba53ac339de88d28b4b080cd4084db678397cf3d6c60042cf9c56948b724d",
+    "file": "art/guardians/concepts/Zone04_GreyAgent.png",
+    "operationPath": "/assets/v1/operations/c44b7e1c-1021-450c-85eb-3d5d8b399749",
+    "assetId": "85837998662864",
+    "response": {
+      "path": "assets/85837998662864",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:18.974252300Z",
+      "assetId": "85837998662864",
+      "displayName": "Steal and Run - Zone04_GreyAgent_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone05_FrostYeti_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "5421652fa515fc6595a4d6d793246874836a682dcb3a00b6cf66f94b7510f4a7",
+    "file": "art/guardians/concepts/Zone05_FrostYeti.png",
+    "operationPath": "/assets/v1/operations/1c91ba7e-161d-4e64-9fb2-1d806cbfa656",
+    "assetId": "87868764568105",
+    "response": {
+      "path": "assets/87868764568105",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:25.247161400Z",
+      "assetId": "87868764568105",
+      "displayName": "Steal and Run - Zone05_FrostYeti_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone06_Mummy_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "786f88cb239ae6455c64e6f601ba1dfcc998499e9839643f4ff3ba54b131c00c",
+    "file": "art/guardians/concepts/Zone06_Mummy.png",
+    "operationPath": "/assets/v1/operations/e287f297-cb48-4477-8716-f2e38126a8c6",
+    "assetId": "74928013191062",
+    "response": {
+      "path": "assets/74928013191062",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:30.634644800Z",
+      "assetId": "74928013191062",
+      "displayName": "Steal and Run - Zone06_Mummy_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone07_IronTitan_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "a7e17e95210b29b8473237f1c2f3c614a5dc22789db7135613206e0bd5922467",
+    "file": "art/guardians/concepts/Zone07_IronTitan.png",
+    "operationPath": "/assets/v1/operations/556ef473-4721-4b1c-a7f3-822e20cdaaaa",
+    "assetId": "87799718997407",
+    "response": {
+      "path": "assets/87799718997407",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:37.576902300Z",
+      "assetId": "87799718997407",
+      "displayName": "Steal and Run - Zone07_IronTitan_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone08_VaultBot_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "1ede50039852ffdc4d98049c0aa279489943c16124e949d1c87dc12f0a43a23b",
+    "file": "art/guardians/concepts/Zone08_VaultBot.png",
+    "operationPath": "/assets/v1/operations/8f6ad0ac-dea2-46f5-a25c-16510ce8260a",
+    "assetId": "105896939363600",
+    "response": {
+      "path": "assets/105896939363600",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:43.046260400Z",
+      "assetId": "105896939363600",
+      "displayName": "Steal and Run - Zone08_VaultBot_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone09_LabMutant_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "1b0ba4ce1dde7564e60d50ca0dcaf660b31fd0dc0f2166660456bd04e8b067f7",
+    "file": "art/guardians/concepts/Zone09_LabMutant.png",
+    "operationPath": "/assets/v1/operations/70fd86b6-92ee-486d-8e12-3cb6a430fb94",
+    "assetId": "104715261573837",
+    "response": {
+      "path": "assets/104715261573837",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:50.213337200Z",
+      "assetId": "104715261573837",
+      "displayName": "Steal and Run - Zone09_LabMutant_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone10_Granny_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "5c0a9766abd57253d76803115fe6d44673a4160ab6dcb5238cb01e60480c37c9",
+    "file": "art/guardians/concepts/Zone10_Granny.png",
+    "operationPath": "/assets/v1/operations/0f14fc57-5164-4a5b-a913-60d921d47b97",
+    "assetId": "120381656357883",
+    "response": {
+      "path": "assets/120381656357883",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:43:57.139946300Z",
+      "assetId": "120381656357883",
+      "displayName": "Steal and Run - Zone10_Granny_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone11_WreckingForeman_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "e56d502a6add9c1922c86050898cc912344749c9738d0f6f7b248efd46af3784",
+    "file": "art/guardians/concepts/Zone11_WreckingForeman.png",
+    "operationPath": "/assets/v1/operations/232cd2e8-5466-44bc-bb4d-fd0beb5badb2",
+    "assetId": "132167676990094",
+    "response": {
+      "path": "assets/132167676990094",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:44:02.596704200Z",
+      "assetId": "132167676990094",
+      "displayName": "Steal and Run - Zone11_WreckingForeman_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone12_SkyMarshal_Reference": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "a1d13b81f027572f6f198efc42e078cced90bf8573f4ecf7f087754508e4c71e",
+    "file": "art/guardians/concepts/Zone12_SkyMarshal.png",
+    "operationPath": "/assets/v1/operations/cda528c3-4fac-4126-9e65-bb5f8344c76e",
+    "assetId": "125093395073825",
+    "response": {
+      "path": "assets/125093395073825",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:44:10.338092200Z",
+      "assetId": "125093395073825",
+      "displayName": "Steal and Run - Zone12_SkyMarshal_Reference",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone01_NightWatchman_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "b8382b40ee176b0adc763237e65e4bd47e8dd547cc743f65d470014a85846d1d",
+    "file": "art/guardians/references/Zone01_NightWatchman.png",
+    "operationPath": "/assets/v1/operations/b02d8da6-92e7-485c-9916-1aec4b8795c6",
+    "assetId": "121138806871505",
+    "response": {
+      "path": "assets/121138806871505",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:54:54.383425800Z",
+      "assetId": "121138806871505",
+      "displayName": "Steal and Run - Zone01_NightWatchman_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone02_GhostCaptain_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "ece888f0074f3de1e7fa6ded80dc645ab4861ddf39ebb687e168b591e78f4e7a",
+    "file": "art/guardians/references/Zone02_GhostCaptain.png",
+    "operationPath": "/assets/v1/operations/57bdeab6-6b3a-4360-8ed8-67c4f589233c",
+    "assetId": "84238918421817",
+    "response": {
+      "path": "assets/84238918421817",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:55:01.846460200Z",
+      "assetId": "84238918421817",
+      "displayName": "Steal and Run - Zone02_GhostCaptain_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone03_IronKnight_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "e9d1f17afe13a10e2c978445c63b60c3f9bbd755e4507037f40798cfbe67600e",
+    "file": "art/guardians/references/Zone03_IronKnight.png",
+    "operationPath": "/assets/v1/operations/9c1050bb-084a-4918-857e-f968781f67ef",
+    "assetId": "78355974530673",
+    "response": {
+      "path": "assets/78355974530673",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:55:10.021953400Z",
+      "assetId": "78355974530673",
+      "displayName": "Steal and Run - Zone03_IronKnight_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone04_GreyAgent_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "032c01953023119bfc833376b8bb8bfda019b7a526bb8b07057e4fa385214aa7",
+    "file": "art/guardians/references/Zone04_GreyAgent.png",
+    "operationPath": "/assets/v1/operations/a3b3ffba-dcc4-4494-bf5c-5085b464eaf0",
+    "assetId": "140445756314016",
+    "response": {
+      "path": "assets/140445756314016",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:55:18.091269Z",
+      "assetId": "140445756314016",
+      "displayName": "Steal and Run - Zone04_GreyAgent_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone05_FrostYeti_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "03b2535500b783327f1e13210b7fcab4f25a024c4004254682bbdb895b1f173a",
+    "file": "art/guardians/references/Zone05_FrostYeti.png",
+    "operationPath": "/assets/v1/operations/af321b31-6545-408a-8591-13c0406d73c5",
+    "assetId": "108394099892413",
+    "response": {
+      "path": "assets/108394099892413",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:57:14.468716400Z",
+      "assetId": "108394099892413",
+      "displayName": "Steal and Run - Zone05_FrostYeti_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone06_Mummy_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "bab4a685ea6f8cd8ecce0c91b6f188b89049c698742c025c7bbc6d63b6c55a5f",
+    "file": "art/guardians/references/Zone06_Mummy.png",
+    "operationPath": "/assets/v1/operations/995a1908-3ee9-4db0-b788-f3c4c681ee63",
+    "assetId": "82927001911818",
+    "response": {
+      "path": "assets/82927001911818",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:57:22.048646600Z",
+      "assetId": "82927001911818",
+      "displayName": "Steal and Run - Zone06_Mummy_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone07_IronTitan_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "8f79ef606f4b99715a339e349004f77e3d9a35c7afc6c34e7f5328969a951d76",
+    "file": "art/guardians/references/Zone07_IronTitan.png",
+    "operationPath": "/assets/v1/operations/8f5d8c82-5bd8-4eeb-a533-09bccc2ec978",
+    "assetId": "71848205006268",
+    "response": {
+      "path": "assets/71848205006268",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:57:29.090853400Z",
+      "assetId": "71848205006268",
+      "displayName": "Steal and Run - Zone07_IronTitan_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone08_VaultBot_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "91ae7c18fb7282ba143508592d512b8d0fee7f278c9d2cd5123ab1076432e016",
+    "file": "art/guardians/references/Zone08_VaultBot.png",
+    "operationPath": "/assets/v1/operations/f9a4d62a-42c5-4304-af75-d14584319b1e",
+    "assetId": "89940161001254",
+    "response": {
+      "path": "assets/89940161001254",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:59:26.748990100Z",
+      "assetId": "89940161001254",
+      "displayName": "Steal and Run - Zone08_VaultBot_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone09_LabMutant_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "b22b11326a04c9916e445d763014b91f6e8a9936daec86a9c2f07ceee97203f2",
+    "file": "art/guardians/references/Zone09_LabMutant.png",
+    "operationPath": "/assets/v1/operations/4500bd40-9a5f-4503-bdb0-d0a0514606aa",
+    "assetId": "103501238887081",
+    "response": {
+      "path": "assets/103501238887081",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:59:34.147732800Z",
+      "assetId": "103501238887081",
+      "displayName": "Steal and Run - Zone09_LabMutant_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone10_Granny_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "8be4c9a4f6416ed8545cb6cc18c46b3aab37f0e859346ca9f0babbe4f96c68b9",
+    "file": "art/guardians/references/Zone10_Granny.png",
+    "operationPath": "/assets/v1/operations/1305b944-2fc0-476b-a5f4-88eeb176632b",
+    "assetId": "84462021472187",
+    "response": {
+      "path": "assets/84462021472187",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T16:59:40.887904100Z",
+      "assetId": "84462021472187",
+      "displayName": "Steal and Run - Zone10_Granny_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone11_WreckingForeman_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "80a193bce4b7a87b5452792c5950bcecaf86a41d6d3ba8fb7f85d96de3f04304",
+    "file": "art/guardians/references/Zone11_WreckingForeman.png",
+    "operationPath": "/assets/v1/operations/9720bc49-9bb9-4d17-9a00-0af20e60c703",
+    "assetId": "116339766557096",
+    "response": {
+      "path": "assets/116339766557096",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:01:48.600364500Z",
+      "assetId": "116339766557096",
+      "displayName": "Steal and Run - Zone11_WreckingForeman_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone12_SkyMarshal_CleanRef_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Image",
+    "sha256": "e6eebc8b77bcd44ecd3bf84b9f9e1ef009d592628120c77c90ece089156a22cb",
+    "file": "art/guardians/references/Zone12_SkyMarshal.png",
+    "operationPath": "/assets/v1/operations/42c15fe1-d5fe-40d8-9fe1-5306a9933612",
+    "assetId": "98545840945759",
+    "response": {
+      "path": "assets/98545840945759",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:01:56.633538400Z",
+      "assetId": "98545840945759",
+      "displayName": "Steal and Run - Zone12_SkyMarshal_CleanRef_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Image",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Reviewing"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone02_GhostCaptain_CleanRig_v1": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "420856453e4cd37d65f168d43881267562b496966d4399c3b8c503a59634c0a0",
+    "file": "art/guardians/models/Zone02_GhostCaptain/Zone02_GhostCaptain.glb",
+    "operationPath": "/assets/v1/operations/45af3517-d704-4f13-9a9a-83c2e102a515",
+    "assetId": "96446976521704",
+    "response": {
+      "path": "assets/96446976521704",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:07:48.155582500Z",
+      "assetId": "96446976521704",
+      "displayName": "Steal and Run - Zone02_GhostCaptain_CleanRig_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone01_NightWatchman_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "6cf2ac8f102149bc2d6a406f70dd1822d557446e713695ba515810972e1e8a8a",
+    "file": "art/guardians/models/Zone01_NightWatchman/Zone01_NightWatchman.glb",
+    "operationPath": "/assets/v1/operations/681941e2-0d39-455e-a66a-064ea669b16d",
+    "assetId": "117258647809929",
+    "response": {
+      "path": "assets/117258647809929",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:02.360484900Z",
+      "assetId": "117258647809929",
+      "displayName": "Steal and Run - Zone01_NightWatchman_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone01_NightWatchman_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "a225d76592fc65673e35e61ae2d93e4ac572fd98f6956904203195a547575776",
+    "file": "art/guardians/models/Zone01_NightWatchman/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/c1a640cb-0954-441b-825f-6c4409a1d4ef",
+    "assetId": "77873181533906",
+    "response": {
+      "path": "assets/77873181533906",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:08.430873200Z",
+      "assetId": "77873181533906",
+      "displayName": "Steal and Run - Zone01_NightWatchman_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone02_GhostCaptain_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "a1701ba34c366d6dcb0dba203d8e520acabc5746bf0cc863cfbe942df85a078e",
+    "file": "art/guardians/models/Zone02_GhostCaptain/Zone02_GhostCaptain.glb",
+    "operationPath": "/assets/v1/operations/71fecc00-73f9-40c5-b290-6913dcb753e2",
+    "assetId": "106218046978146",
+    "response": {
+      "path": "assets/106218046978146",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:17.995187700Z",
+      "assetId": "106218046978146",
+      "displayName": "Steal and Run - Zone02_GhostCaptain_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone02_GhostCaptain_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "1c13b681e7052c281a63abb9af7ee4815e49c020928a872ba1229974d206ab47",
+    "file": "art/guardians/models/Zone02_GhostCaptain/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/a7d40d82-c396-4648-bd2e-8b86bce05579",
+    "assetId": "129460518585346",
+    "response": {
+      "path": "assets/129460518585346",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:21.780871200Z",
+      "assetId": "129460518585346",
+      "displayName": "Steal and Run - Zone02_GhostCaptain_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone03_IronKnight_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "7ff886a0409cd7f612cfad7d198e31fef1253bf9840c684f6eba72eed5c71d8e",
+    "file": "art/guardians/models/Zone03_IronKnight/Zone03_IronKnight.glb",
+    "operationPath": "/assets/v1/operations/463aabe6-4e98-43d2-a7c9-e89448607d60",
+    "assetId": "95211809388527",
+    "response": {
+      "path": "assets/95211809388527",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:43.676778500Z",
+      "assetId": "95211809388527",
+      "displayName": "Steal and Run - Zone03_IronKnight_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone03_IronKnight_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "9b5368d4301570919a7e9f6d55eee7cccfdf5d8283ff9b0444182df73fbb47df",
+    "file": "art/guardians/models/Zone03_IronKnight/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/67bf806e-dae6-4e7d-ba3f-b35d484180e5",
+    "assetId": "133929564764513",
+    "response": {
+      "path": "assets/133929564764513",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:16:47.706346Z",
+      "assetId": "133929564764513",
+      "displayName": "Steal and Run - Zone03_IronKnight_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone04_GreyAgent_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "e6a659dad6b2fd2f72f2b0b6a3b479db165d7d1c2bf6bfd9b3f019dff95ddb4b",
+    "file": "art/guardians/models/Zone04_GreyAgent/Zone04_GreyAgent.glb",
+    "operationPath": "/assets/v1/operations/06f70d9e-6414-4d17-929f-8f9085ec9b7b",
+    "assetId": "116073469252475",
+    "response": {
+      "path": "assets/116073469252475",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:02.533135500Z",
+      "assetId": "116073469252475",
+      "displayName": "Steal and Run - Zone04_GreyAgent_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone04_GreyAgent_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "18fb189b369e075d0cd920326d348d6c3bdea7608fd31047fb824d9fdcea22f4",
+    "file": "art/guardians/models/Zone04_GreyAgent/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/b55cc22a-76b3-4e43-a64d-362d163265c9",
+    "assetId": "83393328520236",
+    "response": {
+      "path": "assets/83393328520236",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:10.480638200Z",
+      "assetId": "83393328520236",
+      "displayName": "Steal and Run - Zone04_GreyAgent_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone05_FrostYeti_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "cba6eba5f6e5790a3945bda0b43c2c44692f53f170bb3a9b98e045245951dfe4",
+    "file": "art/guardians/models/Zone05_FrostYeti/Zone05_FrostYeti.glb",
+    "operationPath": "/assets/v1/operations/094cc818-a982-44e8-b702-3a1f4a0366ef",
+    "assetId": "136776006650388",
+    "response": {
+      "path": "assets/136776006650388",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:21.856875600Z",
+      "assetId": "136776006650388",
+      "displayName": "Steal and Run - Zone05_FrostYeti_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone05_FrostYeti_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "0bbd44a46dc7d90d4cff502883a7e59f13e6e372b01033300f028036b4106d74",
+    "file": "art/guardians/models/Zone05_FrostYeti/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/3ac2006d-9d26-44e4-bb7a-230b7ae634d6",
+    "assetId": "124961619562758",
+    "response": {
+      "path": "assets/124961619562758",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:25.429158400Z",
+      "assetId": "124961619562758",
+      "displayName": "Steal and Run - Zone05_FrostYeti_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone06_Mummy_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "cbafd597d66541029906309a49ac9dde0015df31b579dd93fec273811adb338d",
+    "file": "art/guardians/models/Zone06_Mummy/Zone06_Mummy.glb",
+    "operationPath": "/assets/v1/operations/098bcbb0-94ab-41ff-8465-d99db74cff3b",
+    "assetId": "131950233845240",
+    "response": {
+      "path": "assets/131950233845240",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:32.940188300Z",
+      "assetId": "131950233845240",
+      "displayName": "Steal and Run - Zone06_Mummy_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone06_Mummy_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "a07c313809dd7dccfa9dc8a362ccbfe423f497be736f8cf43be011a4e2792a5f",
+    "file": "art/guardians/models/Zone06_Mummy/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/f09d7f31-17d4-459c-9bca-6ffa34631e69",
+    "assetId": "118265765349487",
+    "response": {
+      "path": "assets/118265765349487",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:17:36.381970Z",
+      "assetId": "118265765349487",
+      "displayName": "Steal and Run - Zone06_Mummy_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone07_IronTitan_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "dafbb01b9190c609a592bdc63e9c955e7ee6dbfc3c578f8feaf7bc4074dceab8",
+    "file": "art/guardians/models/Zone07_IronTitan/Zone07_IronTitan.glb",
+    "operationPath": "/assets/v1/operations/047e9dfb-25dc-4080-b2ed-f71be76a9a1d",
+    "assetId": "89644975750699",
+    "response": {
+      "path": "assets/89644975750699",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:11.554638700Z",
+      "assetId": "89644975750699",
+      "displayName": "Steal and Run - Zone07_IronTitan_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone07_IronTitan_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "03e2c5f2070d8b6db149250edbff325477be3dbf71c9ba42bf61ffbf6fcd8e31",
+    "file": "art/guardians/models/Zone07_IronTitan/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/e4c097f3-eeeb-44c2-afea-3395a46c64b8",
+    "assetId": "105113659859492",
+    "response": {
+      "path": "assets/105113659859492",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:15.382687800Z",
+      "assetId": "105113659859492",
+      "displayName": "Steal and Run - Zone07_IronTitan_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone08_VaultBot_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "a7dbb1367db4526c1ce70ce27196dc59f00eb9da4bc6e91d6aa388f442ae4cba",
+    "file": "art/guardians/models/Zone08_VaultBot/Zone08_VaultBot.glb",
+    "operationPath": "/assets/v1/operations/07a15e77-4773-4f9f-9c6e-2e83e28317d4",
+    "assetId": "129725400419992",
+    "response": {
+      "path": "assets/129725400419992",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:23.621778100Z",
+      "assetId": "129725400419992",
+      "displayName": "Steal and Run - Zone08_VaultBot_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone08_VaultBot_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "cf092bd3ede65c10fcd5c76a5ce8db358f24a630a2aec5d7c1e08076150fdf32",
+    "file": "art/guardians/models/Zone08_VaultBot/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/b711fc80-9510-466e-9abe-fda7c291381b",
+    "assetId": "70898087955433",
+    "response": {
+      "path": "assets/70898087955433",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:27.785390600Z",
+      "assetId": "70898087955433",
+      "displayName": "Steal and Run - Zone08_VaultBot_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone09_LabMutant_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "1fc69628b29037f76b6d4ad76e14d8920093c6c6aa34e06a7236cbd6e634de4d",
+    "file": "art/guardians/models/Zone09_LabMutant/Zone09_LabMutant.glb",
+    "operationPath": "/assets/v1/operations/925419b8-3b60-4b91-b1b5-3fde8d1fefd1",
+    "assetId": "89743820400468",
+    "response": {
+      "path": "assets/89743820400468",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:43.725910800Z",
+      "assetId": "89743820400468",
+      "displayName": "Steal and Run - Zone09_LabMutant_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone09_LabMutant_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "3bd5fa5bf675c99524ee8d50c33c23e72c9bf269a0178df23d295c357f4f07e0",
+    "file": "art/guardians/models/Zone09_LabMutant/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/7141d4cb-c3eb-4eed-83bf-b0a79ed46522",
+    "assetId": "110642740743201",
+    "response": {
+      "path": "assets/110642740743201",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:24:45.649247100Z",
+      "assetId": "110642740743201",
+      "displayName": "Steal and Run - Zone09_LabMutant_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone10_Granny_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "b10a0394364d734238da684065de8b43930547c9241c875305aaf1b9b39b7193",
+    "file": "art/guardians/models/Zone10_Granny/Zone10_Granny.glb",
+    "operationPath": "/assets/v1/operations/f94a18ab-3647-460b-8ad0-88c79c3e7898",
+    "assetId": "112261096982364",
+    "response": {
+      "path": "assets/112261096982364",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:06.313429Z",
+      "assetId": "112261096982364",
+      "displayName": "Steal and Run - Zone10_Granny_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone10_Granny_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "48fdb0030ab38788a8c2979f751fe3381777d25814931a4139dd5aeb056957d1",
+    "file": "art/guardians/models/Zone10_Granny/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/c77d56a8-ca02-4629-bbc6-379833744d56",
+    "assetId": "106380125174585",
+    "response": {
+      "path": "assets/106380125174585",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:10.471522300Z",
+      "assetId": "106380125174585",
+      "displayName": "Steal and Run - Zone10_Granny_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone11_WreckingForeman_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "a93ed39b933a7c42ee5a67b194716214cfb89a2d2582a82453a529cac67bf8ff",
+    "file": "art/guardians/models/Zone11_WreckingForeman/Zone11_WreckingForeman.glb",
+    "operationPath": "/assets/v1/operations/8a1a956b-404f-4732-8c01-8b1f396efc4e",
+    "assetId": "117578208048861",
+    "response": {
+      "path": "assets/117578208048861",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:16.051021200Z",
+      "assetId": "117578208048861",
+      "displayName": "Steal and Run - Zone11_WreckingForeman_Production_",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone11_WreckingForeman_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "b3c845c2dd049e78e409afed412a6b9e4e1b49334ecc75cafe42c05df7aaaf36",
+    "file": "art/guardians/models/Zone11_WreckingForeman/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/d991bb79-af3c-4743-9f40-020e0e92ed1a",
+    "assetId": "128537006584199",
+    "response": {
+      "path": "assets/128537006584199",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:17.916130500Z",
+      "assetId": "128537006584199",
+      "displayName": "Steal and Run - Zone11_WreckingForeman_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone12_SkyMarshal_Production_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Model",
+    "sha256": "7b6405cacb8b6d7d3f4802decd71af1e5a9d8fbcf6d1012ccae012a7d85096bd",
+    "file": "art/guardians/models/Zone12_SkyMarshal/Zone12_SkyMarshal.glb",
+    "operationPath": "/assets/v1/operations/258964db-8a8d-4d32-9828-a2971b44524b",
+    "assetId": "137258400817760",
+    "response": {
+      "path": "assets/137258400817760",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:23.266252400Z",
+      "assetId": "137258400817760",
+      "displayName": "Steal and Run - Zone12_SkyMarshal_Production_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Zone12_SkyMarshal_Walk_v1": {
+    "status": "installed-and-verified-in-Studio-Edit",
+    "groupId": "3774675",
+    "type": "Animation",
+    "sha256": "28d898e101d7a92cf7056478b3b34f6969ebaf188dbc2fda940a308716c6348d",
+    "file": "art/guardians/models/Zone12_SkyMarshal/Walk.rbxm",
+    "operationPath": "/assets/v1/operations/e77c6523-1e79-4620-81de-83c3683783fc",
+    "assetId": "105207620813029",
+    "response": {
+      "path": "assets/105207620813029",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T17:25:25.864757Z",
+      "assetId": "105207620813029",
+      "displayName": "Steal and Run - Zone12_SkyMarshal_Walk_v1",
+      "description": "Original approved zone guardian art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  }
+}
