@@ -54,12 +54,21 @@ local function isText(object: Instance): boolean
 	return object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")
 end
 
+--- The stroke that is this object's BORDER, or nil. A Contextual stroke on
+--- a text object outlines its glyphs, not its box, so it is not a border -
+--- but a Border-mode stroke on a TextButton is exactly that: the pack's nav
+--- tiles, QUESTS and DISPLAY / SELL are TextButtons used as plates, and the
+--- first cut of this skipped every TextButton outright, so those kept their
+--- second edge.
 local function borderOf(object: Instance): UIStroke?
-	if not object:IsA("GuiObject") or isText(object) then
+	if not object:IsA("GuiObject") then
 		return nil
 	end
 	for _, child in object:GetChildren() do
 		if child:IsA("UIStroke") then
+			if isText(object) and child.ApplyStrokeMode == Enum.ApplyStrokeMode.Contextual then
+				return nil
+			end
 			return child
 		end
 	end
@@ -70,16 +79,25 @@ end
 --- each would draw as one doubled line. AbsoluteSize is authoritative, but it
 --- is zero until the frame has been laid out, so the declared scale carries the
 --- test on the first pass.
-local function fills(object: GuiObject, parent: GuiObject): boolean
+--- Returns true / false, or nil when it cannot tell yet (the element has not
+--- been laid out), so the caller does not mark a stroke as judged on a
+--- measurement that was really a zero.
+local function fills(object: GuiObject, parent: GuiObject): boolean?
 	local size = object.Size
 	if size.X.Scale < 0.85 or size.Y.Scale < 0.85 then
 		return false
 	end
-	local outer = parent.AbsoluteSize
-	if outer.X < 1 or outer.Y < 1 then
+	-- A pure scale size IS the answer: the pack's bodies are (1, 0.935) and
+	-- (1, 0.967), and no layout pass can change what that covers. Only a size
+	-- with an offset component needs the rendered rectangle to be sure.
+	if size.X.Offset == 0 and size.Y.Offset == 0 then
 		return true
 	end
+	local outer = parent.AbsoluteSize
 	local inner = object.AbsoluteSize
+	if outer.X < 1 or outer.Y < 1 or inner.X < 1 or inner.Y < 1 then
+		return nil
+	end
 	return inner.X / outer.X >= 0.82 and inner.Y / outer.Y >= 0.82
 end
 
@@ -112,9 +130,20 @@ function PanelStyle.singleBorder(root: Instance)
 		if not stroke or stroke:GetAttribute(BORDER_HANDLED) then
 			return
 		end
-		stroke:SetAttribute(BORDER_HANDLED, true)
 		local parent = object.Parent
-		if parent and parent:IsA("GuiObject") and borderOf(parent) and fills(object :: GuiObject, parent) then
+		if not (parent and parent:IsA("GuiObject") and borderOf(parent)) then
+			stroke:SetAttribute(BORDER_HANDLED, true)
+			return
+		end
+		local inset = fills(object :: GuiObject, parent)
+		if inset == nil then
+			-- Not laid out yet. Leave it UNMARKED so a later pass judges it;
+			-- the first version of this marked it here, on a zero-sized
+			-- measurement, and every nav tile kept its second edge for good.
+			return
+		end
+		stroke:SetAttribute(BORDER_HANDLED, true)
+		if inset then
 			stroke.Enabled = false
 			coverPlate(object :: GuiObject, parent)
 		end
@@ -134,15 +163,21 @@ end
 --- on every stroke added would re-scan a whole grid per row).
 function PanelStyle.watchBorders(root: Instance): RBXScriptConnection
 	PanelStyle.singleBorder(root)
+	-- Sweeps again once layout has settled, for anything the first pass had
+	-- to leave unjudged (see apply), and once more for the late touch
+	-- layout. Cheap: judged strokes are skipped by their attribute.
+	task.delay(1, PanelStyle.singleBorder, root)
+	task.delay(4, PanelStyle.singleBorder, root)
 	return root.DescendantAdded:Connect(function(descendant)
 		-- Deferred: a builder parents the frame first and sets its size and
 		-- stroke after, so an immediate pass would judge an unfinished element.
 		task.defer(function()
-			if not descendant.Parent then
+			local parent = descendant.Parent
+			if not parent then
 				return
 			end
 			if descendant:IsA("UIStroke") then
-				PanelStyle.singleBorder(descendant.Parent)
+				PanelStyle.singleBorder(parent)
 			else
 				PanelStyle.singleBorder(descendant)
 			end
