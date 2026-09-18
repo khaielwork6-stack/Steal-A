@@ -39,7 +39,7 @@ local player = Players.LocalPlayer
 --- pack's own open/close logic. The DROP button is not in it either - it is
 --- the one thing a carrier keeps. The offer rail is matched by prefix because
 --- the pack named it with a trailing space.
-local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "EventPill" }
+local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "SocialBoosts", "Notifications", "NightTimer", "EventPill" }
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
 local HUD_SCREENS = { "HotbarUI", "TouchGui", "ShiftLockUI" }

@@ -104,6 +104,11 @@ function HUDLayoutController.tint(button: GuiButton, accent: Accent)
 	plateCorner.Parent = button
 	local ring = button:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
 	ring.Color = accent.ring
+	-- PIXELS. The pack authored its strokes in ScaledSize, where Thickness is
+	-- a fraction of the parent's size (its 0.05 read as "5% of the tile"); a
+	-- 2.5 left in that mode drew as 250% of a 60 px tile - a 150 px coloured
+	-- disc behind every button.
+	ring.StrokeSizingMode = Enum.StrokeSizingMode.FixedSize
 	ring.Thickness = TILE_RING
 	ring.Transparency = 0
 	ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
