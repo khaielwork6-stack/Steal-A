@@ -131,20 +131,20 @@ end
 
 --- The social income multiplier (>= 1). Injected into EconomyService.
 function SocialService.multiplierFor(player: Player): number
-	return SocialConfig.multiplier(friendCount[player] or 0, premium[player] == true)
+	return SocialConfig.multiplier(friendCount[player] or 0)
 end
 
---- What the HUD pill shows, in whole percent.
-function SocialService.boosts(player: Player): { friends: number, friendBoost: number, premium: boolean, premiumBoost: number, total: number }
+--- What the HUD pill shows, in whole percent. The Premium boost is gone
+--- (SocialConfig FRIEND INCOME BOOST); `premium` stays on the row because
+--- the referral and analytics paths still record whether a member is Premium,
+--- but it buys nothing.
+function SocialService.boosts(player: Player): { friends: number, friendBoost: number, premium: boolean, total: number }
 	local friends = friendCount[player] or 0
-	local isPrem = premium[player] == true
-	local friendPart = SocialConfig.multiplier(friends, false) - 1
-	local premiumPart = if isPrem then SocialConfig.PREMIUM_BOOST else 0
+	local friendPart = SocialConfig.multiplier(friends) - 1
 	return {
 		friends = friends,
 		friendBoost = math.floor(friendPart * 100 + 0.5),
-		premium = isPrem,
-		premiumBoost = math.floor(premiumPart * 100 + 0.5),
+		premium = premium[player] == true,
 		total = math.floor((SocialService.multiplierFor(player) - 1) * 100 + 0.5),
 	}
 end
@@ -181,9 +181,6 @@ local function summarise(player: Player): any
 	return {
 		friends = boost.friends,
 		friendBoost = boost.friendBoost,
-		premium = boost.premium,
-		premiumBoost = boost.premiumBoost,
-		premiumOffer = SocialConfig.PREMIUM_UPSELL_ENABLED and not boost.premium and SocialConfig.PREMIUM_BOOST > 0,
 		favoritePrompted = profile.FavoritePrompted,
 		notificationsPrompted = profile.NotificationsPrompted,
 	}

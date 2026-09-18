@@ -1144,14 +1144,20 @@ return function(): Report
 		-- A referral must stay a small nudge, never a way past a zone gate.
 		check(SocialConfig.REFERRAL_SPEED_GATE_FRACTION <= 0.05, "a referral must pay at most 5% of the next zone gate")
 		check(
-			SocialConfig.FRIEND_BOOST_PER_FRIEND >= 0 and SocialConfig.FRIEND_BOOST_CAP >= 0 and SocialConfig.PREMIUM_BOOST >= 0,
+			SocialConfig.FRIEND_BOOST_PER_FRIEND >= 0 and SocialConfig.FRIEND_BOOST_CAP >= 0,
 			"social boosts must not be negative"
 		)
-		check(SocialConfig.multiplier(0, false) == 1, "no friends and no Premium must be exactly 1x")
+		check(SocialConfig.multiplier(0) == 1, "no friends must be exactly 1x")
 		check(
-			SocialConfig.multiplier(99, true) <= 1 + SocialConfig.FRIEND_BOOST_CAP + SocialConfig.PREMIUM_BOOST + 1e-9,
+			SocialConfig.multiplier(99) <= 1 + SocialConfig.FRIEND_BOOST_CAP + 1e-9,
 			"the friend boost must be capped"
 		)
+		-- THE PREMIUM BOOST IS RETIRED (owner, 2026-09-18). Being a Roblox
+		-- Premium member must buy no income at all, and passing `true` for it
+		-- must change nothing.
+		check((SocialConfig :: any).PREMIUM_BOOST == nil, "SocialConfig.PREMIUM_BOOST was removed - Premium buys no income")
+		check((SocialConfig :: any).PREMIUM_UPSELL_ENABLED == nil, "the Premium upsell pill was removed")
+		check(SocialConfig.multiplier(3, true) == SocialConfig.multiplier(3, false), "Premium must not change the social multiplier")
 		check(RarityConfig.Rank[SocialConfig.ANNOUNCE_REVEAL_MIN_RARITY] ~= nil, "ANNOUNCE_REVEAL_MIN_RARITY must be a rarity")
 		check(SocialConfig.NOTIFY_POLL_SECONDS >= 30, "the notification queue must not be polled faster than every 30s")
 		for kind, id in SocialConfig.NOTIFICATION_TEMPLATES do

@@ -230,6 +230,13 @@ function PanelStyle.window(frame: Frame, width: number, height: number)
 		local maxWidth = if Device.isTouch() then viewport.X * 0.86 else viewport.X - 32
 		local maxHeight = if Device.isTouch() then viewport.Y * 0.84 else viewport.Y - (if viewport.Y < 500 then 16 else 88)
 		frame.Size = UDim2.fromOffset(math.min(width, maxWidth) / factor, math.min(height, maxHeight) / factor)
+		-- DEAD CENTRE. The pack authored each panel at its own offset, which
+		-- sat every one of them high on the screen with a band of empty game
+		-- under it (owner, 2026-09-18). This is the one place modal geometry
+		-- is decided, so the centring belongs here rather than in each panel's
+		-- own controller.
+		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.Position = UDim2.fromScale(0.5, 0.5)
 		local top = frame:FindFirstChild("Top")
 		if top and top:IsA("GuiObject") then
 			local ratio = top:FindFirstChildOfClass("UIAspectRatioConstraint")

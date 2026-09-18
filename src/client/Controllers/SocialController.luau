@@ -9,9 +9,9 @@
 	     area >= 44 px after MainUI's UIScale, a 44 px face inside). Opens
 	     SocialService:PromptGameInvite. Hidden wherever
 	     CanSendGameInviteAsync says no (or errors).
-	  2. BOOST PILLS. "+20% FRIENDS" and "PREMIUM +10%" above the stat card,
-	     from StatePush `social`. A non-Premium player sees a dimmed Premium
-	     pill that opens MarketplaceService:PromptPremiumPurchase (config).
+	  2. BOOST PILL. "+20% FRIENDS" beside the economy pill, from StatePush
+	     `social`. The Roblox Premium +10% pill it used to sit next to is
+	     retired (owner, 2026-09-18) - see SocialConfig.
 	  3. ONE-TIME PROMPTS after a reveal: favourite the game
 	     (AvatarEditorService:PromptSetFavorite), then the experience
 	     notification opt-in (ExperienceNotificationService). Each is asked
@@ -21,7 +21,6 @@
 
 local AvatarEditorService = game:GetService("AvatarEditorService")
 local ExperienceNotificationService = game:GetService("ExperienceNotificationService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SocialService = game:GetService("SocialService")
@@ -283,10 +282,10 @@ local function makePill(parent: Instance, name: string, order: number, color: Co
 	return { button = button, face = face, label = label }
 end
 
-local function buildPills(ui: ScreenGui): (Pill?, Pill?)
+local function buildPills(ui: ScreenGui): Pill?
 	local anchor = ui:WaitForChild("StatHUD", 15)
 	if not anchor or not anchor:IsA("GuiObject") then
-		return nil, nil
+		return nil
 	end
 	local strip = Instance.new("Frame")
 	strip.Name = "SocialBoosts"
@@ -320,44 +319,16 @@ local function buildPills(ui: ScreenGui): (Pill?, Pill?)
 	list.Parent = strip
 
 	local friends = makePill(strip, "FriendsBoost", 1, Color3.fromRGB(40, 170, 90), SocialConfig.FRIENDS_PILL_ICON)
-	local premium = makePill(strip, "PremiumBoost", 2, Color3.fromRGB(220, 150, 20), SocialConfig.PREMIUM_PILL_ICON)
-	-- Only the Premium pill does anything when pressed; its hit area is
-	-- grown to a real touch target (the face stays pill-sized).
-	premium.button.AutomaticSize = Enum.AutomaticSize.None
-	premium.face:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local uiScale = ui:FindFirstChildWhichIsA("UIScale")
-		local scale = if uiScale then math.max(uiScale.Scale, 0.1) else 1
-		local width = premium.face.AbsoluteSize.X / scale
-		premium.button.Size = UDim2.fromOffset(math.max(width, MIN_TARGET / scale), math.max(PILL_HEIGHT, MIN_TARGET / scale))
-	end)
-	-- Both are ours (the friends pill only so the pack's scanner leaves it be).
+	-- Ours, so the pack's scanner leaves it be. The Premium pill that used
+	-- to sit beside it is retired (SocialConfig FRIEND INCOME BOOST).
 	UIAnim.claimButton(friends.button)
-	UIAnim.claimButton(premium.button)
-	return friends, premium
+	return friends
 end
 
-local function renderPills(friends: Pill, premium: Pill, social: any)
+local function renderPills(friends: Pill, social: any)
 	local friendBoost = if type(social) == "table" then tonumber(social.friendBoost) or 0 else 0
 	friends.button.Visible = friendBoost > 0
 	friends.label.Text = `+{friendBoost}% FRIENDS`
-
-	local isPremium = type(social) == "table" and social.premium == true
-	local premiumBoost = if type(social) == "table" then tonumber(social.premiumBoost) or 0 else 0
-	if isPremium and premiumBoost > 0 then
-		premium.button.Visible = true
-		premium.face.BackgroundTransparency = 0
-		premium.label.Text = `PREMIUM +{premiumBoost}%`
-		premium.button:SetAttribute("Upsell", false)
-	elseif type(social) == "table" and social.premiumOffer == true then
-		-- The offer: dimmed, and a tap opens Roblox's Premium sheet.
-		premium.button.Visible = true
-		premium.face.BackgroundTransparency = 0.45
-		premium.label.Text = `PREMIUM +{math.floor(SocialConfig.PREMIUM_BOOST * 100 + 0.5)}%`
-		premium.button:SetAttribute("Upsell", true)
-	else
-		premium.button.Visible = false
-		premium.button:SetAttribute("Upsell", false)
-	end
 end
 
 -- ==========================================================
@@ -490,28 +461,17 @@ function SocialController.start()
 		task.spawn(afterReveal)
 	end)
 
-	local friends, premium = buildPills(ui)
-	if friends and premium then
+	local friends = buildPills(ui)
+	if friends then
 		local lastKey = ""
 		StateStore.subscribe(function(state)
 			local social = state.social
-			local key = if type(social) == "table"
-				then `{social.friendBoost}|{social.premium}|{social.premiumBoost}|{social.premiumOffer}`
-				else "-"
+			local key = if type(social) == "table" then tostring(social.friendBoost) else "-"
 			if key == lastKey then
 				return
 			end
 			lastKey = key
-			renderPills(friends, premium, social)
-		end)
-		premium.button.Activated:Connect(function()
-			if premium.button:GetAttribute("Upsell") ~= true then
-				return
-			end
-			local ok, err = pcall(MarketplaceService.PromptPremiumPurchase, MarketplaceService, player)
-			if not ok then
-				warn(`[SocialController] premium prompt failed: {err}`)
-			end
+			renderPills(friends, social)
 		end)
 	end
 end

@@ -69,31 +69,39 @@ VaultConfig.MINIGAMES = {
 --- full turn opens the vault. The pad's speed is not constant: it eases
 --- between the two rates below so the player has to read it, not just lead
 --- it.
+--- Eased off after the owner kept failing it (2026-09-18). Every number here
+--- moved in the player's favour: a pad half again as wide, double the grace,
+--- a gentler speed swing and a slower turn. It should read as "keep up",
+--- not as a reflex test.
 VaultConfig.CUT = {
 	--- Seconds one full rotation takes (the whole minigame's length).
-	rotationSeconds = 9,
+	rotationSeconds = 11,
 	--- The target pad's width, as a fraction of the dial's circumference.
-	padFraction = 0.11,
+	padFraction = 0.17,
 	--- Seconds the cursor may be outside the pad before the attempt fails.
-	--- Long enough to forgive a stutter, short enough that "keep it inside"
-	--- means it.
-	graceSeconds = 0.4,
+	--- Long enough to forgive a stutter (and a dropped frame), short enough
+	--- that "keep it inside" still means it.
+	graceSeconds = 0.9,
 	--- Speed variation: the pad runs between (1 - wobble) and (1 + wobble) of
 	--- its mean rate, on a slow sine.
-	wobble = 0.35,
+	wobble = 0.18,
 }
 
 --- LOCK PINS: cylinders bob up and down through a horizontal line; each must
 --- be tapped while the line passes through its notch. A tap outside the
 --- notch fails the attempt. Pins differ in height, travel and rate.
+--- Eased off with CUT: one pin fewer per band, a notch half again as tall
+--- and slower bobbing, so the window to hit is bigger and comes round less
+--- often. A missed tap still fails the whole attempt - that rule is what
+--- makes the lock a lock - but the tap itself is now forgiving.
 VaultConfig.PINS = {
 	--- Pins per zone band: zones 1-4, 5-8, 9-12.
-	countByBand = { 4, 5, 6 },
+	countByBand = { 3, 4, 5 },
 	--- Each pin's notch, as a fraction of that pin's height (the valid window).
-	notchFraction = 0.2,
+	notchFraction = 0.3,
 	--- Bob period range in seconds (a full up-and-down); randomised per pin.
-	periodMin = 1.1,
-	periodMax = 2.3,
+	periodMin = 1.5,
+	periodMax = 2.8,
 	--- Pin heights as a fraction of the lock body's height; randomised per pin.
 	heightMin = 0.28,
 	heightMax = 0.5,

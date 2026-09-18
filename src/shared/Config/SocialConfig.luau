@@ -61,31 +61,33 @@ SocialConfig.REFERRAL_SPEED_MAX = 1e6
 SocialConfig.REFERRAL_TICK_SECONDS = 10
 
 -- ==========================================================
--- FRIEND AND PREMIUM INCOME BOOST
+-- FRIEND INCOME BOOST
 -- ==========================================================
 --
 -- Applied at ONE point: EconomyService's passive income tick (see its
 -- "SOCIAL BOOST" note). It is NOT part of `getIncome`, so the Cash-pack /
 -- spin-wheel / fallback "minutes of income" base and the offline rate never
--- include it. The boosts add, then the total is capped.
+-- include it. The boost is capped.
+--
+-- RETIRED (owner, 2026-09-18): the Roblox Premium +10% boost and its upsell
+-- pill. Paying Roblox for Premium is not something this game should be
+-- selling an income edge on, and the pill was one more thing on a HUD the
+-- owner is cutting down. `multiplier` keeps its second parameter so every
+-- caller still type-checks; it is ignored. Do not bring the term back
+-- without bringing the pill back with it - validate pins both to zero.
 
 --- Extra income per friend in the same server.
 SocialConfig.FRIEND_BOOST_PER_FRIEND = 0.10
 --- The friend part never exceeds this.
 SocialConfig.FRIEND_BOOST_CAP = 0.50
---- Extra income for Roblox Premium members.
-SocialConfig.PREMIUM_BOOST = 0.10
---- The pill offers PromptPremiumPurchase to non-Premium players when tapped.
-SocialConfig.PREMIUM_UPSELL_ENABLED = true
 --- Pill icons ("rbxassetid://0" = text only). Codex: social.md.
 SocialConfig.FRIENDS_PILL_ICON = "rbxassetid://115260215543732"
-SocialConfig.PREMIUM_PILL_ICON = "rbxassetid://84952495015282"
 
---- The combined social income multiplier, 1 or more.
-function SocialConfig.multiplier(friendCount: number, premium: boolean): number
+--- The social income multiplier, 1 or more. `premium` is accepted and
+--- ignored (see above).
+function SocialConfig.multiplier(friendCount: number, _premium: boolean?): number
 	local friends = math.min(math.max(tonumber(friendCount) or 0, 0) * SocialConfig.FRIEND_BOOST_PER_FRIEND, SocialConfig.FRIEND_BOOST_CAP)
-	local bonus = friends + (if premium then SocialConfig.PREMIUM_BOOST else 0)
-	return 1 + math.max(bonus, 0)
+	return 1 + math.max(friends, 0)
 end
 
 -- ==========================================================

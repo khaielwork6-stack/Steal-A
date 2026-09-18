@@ -14,6 +14,15 @@
 	            only while this player can attempt: not already through, not
 	            locked out, not mid-attempt. The minigame itself is
 	            VaultMinigameController's.
+	  PRIVACY   a vault's INSIDE is drawn only for a camera that is inside it.
+	            The walls stop a character, but not a camera: standing outside
+	            and angling the view through the wall showed the pedestal, the
+	            container on it and the lasers, which is the whole prize on
+	            display to someone who never cracked the lock. Everything in
+	            the room is held at LocalTransparencyModifier 1 while the
+	            CAMERA is outside the vault's box, and released the moment it
+	            is inside. Local only - it hides nothing from the server, and
+	            the model itself is untouched.
 	  LASERS    each `VaultBeam` is posed every frame from its attributes and
 	            the server clock (LaserGeometry.sweepAt), the same function the
 	            server tests. Only vaults near the camera are animated.
@@ -34,6 +43,7 @@ local TweenService = game:GetService("TweenService")
 
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
+local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
@@ -62,6 +72,8 @@ type Entry = {
 	center: Vector3,
 	status: TextLabel?,
 	prompt: ProximityPrompt?,
+	--- Whether this vault's interior is currently held invisible here.
+	hidden: boolean?,
 }
 
 local entries: { Entry } = {}
@@ -251,15 +263,49 @@ local function register(folder: Instance)
 	refreshSign(entry)
 end
 
+--- Everything inside the room that a camera outside it must not see. The
+--- door, its frame and the corridor-side plaque are NOT in here: they are the
+--- outside of the vault and are meant to be seen.
+local INTERIOR = { "Structure", "Decorations", "Lasers", "SpawnSockets", "GuardianPost" }
+
+--- Holds this vault's interior hidden (or lets it go), on this client only.
+--- Walks the subtree each time because the container on the pedestal is
+--- spawned, carried off and respawned by the server all session long.
+local function setInteriorHidden(entry: Entry, hidden: boolean)
+	if entry.hidden == hidden then
+		return
+	end
+	entry.hidden = hidden
+	local modifier = if hidden then 1 else 0
+	for _, name in INTERIOR do
+		local folder = entry.folder:FindFirstChild(name)
+		if not folder then
+			continue
+		end
+		for _, part in folder:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.LocalTransparencyModifier = modifier
+			elseif part:IsA("Decal") or part:IsA("Texture") or part:IsA("ParticleEmitter") or part:IsA("Beam") or part:IsA("Light") then
+				(part :: any).Enabled = not hidden
+			end
+		end
+	end
+end
+
 local function animate()
 	local camera = workspace.CurrentCamera
 	if not camera then
 		return
 	end
 	local eye = camera.CFrame.Position
+	-- The vault the CAMERA is in, not the character: the camera is what can
+	-- get through a wall.
+	local occupied = Layout.inVault(eye)
 	local now = workspace:GetServerTimeNow()
 	for _, entry in entries do
-		if (entry.center - eye).Magnitude > ANIMATE_RANGE then
+		local inside = occupied == entry.zoneIndex
+		setInteriorHidden(entry, not inside)
+		if not inside or (entry.center - eye).Magnitude > ANIMATE_RANGE then
 			continue
 		end
 		for _, beam in entry.beams do
