@@ -197,7 +197,7 @@ startLater("PurchasePolicyController", function()
 	require(script.Controllers.PurchasePolicyController).start()
 end)
 -- [polish-events-analytics] the timed-event pill / cards / holiday tint, the
--- first-join flyover (after the loading screen) and the shop-open funnel step.
+-- first-join flyover and the shop-open funnel step.
 startLater("EventController", function()
 	require(script.Controllers.EventController).start()
 end)
@@ -277,5 +277,11 @@ startLater("GadgetStoreController", function()
 end)
 
 print("[Client] controllers started")
--- [polish-events-analytics] The ReplicatedFirst loading screen fades out on this.
-game:GetService("Players").LocalPlayer:SetAttribute("ClientReady", true)
+-- THE LOADING SCREEN IS GONE (owner, 2026-09-18). Roblox's own default one
+-- is left in place, and `LoadingScreenDone` is set here with `ClientReady`:
+-- two things still wait on it - the first-join flyover and the event banner
+-- - and what they actually mean by it is "the client has finished starting",
+-- which is this line.
+local localPlayer = game:GetService("Players").LocalPlayer
+localPlayer:SetAttribute("ClientReady", true)
+localPlayer:SetAttribute("LoadingScreenDone", true)

@@ -29,12 +29,11 @@
 	positions - and it means the animation cannot land on the wrong wedge,
 	because which wedge won arrived first.
 
-	THE WEDGES SHOW WHAT THIS PLAYER WOULD WIN (monetization pass). Cash and
-	Speed prizes scale with progress, but the picture prints fixed figures.
-	The server sends the live labels in StatePush (`spinWheel.labels`) and
-	this covers every printed wedge whose figure differs with a small plate
-	carrying the real one - the wheel's own text is the fallback whenever no
-	labels have arrived. The win banner names the amount the server rolled.
+	THE WEDGES ARE LEFT EXACTLY AS PAINTED. Every prize is the figure printed
+	on its wedge and every wedge comes up at least as often as the percentage
+	printed beside it (SpinWheelConfig, THE PICTURE IS THE PROMISE), so there
+	is nothing to correct on the face. The server still sends `spinWheel.labels`
+	in StatePush; the win banner names the amount the server rolled and paid.
 
 	THE CLOCK CAN BE PAUSED. An idle player's spin clock stops server-side;
 	the wheel then publishes the frozen remainder (SpinPausedRemaining) and
@@ -661,15 +660,15 @@ end
 -- THE WHEEL FACE IS LEFT ALONE
 -- ==========================================================
 --
--- The disc used to carry a plate of live text over each wedge, because a
--- wedge's real payout scales with the player's zone and can differ from the
--- figure printed on the art. On a real wheel that was twelve rotated labels
--- stacked over twelve printed ones: unreadable at the angle the prompt is read
--- from, and it buried the art underneath.
+-- The disc used to carry a plate of live text over each wedge, back when a
+-- wedge's payout scaled with the player and could differ from the figure
+-- printed on the art. On a real wheel that was twelve rotated labels stacked
+-- over twelve printed ones: unreadable at the angle the prompt is read from,
+-- and it buried the art underneath.
 --
--- Nothing is drawn over the disc now. The player is told what they won by the
--- win banner, which names the amount the SERVER rolled and actually paid - the
--- one figure that is always right - so removing the plates cost no accuracy.
+-- Nothing is drawn over the disc now, and nothing needs to be: the wedge pays
+-- what it prints (SpinWheelConfig, THE PICTURE IS THE PROMISE). The win
+-- banner still names the amount the SERVER rolled and actually paid.
 
 -- ==========================================================
 -- OWNERSHIP

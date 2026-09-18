@@ -2,9 +2,8 @@
 --[[
 	PolishConfig
 	The first-join flyover and the analytics switches (polish-events-analytics
-	pass). The loading screen's own settings live in
-	ReplicatedFirst.LoadingConfig (src/first), because the loading screen runs
-	before ReplicatedStorage has replicated.
+	pass). The branded loading screen that used to live in ReplicatedFirst
+	was removed (owner, 2026-09-18) - Roblox draws its own.
 ]]
 
 local PolishConfig = {}
@@ -25,8 +24,9 @@ PolishConfig.FLYOVER_MAX_TUTORIAL_STAGE = 5
 --- Seconds the SKIP button waits before it appears.
 PolishConfig.FLYOVER_SKIP_AFTER = 1
 
---- Longest the flyover waits for the loading screen to finish before giving
---- up on it (a client with the loading screen disabled still gets it).
+--- Longest the flyover waits for the client to finish starting before giving
+--- up on it. `LoadingScreenDone` is set by init.client.luau now that the
+--- branded loading screen is gone, so this is a safety net, not the norm.
 PolishConfig.FLYOVER_LOADING_WAIT = 90
 
 export type FlyoverShot = {

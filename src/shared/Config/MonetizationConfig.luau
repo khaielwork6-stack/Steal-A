@@ -225,9 +225,6 @@ export type ProductDef = {
 	--- Reveal products only: the longest remaining wait, in seconds, this
 	--- tier covers. The cheapest tier that covers the wait is the one offered.
 	maxRemainingSeconds: number?,
-	--- Cash products only: the pack pays at least this many minutes of the
-	--- buyer's base income (see CASH PACKS). `amount` is the floor.
-	incomeMinutes: number?,
 	--- Gift products only: the key of the Cash or Speed pack this buys FOR
 	--- another player (trading-gifting-boards pass; see GIFT PACKS).
 	giftOf: string?,
@@ -366,55 +363,44 @@ MonetizationConfig.SpeedProducts = {
 } :: { ProductDef }
 
 -- ==========================================================
--- CASH PACKS (income-scaled; monetization pass 2026-09-17)
+-- CASH PACKS (the card pays what the card says; owner, 2026-09-18)
 -- ==========================================================
 --
--- WHY THEY SCALE. The packs used to be flat: $24K-$8M. Treadmill tier 5 costs
--- $120M and the late trails cost trillions, so after the first hour every
--- pack was worth nothing and the shop's whole Cash section was dead weight.
--- Each pack now pays
+-- A PACK PAYS THE FIGURE PRINTED ON ITS CARD. "$24K" is $24,000 for every
+-- buyer, in the first minute and in the tenth hour.
 --
---     max( amount, baseIncome x incomeMinutes x 60 )
+-- It briefly did not. The 2026-09-17 monetization pass made each pack pay
+-- max(floor, minutes of the buyer's income) and raised the smallest pack's
+-- floor from $24K to $75K, so the painted cards stopped being true and a
+-- green ribbon was laid over the art with the real figure - "$24K" on the
+-- card and "$414M" underneath it. The owner reverted the whole pass on
+-- sight of it (2026-09-18): the art is the offer.
 --
--- where `amount` is the floor a brand-new player (income ~0) still gets, and
--- `baseIncome` is MonetizationConfig.baseIncome - the player's $/s with the
--- 2x Cash pass and the temporary/server boosts DIVIDED BACK OUT. So:
---   * the 2x pass still never doubles a purchased pack (the rule in the
---     header), and
---   * a weekend earnings event does not make packs briefly twice as good
---     (and then "worse" the next day for the same Robux).
--- The income is read at RECEIPT time, which is also what the shop shows live
--- (StatePush `shop.cashPacks`, computed by the same function on the server).
+-- THE HONEST PROBLEM THIS LEAVES, recorded so it is a decision and not an
+-- oversight: these figures were drawn for a game whose late players earn
+-- $690K/s, where $8M is about twelve seconds of income. The Cash section
+-- will be dead weight past the first hour. Fixing that means new ART with
+-- bigger figures on it (and new products at new prices), not code that pays
+-- something other than what it prints.
 --
--- VALUE PER ROBUX RISES WITH SIZE, in both regimes, so a bigger pack is never
--- the worse deal:
---     floor  $/R$ : 75K/45=1,667   200K/85=2,353   800K/215=3,721   4M/425=9,412   8M/679=11,782
---     income s/R$ : 600/45=13.3    1800/85=21.2    7200/215=33.5    21600/425=50.8 43200/679=63.6
--- The 24K floor was 533 $/R$ - a quarter of the 200K pack's value - and is
--- now 75K (validate pins the monotonic order). The painted card still prints
--- "24K"; the live ribbon ShopController lays over it shows the real figure,
--- and the art should be re-exported (see docs/handoff-parts/monetization.md).
--- Product ids and prices are unchanged: the ids exist on Roblox.
+-- VALUE PER ROBUX still rises with size, so a bigger pack is never the worse
+-- deal: 24K/45=533, 200K/85=2,353, 800K/215=3,721, 4M/425=9,412,
+-- 8M/679=11,782. Validate pins that order.
 
 --- Cash packs. The 2x Cash pass does NOT touch these (see above).
 MonetizationConfig.CashProducts = {
-	-- 10 minutes of income, floor $75K (was a flat $24K).
-	{ key = "Cash24K", productId = 3711390597, robux = 45, kind = "Cash", amount = 75e3, label = "75K", incomeMinutes = 10 },
-	-- 30 minutes of income, floor $200K.
-	{ key = "Cash200K", productId = 3711390623, robux = 85, kind = "Cash", amount = 200e3, label = "200K", incomeMinutes = 30 },
-	-- 2 hours of income, floor $800K.
-	{ key = "Cash800K", productId = 3711390659, robux = 215, kind = "Cash", amount = 800e3, label = "800K", incomeMinutes = 120 },
-	-- 6 hours of income, floor $4M.
-	{ key = "Cash4M", productId = 3711390692, robux = 425, kind = "Cash", amount = 4e6, label = "4M", incomeMinutes = 360 },
-	-- 12 hours of income, floor $8M.
-	{ key = "Cash8M", productId = 3711390722, robux = 679, kind = "Cash", amount = 8e6, label = "8M", incomeMinutes = 720 },
+	{ key = "Cash24K", productId = 3711390597, robux = 45, kind = "Cash", amount = 24e3, label = "24K" },
+	{ key = "Cash200K", productId = 3711390623, robux = 85, kind = "Cash", amount = 200e3, label = "200K" },
+	{ key = "Cash800K", productId = 3711390659, robux = 215, kind = "Cash", amount = 800e3, label = "800K" },
+	{ key = "Cash4M", productId = 3711390692, robux = 425, kind = "Cash", amount = 4e6, label = "4M" },
+	{ key = "Cash8M", productId = 3711390722, robux = 679, kind = "Cash", amount = 8e6, label = "8M" },
 } :: { ProductDef }
 
---- The income every scaled grant is measured in: the live $/s with the 2x
---- Cash pass and the server/temporary earnings boosts divided back out.
---- `income` is EconomyService.getIncome, `cashMultiplier` the pass factor
---- (1 or 2). Shared by the Cash packs, the receipt fallback and the spin
---- wheel's Cash wedges, so all three read the same number.
+--- The income a grant is measured in: the live $/s with the 2x Cash pass and
+--- the server/temporary earnings boosts divided back out. `income` is
+--- EconomyService.getIncome, `cashMultiplier` the pass factor (1 or 2). The
+--- Cash packs no longer use it; the undeliverable-receipt fallback below
+--- still does, and that is not an advertised price.
 function MonetizationConfig.baseIncome(income: number, cashMultiplier: number): number
 	local boosts = GameConfig.SERVER_EARNINGS_BOOST * GameConfig.TEMPORARY_EARNINGS_BOOST
 	local divisor = math.max(cashMultiplier, 1) * math.max(boosts, 1e-6)
@@ -425,11 +411,11 @@ function MonetizationConfig.baseIncome(income: number, cashMultiplier: number): 
 	return value
 end
 
---- What a Cash pack pays a player whose base income is `baseIncome`. Whole
---- dollars; never below the pack's floor.
-function MonetizationConfig.cashPackAmount(product: ProductDef, baseIncome: number): number
-	local scaled = baseIncome * (product.incomeMinutes or 0) * 60
-	return math.floor(math.max(product.amount, scaled))
+--- What a Cash pack pays: the figure on its card, for everyone. `baseIncome`
+--- is taken and ignored so the callers (and the gift flow, which quotes a
+--- pack to one player and delivers it to another) need no rewiring.
+function MonetizationConfig.cashPackAmount(product: ProductDef, _baseIncome: number): number
+	return math.floor(product.amount)
 end
 
 -- ==========================================================

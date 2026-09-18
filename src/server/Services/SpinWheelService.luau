@@ -69,7 +69,6 @@ local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local SpinWheelConfig = require(ReplicatedStorage.Shared.Config.SpinWheelConfig)
@@ -231,20 +230,11 @@ end
 --- `announce` is false only when paying a player who is leaving: the prize
 --- still goes into the profile that is about to be saved, but there is nobody
 --- left to show a toast to.
---- What `player` would be paid by each wedge right now. The one place the
---- scaled amounts are computed: the StatePush labels, the roll and the debug
---- report all read it.
-local function prizeContext(player: Player, profile: DataService.Profile): SpinWheelConfig.PrizeContext
-	return {
-		-- Base income: the 2x pass and the boosts divided out, the same basis
-		-- the Cash packs use, so the wheel never pays pass owners double.
-		baseIncome = MonetizationConfig.baseIncome(EconomyService.getIncome(player), EconomyService.cashMultiplierFor(player)),
-		highestZone = profile.HighestZoneReached,
-	}
-end
-
-local function prizeFor(segment: SpinWheelConfig.Segment, context: SpinWheelConfig.PrizeContext): Prize
-	local amount = SpinWheelConfig.amountFor(segment, context)
+--- What `segment` pays and the line the banner shows for it. Every player is
+--- paid the figure printed on the wedge (SpinWheelConfig, THE PICTURE IS THE
+--- PROMISE), so there is nothing about the player to read here.
+local function prizeFor(segment: SpinWheelConfig.Segment): Prize
+	local amount = SpinWheelConfig.amountFor(segment)
 	local _, won = SpinWheelConfig.labelFor(segment, amount)
 	return { segment = segment, amount = amount, won = won }
 end
@@ -257,10 +247,9 @@ function SpinWheelService.summarise(player: Player): { [string]: any }?
 	if not profile then
 		return nil
 	end
-	local context = prizeContext(player, profile)
 	local labels = table.create(SpinWheelConfig.SEGMENT_COUNT)
 	for _, segment in SpinWheelConfig.Segments do
-		local label = SpinWheelConfig.labelFor(segment, SpinWheelConfig.amountFor(segment, context))
+		local label = SpinWheelConfig.labelFor(segment, SpinWheelConfig.amountFor(segment))
 		table.insert(labels, label)
 	end
 	return { labels = labels }
@@ -293,8 +282,7 @@ local function decodePrize(saved: any): Prize?
 	if amount ~= amount or amount < 0 or amount == math.huge then
 		return nil
 	end
-	local ceiling = math.max(segment.amount, segment.maxAmount or math.huge)
-	amount = math.min(amount, ceiling)
+	amount = math.min(amount, SpinWheelConfig.amountFor(segment))
 	local _, won = SpinWheelConfig.labelFor(segment, amount)
 	return { segment = segment, amount = amount, won = won }
 end
@@ -480,7 +468,7 @@ local function onTriggered(player: Player, wheel: Wheel)
 	--
 	-- The profile gets a copy in the SAME step as the spend, so the save
 	-- below makes both durable together (THE PRIZE IS DURABLE ...).
-	local prize = prizeFor(segment, prizeContext(player, profile))
+	local prize = prizeFor(segment)
 	pending[player] = prize
 	profile.PendingSpinPrize = encodePrize(prize)
 	-- [retention-quests-pass] The spin is spent and rolled: it happened. Fired
@@ -907,29 +895,35 @@ function SpinWheelService.debugSetActivity(player: Player, mode: string?): { [st
 	return SpinWheelService.inspect(player)
 end
 
---- Studio only: the caller's live wedge amounts beside the printed ones.
+--- Studio only: every wedge's payout and odds beside what the art prints.
+--- `matchesArt` is the check that matters: a false anywhere means the wheel
+--- is lying to the player (see SpinWheelConfig, THE PICTURE IS THE PROMISE).
 function SpinWheelService.debugLabels(player: Player): { [string]: any }
 	local profile = DataService.get(player)
 	if not profile then
 		return { error = "no profile" }
 	end
-	local context = prizeContext(player, profile)
 	local rows = {}
+	local matchesArt = true
 	for _, segment in SpinWheelConfig.Segments do
-		local amount = SpinWheelConfig.amountFor(segment, context)
+		local amount = SpinWheelConfig.amountFor(segment)
 		local label = SpinWheelConfig.labelFor(segment, amount)
+		local rolledPercent = segment.weight / SpinWheelConfig.TOTAL_WEIGHT * 100
+		local honest = label == segment.label and rolledPercent >= segment.printedPercent
+		matchesArt = matchesArt and honest
 		table.insert(rows, {
 			index = segment.index,
 			printed = segment.label,
-			live = label,
+			pays = label,
 			amount = amount,
-			overlaid = label ~= segment.label,
+			printedPercent = segment.printedPercent,
+			rolledPercent = rolledPercent,
+			honest = honest,
 		})
 	end
 	return {
-		baseIncome = context.baseIncome,
-		highestZone = context.highestZone,
-		nextGate = SpinWheelConfig.nextGate(context.highestZone),
+		matchesArt = matchesArt,
+		highestZone = profile.HighestZoneReached,
 		rows = rows,
 	}
 end
@@ -951,7 +945,7 @@ function SpinWheelService.debugSpendWithoutLanding(player: Player, index: number
 	if not segment then
 		return { error = "no such segment" }
 	end
-	local prize = prizeFor(segment, prizeContext(player, profile))
+	local prize = prizeFor(segment)
 	profile.SpinProgress = 0
 	profile.PendingSpinPrize = encodePrize(prize)
 	return { spent = true, saved = profile.PendingSpinPrize }
@@ -969,7 +963,7 @@ function SpinWheelService.debugGrant(player: Player, index: number): { [string]:
 		return { error = "no profile or no such segment" }
 	end
 	local before = { cash = profile.Cash, speed = profile.SpeedPower, equipped = profile.EquippedGuardian }
-	local prize = prizeFor(segment, prizeContext(player, profile))
+	local prize = prizeFor(segment)
 	grant(player, profile, prize, true)
 	StateService.pushNow(player)
 	return {

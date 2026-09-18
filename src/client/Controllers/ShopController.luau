@@ -21,13 +21,12 @@
 	Trails are deliberately NOT here - they are sold at the physical Trail Shop.
 	Nor is the Speed multiplier ladder, which belongs on the treadmill.
 
-	CASH PACKS SHOW THIS PLAYER'S AMOUNT (monetization pass). A pack pays
-	max(floor, minutes of the buyer's income) - MonetizationConfig CASH PACKS -
-	so the printed "8M" is only true early on. The server sends the exact
-	figure it would grant right now (StatePush `shop.cashPacks`), and every
-	Cash card carries a ribbon with it, showing that figure and nothing else:
-	"$4.1B". Pack cards without art put it in their title instead. The figure
-	is the server's; nothing here computes an amount.
+	CASH PACKS PAY WHAT THEIR CARD SAYS (owner, 2026-09-18). A "$24K" card
+	grants $24,000 to everyone, so a painted card needs nothing laid over it
+	- the green ribbon that used to carry a scaled figure is gone. The server
+	still sends the exact amount in StatePush (`shop.cashPacks`); a pack card
+	without art puts it in its title, because it has no printed figure of its
+	own. Nothing here computes an amount.
 ]]
 
 local Players = game:GetService("Players")
@@ -113,56 +112,22 @@ local cardByKey: { [string]: GuiObject } = {}
 local lastOwnsCashPass: boolean? = nil
 
 -- ==========================================================
--- LIVE CASH-PACK AMOUNTS
+-- CASH-PACK AMOUNTS
 -- ==========================================================
 
---- Where the ribbon sits on a painted Cash card, in fractions of the art.
---- Bottom-left, clear of the printed R$ button (which starts at x ~0.68).
---- An estimate until checked against the art in Studio - these two lines
---- are the only knobs.
-local RIBBON_POSITION = UDim2.fromScale(0.035, 0.93)
-local RIBBON_SIZE = UDim2.fromScale(0.6, 0.2)
-
---- Product key -> the thing that shows its live amount: a ribbon on a
---- painted card, or the pack card itself (its title is re-filled).
-local ribbonByKey: { [string]: TextLabel } = {}
+--- Product key -> the plain pack card standing in for a Cash pack whose art
+--- has not loaded. A PAINTED card needs nothing here: the figure on it is
+--- the figure the pack pays, so there is nothing to lay over it.
+---
+--- There used to be a green ribbon on every painted card carrying the live
+--- scaled amount, because a pack paid max(printed, minutes of income) and
+--- the print went stale the moment a player had any income. Packs pay what
+--- they print again (MonetizationConfig, CASH PACKS), so the ribbon showed
+--- "$24K" under a card already saying "$24K" - and it is gone.
 local packCardByKey: { [string]: Frame } = {}
 --- Product key -> the amount currently shown, so a push repaints only what
 --- changed (income ticks push several times a second).
 local shownAmount: { [string]: number } = {}
-
-local function buildRibbon(artwork: ImageLabel): TextLabel
-	local ribbon = Instance.new("TextLabel")
-	ribbon.Name = "LiveAmount"
-	ribbon.AnchorPoint = Vector2.new(0, 1)
-	ribbon.Position = RIBBON_POSITION
-	ribbon.Size = RIBBON_SIZE
-	ribbon.BackgroundColor3 = Color3.fromRGB(14, 40, 24)
-	ribbon.BackgroundTransparency = 0.06
-	ribbon.BorderSizePixel = 0
-	ribbon.Font = Enum.Font.FredokaOne
-	ribbon.TextScaled = true
-	ribbon.TextColor3 = Color3.fromRGB(150, 255, 170)
-	ribbon.Text = ""
-	ribbon.Visible = false
-	ribbon.ZIndex = 8
-	ribbon.Parent = artwork
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.35, 0)
-	corner.Parent = ribbon
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 1.5
-	stroke.Color = Color3.fromRGB(8, 20, 12)
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = ribbon
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0.05, 0)
-	pad.PaddingRight = UDim.new(0.05, 0)
-	pad.PaddingTop = UDim.new(0.1, 0)
-	pad.PaddingBottom = UDim.new(0.1, 0)
-	pad.Parent = ribbon
-	return ribbon
-end
 
 local function paintCashAmounts(shop: any)
 	local packs = if type(shop) == "table" then shop.cashPacks else nil
@@ -175,16 +140,7 @@ local function paintCashAmounts(shop: any)
 			continue
 		end
 		shownAmount[product.key] = amount
-		local ribbon = ribbonByKey[product.key]
-		if ribbon then
-			-- The figure ALONE. It used to read "YOU GET $4.1B" on a card whose
-			-- art already says what the pack is, so the words were three-quarters
-			-- of the ribbon and none of the information. The number is what the
-			-- player is reading for, and on a painted card it is the only place
-			-- the live amount appears at all - the printed figure goes stale.
-			ribbon.Text = NumberFormat.cash(amount)
-			ribbon.Visible = true
-		end
+		-- A card with no art has no printed figure, so its title carries one.
 		local card = packCardByKey[product.key]
 		if card then
 			ShopKit.fillCard(card, {
@@ -403,9 +359,6 @@ local function buildShop()
 					Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 				end)
 				cardByKey[product.key] = png.frame
-				if product.kind == "Cash" then
-					ribbonByKey[product.key] = buildRibbon(png.artwork)
-				end
 				table.insert(cards, png.frame)
 				aspect = aspect or PngUiConfig.aspectFor(layout)
 			else

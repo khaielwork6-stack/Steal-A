@@ -747,63 +747,69 @@ return function(): Report
 		)
 		check(SpinWheelConfig.MOVE_ACTIVITY_STUDS > 0, "movement activity needs a positive threshold")
 
-		-- ZONE-SCALED PRIZES. The floors reproduce the printed art, a fresh
-		-- player is paid exactly the floors (jackpot aside, whose print is 1B),
-		-- and no wedge can ever out-pay the paid product it resembles.
-		local fresh = { baseIncome = 0, highestZone = 1 }
-		local rich = { baseIncome = 1e15, highestZone = ZoneConfig.COUNT }
-		local cheapestSpeedPack = math.huge
-		local speed1B = 0
-		for _, product in MonetizationConfig.SpeedProducts do
-			cheapestSpeedPack = math.min(cheapestSpeedPack, product.amount)
-			speed1B = math.max(speed1B, product.amount)
-		end
+		-- THE PICTURE IS THE PROMISE. Every wedge pays exactly the figure it
+		-- is painted with, and comes up at least as often as the percentage
+		-- painted beside it. These four checks are the whole guarantee, and
+		-- they are what the 2026-09-17 pass quietly broke.
+		local printedTotal = 0
 		for _, segment in segments do
-			local floorAmount = SpinWheelConfig.amountFor(segment, fresh)
-			local maxed = SpinWheelConfig.amountFor(segment, rich)
-			if segment.kind == "guardian" then
-				check(floorAmount == 0 and maxed == 0, `spin segment {segment.index} (guardian) must pay no amount`)
-				continue
-			end
-			check(floorAmount == segment.amount, `spin segment {segment.index} must pay its floor to a new player, pays {floorAmount}`)
-			check(maxed >= floorAmount, `spin segment {segment.index} must never scale below its floor`)
-			if segment.tier ~= "jackpot" then
-				local printed = SpinWheelConfig.labelFor(segment, segment.amount)
-				check(printed == segment.label, `spin segment {segment.index}: floor label "{printed}" must match the print "{segment.label}"`)
-			end
-			if segment.kind == "speed" then
-				check(segment.maxAmount ~= nil and (segment.gateFraction or 0) > 0, `spin segment {segment.index} must scale with a cap`)
-				check(maxed <= speed1B, `spin segment {segment.index} must never pay more than the 1B Speed pack`)
-				if segment.tier ~= "jackpot" then
-					check(maxed < 10e6, `common Speed wedge {segment.index} must stay under the 10M pack, pays up to {maxed}`)
-				end
-			else
-				check((segment.incomeSeconds or 0) > 0, `cash spin segment {segment.index} must scale with income`)
+			printedTotal += segment.printedPercent
+			check(
+				segment.printedPercent > 0,
+				`spin segment {segment.index} must carry the percentage its wedge is printed with`
+			)
+
+			-- 1. The odds are never worse than the art claims.
+			local rolled = segment.weight / SpinWheelConfig.TOTAL_WEIGHT * 100
+			check(
+				rolled >= segment.printedPercent,
+				`spin segment {segment.index} is printed {segment.printedPercent}% but rolls {rolled}%`
+			)
+			-- 2. And a RARE prize is exactly what the art claims, never more
+			--    and never less - the 1% the art's rounding leaves over is
+			--    carried by the common Cash wedges, not by these.
+			if segment.tier ~= "normal" then
 				check(
-					(segment.incomeSeconds or 0) < (MonetizationConfig.CashProducts[1].incomeMinutes or 0) * 60,
-					`cash spin segment {segment.index} must pay less income-time than the smallest Cash pack`
+					segment.weight == segment.printedPercent * 100,
+					`spin segment {segment.index} ({segment.tier}) must roll its printed {segment.printedPercent}% exactly`
 				)
 			end
+
+			-- 3. A guardian pays an animal, not an amount.
+			local amount = SpinWheelConfig.amountFor(segment)
+			if segment.kind == "guardian" then
+				check(amount == 0, `spin segment {segment.index} (guardian) must pay no amount`)
+				continue
+			end
+
+			-- 4. What it pays, written out, is word for word what is painted
+			--    on the wedge. This is the one that catches a changed amount.
+			check(amount == segment.amount, `spin segment {segment.index} must pay its printed {segment.amount}, pays {amount}`)
+			local printed, banner = SpinWheelConfig.labelFor(segment, amount)
+			check(printed == segment.label, `spin segment {segment.index} pays "{printed}" but the wedge says "{segment.label}"`)
+			check(banner == segment.won, `spin segment {segment.index}'s banner "{banner}" must match its print "{segment.won}"`)
 		end
-		check(cheapestSpeedPack > 0, "the Speed packs must pay something")
-		local jackpotLabel = SpinWheelConfig.labelFor(segments[12], 1e9)
-		check(jackpotLabel == segments[12].label, `the jackpot's 1B label "{jackpotLabel}" must match its print`)
+		-- The art's twelve percentages sum to 99, not 100 - see THE ART'S
+		-- PERCENTAGES SUM TO 99 in SpinWheelConfig. If a re-export ever makes
+		-- them sum to more than 100 the wheel cannot honour them all.
+		check(printedTotal <= 100, `the wheel's printed percentages sum to {printedTotal}%, which cannot be honoured`)
 	end
 
 	-- ==========================================================
-	-- MONETIZATION (the 2026-09-17 pass)
+	-- MONETIZATION
 	-- ==========================================================
 	do
-		-- CASH PACKS: same ids and prices, floors and income-minutes both
-		-- rising faster than price, so a bigger pack is never the worse deal.
+		-- CASH PACKS: same ids and prices, each paying the figure printed on
+		-- its card to every buyer, with value per Robux rising with size so a
+		-- bigger pack is never the worse deal.
 		local packs = MonetizationConfig.CashProducts
 		check(#packs == 5, `there must be five Cash packs, found {#packs}`)
 		local expectedPacks = {
-			{ key = "Cash24K", id = 3711390597, robux = 45 },
-			{ key = "Cash200K", id = 3711390623, robux = 85 },
-			{ key = "Cash800K", id = 3711390659, robux = 215 },
-			{ key = "Cash4M", id = 3711390692, robux = 425 },
-			{ key = "Cash8M", id = 3711390722, robux = 679 },
+			{ key = "Cash24K", id = 3711390597, robux = 45, amount = 24e3 },
+			{ key = "Cash200K", id = 3711390623, robux = 85, amount = 200e3 },
+			{ key = "Cash800K", id = 3711390659, robux = 215, amount = 800e3 },
+			{ key = "Cash4M", id = 3711390692, robux = 425, amount = 4e6 },
+			{ key = "Cash8M", id = 3711390722, robux = 679, amount = 8e6 },
 		}
 		for index, row in expectedPacks do
 			local pack = packs[index]
@@ -811,22 +817,26 @@ return function(): Report
 				pack ~= nil and pack.key == row.key and pack.productId == row.id and pack.robux == row.robux,
 				`Cash pack {index} must keep key {row.key}, id {row.id} and price {row.robux}`
 			)
+			-- THE CARD'S OWN FIGURE. The painted art says 24K / 200K / 800K /
+			-- 4M / 8M, so these are not free to drift: changing one means
+			-- re-exporting the card it is printed on.
+			check(
+				pack ~= nil and pack.amount == row.amount,
+				`Cash pack {row.key} must pay the {row.amount} its card is printed with, pays {pack and pack.amount}`
+			)
 		end
 		for index = 2, #packs do
 			local a, b = packs[index - 1], packs[index]
-			check(b.amount / b.robux > a.amount / a.robux, `{b.key}'s floor must be better value per Robux than {a.key}'s`)
-			check(
-				(b.incomeMinutes or 0) / b.robux > (a.incomeMinutes or 0) / a.robux,
-				`{b.key}'s income-minutes must be better value per Robux than {a.key}'s`
-			)
+			check(b.amount / b.robux > a.amount / a.robux, `{b.key} must be better value per Robux than {a.key}`)
 		end
+		-- The same to everyone, whatever they earn.
 		for _, pack in packs do
-			check(MonetizationConfig.cashPackAmount(pack, 0) == pack.amount, `{pack.key} must pay its floor at zero income`)
-			local minutes = pack.incomeMinutes or 0
-			check(
-				MonetizationConfig.cashPackAmount(pack, 1e6) == math.max(pack.amount, 1e6 * minutes * 60),
-				`{pack.key} must pay max(floor, income x minutes)`
-			)
+			for _, income in { 0, 1e6, 1e15 } do
+				check(
+					MonetizationConfig.cashPackAmount(pack, income) == pack.amount,
+					`{pack.key} must pay {pack.amount} at every income, pays {MonetizationConfig.cashPackAmount(pack, income)} at {income}/s`
+				)
+			end
 		end
 		-- STEAL TIERS: priced by INCOME, never by the rarity word.
 		--
@@ -995,7 +1005,7 @@ return function(): Report
 	end
 
 	-- ==========================================================
-	-- POLISH / EVENTS / ANALYTICS (EventConfig, PolishConfig, LoadingConfig)
+	-- POLISH / EVENTS / ANALYTICS (EventConfig, PolishConfig)
 	-- ==========================================================
 	do
 		local EventConfig = require(script.Parent.EventConfig)
@@ -1073,22 +1083,8 @@ return function(): Report
 		check(flyoverSeconds >= 5 and flyoverSeconds <= 9, `the flyover shots should total 5-9 s (6-8 s with the fades), got {flyoverSeconds}`)
 		check(PolishConfig.ANALYTICS_BUDGET_SAFETY > 0 and PolishConfig.ANALYTICS_BUDGET_SAFETY <= 1, "analytics safety must be (0, 1]")
 		check(PolishConfig.ANALYTICS_PASSIVE_FLUSH_SECONDS >= 60, "passive income must be batched at least a minute")
-
-		-- The loading screen's config lives in ReplicatedFirst (src/first).
-		local loadingModule = game:GetService("ReplicatedFirst"):FindFirstChild("LoadingConfig")
-		check(loadingModule ~= nil and loadingModule:IsA("ModuleScript"), "ReplicatedFirst.LoadingConfig is missing")
-		if loadingModule and loadingModule:IsA("ModuleScript") then
-			local LoadingConfig = require(loadingModule) :: any
-			check(type(LoadingConfig.TIPS) == "table" and #LoadingConfig.TIPS >= 10, "the loading screen needs 10+ tips")
-			for _, tip in LoadingConfig.TIPS do
-				check(type(tip.text) == "string" and #tip.text > 0 and #tip.text <= 110, "a loading tip is empty or too long")
-				check(assetOk(tip.icon), "a loading tip icon must be an rbxassetid")
-			end
-			for _, key in { "BACKGROUND_WIDE", "BACKGROUND_TALL", "LOGO" } do
-				check(assetOk(LoadingConfig[key]), `LoadingConfig.{key} must be an rbxassetid`)
-			end
-			check(LoadingConfig.SKIP_AFTER >= 1 and LoadingConfig.MAX_SECONDS > LoadingConfig.SKIP_AFTER, "loading screen timings are out of order")
-		end
+		-- The branded loading screen was removed (owner, 2026-09-18); Roblox
+		-- draws its own, so there is no LoadingConfig left to check.
 	end
 
 	-- ==========================================================

@@ -12,8 +12,8 @@
 	server saves Profile.FlyoverSeen, so it never plays twice.
 
 	WHEN
-	After the loading screen (LocalPlayer `LoadingScreenDone`, or after
-	PolishConfig.FLYOVER_LOADING_WAIT if that never comes) and once the
+	After the client has finished starting (LocalPlayer `LoadingScreenDone`,
+	or after PolishConfig.FLYOVER_LOADING_WAIT if that never comes) and once the
 	character exists. While it plays, LocalPlayer's `FlyoverActive` attribute
 	is true: TutorialController holds back the objective arrow and the event
 	pill/cards wait, so the tour always comes before the first objective.
@@ -437,7 +437,7 @@ function FlyoverController.start()
 		end
 		waiting = true
 		task.spawn(function()
-			-- The loading screen first.
+			-- The client finishing its start-up first.
 			local deadline = os.clock() + PolishConfig.FLYOVER_LOADING_WAIT
 			while player:GetAttribute("LoadingScreenDone") ~= true and os.clock() < deadline do
 				task.wait(0.25)

@@ -10,10 +10,10 @@
 	against the new picture when you do - the odds and the picture have to agree
 	or the pointer will land on the wrong words.
 
-	THE ODDS ARE THE SERVER'S. `weight` is the authoritative RNG: twelve weights
-	summing to exactly 10,000, checked at start-up by `validate`. Nothing else in
-	the game rolls this wheel, and no percentage is stored - a percentage is a
-	rounded weight and would drift away from the thing it describes.
+	THE ODDS ARE THE SERVER'S, AND THEY ARE THE ONES ON THE PICTURE. `weight`
+	is the authoritative RNG - twelve weights summing to exactly 10,000, checked
+	at start-up by `validate` - and `printedPercent` is what the art claims
+	beside it, so the two can never drift apart again unnoticed.
 
 	SEGMENT NUMBERING follows the picture: segment 12 is at the TOP under the
 	pointer, and the numbers run CLOCKWISE from there (1 at one o'clock, 3 at
@@ -126,69 +126,59 @@ export type Tier = "normal" | "rare" | "jackpot"
 export type Segment = {
 	index: number,
 	kind: Kind,
-	--- Cash or Speed amount: the FLOOR a brand-new player is paid. The live
-	--- amount scales with progress (`amountFor`). Zero for a guardian.
+	--- EXACTLY what the wedge is printed with. Cash or Speed; 0 for a
+	--- guardian. Nothing scales this - see THE PICTURE IS THE PROMISE.
 	amount: number,
 	--- BaseGuardianConfig key, for `kind == "guardian"` only.
 	guardianKey: string?,
-	--- What the wheel's own picture says on this wedge. The client covers it
-	--- with the live figure whenever the two differ (SpinWheelController).
+	--- What the wheel's own picture says on this wedge.
 	label: string,
-	--- The line the win banner shows: "YOU WON {won}!" (static fallback; the
-	--- server sends the live line with the result).
+	--- The line the win banner shows: "YOU WON {won}!"
 	won: string,
 	tier: Tier,
+	--- The PERCENTAGE the wheel's picture prints on this wedge. The art makes
+	--- this promise to the player, so `weight` may never be smaller than this
+	--- many hundredths of TOTAL_WEIGHT - validate pins it.
+	printedPercent: number,
 	--- Out of 10,000.
 	weight: number,
-	--- Cash wedges: pay at least this many seconds of the player's base income.
-	incomeSeconds: number?,
-	--- Speed wedges: pay at least this share of the NEXT zone's recommended
-	--- Speed (the gate the player is working towards).
-	gateFraction: number?,
-	--- Speed wedges: the scaled amount never exceeds this. See ZONE-SCALED
-	--- PRIZES for why each cap sits where it does.
-	maxAmount: number?,
 }
 
 -- ==========================================================
--- ZONE-SCALED PRIZES (monetization pass, 2026-09-17)
+-- THE PICTURE IS THE PROMISE (owner, 2026-09-18)
 -- ==========================================================
 --
--- A flat $1,500 is a fortune in Zone 1 and invisible in Zone 8, so the Cash
--- and Speed wedges scale with the player - but the wheel is a FREE bonus and
--- must never rival what is sold for Robux:
+-- THE WHEEL PAYS WHAT IT PRINTS. A wedge saying "$1,500" pays $1,500 and a
+-- wedge saying "10%" comes up one time in ten. Nothing here reads the
+-- player's income or zone.
 --
---   $1,500 wedge   max($1,500,  20 s of base income)
---   $15,000 wedge  max($15,000, 120 s of base income)
---        (the smallest Cash pack is 600 s; the fattest free Cash wedge is a
---        fifth of it, and base income excludes the 2x pass and boosts)
---   250 wedge      max(250,   0.5% of the next zone's gate), capped at 500K
---   2,500 wedge    max(2,500, 2%   of the next zone's gate), capped at 5M
---        (each cap is HALF the Speed pack it would otherwise compete with:
---        the 215 R$ 1M pack and the 595 R$ 10M pack)
---   jackpot        max(1M,    25%  of the next zone's gate), capped at 1B
---        (never more than the 2,549 R$ 1B pack, and at 8/10,000 it is now
---        a 0.08% roll rather than 0.3%)
+-- It briefly did. The 2026-09-17 monetization pass made every Cash and Speed
+-- wedge scale with progress (amount = max(print, N seconds of income)) and
+-- re-cut the weights to protect the paid products - the jackpot went from
+-- the printed 2% to 0.08%, the Tiger from 3% to 0.15%, the Panda from 5% to
+-- 0.5%. The picture was never re-exported, so the wheel was advertising odds
+-- fifteen to twenty-five times better than it actually rolled. That is the
+-- one thing a wheel cannot do, whatever it does to the payouts, and the
+-- owner reverted the whole pass on sight of it (2026-09-18).
 --
--- The caps also keep the Zone 8 -> 9 wall where it is: for a Zone 8 player
--- the expected Speed per spin is ~0.7M (0.15M + 0.4M + 0.14M from the three
--- Speed kinds), about 1% of the 700M gate per ACTIVE hour - a bonus, not a
--- bypass.
+-- THE ART'S PERCENTAGES SUM TO 99, not 100 - it prints five 10% wedges,
+-- three 8%, one 15%, 5%, 3% and 2%. The missing hundredth cannot be dropped
+-- (the weights have to sum to TOTAL_WEIGHT) and it must not be taken from a
+-- wedge, or that wedge would come up rarer than its own print. So the five
+-- CASH wedges carry it, +20 each: every rare is exactly as likely as the
+-- picture says, and the commons are a rounding hair MORE likely. No wedge is
+-- ever rarer than printed, which is the rule `validate` enforces.
 --
--- WEIGHTS: jackpot 30 -> 8, Tiger 50 -> 15, Panda 120 -> 50. The 127 freed
--- points went to the six commonest wedges (+21 each, +22 on segment 11), so
--- the table still sums to exactly 10,000 (validate pins it).
---
--- THE PICTURE is unchanged, so the jackpot wedge still prints "1B SPEED" and
--- the rest print their floors. The client overlays the live figure on any
--- wedge where it differs from the print.
+-- If the art is ever re-exported with different figures, change `amount`,
+-- `label`, `won` and `printedPercent` together and let validate re-pin the
+-- weights - the picture and this table are one thing in two places.
 
 --- Clockwise from segment 1, exactly as the wheel is drawn.
 SpinWheelConfig.Segments = {
-	{ index = 1, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", weight = 1521, incomeSeconds = 20 },
-	{ index = 2, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", weight = 1021, gateFraction = 0.005, maxAmount = 500e3 },
-	{ index = 3, kind = "cash", amount = 15000, label = "$15,000", won = "$15,000", tier = "normal", weight = 750, incomeSeconds = 120 },
-	{ index = 4, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", weight = 1021, gateFraction = 0.005, maxAmount = 500e3 },
+	{ index = 1, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", printedPercent = 10, weight = 1020 },
+	{ index = 2, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", printedPercent = 8, weight = 800 },
+	{ index = 3, kind = "cash", amount = 15000, label = "$15,000", won = "$15,000", tier = "normal", printedPercent = 10, weight = 1020 },
+	{ index = 4, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", printedPercent = 8, weight = 800 },
 	{
 		index = 5,
 		kind = "guardian",
@@ -197,12 +187,12 @@ SpinWheelConfig.Segments = {
 		label = "Panda Guardian",
 		won = "THE PANDA GUARDIAN",
 		tier = "rare",
-		-- Was 120 (1.2%).
-		weight = 50,
+		printedPercent = 5,
+		weight = 500,
 	},
-	{ index = 6, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", weight = 1521, incomeSeconds = 20 },
-	{ index = 7, kind = "speed", amount = 2500, label = "2,500 Speed", won = "2,500 SPEED", tier = "normal", weight = 800, gateFraction = 0.02, maxAmount = 5e6 },
-	{ index = 8, kind = "cash", amount = 15000, label = "$15,000", won = "$15,000", tier = "normal", weight = 750, incomeSeconds = 120 },
+	{ index = 6, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", printedPercent = 10, weight = 1020 },
+	{ index = 7, kind = "speed", amount = 2500, label = "2,500 Speed", won = "2,500 SPEED", tier = "normal", printedPercent = 15, weight = 1500 },
+	{ index = 8, kind = "cash", amount = 15000, label = "$15,000", won = "$15,000", tier = "normal", printedPercent = 10, weight = 1020 },
 	{
 		index = 9,
 		kind = "guardian",
@@ -211,29 +201,26 @@ SpinWheelConfig.Segments = {
 		label = "Tiger Guardian",
 		won = "THE TIGER GUARDIAN",
 		tier = "rare",
-		-- Was 50 (0.5%). The Tiger is a 399 R$ Game Pass.
-		weight = 15,
+		printedPercent = 3,
+		weight = 300,
 	},
-	{ index = 10, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", weight = 1021, gateFraction = 0.005, maxAmount = 500e3 },
-	{ index = 11, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", weight = 1522, incomeSeconds = 20 },
+	{ index = 10, kind = "speed", amount = 250, label = "250 Speed", won = "250 SPEED", tier = "normal", printedPercent = 8, weight = 800 },
+	{ index = 11, kind = "cash", amount = 1500, label = "$1,500", won = "$1,500", tier = "normal", printedPercent = 10, weight = 1020 },
 	{
 		index = 12,
 		kind = "speed",
-		-- The FLOOR is 1M now (was a flat 1B for everyone); the print still
-		-- says 1B, which is what a Zone 10+ player is actually paid.
-		amount = 1e6,
+		amount = 1e9,
 		label = "1B SPEED",
 		won = "1B SPEED",
 		tier = "jackpot",
-		-- Was 30 (0.3%) - the same odds as a 2,549 R$ product, every 5 minutes.
-		weight = 8,
-		gateFraction = 0.25,
-		maxAmount = 1e9,
+		printedPercent = 2,
+		weight = 200,
 	},
 } :: { Segment }
 
---- What the player's progress is, for the scaled prizes. Built by the server
---- only (the client is sent the finished labels).
+--- Kept because the rest of the game measures Speed rewards against it -
+--- Quests, the Season Pass, referrals and codes all scale off `nextGate`.
+--- The WHEEL no longer does (see THE PICTURE IS THE PROMISE).
 export type PrizeContext = {
 	--- MonetizationConfig.baseIncome: $/s without the 2x pass or boosts.
 	baseIncome: number,
@@ -250,28 +237,19 @@ function SpinWheelConfig.nextGate(highestZone: number): number
 	return if zone then zone.recommendedSpeed else 0
 end
 
---- The amount `segment` pays a player in `context`. Whole numbers; never
---- below the segment's floor; 0 for a guardian.
-function SpinWheelConfig.amountFor(segment: Segment, context: PrizeContext): number
-	if segment.kind == "cash" then
-		local scaled = (tonumber(context.baseIncome) or 0) * (segment.incomeSeconds or 0)
-		if scaled ~= scaled or scaled == math.huge then
-			scaled = 0
-		end
-		return math.floor(math.max(segment.amount, scaled))
-	elseif segment.kind == "speed" then
-		local scaled = SpinWheelConfig.nextGate(context.highestZone) * (segment.gateFraction or 0)
-		if segment.maxAmount then
-			scaled = math.min(scaled, segment.maxAmount)
-		end
-		return math.floor(math.max(segment.amount, scaled))
+--- What `segment` pays: the figure printed on its wedge, and 0 for a
+--- guardian (which pays an animal, not an amount). Every player is paid the
+--- same, which is the whole of THE PICTURE IS THE PROMISE.
+function SpinWheelConfig.amountFor(segment: Segment): number
+	if segment.kind == "guardian" then
+		return 0
 	end
-	return 0
+	return math.floor(segment.amount)
 end
-
---- The wedge text and the banner line for `amount`. Written so the FLOOR
---- amounts reproduce the printed art exactly ("$1,500", "250 Speed",
---- "2,500 Speed", "1B SPEED") - which is how the client knows when a wedge
+--- The wedge text and the banner line for `amount`. Written so the printed
+--- amounts reproduce the art exactly ("$1,500", "250 Speed", "2,500 Speed",
+--- "1B SPEED") - validate pins that every wedge round-trips through this
+--- back to its own print. Exact digits under a million, short form above.
 --- needs no overlay. Exact digits under a million, short form above.
 function SpinWheelConfig.labelFor(segment: Segment, amount: number): (string, string)
 	if segment.kind == "guardian" then

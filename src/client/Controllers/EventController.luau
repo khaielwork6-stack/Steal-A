@@ -9,8 +9,7 @@
 	                running events take turns every few seconds.
 	  THE CARD      a short announcement at the top of the screen the first
 	                time this client sees an event running (on join, or when it
-	                starts). Held back while the loading screen or the
-	                first-join flyover is up.
+	                starts). Held back while the first-join flyover is up.
 	  HOLIDAY TINT  a running holiday blends its colour into the museum decor
 	                lights (the same Decorations lights Graphics LOW switches
 	                off; each room's RoomFill is left alone), and puts every

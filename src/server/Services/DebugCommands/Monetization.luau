@@ -191,8 +191,8 @@ commands.monPacks = function(player: Player)
 		table.insert(rows, {
 			key = product.key,
 			robux = product.robux,
-			floor = product.amount,
-			minutes = product.incomeMinutes,
+			printed = product.label,
+			pays = product.amount,
 			amountNow = MonetizationService.cashPackAmount(player, product),
 		})
 	end
