@@ -67,8 +67,11 @@ local TILE_RING = 2.5
 --- Desktop tile size and column gap; the touch layout derives its own.
 local RAIL_TILE = 60
 local RAIL_GAP = 10
---- Where the rail's top sits: under Roblox's own top-left buttons.
+--- The highest the rail may start: under Roblox's own top-left buttons. It
+--- is centred below this, not pinned to it (layoutColumn).
 local RAIL_TOP = 58
+--- Clearance kept under the rail so it never reaches the economy pill.
+local RAIL_BOTTOM_MARGIN = 64
 
 local STAT_ROWS = {
 	{ key = "Cash", icon = "rbxassetid://112931960147028", color = Color3.fromRGB(110, 240, 130) },
@@ -321,10 +324,28 @@ end
 --- and Index carry whatever LayoutOrder the pack shipped with.
 local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4, Trade = 5 }
 
+--- The surface the rail is centred on. Buttons.Left's parent is the ScreenGui
+--- itself, not a frame, so asking for a GuiObject here measured nothing and
+--- the rail silently stayed pinned to minTop.
+local function screenOf(object: Instance): (GuiBase2d?, number)
+	local parent = object.Parent
+	while parent do
+		if parent:IsA("GuiBase2d") then
+			return parent, parent.AbsoluteSize.Y
+		end
+		parent = parent.Parent
+	end
+	return nil, 0
+end
+
 --- The rail as ONE column of fixed tiles, from a given tile size and gap:
 --- top-left under Roblox's buttons, no panel behind it, no padding. Shared
 --- by the desktop and touch layouts, which differ only in the numbers.
-local function layoutColumn(buttons: GuiObject, left: GuiObject, tile: number, gap: number, top: number)
+--- `minTop` is the lowest the column may start - under Roblox's own top-left
+--- buttons. Within that, the column is CENTRED on the screen's height: on a
+--- tall phone the old fixed top left it clinging to the ceiling with the
+--- whole screen empty below it (owner, 2026-09-18).
+local function layoutColumn(buttons: GuiObject, left: GuiObject, tile: number, gap: number, minTop: number)
 	local tiles = 0
 	for _, child in left:GetChildren() do
 		if MENU_ORDER[child.Name] and child:IsA("GuiObject") then
@@ -337,9 +358,16 @@ local function layoutColumn(buttons: GuiObject, left: GuiObject, tile: number, g
 	if pad then
 		pad:Destroy()
 	end
+	local height = tile * tiles + gap * (tiles - 1)
+	local _screen, available = screenOf(buttons)
+	-- Centred, but never above minTop and never off the bottom.
+	local top = minTop
+	if available > 0 then
+		top = math.clamp((available - height) / 2, minTop, math.max(minTop, available - height - RAIL_BOTTOM_MARGIN))
+	end
 	buttons.AnchorPoint = Vector2.new(0, 0)
 	buttons.Position = UDim2.fromOffset(RAIL_INSET.Offset, top)
-	buttons.Size = UDim2.fromOffset(tile, tile * tiles + gap * (tiles - 1))
+	buttons.Size = UDim2.fromOffset(tile, height)
 	left.AnchorPoint, left.Position, left.Size = Vector2.zero, UDim2.new(), UDim2.fromScale(1, 1)
 	local grid = left:FindFirstChildOfClass("UIGridLayout")
 	if grid then
@@ -362,10 +390,36 @@ end
 local function layoutRail(buttons: GuiObject, left: GuiObject)
 	layoutColumn(buttons, left, RAIL_TILE, RAIL_GAP, RAIL_TOP)
 	-- Tiles added later (Upgrades, Storage, Trade arrive after this pass)
-	-- grow the column.
+	-- grow the column, and a resize re-centres it.
+	local function relayout()
+		layoutColumn(buttons, left, RAIL_TILE, RAIL_GAP, RAIL_TOP)
+	end
 	left.ChildAdded:Connect(function()
-		task.defer(layoutColumn, buttons, left, RAIL_TILE, RAIL_GAP, RAIL_TOP)
+		task.defer(relayout)
 	end)
+	-- The screen settles AFTER the first pass (Studio sizes its play window,
+	-- a phone rotates, the topbar inset arrives), so re-centre on every size
+	-- change. The camera's ViewportSize is the signal that always fires; a
+	-- ScreenGui's own AbsoluteSize does not reliably.
+	local screen = screenOf(buttons)
+	if screen then
+		screen:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+	end
+	local camera = workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
+	end
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		local current = workspace.CurrentCamera
+		if current then
+			current:GetPropertyChangedSignal("ViewportSize"):Connect(relayout)
+		end
+		task.defer(relayout)
+	end)
+	-- Belt and braces: two late passes, for the case where the screen was
+	-- already its final size by the time a signal could have fired.
+	task.delay(1, relayout)
+	task.delay(4, relayout)
 end
 
 -- ==========================================================

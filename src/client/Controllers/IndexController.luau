@@ -71,9 +71,32 @@ local openerBadge: TextLabel? = nil
 local discovered: { [string]: boolean } = {}
 local summary: any = nil
 local lastDiscoveredCount: number? = nil
---- The preview models on the cards currently shown, turned slowly while the
---- panel is open.
-local turning: { Model } = {}
+--- ONE PREVIEW PER CARD, BUILT WHEN THE CARD IS REACHED. Ninety-six cards
+--- meant ninety-six ViewportFrames - each its own render pass, each holding a
+--- cloned model - and the panel crawled. A card draws its plate right away;
+--- the viewport behind it is built the first time the card scrolls near the
+--- window and hidden again (not destroyed) once it scrolls away, so only the
+--- dozen cells actually on screen cost anything to draw or to turn.
+type Preview = {
+	icon: ImageLabel,
+	card: GuiObject,
+	id: string,
+	rarity: string,
+	known: boolean,
+	built: boolean,
+	shown: boolean,
+	model: Model?,
+}
+local previews: { Preview } = {}
+--- How far outside the scroll's window a card still counts as near, so a
+--- preview is ready by the time it is actually looked at.
+local PREVIEW_MARGIN = 140
+--- Viewports built per sweep. Building is the expensive half (a model clone
+--- and a camera fit), so it is rationed rather than done in one burst.
+local PREVIEW_BUDGET = 4
+--- Seconds between sweeps. At PREVIEW_MARGIN, scrolling cannot outrun this.
+local SWEEP_INTERVAL = 0.12
+local sinceSweep = 0
 --- Radians per second a discovered item turns in its card.
 local TURN_RATE = 0.7
 local HOVER_LIFT = 1.05
@@ -107,6 +130,21 @@ end
 -- CARDS
 -- ==========================================================
 
+--- Notes a card's icon so the sweep can build, show, hide and turn it. The
+--- viewport itself is NOT made here - that is the cost being deferred.
+local function registerPreview(card: GuiObject, icon: ImageLabel, def: any, known: boolean)
+	table.insert(previews, {
+		icon = icon,
+		card = card,
+		id = def.id,
+		rarity = def.rarity,
+		known = known,
+		built = false,
+		shown = false,
+		model = nil,
+	})
+end
+
 --- One item cell. `def` is the LootConfig entry; `known` decides which of the
 --- pack's two card variants gets cloned.
 local function buildCard(def: any, known: boolean, order: number): Frame?
@@ -135,13 +173,11 @@ local function buildCard(def: any, known: boolean, order: number): Frame?
 			name.TextColor3 = Color3.fromRGB(240, 244, 252)
 		end
 
-		-- The real model, turning; the rarity colour on the frame.
+		-- The plate right away; the turning model when the card is reached.
 		local icon = body and body:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			local model = ItemThumb.apply(icon, def.rarity, def.id)
-			if model then
-				table.insert(turning, model)
-			end
+			ItemThumb.applyPlate(icon, def.rarity, true)
+			registerPreview(card, icon, def, true)
 		end
 		local stroke = card:FindFirstChildOfClass("UIStroke")
 		if stroke then
@@ -158,7 +194,8 @@ local function buildCard(def: any, known: boolean, order: number): Frame?
 		-- the player has actually found it.
 		local icon = body and body:FindFirstChild("Icon")
 		if icon and icon:IsA("ImageLabel") then
-			ItemThumb.applyUnknown(icon, def.id)
+			ItemThumb.applyPlate(icon, def.rarity, false)
+			registerPreview(card, icon, def, false)
 		end
 		local stroke = card:FindFirstChildOfClass("UIStroke")
 		if stroke then
@@ -372,6 +409,66 @@ local function buildSection(index: number, list: ScrollingFrame)
 		grid = grid,
 	}
 end
+--- Decides which cards are near enough to the scroll's window to be worth
+--- drawing. Cards outside it keep their plate but lose their viewport, so a
+--- ninety-six cell grid renders like a twelve cell one.
+---
+--- A card is never hidden outright: UIGridLayout skips invisible children, so
+--- hiding one would close the gap and shuffle the whole grid. The VIEWPORT is
+--- what gets hidden; the cell keeps its place.
+local function sweepPreviews()
+	local list = scroll
+	if not list then
+		return
+	end
+	local top = list.AbsolutePosition.Y - PREVIEW_MARGIN
+	local bottom = list.AbsolutePosition.Y + list.AbsoluteSize.Y + PREVIEW_MARGIN
+	local budget = PREVIEW_BUDGET
+	for _, preview in previews do
+		local card = preview.card
+		if card.Parent then
+			local cardTop = card.AbsolutePosition.Y
+			local near = card.Visible and cardTop + card.AbsoluteSize.Y >= top and cardTop <= bottom
+			if near and not preview.built and budget > 0 then
+				budget -= 1
+				preview.built = true
+				preview.model = if preview.known
+					then ItemThumb.apply(preview.icon, preview.rarity, preview.id)
+					else ItemThumb.applyUnknown(preview.icon, preview.id)
+			end
+			local viewport = preview.icon:FindFirstChild("Preview")
+			if viewport and viewport:IsA("ViewportFrame") then
+				viewport.Visible = near
+			end
+			preview.shown = near and preview.built
+		end
+	end
+end
+
+
+--- The discovered set the grid was last BUILT from. A cell's template is
+--- chosen by whether its item is discovered, so only a change to that set
+--- needs a rebuild - and tearing down and re-cloning all ninety-six cells
+--- cost a visible hitch that the panel was paying on every single open.
+local rendered: { [string]: boolean }? = nil
+
+local function gridIsCurrent(): boolean
+	local last = rendered
+	if not last then
+		return false
+	end
+	for id in discovered do
+		if not last[id] then
+			return false
+		end
+	end
+	for id in last do
+		if not discovered[id] then
+			return false
+		end
+	end
+	return true
+end
 
 --- Fills every zone's grid. Called on the first push and whenever a new item
 --- is discovered - a card changes template (locked -> found), so the cell is
@@ -381,7 +478,19 @@ local function renderAll()
 	if not list then
 		return
 	end
-	table.clear(turning)
+	if gridIsCurrent() then
+		-- Nothing new found since the cells were made: they are still right,
+		-- so only the section headers are repainted and the previews re-swept.
+		for index = 1, ZoneConfig.COUNT do
+			paintSection(index)
+		end
+		sinceSweep = SWEEP_INTERVAL
+		return
+	end
+	rendered = table.clone(discovered)
+	table.clear(previews)
+	-- Sweep on the next frame, once the layout has placed the new cards.
+	sinceSweep = SWEEP_INTERVAL
 	local cards: { GuiObject } = {}
 	for index = 1, ZoneConfig.COUNT do
 		local section = sections[index]
@@ -667,14 +776,23 @@ function IndexController.start()
 		end)
 	end
 
-	-- The eight previews on show turn slowly. Only while the panel is open,
-	-- and never more than one zone's worth.
+	-- Only the previews actually on screen are built and turned, and the
+	-- window they are measured against is only re-checked a few times a
+	-- second - the turn itself is one pivot per visible model.
 	RunService.Heartbeat:Connect(function(dt)
-		if not frame or not frame.Visible or #turning == 0 then
+		if not frame or not frame.Visible or #previews == 0 then
 			return
 		end
-		for _, model in turning do
-			ItemThumb.turn(model, TURN_RATE * dt)
+		sinceSweep += dt
+		if sinceSweep >= SWEEP_INTERVAL then
+			sinceSweep = 0
+			sweepPreviews()
+		end
+		for _, preview in previews do
+			local model = preview.model
+			if model and preview.shown then
+				ItemThumb.turn(model, TURN_RATE * dt)
+			end
 		end
 	end)
 

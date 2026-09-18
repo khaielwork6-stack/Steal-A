@@ -167,12 +167,17 @@ end
 -- before this pass. Shared by BOTH surfaces (the Shop panel and the lobby
 -- stand) so the two can never drift apart.
 
-local ROBUX_BLUE = Color3.fromRGB(56, 152, 236)
-local ROBUX_BLUE_DARK = Color3.fromRGB(24, 92, 164)
-local ROBUX_FULL = Color3.fromRGB(96, 104, 124)
+local ROBUX_BLUE = Color3.fromRGB(86, 176, 255)
+local ROBUX_BLUE_DARK = Color3.fromRGB(28, 96, 180)
+local ROBUX_BLUE_LIGHT = Color3.fromRGB(186, 222, 255)
+local ROBUX_FULL = Color3.fromRGB(120, 128, 146)
+local ROBUX_FULL_DARK = Color3.fromRGB(62, 68, 82)
 
---- The Robux box on one gadget card, built once. Returns it so `paint` can
---- keep its label and its enabled state current.
+--- The Robux button on one gadget card: the pack's OWN buy button, cloned
+--- from the Cash one beside it and recoloured. Cloning rather than drawing
+--- is the whole point - it inherits the plate, the gradient, the gloss, the
+--- font and the press animation, so the two buttons are the same control in
+--- two colours instead of one pack button next to something home-made.
 function GadgetShopController.attachRobuxBox(card: Frame, key: string): TextButton?
 	local product = MonetizationConfig.GadgetProductByKey[key]
 	if not product or not MonetizationConfig.isConfigured(product.key) then
@@ -183,103 +188,96 @@ function GadgetShopController.attachRobuxBox(card: Frame, key: string): TextButt
 	if not body or not choose or not choose:IsA("GuiObject") then
 		return nil
 	end
-	local existing = body:FindFirstChild("RobuxBuy")
-	if existing and existing:IsA("TextButton") then
-		return existing
+	local existing = body:FindFirstChild("RobuxChoose")
+	if existing then
+		local found = existing:FindFirstChild("Buy")
+		return if found and found:IsA("TextButton") then found else nil
 	end
 
-	-- Make room: the Cash button gives up its right-hand third.
-	choose.Size = UDim2.fromScale(choose.Size.X.Scale * 0.6, choose.Size.Y.Scale)
+	-- Side by side, each just under half the width the Cash button had.
+	local width = choose.Size.X.Scale
+	local left = choose.Position.X.Scale
+	choose.Size = UDim2.fromScale(width * 0.48, choose.Size.Y.Scale)
 
-	local button = Instance.new("TextButton")
-	button.Name = "RobuxBuy"
-	button.Text = ""
-	button.AutoButtonColor = false
-	button.BackgroundColor3 = ROBUX_BLUE
-	button.BorderSizePixel = 0
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.Position = UDim2.fromScale(0.95, choose.Position.Y.Scale)
-	button.Size = UDim2.fromScale(0.33, choose.Size.Y.Scale)
-	button.ZIndex = 9
-	button.Parent = body
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = button
-	local edge = Instance.new("UIStroke")
-	edge.Color = ROBUX_BLUE_DARK
-	edge.Thickness = 2
-	edge.StrokeSizingMode = Enum.StrokeSizingMode.FixedSize
-	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	edge.Parent = button
-	local shade = Instance.new("UIGradient")
-	shade.Rotation = 90
-	shade.Color = ColorSequence.new(ROBUX_BLUE, ROBUX_BLUE_DARK)
-	shade.Parent = button
+	local holder = choose:Clone()
+	holder.Name = "RobuxChoose"
+	holder.Position = UDim2.fromScale(left + width * 0.52, choose.Position.Y.Scale)
+	holder.Visible = true
+	holder.Parent = body
 
-	local price = Instance.new("TextLabel")
-	price.Name = "Price"
-	price.BackgroundTransparency = 1
-	price.AnchorPoint = Vector2.new(0.5, 0.5)
-	price.Position = UDim2.fromScale(0.5, 0.5)
-	price.Size = UDim2.fromScale(0.92, 0.6)
-	price.Font = Enum.Font.FredokaOne
-	price.TextScaled = true
-	price.TextColor3 = Color3.fromRGB(255, 255, 255)
-	price.TextStrokeColor3 = Color3.fromRGB(10, 34, 62)
-	price.TextStrokeTransparency = 0.2
-	price.Text = `R$ {product.robux}`
-	price.ZIndex = 10
-	price.Parent = button
-	local limit = Instance.new("UITextSizeConstraint")
-	limit.MaxTextSize = 22
-	limit.Parent = price
+	local buy = holder:FindFirstChild("Buy")
+	if not buy or not buy:IsA("TextButton") then
+		holder:Destroy()
+		choose.Size = UDim2.fromScale(width, choose.Size.Y.Scale)
+		return nil
+	end
 
-	local caption = Instance.new("TextLabel")
-	caption.Name = "Caption"
-	caption.BackgroundTransparency = 1
-	caption.AnchorPoint = Vector2.new(0.5, 1)
-	caption.Position = UDim2.fromScale(0.5, 0.99)
-	caption.Size = UDim2.fromScale(0.95, 0.28)
-	caption.Font = Enum.Font.GothamBold
-	caption.TextScaled = true
-	caption.TextColor3 = Color3.fromRGB(210, 232, 255)
-	caption.Text = "REFILL"
-	caption.ZIndex = 10
-	caption.Parent = button
-	local capLimit = Instance.new("UITextSizeConstraint")
-	capLimit.MaxTextSize = 11
-	capLimit.Parent = caption
+	-- A clone carries the pack's "already bound" stamps, so the pack skips it
+	-- and our own Activated never fires. claimButton clears both and turns
+	-- Active back on (see UIAnim.claimButton).
+	local stale = buy:FindFirstChild("_RippleContainer")
+	if stale then
+		stale:Destroy()
+	end
+	local scale = buy:FindFirstChildOfClass("UIScale")
+	if scale then
+		scale.Scale = 1
+	end
+	for _, name in { "Promo", "Line" } do
+		local extra = buy:FindFirstChild(name, true)
+		if extra and extra:IsA("GuiObject") then
+			extra.Visible = false
+		end
+	end
 
-	UIAnim.claimButton(button)
-	button.Activated:Connect(function()
-		if button:GetAttribute("Full") == true then
-			UIAnim.punch(button, 0.05)
+	UIAnim.claimButton(buy)
+	buy.Activated:Connect(function()
+		if buy:GetAttribute("Full") == true then
+			UIAnim.punch(buy, 0.05)
 			return
 		end
-		UIAnim.punch(button, 0.12)
+		UIAnim.punch(buy, 0.12)
 		-- The SERVER opens the dialog and the receipt grants it; this only asks.
 		Remotes.get("PurchaseRequest"):FireServer("product", product.key)
 	end)
-	return button
+	buy:SetAttribute("RobuxPrice", product.robux)
+	return buy
 end
 
---- Greys the box out at the limit, so the one thing it buys is never sold to
---- a player who cannot receive it.
+--- Keeps the Robux button's colour and words current: blue to buy, grey and
+--- inert at the limit. Called on every repaint, because `fillCard` rewrites
+--- the Cash button beside it and the two must stay in step.
 function GadgetShopController.paintRobuxBox(button: TextButton?, full: boolean)
 	if not button then
 		return
 	end
 	button:SetAttribute("Full", full)
-	button.BackgroundColor3 = if full then ROBUX_FULL else ROBUX_BLUE
-	local shade = button:FindFirstChildOfClass("UIGradient")
-	if shade then
-		shade.Color = if full
-			then ColorSequence.new(ROBUX_FULL, ROBUX_FULL)
-			else ColorSequence.new(ROBUX_BLUE, ROBUX_BLUE_DARK)
+	local price = tonumber(button:GetAttribute("RobuxPrice")) or 0
+	-- The pack keeps a button's price in its own Title label (fillCard does
+	-- the same for the Cash side), and ships a Robux icon beside it already.
+	local text = button:FindFirstChild("Title", true) or button:FindFirstChild("Price", true)
+	local words = if full then "FULL" else `R$ {price}`
+	if text and text:IsA("TextLabel") then
+		text.Text = words
+	else
+		button.Text = words
 	end
-	local caption = button:FindFirstChild("Caption")
-	if caption and caption:IsA("TextLabel") then
-		caption.Text = if full then "FULL" else "REFILL"
+
+	-- Recolour every layer the pack authored, the way HUDLayoutController
+	-- tints a rail tile: the plate, the inner face's gradient and its ring.
+	button.BackgroundColor3 = if full then ROBUX_FULL_DARK else ROBUX_BLUE_DARK
+	local face = button:FindFirstChild("Frame")
+	if face and face:IsA("GuiObject") then
+		local shade = face:FindFirstChildOfClass("UIGradient")
+		if shade then
+			shade.Color = if full
+				then ColorSequence.new(ROBUX_FULL, ROBUX_FULL_DARK)
+				else ColorSequence.new(ROBUX_BLUE, ROBUX_BLUE_DARK)
+		end
+		local ring = face:FindFirstChildOfClass("UIStroke")
+		if ring then
+			ring.Color = if full then ROBUX_FULL else ROBUX_BLUE_LIGHT
+		end
 	end
 end
 

@@ -145,6 +145,19 @@ end
 --- Paints `icon` as the thumbnail for an item. With an `itemId` whose art is
 --- published, the real model on a dark plate; otherwise the rarity swatch.
 --- Idempotent: safe to call on a card that has already been painted.
+--- The PLATE ONLY: the card's colour and edge, with no viewport and no model.
+--- A grid of ninety-six cards cannot afford ninety-six ViewportFrames at once
+--- (each is its own render pass, and each holds a cloned model), so the Index
+--- draws the plates immediately with this and calls `apply` / `applyUnknown`
+--- on a card the first time it actually scrolls into view.
+function ItemThumb.applyPlate(icon: ImageLabel, rarity: string?, known: boolean)
+	plate(icon, if known then PLATE_KNOWN else PLATE_UNKNOWN)
+	local edge = icon:FindFirstChildOfClass("UIStroke")
+	if edge then
+		edge.Color = if known then (RarityConfig.Colors[rarity or "Common"] or DEFAULT) else EDGE
+	end
+end
+
 function ItemThumb.apply(icon: ImageLabel, rarity: string?, itemId: string?): Model?
 	local color = RarityConfig.Colors[rarity or "Common"] or DEFAULT
 	local model = if itemId then place(icon, itemId, false) else nil

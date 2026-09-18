@@ -256,10 +256,12 @@ export type ProductDef = {
 -- prompted or granted. The owner creates four Developer Products on the
 -- Creator Dashboard and pastes the ids in.
 MonetizationConfig.GadgetProducts = {
-	{ key = "GadgetSmoke", productId = 0, robux = 15, kind = "Gadget", amount = 0, label = "Smoke Bombs", gadgetKey = "Smoke" },
-	{ key = "GadgetJammer", productId = 0, robux = 25, kind = "Gadget", amount = 0, label = "Laser Jammers", gadgetKey = "Jammer" },
-	{ key = "GadgetGrapple", productId = 0, robux = 19, kind = "Gadget", amount = 0, label = "Grappling Hooks", gadgetKey = "Grapple" },
-	{ key = "GadgetBundle", productId = 0, robux = 45, kind = "Gadget", amount = 0, label = "Full Kit", gadgetKey = "All" },
+	{ key = "GadgetSmoke", productId = 3713463756, robux = 29, kind = "Gadget", amount = 0, label = "Smoke Bombs", gadgetKey = "Smoke" },
+	{ key = "GadgetJammer", productId = 3713463787, robux = 49, kind = "Gadget", amount = 0, label = "Laser Jammers", gadgetKey = "Jammer" },
+	{ key = "GadgetGrapple", productId = 3713463805, robux = 19, kind = "Gadget", amount = 0, label = "Grappling Hooks", gadgetKey = "Grapple" },
+	--- Not created yet: at id 0 the bundle reads as unconfigured, so no
+	--- button is built for it and nothing can be prompted or granted.
+	{ key = "GadgetBundle", productId = 0, robux = 89, kind = "Gadget", amount = 0, label = "Full Kit", gadgetKey = "All" },
 } :: { ProductDef }
 
 --- The refill product for one gadget key, or nil when there is none.
