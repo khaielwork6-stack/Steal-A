@@ -25,9 +25,9 @@
 	max(floor, minutes of the buyer's income) - MonetizationConfig CASH PACKS -
 	so the printed "8M" is only true early on. The server sends the exact
 	figure it would grant right now (StatePush `shop.cashPacks`), and every
-	Cash card carries a ribbon with it: "YOU GET $4.1B". Pack cards without
-	art put it in their title instead. The figure is the server's; nothing
-	here computes an amount.
+	Cash card carries a ribbon with it, showing that figure and nothing else:
+	"$4.1B". Pack cards without art put it in their title instead. The figure
+	is the server's; nothing here computes an amount.
 ]]
 
 local Players = game:GetService("Players")
@@ -178,7 +178,12 @@ local function paintCashAmounts(shop: any)
 		shownAmount[product.key] = amount
 		local ribbon = ribbonByKey[product.key]
 		if ribbon then
-			ribbon.Text = `YOU GET {NumberFormat.cash(amount)}`
+			-- The figure ALONE. It used to read "YOU GET $4.1B" on a card whose
+			-- art already says what the pack is, so the words were three-quarters
+			-- of the ribbon and none of the information. The number is what the
+			-- player is reading for, and on a painted card it is the only place
+			-- the live amount appears at all - the printed figure goes stale.
+			ribbon.Text = NumberFormat.cash(amount)
 			ribbon.Visible = true
 		end
 		local card = packCardByKey[product.key]

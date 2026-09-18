@@ -31,6 +31,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local ShopKit = {}
@@ -213,9 +214,17 @@ function ShopKit.fillCard(card: Frame, options: CardOptions)
 		if gradient then
 			gradient.Color = ColorSequence.new(options.color, options.accent or options.color)
 		end
-		local stroke = card:FindFirstChildOfClass("UIStroke") or body:FindFirstChildOfClass("UIStroke")
-		if stroke then
-			stroke.Color = options.accent or options.color
+		-- Tint EVERY stroke on the card, not the first one found. The pack puts
+		-- one on the outer plate and another on the inset body; recolouring only
+		-- one left the other showing the pack's magenta through a green or blue
+		-- card. PanelStyle.singleBorder then switches the inner one off, so the
+		-- card ends up with a single edge in the colour asked for.
+		for _, holder in { card, body } do
+			for _, child in holder:GetChildren() do
+				if child:IsA("UIStroke") then
+					child.Color = options.accent or options.color
+				end
+			end
 		end
 		-- The card's OUTER frame is a solid plate the inner body is inset into, so
 		-- it reads as the card's border. The pack ships it magenta; left alone, a
@@ -263,6 +272,10 @@ function ShopKit.fillCard(card: Frame, options: CardOptions)
 			end
 		end
 	end
+
+	-- One edge per element: the plate keeps its border, the inset body loses the
+	-- thin second line the pack draws just inside it.
+	PanelStyle.singleBorder(card)
 end
 
 --- The card's purchase button, already claimed from the pack and wired.

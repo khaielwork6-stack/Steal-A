@@ -282,6 +282,20 @@ MapConfig.HUB = {
 	-- eighteen studs and of the gift chest (X = -119) by fifteen, which the
 	-- ring's nine-stud radius needs at both ends.
 	guardianShopB = CFrame.lookAt(Vector3.new(-104, 0, -24), Vector3.new(0, 0, -34)),
+	-- The GADGETS stall, BACK TO THE SHOULDER WALL AND FRONT TO THE BASES.
+	--
+	-- It used to have no home at all: with no marker the service fell through to
+	-- its candidate list and stood the stall out on open grass, turned to face
+	-- the spawn pad, so a player walking out to their base passed behind it and
+	-- never saw the counter.
+	--
+	-- The wall (Zone01_Museum.Entrance) is 160 wide and 6 thick at Z = 0, so its
+	-- lobby face is Z = -3; the stall is 9 deep, which puts its centre at
+	-- Z = -7.5 with its back flat against that face. X = -40 is on the wall's
+	-- solid run, clear of the 24-wide spawn plaza at X = 0 and well clear of the
+	-- gift chest (-119) and trail booth (-146) in that wing. It looks down -Z at
+	-- the five bases, which all sit around Z = -100.
+	gadgetStore = CFrame.lookAt(Vector3.new(-40, 0, -7.5), Vector3.new(-40, 0, -100)),
 }
 MapConfig.PLAZA_BACK_Z = MapConfig.PLAZA_FRONT_Z - MapConfig.BASE_AREA_DEPTH
 

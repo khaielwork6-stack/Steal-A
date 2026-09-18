@@ -17,6 +17,115 @@ function PanelStyle.gradient(object: GuiObject, top: Color3, bottom: Color3)
 	g.Parent = object
 end
 
+-- ==========================================================
+-- ONE BORDER PER ELEMENT
+-- ==========================================================
+--
+-- THE BUG THIS EXISTS FOR. Every pack component is a solid outer plate with an
+-- inset body inside it, and the pack puts a UIStroke on BOTH: a dark one on the
+-- plate and a coloured one on the body. They draw a couple of pixels apart, so
+-- each card, nav button and header reads as two borders - a thick dark edge with
+-- a thin line hugging it. Worse, `ShopKit.fillCard` only ever re-tinted the
+-- first stroke it found, so a recoloured card kept the pack's magenta on the
+-- other one: a green CLAIMED quest row ringed in purple.
+--
+-- THE RULE. A border is a duplicate only when its object is an inset body that
+-- FILLS a parent which is itself bordered - which is exactly the plate/body
+-- pair and nothing else. The inner one is switched off; the plate keeps its
+-- edge, in the colour our code sets.
+--
+-- WHY "FILLS", AND NOT "HAS A BORDERED ANCESTOR". The first cut of this walked
+-- the whole ancestor chain, and a dry run over the live UI showed it switching
+-- off 365 borders and keeping 39: because a panel frame carries an edge of its
+-- own, EVERY card inside it counted as enclosed and lost its outline too. Two
+-- borders only read as one doubled line when they are drawn a couple of pixels
+-- apart, and that only happens when the inner rectangle is the outer one. The
+-- same dry run with this rule disables 81 and keeps 323 - the inset bodies go,
+-- every card plate, panel edge, buy button and badge stays.
+--
+-- A TextLabel's UIStroke is its legibility outline, not a border, so text is
+-- skipped on both sides of the test - it neither loses its outline nor counts as
+-- the owner of one.
+
+local BORDER_HANDLED = "_SingleBorder"
+
+local function isText(object: Instance): boolean
+	return object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")
+end
+
+local function borderOf(object: Instance): UIStroke?
+	if not object:IsA("GuiObject") or isText(object) then
+		return nil
+	end
+	for _, child in object:GetChildren() do
+		if child:IsA("UIStroke") then
+			return child
+		end
+	end
+	return nil
+end
+
+--- True when `object` covers essentially the whole of `parent`, so a border on
+--- each would draw as one doubled line. AbsoluteSize is authoritative, but it
+--- is zero until the frame has been laid out, so the declared scale carries the
+--- test on the first pass.
+local function fills(object: GuiObject, parent: GuiObject): boolean
+	local size = object.Size
+	if size.X.Scale < 0.85 or size.Y.Scale < 0.85 then
+		return false
+	end
+	local outer = parent.AbsoluteSize
+	if outer.X < 1 or outer.Y < 1 then
+		return true
+	end
+	local inner = object.AbsoluteSize
+	return inner.X / outer.X >= 0.82 and inner.Y / outer.Y >= 0.82
+end
+
+--- Switches off the inner border of every plate/body pair under `root`.
+function PanelStyle.singleBorder(root: Instance)
+	local function apply(object: Instance)
+		local stroke = borderOf(object)
+		if not stroke or stroke:GetAttribute(BORDER_HANDLED) then
+			return
+		end
+		stroke:SetAttribute(BORDER_HANDLED, true)
+		local parent = object.Parent
+		if parent and parent:IsA("GuiObject") and borderOf(parent) and fills(object :: GuiObject, parent) then
+			stroke.Enabled = false
+		end
+	end
+	apply(root)
+	for _, descendant in root:GetDescendants() do
+		apply(descendant)
+	end
+end
+
+--- singleBorder now, and again for anything built later (rows are rebuilt, and
+--- ShopKit clones a fresh card per product).
+---
+--- Two shapes of arrival, and only the second is obvious: a whole card is
+--- parented in at once (judge it and its subtree), or a UIStroke is added to a
+--- frame that was already there (judge that frame ALONE - walking its subtree
+--- on every stroke added would re-scan a whole grid per row).
+function PanelStyle.watchBorders(root: Instance): RBXScriptConnection
+	PanelStyle.singleBorder(root)
+	return root.DescendantAdded:Connect(function(descendant)
+		-- Deferred: a builder parents the frame first and sets its size and
+		-- stroke after, so an immediate pass would judge an unfinished element.
+		task.defer(function()
+			if not descendant.Parent then
+				return
+			end
+			if descendant:IsA("UIStroke") then
+				PanelStyle.singleBorder(descendant.Parent)
+			else
+				PanelStyle.singleBorder(descendant)
+			end
+		end)
+	end)
+end
+
 function PanelStyle.window(frame: Frame, width: number, height: number)
 	frame.BackgroundColor3 = Color3.new(1, 1, 1)
 	frame.BackgroundTransparency = 0

@@ -24,14 +24,14 @@
 	  LeaderboardMoney  the Money board (turned to face the Spawn marker)
 	  LeaderboardSpeed  the Speed board
 	  GuardianShop      the rotating Guardian pedestal (its front is +Z local)
+	  GadgetStore       the GADGETS stand (GadgetStoreService): the stall's front
+	                    - the counter and its "Shop" prompt - faces the marker's
+	                    LookVector; Y is ignored (the floor). Stamped against the
+	                    shoulder wall looking at the bases; drag it and it stays.
 
 	OPTIONAL OVERRIDES (never stamped: without one the service finds its own
 	free spot, so these are only created by the owner, by hand):
 	  Leaderboard<Key>  a new leaderboard (BoardConfig; e.g. LeaderboardSteals)
-	  GadgetStore       the GADGETS stand (round3-gameplay, GadgetStoreService):
-	                    the stall's front - the counter and its "Shop" prompt -
-	                    faces the marker's LookVector; Y is ignored (the floor).
-	                    Any anchored part named GadgetStore under this folder.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -62,6 +62,8 @@ local function defaults(): { [string]: CFrame }
 		LeaderboardMoney = facingSpawn(hub.leaderboards.Money),
 		LeaderboardSpeed = facingSpawn(hub.leaderboards.Speed),
 		GuardianShop = hub.guardianShop,
+		-- Back to the shoulder wall, front to the bases (MapConfig.HUB).
+		GadgetStore = hub.gadgetStore,
 	}
 end
 

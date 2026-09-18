@@ -34,6 +34,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local HUDLayoutController = {}
@@ -854,6 +855,14 @@ function HUDLayoutController.start()
 
 	buildStatCard(ui)
 	lockVerticalScroll(ui)
+
+	-- ONE BORDER PER ELEMENT, for the whole of MainUI and everything built into
+	-- it later. The pack draws a border on an outer plate AND on the inset body
+	-- inside it, so every card, nav button and header shipped with a thin second
+	-- line hugging its edge. See PanelStyle.singleBorder. This runs here because
+	-- the layout pass is already the one gated place that owns MainUI before any
+	-- panel clones a component out of it.
+	PanelStyle.watchBorders(ui)
 
 	-- Once per session: applyTouchLayout wires its own refit listeners, so it
 	-- must not be run twice. A session that BECOMES touch (the Studio emulator

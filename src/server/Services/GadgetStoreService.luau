@@ -16,14 +16,16 @@
 	GadgetService. Nothing here touches Cash or the profile.
 
 	WHERE IT STANDS
-	  1. Workspace.LobbyMarkers.<GadgetConfig.STORE_MARKER> ("GadgetStore") if
-	     the owner has placed one: its position and facing win (the front of
-	     the stall is the marker's LookVector).
-	  2. Otherwise the first of CANDIDATES whose footprint (plus the customer
-	     space in front) is clear of every visible or colliding part already
-	     standing - the trail booth, gift chest, Slap cage, Guardian pedestals,
-	     event stand and every leaderboard are all built before this runs.
-	     Candidates face the spawn circle.
+	  1. Workspace.LobbyMarkers.<GadgetConfig.STORE_MARKER> ("GadgetStore"):
+	     its position and facing win (the front of the stall is the marker's
+	     LookVector). LobbyLayout stamps this marker from MapConfig.HUB
+	     .gadgetStore - back to the shoulder wall, front to the bases - and
+	     never moves one that already exists, so dragging it in Studio sticks.
+	  2. Only if that marker has been DELETED: the first of CANDIDATES whose
+	     footprint (plus the customer space in front) is clear of every visible
+	     or colliding part already standing - the trail booth, gift chest, Slap
+	     cage, Guardian pedestals, event stand and every leaderboard are all
+	     built before this runs. Candidates hug the same wall and face the bases.
 	  3. None free: nothing is built, and a warning names the marker to add.
 
 	MOTION is client-side (GadgetStoreController spins the displays, still
@@ -36,7 +38,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AttractionSign = require(ReplicatedStorage.Shared.Util.AttractionSign)
 local GadgetConfig = require(ReplicatedStorage.Shared.Config.GadgetConfig)
 local LobbyLayout = require(ReplicatedStorage.Shared.LobbyLayout)
-local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 
 local GadgetService = require(script.Parent.GadgetService)
 
@@ -68,16 +69,21 @@ local AWNING_LIGHT = Color3.fromRGB(236, 244, 252)
 local STEEL = Color3.fromRGB(120, 128, 150)
 local GOLD = Color3.fromRGB(255, 208, 70)
 
---- Fallback spots on the apron (Y = floor), clear of the walkway from the
---- spawn circle to the lane mouth and of the treadmill row (Z <= -51):
---- the +X wing between the Guardian pedestal (104, -24) and the Speed board
---- (178, -12) first, then its mirror, then nearer the centre.
+--- Fallback spots, ALL WITH THEIR BACK TO THE SHOULDER WALL (Z = 0, lobby face
+--- Z = -3) so the stall never ends up marooned on open grass. The stall is 9
+--- deep, so a centre of Z = -7.5 sits flat against that face. Ordered outward
+--- from the stamped spot: the -X wing first, clear of the 24-wide spawn plaza
+--- at X = 0, then its mirror in +X.
+---
+--- These only run if the owner has deleted the stamped GadgetStore marker;
+--- they face the bases, exactly as the marker does.
+local WALL_Z = -7.5
 local CANDIDATES: { Vector3 } = {
-	Vector3.new(150, 0, -38),
-	Vector3.new(-150, 0, -40),
-	Vector3.new(150, 0, -28),
-	Vector3.new(-62, 0, -44),
-	Vector3.new(62, 0, -44),
+	Vector3.new(-40, 0, WALL_Z),
+	Vector3.new(-56, 0, WALL_Z),
+	Vector3.new(40, 0, WALL_Z),
+	Vector3.new(56, 0, WALL_Z),
+	Vector3.new(-72, 0, WALL_Z),
 }
 
 local model: Model? = nil
@@ -101,15 +107,20 @@ local function part(name: string, size: Vector3, cf: CFrame, color: Color3, mate
 	return p
 end
 
---- A floor-level CFrame at `position` whose LookVector points at the spawn.
-local function facingSpawn(position: Vector3): CFrame
-	local spawn = LobbyLayout.position("Spawn", MapConfig.HUB.spawn)
-	local flat = Vector3.new(spawn.X, 0, spawn.Z)
+--- The five bases all sit around Z = -100, out past the spawn pad, so "toward
+--- the bases" is simply -Z from anywhere along the shoulder wall.
+local BASES_Z = -100
+
+--- A floor-level CFrame at `position` whose LookVector points at the bases.
+--- It used to point at the SPAWN pad, which left the counter turned across the
+--- walk from the lobby to the bases instead of out along it.
+local function facingBases(position: Vector3): CFrame
 	local at = Vector3.new(position.X, 0, position.Z)
-	if (flat - at).Magnitude < 0.5 then
+	local toward = Vector3.new(position.X, 0, BASES_Z)
+	if (toward - at).Magnitude < 0.5 then
 		return CFrame.new(at)
 	end
-	return CFrame.lookAt(at, flat)
+	return CFrame.lookAt(at, toward)
 end
 
 --- True when nothing visible or colliding (other than the floor and the
@@ -162,7 +173,7 @@ local function chooseFrame(): (CFrame?, string)
 		return CFrame.lookAt(at, at + look.Unit), "marker"
 	end
 	for index, position in CANDIDATES do
-		local frame = facingSpawn(position)
+		local frame = facingBases(position)
 		if GadgetStoreService.spotIsFree(frame) then
 			return frame, `candidate {index}`
 		end

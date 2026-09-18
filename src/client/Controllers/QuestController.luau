@@ -575,12 +575,26 @@ local function paintQuest(period: string, row: any)
 			color, accent = WEEKLY_COLOR, WEEKLY_ACCENT
 		end
 	end
-	local reward = `{NumberFormat.cash(row.cash)}`
+	-- ONE FIGURE PER LINE, LABELLED.
+	--
+	-- This block used to read "$2K / $2K" and then
+	-- "$141K  ·  +500K Speed  ·  +100 XP" underneath. Because
+	-- QuestConfig.rewardFor has a floor on BOTH cash and speed, every row showed
+	-- all of it: four unlabelled figures separated by middots, with nothing
+	-- saying which was progress and which was the prize. It also did not fit -
+	-- measured against the real card, the reward ran to 237px of a 237px box and
+	-- wrapped, orphaning the word "Speed" onto a line of its own.
+	--
+	-- Each figure now gets its own line and the reward lines say what they are.
+	-- Checked against the rendered card across the whole reward scale (from the
+	-- "$846K / 250 Speed" floor up to "$999.9T / 1.5B Speed"): every line fits
+	-- its width, so none of them wrap.
+	--
+	-- XP is gone. It is not a prize this quest pays - it is progress on the
+	-- season track, which has its own labelled bar at the top of this panel.
+	local reward = `Reward: {NumberFormat.cash(row.cash)}`
 	if (row.speed or 0) > 0 then
-		reward ..= `  ·  +{NumberFormat.short(row.speed)} Speed`
-	end
-	if (row.xp or 0) > 0 and latest and latest.season then
-		reward ..= `  ·  +{row.xp} XP`
+		reward ..= `\n+ {NumberFormat.short(row.speed)} Speed`
 	end
 	ShopKit.fillCard(card, {
 		title = row.text,
