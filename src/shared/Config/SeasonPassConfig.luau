@@ -51,6 +51,10 @@ SeasonPassConfig.BANNER_IMAGE = "rbxassetid://129767194657030"
 --- The premium badge / lock icon. 0 = a text badge is drawn.
 SeasonPassConfig.PREMIUM_BADGE_IMAGE = "rbxassetid://116117219554176"
 SeasonPassConfig.LOCK_IMAGE = "rbxassetid://122764576805899"
+--- [quests-season-split] The round HUD opener's icon, in the top strip
+--- beside Daily. "rbxassetid://0" = no art yet, and a star mark is drawn in
+--- the pack's font instead.
+SeasonPassConfig.HUD_ICON = "rbxassetid://0"
 
 SeasonPassConfig.STEAL_XP = 10
 SeasonPassConfig.DAILY_STEAL_XP_CAP = 200

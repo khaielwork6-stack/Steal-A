@@ -1,9 +1,9 @@
 --!strict
 --[[
 	QuestController
-	The Quests panel (retention pass): daily/weekly quests on one tab, the
-	season pass track on the other, and the HUD "Quests" button with a red dot
-	while anything is claimable.
+	TWO panels (retention pass; split 2026-09-18): Frames.Quests holds the
+	daily/weekly quests, Frames.SeasonPass holds the season track, and each
+	has its own HUD opener. The Quests button keeps its red dot.
 
 	THIS FILE ONLY DRAWS. Progress, rewards, completion and ownership all come
 	from the server (QuestPush for the panel, StatePush `retention` for the
@@ -51,6 +51,9 @@ local QuestController = {}
 local player = Players.LocalPlayer
 
 local PANEL_NAME = "Quests"
+--- [quests-season-split] The season track is its own window now. The pack
+--- pairs a button with the Frame of the same name, so this string is both.
+local SEASON_PANEL_NAME = "SeasonPass"
 local NO_ART = "rbxassetid://0"
 local MIN_TOUCH = 48
 
@@ -77,13 +80,13 @@ local questsPage: Frame? = nil
 local passPage: Frame? = nil
 local questList: ScrollingFrame? = nil
 local track: ScrollingFrame? = nil
-local tabButtons: { [string]: TextButton } = {}
 local dot: Frame? = nil
 local dotLabel: TextLabel? = nil
 local opener: GuiButton? = nil
+local seasonPanel: Frame? = nil
+local seasonOpener: GuiButton? = nil
 
 local latest: any = nil
-local selectedTab = "quests"
 
 -- Quest rows, keyed "daily:1" etc.
 type QuestRow = { card: Frame, fill: Frame, signature: string }
@@ -221,14 +224,16 @@ end
 
 --- Clones Frames.Index and removes its content, keeping the header bar (with
 --- its close button), UI modifiers and pure decoration images.
-local function clonePanel(frames: Instance): Frame?
+--- One empty panel shell, titled, from the pack's Index frame. Called TWICE
+--- now: Quests and Season Pass are separate windows.
+local function clonePanel(frames: Instance, name: string, title: string): Frame?
 	local source = frames:FindFirstChild("Index")
 	if not source or not source:IsA("Frame") then
-		warn("[QuestController] Frames.Index not found - the Quests panel is disabled.")
+		warn(`[QuestController] Frames.Index not found - {name} is disabled.`)
 		return nil
 	end
 	local frame = source:Clone()
-	frame.Name = PANEL_NAME
+	frame.Name = name
 	frame.Visible = false
 	for _, child in frame:GetChildren() do
 		if child.Name == "Top" or child:IsA("UIComponent") then
@@ -240,127 +245,23 @@ local function clonePanel(frames: Instance): Frame?
 		end
 	end
 	local top = frame:FindFirstChild("Top")
-	local title = top and top:FindFirstChild("Title", true)
-	if title and title:IsA("TextLabel") then
-		title.Text = "Quests"
+	local heading = top and top:FindFirstChild("Title", true)
+	if heading and heading:IsA("TextLabel") then
+		heading.Text = title
 	end
 	return frame
 end
 
-local function selectTab(name: string)
-	selectedTab = name
-	if questsPage then
-		questsPage.Visible = name == "quests"
-	end
-	if passPage then
-		passPage.Visible = name == "pass"
-	end
-	for key, button in tabButtons do
-		local on = key == name
-		button.BackgroundTransparency = if on then 0 else 0.45
-		local s = button:FindFirstChildOfClass("UIStroke")
-		if s then
-			s.Color = if on then WHITE else Color3.fromRGB(24, 26, 34)
-		end
-	end
-end
-
-local function buildTabs(frame: Frame)
-	local strip = Instance.new("Frame")
-	strip.Name = "QuestTabs"
-	strip.BackgroundTransparency = 1
-	strip.AnchorPoint = Vector2.new(0.5, 0.5)
-	strip.Position = UDim2.fromScale(0.5, 0.2)
-	strip.Size = UDim2.fromScale(0.7, 0.085)
-	strip.Parent = frame
-	minHeight(strip)
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.VerticalAlignment = Enum.VerticalAlignment.Center
-	layout.Padding = UDim.new(0.03, 0)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = strip
-
-	-- Cloned from the pack's Index button, exactly as IndexController's zone
-	-- tabs are, so they carry the pack's plate and font.
-	local buttons = ui and ui:FindFirstChild("Buttons")
-	local left = buttons and buttons:FindFirstChild("Left")
-	local source = left and left:FindFirstChild("Index")
-
-	for order, spec in { { key = "quests", text = "QUESTS" }, { key = "pass", text = "SEASON PASS" } } do
-		local tab: TextButton
-		if source and source:IsA("TextButton") then
-			tab = source:Clone()
-			tab.Text = ""
-			tab.AutoButtonColor = false
-			local aspect = tab:FindFirstChildOfClass("UIAspectRatioConstraint")
-			if aspect then
-				aspect:Destroy()
-			end
-			local body = tab:FindFirstChild("Frame")
-			if body then
-				body:Destroy()
-			end
-			for _, extra in tab:GetChildren() do
-				if extra.Name == "_RippleContainer" or extra.Name == "Badge" or extra.Name == "IndexBadge" then
-					extra:Destroy()
-				end
-			end
-			local title = tab:FindFirstChild("Title")
-			if not title or not title:IsA("TextLabel") then
-				title = label("Title", tab, UDim2.fromScale(0.9, 0.7), UDim2.fromScale(0.5, 0.5))
-			end
-			local t = title :: TextLabel
-			t.AnchorPoint = Vector2.new(0.5, 0.5)
-			t.Position = UDim2.fromScale(0.5, 0.5)
-			t.Size = UDim2.fromScale(0.9, 0.7)
-			t.TextScaled = true
-			t.Text = spec.text
-			UIAnim.claimButton(tab)
-		else
-			tab = makeButton("Tab", strip, spec.text, BUTTON_COLOR, BUTTON_ACCENT)
-		end
-		tab.Name = `QuestTab_{spec.key}`
-		tab.LayoutOrder = order
-		tab.Position = UDim2.fromScale(0, 0)
-		tab.AnchorPoint = Vector2.new(0, 0)
-		tab.Size = UDim2.fromScale(0.46, 1)
-		tab.BackgroundColor3 = if spec.key == "pass" then PREMIUM_COLOR else DAILY_COLOR
-		tab.Parent = strip
-		tab.Activated:Connect(function()
-			selectTab(spec.key)
-			if spec.key == "pass" then
-				task.defer(function()
-					-- Jump to the first reward worth looking at.
-					local s = latest and latest.season
-					local focus = if s then math.clamp((s.tier or 0) + 1, 1, SeasonPassConfig.TIER_COUNT) else 1
-					if s then
-						for tier = 1, math.min(s.tier or 0, SeasonPassConfig.TIER_COUNT) do
-							if not (s.claimedFree and s.claimedFree[tier]) then
-								focus = tier
-								break
-							end
-						end
-					end
-					local column = columns[focus]
-					if track and column then
-						track.CanvasPosition = Vector2.new(math.max(0, column.frame.AbsolutePosition.X - track.AbsolutePosition.X + track.CanvasPosition.X - 20), 0)
-					end
-				end)
-			end
-		end)
-		tabButtons[spec.key] = tab
-	end
-end
 
 local function makePage(frame: Frame, name: string): Frame
 	local page = Instance.new("Frame")
 	page.Name = name
 	page.BackgroundTransparency = 1
 	page.AnchorPoint = Vector2.new(0.5, 0)
-	page.Position = UDim2.fromScale(0.5, 0.26)
-	page.Size = UDim2.fromScale(0.94, 0.71)
+	-- Starts right under the header: the 0.26 it used to start at was room
+	-- for the tab strip, and there are no tabs any more.
+	page.Position = UDim2.fromScale(0.5, 0.14)
+	page.Size = UDim2.fromScale(0.94, 0.83)
 	page.ZIndex = 5
 	page.Parent = frame
 	return page
@@ -732,7 +633,6 @@ end
 
 local function buildPassPage(frame: Frame)
 	local page = makePage(frame, "PassPage")
-	page.Visible = false
 	passPage = page
 
 	-- BANNER: art when Codex has made it, else the pack-style gradient plate.
@@ -928,13 +828,17 @@ end
 
 local function renderSeason()
 	local s = latest and latest.season
-	local tab = tabButtons.pass
-	if tab then
-		tab.Visible = s ~= nil
+	-- No season running: the opener and its window go away entirely rather
+	-- than offering an empty track.
+	if seasonOpener then
+		local holder = seasonOpener.Parent
+		if holder and holder:IsA("GuiObject") then
+			holder.Visible = s ~= nil
+		end
 	end
 	if not s then
-		if selectedTab == "pass" then
-			selectTab("quests")
+		if seasonPanel then
+			seasonPanel.Visible = false
 		end
 		return
 	end
@@ -1184,6 +1088,98 @@ local function applyPanelScale()
 	fitColumns()
 end
 
+
+--- [quests-season-split] The Season Pass opener: a small round button in the
+--- top strip beside Daily, NAMED "SeasonPass" so the pack pairs it with
+--- Frames.SeasonPass and opens it with the same slide and blur as every
+--- other panel. Deliberately the Daily button's shape rather than the wide
+--- QUESTS plate: it is a second entry point, not a second headline.
+local SEASON_FACE = 44
+
+local function buildSeasonOpener(screen: ScreenGui)
+	if screen:FindFirstChild("SeasonPassButton", true) then
+		return
+	end
+	local top = screen:FindFirstChild("Top")
+
+	local holder = Instance.new("Frame")
+	holder.Name = "SeasonPassButton"
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.new(0, 56, 1, 0)
+	-- Just left of Daily (-1), which is itself left of the gear (0).
+	holder.LayoutOrder = -2
+	holder.ZIndex = 5
+	if top and top:IsA("GuiObject") then
+		holder.Parent = top
+	else
+		holder.AnchorPoint = Vector2.new(1, 0)
+		holder.Position = UDim2.new(1, -300, 0, 12)
+		holder.Parent = screen
+	end
+
+	local button = Instance.new("ImageButton")
+	button.Name = SEASON_PANEL_NAME
+	button.Size = UDim2.fromOffset(SEASON_FACE, SEASON_FACE)
+	button.Position = UDim2.fromScale(0.5, 0.5)
+	button.AnchorPoint = Vector2.new(0.5, 0.5)
+	button.BackgroundTransparency = 1
+	button.AutoButtonColor = false
+	button.Image = ""
+	button.ZIndex = 6
+
+	local face = Instance.new("Frame")
+	face.Name = "Face"
+	face.Size = UDim2.fromOffset(SEASON_FACE, SEASON_FACE)
+	face.Position = UDim2.fromScale(0.5, 0.5)
+	face.AnchorPoint = Vector2.new(0.5, 0.5)
+	face.BackgroundColor3 = WHITE
+	face.Active = false
+	face.ZIndex = 6
+	face.Parent = button
+	corner(face, 1)
+	gradient(face, PREMIUM_COLOR, PREMIUM_DARK)
+	stroke(face, Color3.fromRGB(24, 10, 40), 2.5)
+
+	local art = SeasonPassConfig.HUD_ICON
+	if art and art ~= NO_ART then
+		local icon = Instance.new("ImageLabel")
+		icon.Name = "Icon"
+		icon.BackgroundTransparency = 1
+		icon.Image = art
+		icon.Size = UDim2.fromScale(0.74, 0.74)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.ZIndex = 7
+		icon.Parent = face
+	else
+		-- No art yet: a crown-ish star mark, in the pack's font.
+		local mark = label("Mark", face, UDim2.fromScale(0.7, 0.7), UDim2.fromScale(0.5, 0.46), "★")
+		mark.ZIndex = 7
+	end
+
+	local caption = label("Caption", button, UDim2.new(1.5, 0, 0, 14), UDim2.new(0.5, 0, 1, -4), "Season")
+	caption.AnchorPoint = Vector2.new(0.5, 0)
+	caption.ZIndex = 8
+
+	-- >= 44 px on screen after MainUI's UIScale, like the gear and Daily.
+	local uiScale = screen:FindFirstChildWhichIsA("UIScale")
+	local function sizeHitArea()
+		local scale = if uiScale then math.max(uiScale.Scale, 0.1) else 1
+		local side = math.max(SEASON_FACE, math.ceil(SEASON_FACE / scale))
+		button.Size = UDim2.fromOffset(side, side)
+		holder.Size = UDim2.new(0, math.max(56, side + 4), 1, 0)
+	end
+	sizeHitArea()
+	if uiScale then
+		uiScale:GetPropertyChangedSignal("Scale"):Connect(sizeHitArea)
+	end
+
+	-- Parented LAST: the pack pairs a button with its frame when it first
+	-- sees the button, and Frames.SeasonPass must already exist.
+	button.Parent = holder
+	seasonOpener = button
+	ensureOpenerWorks(button)
+end
 -- ==========================================================
 -- START
 -- ==========================================================
@@ -1215,27 +1211,38 @@ function QuestController.start()
 	-- Lift the card templates before anything clears the Shop.
 	ShopKit.warm()
 
-	local frame = clonePanel(frames)
+	local frame = clonePanel(frames, PANEL_NAME, "Quests")
 	if not frame then
 		return
 	end
 	panel = frame
-	buildTabs(frame)
 	buildQuestsPage(frame)
-	buildPassPage(frame)
-	selectTab("quests")
-	if not QuestConfig.ENABLED then
-		local tab = tabButtons.quests
-		if tab then
-			tab.Visible = false
-		end
-		selectTab("pass")
-	end
 	-- Panel FIRST: the pack pairs a button with the frame of the same name
 	-- when the button is registered.
 	frame.Parent = frames
 	PanelStyle.window(frame, 960, 610)
 	buildOpener(screen)
+
+	-- [quests-season-split] THE SECOND WINDOW. The season track was a tab
+	-- inside this panel; it is its own panel now, with its own opener in the
+	-- top strip beside Daily, and the tab strip is gone. Built only when a
+	-- season can run at all.
+	if SeasonPassConfig.ENABLED then
+		local seasonFrame = clonePanel(frames, SEASON_PANEL_NAME, "Season Pass")
+		if seasonFrame then
+			seasonPanel = seasonFrame
+			buildPassPage(seasonFrame)
+			seasonFrame.Parent = frames
+			PanelStyle.window(seasonFrame, 960, 610)
+			buildSeasonOpener(screen)
+			seasonFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+				if seasonFrame.Visible then
+					Remotes.get("QuestRequest"):FireServer("sync")
+					render()
+				end
+			end)
+		end
+	end
 
 	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyPanelScale)
 	applyPanelScale()
