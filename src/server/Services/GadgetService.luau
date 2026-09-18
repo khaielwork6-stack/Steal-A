@@ -631,6 +631,44 @@ function GadgetService.buy(player: Player, key: string): (boolean, string?)
 	return true
 end
 
+--- [gadget-robux] Fills `key` (or every gadget, for "All") to its limit. The
+--- ROBUX route, called only from a delivered receipt - it takes no Cash and
+--- checks no price. Returns false when there was nothing to give, so the
+--- receipt converts to Cash instead of being swallowed.
+function GadgetService.grantFill(player: Player, key: string): (boolean, string?)
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+	local keys: { string } = {}
+	if key == "All" then
+		for _, name in GadgetConfig.Order do
+			table.insert(keys, name)
+		end
+	elseif GadgetConfig.Gadgets[key] then
+		keys = { key }
+	else
+		return false, "Unknown gadget."
+	end
+
+	local filled = 0
+	for _, name in keys do
+		local def = GadgetConfig.Gadgets[name]
+		local count = GadgetService.count(player, name)
+		if def and count < def.maxCarried then
+			setCount(player, name, def.maxCarried)
+			filled += def.maxCarried - count
+		end
+	end
+	if filled == 0 then
+		return false, "Your gadgets are already full."
+	end
+	syncTools(player)
+	StateService.pushNow(player)
+	notify(player, "success", if key == "All" then "GADGETS REFILLED!" else `{string.upper(GadgetConfig.Gadgets[key].label)} REFILLED!`)
+	return true
+end
+
 --- Studio only: the effect of `key` on this player, without spending one,
 --- the held-tool check or the cooldowns (still fully validated otherwise).
 function GadgetService.debugApply(player: Player, key: string, target: Vector3?): (boolean, string?)

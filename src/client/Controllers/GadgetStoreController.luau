@@ -59,6 +59,8 @@ local BOB = 0.25
 
 local panel: Frame? = nil
 local cards: { [string]: Frame } = {}
+--- [gadget-robux] The Robux refill box on each card, when configured.
+local robuxBoxes: { [string]: TextButton } = {}
 local shown: { [string]: string } = {}
 local shownCount: { [string]: number } = {}
 local refitCells: (() -> ())? = nil
@@ -238,6 +240,9 @@ local function build(): boolean
 			UIAnim.punch(card, 0.14)
 			Remotes.get("GadgetRequest"):FireServer("buy", key)
 		end)
+		-- [gadget-robux] The same blue refill box the Shop panel shows, from
+		-- the same builder, so the two surfaces cannot drift apart.
+		robuxBoxes[key] = GadgetShopController.attachRobuxBox(card, key)
 		cards[key] = card
 	end
 
@@ -258,6 +263,7 @@ local function refresh()
 		shown[key] = signature
 		shownCount[key] = have
 		ShopKit.fillCard(card, options)
+		GadgetShopController.paintRobuxBox(robuxBoxes[key], have >= GadgetConfig.Gadgets[key].maxCarried)
 		if before ~= nil and have > before then
 			ShopKit.shine(card)
 			UIAnim.punch(card, 0.2)

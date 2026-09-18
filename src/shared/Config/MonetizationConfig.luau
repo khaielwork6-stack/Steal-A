@@ -231,7 +231,39 @@ export type ProductDef = {
 	--- Gift products only: the key of the Cash or Speed pack this buys FOR
 	--- another player (trading-gifting-boards pass; see GIFT PACKS).
 	giftOf: string?,
+	--- Gadget products only: the GadgetConfig key this refills, or "All" for
+	--- the bundle. See GADGET REFILLS.
+	gadgetKey: string?,
 }
+
+-- ==========================================================
+-- GADGET REFILLS
+-- ==========================================================
+--
+-- Gadgets are Cash consumables (GadgetConfig); these are the Robux route to
+-- the same stock, for a player who would rather not grind for them. Each
+-- product FILLS that gadget to its `maxCarried` rather than adding one, so
+-- there is no reason to buy the same thing three times in a row, and the
+-- bundle fills all three.
+--
+-- NOTHING HERE IS EXCLUSIVE. Every gadget is still buyable with Cash at the
+-- stand and in the Shop; this only skips the earning. A refill bought while
+-- already full is converted to Cash rather than swallowed (UNDELIVERABLE
+-- RECEIPTS), and the buttons disable themselves at the limit anyway.
+--
+-- PLACEHOLDER IDS. `productId = 0` means "not created yet":
+-- `isConfigured` is false, the buttons stay hidden and nothing can be
+-- prompted or granted. The owner creates four Developer Products on the
+-- Creator Dashboard and pastes the ids in.
+MonetizationConfig.GadgetProducts = {
+	{ key = "GadgetSmoke", productId = 0, robux = 15, kind = "Gadget", amount = 0, label = "Smoke Bombs", gadgetKey = "Smoke" },
+	{ key = "GadgetJammer", productId = 0, robux = 25, kind = "Gadget", amount = 0, label = "Laser Jammers", gadgetKey = "Jammer" },
+	{ key = "GadgetGrapple", productId = 0, robux = 19, kind = "Gadget", amount = 0, label = "Grappling Hooks", gadgetKey = "Grapple" },
+	{ key = "GadgetBundle", productId = 0, robux = 45, kind = "Gadget", amount = 0, label = "Full Kit", gadgetKey = "All" },
+} :: { ProductDef }
+
+--- The refill product for one gadget key, or nil when there is none.
+MonetizationConfig.GadgetProductByKey = {} :: { [string]: ProductDef }
 
 --- INSTANT REVEAL, priced by how long is LEFT on the container - never by the
 --- original wait. The server recomputes the remaining time at the moment of
@@ -521,10 +553,19 @@ MonetizationConfig.BOSS_OFFER_COOLDOWN = 90
 MonetizationConfig.ProductByKey = {} :: { [string]: ProductDef }
 MonetizationConfig.ProductById = {} :: { [number]: ProductDef }
 
-for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts } do
+for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts } do
 	for _, product in list do
 		MonetizationConfig.ProductByKey[product.key] = product
-		MonetizationConfig.ProductById[product.productId] = product
+		-- An unconfigured product is id 0; registering it would make id 0
+		-- resolve to a real row and let a broken prompt "succeed".
+		if product.productId > 0 then
+			MonetizationConfig.ProductById[product.productId] = product
+		end
+	end
+end
+for _, product in MonetizationConfig.GadgetProducts do
+	if product.gadgetKey then
+		MonetizationConfig.GadgetProductByKey[product.gadgetKey] = product
 	end
 end
 

@@ -299,6 +299,10 @@ local revealHandler: DeliveryHandler? = nil
 --- buyer picked (GiftService). Same contract; a gift is never undeliverable
 --- (no recipient on record = the buyer gets it), so only "retry" matters.
 local giftHandler: DeliveryHandler? = nil
+--- [gadget-robux] Fills a gadget stock: (player, gadgetKey) -> (filled, why).
+--- Injected from init like the three above, so this service never requires
+--- GadgetService.
+local gadgetHandler: ((Player, string) -> (boolean, string?))? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -725,6 +729,22 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			rememberGrant(profile, purchaseId)
 		end
 
+	elseif product.kind == "Gadget" then
+		-- [gadget-robux] Fills that gadget's stock to its limit. A direct
+		-- grant with nothing reserved, so there is no "retry" case: either
+		-- there was room and it is delivered, or they were already full and
+		-- the receipt converts to Cash rather than being swallowed.
+		if not gadgetHandler then
+			warn(`[MonetizationService] Gadget receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		local filled, why = gadgetHandler(player, product.gadgetKey or "")
+		if not filled then
+			convertedTo = MonetizationService.grantFallback(player, profile, product, purchaseId, receiptInfo, why or "gadgets already full")
+		else
+			rememberGrant(profile, purchaseId)
+		end
+
 	elseif product.kind == "Gift" then
 		-- [trading-gifting-boards] A pack bought FOR someone else. The
 		-- handler grants it to the remembered recipient (durably, through the
@@ -775,13 +795,16 @@ end
 -- looks up in its own config, so a tampered client can ask to buy "Cash200K" but
 -- cannot make the game prompt for an arbitrary product or gamepass.
 
---- A Cash or Speed Developer Product, by config key.
+--- A Cash, Speed or Gadget Developer Product, by config key.
 ---
---- ONLY Cash and Speed (rule 5). Steal, Reveal and TreadmillTier products are
+--- ONLY those three (rule 5). Steal, Reveal and TreadmillTier products are
 --- opened by the server paths that reserve what they pay for - HeistService
 --- .begin, HatchService.promptInstantReveal and promptTreadmillUpgrade above -
 --- and a client naming one of their keys here would otherwise open a real
---- purchase with nothing reserved behind it.
+--- purchase with nothing reserved behind it. A GADGET refill reserves
+--- nothing (it is a direct grant, like Cash), so it is safe here: the worst
+--- a client can do is prompt itself for a product it may already be full of,
+--- which converts to Cash on delivery.
 function MonetizationService.promptProduct(player: Player, key: string): (boolean, string?)
 	if not promptLimiter:consume(player) then
 		return false, "Slow down!"
@@ -790,7 +813,7 @@ function MonetizationService.promptProduct(player: Player, key: string): (boolea
 	if not product or product.productId <= 0 then
 		return false, "That item is not available yet."
 	end
-	if product.kind ~= "Cash" and product.kind ~= "Speed" then
+	if product.kind ~= "Cash" and product.kind ~= "Speed" and product.kind ~= "Gadget" then
 		-- Silent to the player: no legitimate UI sends this.
 		warn(`[MonetizationService] {player.Name} asked to prompt {product.kind} product "{key}" directly - refused`)
 		return false
@@ -953,6 +976,12 @@ end
 --- which remembers who each buyer is buying for. Injected like the two above.
 function MonetizationService.setGiftHandler(fn: DeliveryHandler)
 	giftHandler = fn
+end
+
+--- [gadget-robux] A `Gadget` product fills that gadget to its limit.
+--- GadgetService owns the stock, so it is injected rather than required.
+function MonetizationService.setGadgetHandler(fn: (Player, string) -> (boolean, string?))
+	gadgetHandler = fn
 end
 
 --- [trading-gifting-boards] Opens the Robux dialog for a GIFT product. Only

@@ -857,6 +857,32 @@ return function(): Report
 		local badge = MonetizationConfig.stealProductForIncome(387e6)
 		check(badge.robux >= 399, `a 387M/sec item must cost at least 399 R$, got {badge.robux} ({badge.key})`)
 
+		-- [gadget-robux] GADGET REFILLS: one per gadget plus the bundle, each
+		-- naming a real gadget (or "All"), and an unconfigured one must never
+		-- be sellable. Ids are 0 until the owner creates the products.
+		local GadgetConfig = require(script.Parent.GadgetConfig)
+		local refills = MonetizationConfig.GadgetProducts
+		check(#refills == #GadgetConfig.Order + 1, `there must be one refill per gadget plus a bundle, found {#refills}`)
+		local seen = {}
+		for _, product in refills do
+			check(product.kind == "Gadget", `{product.key} must be a Gadget product`)
+			check(product.robux > 0, `{product.key} must have a price`)
+			local target = product.gadgetKey or ""
+			check(target == "All" or GadgetConfig.Gadgets[target] ~= nil, `{product.key} names no gadget ("{target}")`)
+			check(not seen[target], `two refills both fill "{target}"`)
+			seen[target] = true
+			if product.productId <= 0 then
+				check(not MonetizationConfig.isConfigured(product.key), `{product.key} has no id, so it must read as unconfigured`)
+			end
+		end
+		for _, key in GadgetConfig.Order do
+			check(MonetizationConfig.GadgetProductByKey[key] ~= nil, `gadget "{key}" has no Robux refill`)
+		end
+		check(seen.All == true, "there must be a bundle that fills every gadget")
+		-- An id of 0 must never resolve to a product: ProcessReceipt looks
+		-- purchases up by id, and a 0 that matched would grant the wrong thing.
+		check(MonetizationConfig.ProductById[0] == nil, "product id 0 must never resolve to a product")
+
 		-- The 2x pass and the boosts are divided OUT of the income basis.
 		check(MonetizationConfig.baseIncome(200, 2) * 2 == MonetizationConfig.baseIncome(200, 1), "the 2x Cash pass must not scale purchased packs")
 		check(MonetizationConfig.baseIncome(0 / 0, 1) == 0, "a NaN income must read as zero")

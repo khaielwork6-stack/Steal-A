@@ -20,6 +20,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GadgetConfig = require(ReplicatedStorage.Shared.Config.GadgetConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -40,6 +41,8 @@ local NO_ASSET = "rbxassetid://0"
 local built = false
 local grid: Frame? = nil
 local cards: { [string]: Frame } = {}
+--- The Robux refill box on each card, when its product is configured.
+local robuxBoxes: { [string]: TextButton } = {}
 --- What each card shows, so a push repaints only what changed (StatePush
 --- fires several times a second while income ticks).
 local shown: { [string]: string } = {}
@@ -135,6 +138,7 @@ local function build(): boolean
 			UIAnim.punch(card, 0.14)
 			Remotes.get("GadgetRequest"):FireServer("buy", key)
 		end)
+		robuxBoxes[key] = GadgetShopController.attachRobuxBox(card, key)
 		cards[key] = card
 		table.insert(made, card)
 	end
@@ -144,6 +148,139 @@ local function build(): boolean
 	built = true
 	ShopKit.cascadeIn(made)
 	return true
+end
+
+-- ==========================================================
+-- THE ROBUX BOX (gadget-robux)
+-- ==========================================================
+--
+-- A SECOND way to buy the same gadget, never a replacement for the first:
+-- the green Cash button keeps its place and shrinks, and a blue Robux box
+-- sits beside it that FILLS the stack to its limit in one purchase.
+--
+-- Blue, not green, on purpose - two buttons the same colour a thumb's width
+-- apart is how a player spends Robux they meant to spend Cash. It is also
+-- Roblox's own currency colour, which is the association we want.
+--
+-- The box only exists once the owner has created the product: an id of 0
+-- means `isConfigured` is false, and the card then looks exactly as it did
+-- before this pass. Shared by BOTH surfaces (the Shop panel and the lobby
+-- stand) so the two can never drift apart.
+
+local ROBUX_BLUE = Color3.fromRGB(56, 152, 236)
+local ROBUX_BLUE_DARK = Color3.fromRGB(24, 92, 164)
+local ROBUX_FULL = Color3.fromRGB(96, 104, 124)
+
+--- The Robux box on one gadget card, built once. Returns it so `paint` can
+--- keep its label and its enabled state current.
+function GadgetShopController.attachRobuxBox(card: Frame, key: string): TextButton?
+	local product = MonetizationConfig.GadgetProductByKey[key]
+	if not product or not MonetizationConfig.isConfigured(product.key) then
+		return nil
+	end
+	local body = card:FindFirstChild("Frame")
+	local choose = body and body:FindFirstChild("Choose")
+	if not body or not choose or not choose:IsA("GuiObject") then
+		return nil
+	end
+	local existing = body:FindFirstChild("RobuxBuy")
+	if existing and existing:IsA("TextButton") then
+		return existing
+	end
+
+	-- Make room: the Cash button gives up its right-hand third.
+	choose.Size = UDim2.fromScale(choose.Size.X.Scale * 0.6, choose.Size.Y.Scale)
+
+	local button = Instance.new("TextButton")
+	button.Name = "RobuxBuy"
+	button.Text = ""
+	button.AutoButtonColor = false
+	button.BackgroundColor3 = ROBUX_BLUE
+	button.BorderSizePixel = 0
+	button.AnchorPoint = Vector2.new(1, 0)
+	button.Position = UDim2.fromScale(0.95, choose.Position.Y.Scale)
+	button.Size = UDim2.fromScale(0.33, choose.Size.Y.Scale)
+	button.ZIndex = 9
+	button.Parent = body
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = button
+	local edge = Instance.new("UIStroke")
+	edge.Color = ROBUX_BLUE_DARK
+	edge.Thickness = 2
+	edge.StrokeSizingMode = Enum.StrokeSizingMode.FixedSize
+	edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	edge.Parent = button
+	local shade = Instance.new("UIGradient")
+	shade.Rotation = 90
+	shade.Color = ColorSequence.new(ROBUX_BLUE, ROBUX_BLUE_DARK)
+	shade.Parent = button
+
+	local price = Instance.new("TextLabel")
+	price.Name = "Price"
+	price.BackgroundTransparency = 1
+	price.AnchorPoint = Vector2.new(0.5, 0.5)
+	price.Position = UDim2.fromScale(0.5, 0.5)
+	price.Size = UDim2.fromScale(0.92, 0.6)
+	price.Font = Enum.Font.FredokaOne
+	price.TextScaled = true
+	price.TextColor3 = Color3.fromRGB(255, 255, 255)
+	price.TextStrokeColor3 = Color3.fromRGB(10, 34, 62)
+	price.TextStrokeTransparency = 0.2
+	price.Text = `R$ {product.robux}`
+	price.ZIndex = 10
+	price.Parent = button
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize = 22
+	limit.Parent = price
+
+	local caption = Instance.new("TextLabel")
+	caption.Name = "Caption"
+	caption.BackgroundTransparency = 1
+	caption.AnchorPoint = Vector2.new(0.5, 1)
+	caption.Position = UDim2.fromScale(0.5, 0.99)
+	caption.Size = UDim2.fromScale(0.95, 0.28)
+	caption.Font = Enum.Font.GothamBold
+	caption.TextScaled = true
+	caption.TextColor3 = Color3.fromRGB(210, 232, 255)
+	caption.Text = "REFILL"
+	caption.ZIndex = 10
+	caption.Parent = button
+	local capLimit = Instance.new("UITextSizeConstraint")
+	capLimit.MaxTextSize = 11
+	capLimit.Parent = caption
+
+	UIAnim.claimButton(button)
+	button.Activated:Connect(function()
+		if button:GetAttribute("Full") == true then
+			UIAnim.punch(button, 0.05)
+			return
+		end
+		UIAnim.punch(button, 0.12)
+		-- The SERVER opens the dialog and the receipt grants it; this only asks.
+		Remotes.get("PurchaseRequest"):FireServer("product", product.key)
+	end)
+	return button
+end
+
+--- Greys the box out at the limit, so the one thing it buys is never sold to
+--- a player who cannot receive it.
+function GadgetShopController.paintRobuxBox(button: TextButton?, full: boolean)
+	if not button then
+		return
+	end
+	button:SetAttribute("Full", full)
+	button.BackgroundColor3 = if full then ROBUX_FULL else ROBUX_BLUE
+	local shade = button:FindFirstChildOfClass("UIGradient")
+	if shade then
+		shade.Color = if full
+			then ColorSequence.new(ROBUX_FULL, ROBUX_FULL)
+			else ColorSequence.new(ROBUX_BLUE, ROBUX_BLUE_DARK)
+	end
+	local caption = button:FindFirstChild("Caption")
+	if caption and caption:IsA("TextLabel") then
+		caption.Text = if full then "FULL" else "REFILL"
+	end
 end
 
 --- What one gadget card shows for StatePush `gadgets` (shared with the lobby
@@ -186,6 +323,10 @@ local function paint(gadgets: any)
 		shown[key] = signature
 		shownCount[key] = have
 		ShopKit.fillCard(card, options)
+		-- fillCard rebuilds the pack card's own parts; the Robux box is ours
+		-- and survives it, so it only needs its state refreshed.
+		local limit = GadgetConfig.Gadgets[key].maxCarried
+		GadgetShopController.paintRobuxBox(robuxBoxes[key], have >= limit)
 		if grew then
 			ShopKit.shine(card)
 		end

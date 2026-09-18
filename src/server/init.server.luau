@@ -248,6 +248,11 @@ end
 MonetizationService.setGuardianSaleProvider(GuardianShopService.onSaleKeys)
 MonetizationService.setStealHandler(HeistService.fulfil)
 MonetizationService.setRevealHandler(HatchService.fulfil)
+-- [gadget-robux] A Robux refill fills that gadget's stock to its limit.
+-- GadgetService owns the stock; MonetizationService never requires it.
+MonetizationService.setGadgetHandler(function(player, key)
+	return require(Services.GadgetService).grantFill(player, key)
+end)
 -- [monetization pass] Instant Reveal is a paid random item: withheld from
 -- players whose PolicyService answer restricts those (unknown = restricted).
 HatchService.canOfferInstantReveal = function(player)
