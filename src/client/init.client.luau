@@ -259,6 +259,10 @@ end)
 -- [vaults-crews] The vault doors, barriers, rotating lasers and signs; the
 -- crew card, panel and nameplates. The crew panel clones the Sell skeleton
 -- InventoryController parks in MainUI.Templates, so it waits for it itself.
+-- [vault-minigames] The lock minigames the server starts at a vault door.
+startLater("VaultMinigameController", function()
+	require(script.Controllers.VaultMinigameController).start()
+end)
 startLater("VaultController", function()
 	require(script.Controllers.VaultController).start()
 end)

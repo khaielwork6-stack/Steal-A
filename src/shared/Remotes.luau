@@ -230,6 +230,15 @@ Remotes.NAMES = {
 	-- CrewService. (The vaults need no remote: doors, lasers and restocks
 	-- replicate as attributes and the steal is the ordinary prompt.)
 	"CrewRequest",
+	-- [vault-minigames] server -> client: VaultMinigame("start", token,
+	-- zone, method, params) opens the lock minigame the SERVER chose;
+	-- VaultMinigame("abort", token) closes it without a verdict (Nightfall
+	-- cancelled it). Nothing in it grants access.
+	"VaultMinigame",
+	-- client -> server: VaultMinigameResult(token, success). The server holds
+	-- the only copy of what an attempt is, checks the token, the elapsed time
+	-- and the player's position, and decides. A lie here can only fail.
+	"VaultMinigameResult",
 
 	-- ==== ROUND3-UI-REWARDS ====
 	-- server -> one client, STUDIO DEBUG ONLY (DebugCommands/RewardsUI).

@@ -26,32 +26,23 @@ function MobileHudLayout.start(ui: ScreenGui)
 		if buttons and buttons:IsA("GuiObject") and left and left:IsA("GuiObject") then
 			local scale = buttons:FindFirstChildOfClass("UIScale")
 			if scale then scale.Scale = 1 end
-			place(buttons, 8, 102, 164, 104)
-			local padding = buttons:FindFirstChildOfClass("UIPadding")
-			if padding then
-				padding.PaddingLeft, padding.PaddingRight = UDim.new(), UDim.new()
-				padding.PaddingTop, padding.PaddingBottom = UDim.new(), UDim.new()
+			-- One column of 44 px icon tiles under Roblox's buttons (the
+			-- reference HUD), sized so five of them clear the pill at the
+			-- bottom on a 320 px-tall landscape phone.
+			local tiles = 0
+			for _, button in left:GetChildren() do
+				if button:IsA("GuiButton") then tiles += 1; button.Active = true end
 			end
+			local tile, gap = 44, 6
+			place(buttons, 8, 50, tile, tile * math.max(tiles, 1) + gap * math.max(tiles - 1, 0))
+			local padding = buttons:FindFirstChildOfClass("UIPadding")
+			if padding then padding:Destroy() end
 			left.AnchorPoint, left.Position, left.Size = Vector2.zero, UDim2.new(), UDim2.fromScale(1, 1)
 			local grid = left:FindFirstChildOfClass("UIGridLayout")
 			if grid then
-				grid.FillDirectionMaxCells = 3
-				grid.CellSize = UDim2.fromOffset(48 / factor, 48 / factor)
-				grid.CellPadding = UDim2.fromOffset(8 / factor, 8 / factor)
-			end
-			for _, button in left:GetChildren() do
-				if button:IsA("GuiButton") then
-					button.Active = true
-					local title = button:FindFirstChild("Title")
-					if title and title:IsA("TextLabel") then
-						title.AnchorPoint, title.Position = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.97)
-						title.Size, title.ZIndex = UDim2.fromScale(0.97, 0.24), 8
-					end
-					local icon = button:FindFirstChild("Icon", true)
-					if icon and icon:IsA("ImageLabel") then
-						icon.AnchorPoint, icon.Position, icon.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.38), UDim2.fromScale(0.67, 0.67)
-					end
-				end
+				grid.FillDirectionMaxCells = 1
+				grid.CellSize = UDim2.fromOffset(tile / factor, tile / factor)
+				grid.CellPadding = UDim2.fromOffset(0, gap / factor)
 			end
 		end
 		local top = ui:FindFirstChild("Top")
@@ -97,12 +88,17 @@ function MobileHudLayout.start(ui: ScreenGui)
 		-- The stat figures (no box) sit bottom-left; the boost pills above
 		-- them, small, so neither reaches the thumbstick's resting spot.
 		if stats and stats:IsA("GuiObject") then
-			place(stats, 8, height - 8 - 66, 140, 66)
-			local boosts = stats:FindFirstChild("SocialBoosts")
+			-- The economy pill: bottom-left, 28 px tall, as wide as its text.
+			place(stats, 8, height - 8 - 28, 0, 28)
+			stats.AutomaticSize = Enum.AutomaticSize.X
+			for _, label in stats:GetDescendants() do
+				if label:IsA("TextLabel") then label.TextSize = 13 / factor end
+			end
+			local boosts = ui:FindFirstChild("SocialBoosts")
 			if boosts and boosts:IsA("GuiObject") then
 				boosts.AnchorPoint = Vector2.new(0, 1)
-				boosts.Position = UDim2.new(0, 0, 0, -4 / factor)
 				boosts.Size = UDim2.fromOffset(200 / factor, 20 / factor)
+				boosts.Position = UDim2.fromOffset(8 / factor, (height - 8 - 28 - 4) / factor)
 			end
 		end
 	end

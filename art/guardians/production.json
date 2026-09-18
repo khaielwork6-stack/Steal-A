@@ -1,0 +1,28 @@
+{
+  "approvedOn": "2026-09-18",
+  "approval": "all 12 designs look good",
+  "groupId": 3774675,
+  "placeId": 134344354476234,
+  "front": "-Z",
+  "floorY": 0,
+  "triangleLimitExclusive": 4000,
+  "textureResolution": 1024,
+  "rig": "Skinned MeshParts; AnimationController/Animator",
+  "artSource": "zone-guardians-2026-09",
+  "dimensionsIncludeProps": true,
+  "status": "Approved concepts; production validation pending",
+  "guardians": [
+    {"zone":1,"name":"Zone01_NightWatchman","size":[5.2,7,3.3]},
+    {"zone":2,"name":"Zone02_GhostCaptain","size":[5.8,7.8,3.2]},
+    {"zone":3,"name":"Zone03_IronKnight","size":[7.4,8.8,4.2]},
+    {"zone":4,"name":"Zone04_GreyAgent","size":[5.8,10,3.4]},
+    {"zone":5,"name":"Zone05_FrostYeti","size":[10.5,11.5,5.8]},
+    {"zone":6,"name":"Zone06_Mummy","size":[9.5,14,5.6]},
+    {"zone":7,"name":"Zone07_IronTitan","size":[19.5,17,8.2]},
+    {"zone":8,"name":"Zone08_VaultBot","size":[19,20.5,10.5]},
+    {"zone":9,"name":"Zone09_LabMutant","size":[20,24.5,12]},
+    {"zone":10,"name":"Zone10_Granny","size":[21,29,12.5]},
+    {"zone":11,"name":"Zone11_WreckingForeman","size":[26,34,16.5]},
+    {"zone":12,"name":"Zone12_SkyMarshal","size":[27,40,17]}
+  ]
+}

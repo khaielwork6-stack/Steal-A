@@ -175,7 +175,8 @@ function HUDController.start()
 			incomeLabel.Text = NumberFormat.income(state.income)
 		end
 		if speedLabel then
-			speedLabel.Text = `Speed {NumberFormat.short(state.speedPower)}`
+			-- The figure alone: the pill's icon says "Speed".
+			speedLabel.Text = NumberFormat.short(state.speedPower)
 		end
 	end)
 

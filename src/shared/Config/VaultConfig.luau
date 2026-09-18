@@ -9,8 +9,9 @@
 	container is rolled from the zone's TOP TWO rarities only (a table of its
 	own, below - the ordinary socket weights are untouched), and it is guarded
 	by:
-	  * a heavy round door that lets through only players with at least
-	    SPEED_GATE_FRACTION of the zone's recommended Speed (ZoneConfig),
+	  * a heavy round door that lets through only a player who has CRACKED
+	    ITS LOCK - one of two minigames the server picks at random (THE LOCK,
+	    below); Speed has no say in it,
 	  * rotating laser arms around the pedestal (beamsFor, computed from the
 	    server clock so the server and every client agree),
 	  * a Vault Guardian: the zone's guard with the GUARDIAN profile below.
@@ -40,11 +41,77 @@ VaultConfig.RESTOCK_SECONDS = 600
 --- Vaults refill on RESTOCK_SECONDS only.
 VaultConfig.RESTOCK_AT_NIGHT = false
 
---- The door opens for players whose SpeedPower is at least this fraction of
---- the zone's recommendedSpeed. Zone 1 recommends 0, so its vault is open to
---- everyone.
-VaultConfig.SPEED_GATE_FRACTION = 1
---- The door swings open (for everyone to see) while a qualified player is
+-- ==========================================================
+-- THE LOCK (vault-minigames)
+-- ==========================================================
+--
+-- SPEED HAS NO SAY. The door used to open for anyone whose SpeedPower cleared
+-- a fraction of the zone's recommended Speed - a stat check with no decision
+-- in it. Now a vault opens ONLY for a player who has cracked its lock: a
+-- prompt at the door starts one of two minigames, chosen by the SERVER at
+-- random, and the door and the pedestal steal both answer to that one flag.
+--
+-- FAILING IS EXPENSIVE. Failing either minigame - or cancelling, dying,
+-- walking away, disconnecting, anything that interrupts it - locks the player
+-- out of EVERY vault until the next Nightfall. The lockout is saved on the
+-- profile (VaultLockoutUntil, a server-clock stamp) so a rejoin cannot shed
+-- it, and every online player's lockout is cleared the moment Night begins.
+
+--- The two ways to crack a lock, with the weight each is picked at.
+--- Equal by default; the server rolls, the client only draws the result.
+VaultConfig.MINIGAMES = {
+	{ key = "Cut", weight = 1 },
+	{ key = "Pins", weight = 1 },
+}
+
+--- CIRCULAR CUTTING: a target pad orbits the door's dial and the player keeps
+--- the cursor (or a held finger) inside it while a cutting arm follows; one
+--- full turn opens the vault. The pad's speed is not constant: it eases
+--- between the two rates below so the player has to read it, not just lead
+--- it.
+VaultConfig.CUT = {
+	--- Seconds one full rotation takes (the whole minigame's length).
+	rotationSeconds = 9,
+	--- The target pad's width, as a fraction of the dial's circumference.
+	padFraction = 0.11,
+	--- Seconds the cursor may be outside the pad before the attempt fails.
+	--- Long enough to forgive a stutter, short enough that "keep it inside"
+	--- means it.
+	graceSeconds = 0.4,
+	--- Speed variation: the pad runs between (1 - wobble) and (1 + wobble) of
+	--- its mean rate, on a slow sine.
+	wobble = 0.35,
+}
+
+--- LOCK PINS: cylinders bob up and down through a horizontal line; each must
+--- be tapped while the line passes through its notch. A tap outside the
+--- notch fails the attempt. Pins differ in height, travel and rate.
+VaultConfig.PINS = {
+	--- Pins per zone band: zones 1-4, 5-8, 9-12.
+	countByBand = { 4, 5, 6 },
+	--- Each pin's notch, as a fraction of that pin's height (the valid window).
+	notchFraction = 0.2,
+	--- Bob period range in seconds (a full up-and-down); randomised per pin.
+	periodMin = 1.1,
+	periodMax = 2.3,
+	--- Pin heights as a fraction of the lock body's height; randomised per pin.
+	heightMin = 0.28,
+	heightMax = 0.5,
+	--- Vertical travel amplitude as a fraction of the lock body's height.
+	amplitudeMin = 0.18,
+	amplitudeMax = 0.3,
+}
+
+--- The server abandons an attempt that has not reported after this long.
+VaultConfig.ATTEMPT_TIMEOUT = 60
+--- Studs from the door's centre a player may be while an attempt is running
+--- (the prompt reaches 10; a little slack for a nudge from another player).
+VaultConfig.ATTEMPT_LEASH = 18
+--- What the player reads when they fail, and whenever a locked-out player
+--- touches a vault afterwards.
+VaultConfig.LOCKOUT_MESSAGE = "Vault access locked until the next Nightfall."
+
+--- The door swings open (for everyone to see) while an UNLOCKED player is
 --- this close to it, or inside the vault.
 VaultConfig.DOOR_OPEN_RADIUS = 22
 --- Seconds between the server's door / intruder passes.

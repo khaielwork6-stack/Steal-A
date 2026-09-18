@@ -76,10 +76,13 @@ local function restyleAll()
 end
 
 --- The pack's demo billboards ("Top Cash", "Gamepasses", "Next Update!",
---- the Action template) ship ENABLED with no Adornee, and a BillboardGui
---- with no Adornee draws at the world origin - the red line in front of the
---- spawn, dead centre of a new player's first view. The server clones what
---- it needs from StarterGui; the copies in PlayerGui are leftovers.
+--- the Action template) ship ENABLED with no Adornee. A BillboardGui with no
+--- Adornee draws at the world origin - the red line in front of the spawn -
+--- and a SurfaceGui with no Adornee, sitting in PlayerGui, draws FLAT ON THE
+--- SCREEN from its top-left corner: two demo gamepass cards showed up as
+--- giant coloured discs over the left rail. The server clones what it needs
+--- from StarterGui; the copies in PlayerGui are leftovers, so every
+--- adornee-less gui under that folder is switched off.
 local function silencePackBillboards()
 	local playerGui = player:WaitForChild("PlayerGui")
 	local mainUi = playerGui:WaitForChild("MainUI", 20)
@@ -88,7 +91,7 @@ local function silencePackBillboards()
 		return
 	end
 	for _, gui in surface:GetDescendants() do
-		if gui:IsA("BillboardGui") and gui.Adornee == nil then
+		if (gui:IsA("BillboardGui") or gui:IsA("SurfaceGui")) and gui.Adornee == nil then
 			gui.Enabled = false
 		end
 	end

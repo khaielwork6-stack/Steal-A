@@ -231,6 +231,7 @@ export type Profile = {
 	-- v12. The one-time opening popup has been shown. Durable so it never
 	-- returns after a respawn or a rejoin.
 	TutorialIntroSeen: boolean,
+	VaultLockoutUntil: number,
 	-- v8. Offline earnings (OfflineService). All three are written by the
 	-- SERVER only. `LastLeaveTimestamp` is the os.time() of the last save;
 	-- `OfflineCashRate` the authoritative $/s at that moment; and
@@ -404,6 +405,10 @@ local function defaultProfile(): Profile
 		PendingSteal = nil,
 		PendingReveal = nil,
 		TutorialIntroSeen = false,
+		-- [vault-minigames] Server-clock stamp (workspace:GetServerTimeNow)
+		-- until which every vault refuses this player; 0 when not locked out.
+		-- Saved so a rejoin cannot shed it; NightService's Nightfall clears it.
+		VaultLockoutUntil = 0,
 		LastLeaveTimestamp = 0,
 		OfflineCashRate = 0,
 		PendingOfflineCash = 0,

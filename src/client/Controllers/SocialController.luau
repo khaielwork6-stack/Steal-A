@@ -291,21 +291,27 @@ local function buildPills(ui: ScreenGui): (Pill?, Pill?)
 	local strip = Instance.new("Frame")
 	strip.Name = "SocialBoosts"
 	strip.BackgroundTransparency = 1
-	-- Desktop: to the RIGHT of the stat figures, bottom-aligned (above them
-	-- the left rail ran into the pills). Touch: ABOVE the figures instead -
-	-- the figures now live bottom-left, and to their right is the hotbar.
-	-- MobileHudLayout re-places this for landscape phones.
-	if Device.isTouch() then
-		strip.AnchorPoint = Vector2.new(0, 1)
-		strip.Position = UDim2.new(0, 0, 0, -4)
-		strip.Size = UDim2.fromOffset(220, PILL_HEIGHT)
-	else
-		strip.AnchorPoint = Vector2.new(0, 1)
-		strip.Position = UDim2.new(1, 8, 1, 0)
-		strip.Size = UDim2.fromOffset(260, PILL_HEIGHT)
-	end
+	strip.AnchorPoint = Vector2.new(0, 1)
+	strip.Size = UDim2.fromOffset(260, PILL_HEIGHT)
 	strip.ZIndex = 6
-	strip.Parent = anchor
+	-- A SIBLING of the economy pill, not a child: the pill sizes itself to
+	-- its text (AutomaticSize), and a child hanging off its right edge was
+	-- counted into that width, stretching the pill to swallow the boosts.
+	-- It follows the pill's rectangle instead: desktop, to its right and
+	-- bottom-aligned; touch, directly above it (to the right is the hotbar).
+	-- MobileHudLayout re-places it for landscape phones.
+	strip.Parent = ui
+	local function follow()
+		local at, size = anchor.AbsolutePosition - ui.AbsolutePosition, anchor.AbsoluteSize
+		if Device.isTouch() then
+			strip.Position = UDim2.fromOffset(at.X, at.Y - 4)
+		else
+			strip.Position = UDim2.fromOffset(at.X + size.X + 8, at.Y + size.Y)
+		end
+	end
+	anchor:GetPropertyChangedSignal("AbsoluteSize"):Connect(follow)
+	anchor:GetPropertyChangedSignal("AbsolutePosition"):Connect(follow)
+	task.defer(follow)
 	local list = Instance.new("UIListLayout")
 	list.FillDirection = Enum.FillDirection.Horizontal
 	list.VerticalAlignment = Enum.VerticalAlignment.Bottom

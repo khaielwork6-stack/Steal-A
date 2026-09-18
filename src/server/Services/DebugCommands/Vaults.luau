@@ -7,10 +7,10 @@
 	    DebugInvoke:Invoke("vaultStates")                      -- every vault: door, loot, restock, arm timing
 	    DebugInvoke:Invoke("vaultTeleport", nil, 7)            -- just inside zone 7's vault door (bypass on)
 	    DebugInvoke:Invoke("vaultTeleport", nil, 7, true)      -- just outside it (bypass unchanged)
-	    DebugInvoke:Invoke("vaultBypass", nil, false)          -- let the Speed gate judge you again
+	    DebugInvoke:Invoke("vaultBypass", nil, false)          -- let the lock judge you again
 	    DebugInvoke:Invoke("vaultRestock", nil, 7)             -- restock zone 7 now (nil = all)
 	    DebugInvoke:Invoke("vaultRestock", nil, nil, true)     -- reroll every sitting container too
-	    DebugInvoke:Invoke("vaultDoor", nil, 7, "open")        -- force open / "closed" / nil = Speed rule
+	    DebugInvoke:Invoke("vaultDoor", nil, 7, "open")        -- force open / "closed" / nil = lock rule
 	    DebugInvoke:Invoke("vaultVeto", nil, 7)                -- would a steal be refused right now, and why
 	    DebugInvoke:Invoke("crewAssistSim", nil, "near", 7)    -- synthetic crew mate: "near" | "chased" | "present" | "none"
 	    DebugInvoke:Invoke("crewForm", nil, "OtherPlayer")     -- Team Test: put two real players in a crew
@@ -54,7 +54,7 @@ Vaults.vaultTeleport = function(player: Player, zone: any, outside: any): any
 		return { error = "zone 1-12 required" }
 	end
 	if outside ~= true then
-		-- The tester may not have the zone's Speed: let the door through.
+		-- The tester has not cracked the lock: let the door through.
 		vaultService().setBypass(player, true)
 	end
 	return { ok = vaultService().teleport(player, index, outside == true), bypass = outside ~= true }
@@ -65,6 +65,22 @@ Vaults.vaultBypass = function(player: Player, on: any)
 	return { bypass = on ~= false }
 end
 
+--- [vault-minigames] Cracks a vault for the tester without the minigame.
+Vaults.vaultCrack = function(player: Player, zone: any)
+	local index = zoneArg(zone)
+	if not index then
+		return { error = "zone 1-12 required" }
+	end
+	vaultService().debugCrack(player, index)
+	return { cracked = index }
+end
+
+--- Applies (true) or clears (false) the until-Nightfall lockout by hand.
+Vaults.vaultLockout = function(player: Player, on: any)
+	vaultService().debugLockout(player, on ~= false)
+	return { lockedOut = vaultService().isLockedOut(player) }
+end
+
 Vaults.vaultRestock = function(_player: Player, zone: any, reroll: any)
 	return vaultService().forceRestock(zoneArg(zone), reroll == true)
 end
@@ -72,7 +88,7 @@ end
 Vaults.vaultDoor = function(_player: Player, zone: any, mode: any)
 	local value = if mode == "open" or mode == "closed" then mode else nil
 	vaultService().setDoor(zoneArg(zone), value)
-	return { zone = zoneArg(zone) or "all", mode = value or "speed rule" }
+	return { zone = zoneArg(zone) or "all", mode = value or "lock rule" }
 end
 
 Vaults.vaultVeto = function(player: Player, zone: any): any

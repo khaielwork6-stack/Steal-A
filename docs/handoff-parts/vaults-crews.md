@@ -340,3 +340,32 @@ commands are in `DebugCommands/Vaults.luau`.
    - `crewForm <name>` and `crewState` help set this up quickly.
 9. **Mobile emulator.** The CREW card doesn't overlap the rail or the
    checklist, the buttons are tappable, and the panel scrolls.
+
+## vault-minigames (2026-09-18): the lock replaces the Speed gate
+
+Speed no longer has any say in vaults. `VaultConfig.SPEED_GATE_FRACTION`,
+the `RequiredSpeed` attribute, the "NEEDS X SPEED" plaque text and the
+Speed-based door / steal / eject checks are all gone (validate.luau asserts
+the config key stays absent).
+
+A vault opens ONLY for a player who has cracked its lock:
+
+- `VaultBuilder` adds `Vault.VaultLock` with the "Crack the Lock" prompt.
+- `VaultService` answers it: rolls one of `VaultConfig.MINIGAMES` (Cut /
+  Pins, equal weights) SERVER-SIDE, builds random parameters, sends
+  `VaultMinigame("start", token, zone, method, params)`, and watches. One
+  attempt per player. The client reports `VaultMinigameResult(token,
+  success)`; a failure is believed, a success must match the token, arrive
+  after the method's minimum time, and find the player alive within
+  `ATTEMPT_LEASH` of the door. Death, walking off, leaving, a 60 s timeout
+  or a reported failure all LOCK THE PLAYER OUT OF EVERY VAULT until the next
+  Nightfall: `profile.VaultLockoutUntil` (server-clock stamp, so a rejoin
+  keeps it) and the toast "Vault access locked until the next Nightfall."
+  Night (`NightPhase` -> Night) clears every lockout and every unlock and
+  cancels running attempts without blame.
+- The player reads three attributes: `VaultUnlocked` ("1;7"),
+  `VaultLockedOut`, `VaultAttempt`. `VaultController` uses them for the
+  barrier, the prompt and the plaque; `VaultMinigameController` draws and
+  plays the chosen method (blur + shade, HUD hidden via the "vault" claim).
+- Debug: `vaultCrack <zone>`, `vaultLockout <true|false>`, `vaultStates`
+  (now lists `crackedBy` and live attempts).

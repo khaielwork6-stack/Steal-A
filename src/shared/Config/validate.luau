@@ -1412,10 +1412,20 @@ return function(): Report
 		local VaultConfig = require(script.Parent.VaultConfig)
 		local CrewConfig = require(script.Parent.CrewConfig)
 		check(type(VaultConfig.ENABLED) == "boolean" and type(VaultConfig.RESTOCK_AT_NIGHT) == "boolean", "VaultConfig switches must be booleans")
-		for _, key in { "RESTOCK_SECONDS", "SPEED_GATE_FRACTION", "DOOR_OPEN_RADIUS", "DOOR_CHECK_INTERVAL", "DISPLAY_FOOTPRINT", "RING_GAP", "RING_WIDTH", "PEDESTAL_HEIGHT" } do
+		for _, key in { "RESTOCK_SECONDS", "DOOR_OPEN_RADIUS", "DOOR_CHECK_INTERVAL", "DISPLAY_FOOTPRINT", "RING_GAP", "RING_WIDTH", "PEDESTAL_HEIGHT", "ATTEMPT_TIMEOUT", "ATTEMPT_LEASH" } do
 			local value = (VaultConfig :: any)[key]
 			check(type(value) == "number" and value > 0, `VaultConfig.{key} must be a positive number`)
 		end
+		-- [vault-minigames] Speed must have NO influence on vaults.
+		check((VaultConfig :: any).SPEED_GATE_FRACTION == nil, "VaultConfig.SPEED_GATE_FRACTION was removed - vaults open by minigame only")
+		local totalWeight = 0
+		for _, method in VaultConfig.MINIGAMES do
+			check((method.key == "Cut" or method.key == "Pins") and method.weight > 0, "VaultConfig.MINIGAMES: Cut / Pins with positive weights")
+			totalWeight += method.weight
+		end
+		check(totalWeight > 0, "VaultConfig.MINIGAMES must have weight")
+		check(VaultConfig.CUT.rotationSeconds >= 4 and VaultConfig.CUT.padFraction > 0.03 and VaultConfig.CUT.padFraction < 0.3 and VaultConfig.CUT.graceSeconds >= 0, "VaultConfig.CUT is sane")
+		check(#VaultConfig.PINS.countByBand == 3 and VaultConfig.PINS.notchFraction > 0.05 and VaultConfig.PINS.periodMin > 0 and VaultConfig.PINS.periodMax >= VaultConfig.PINS.periodMin, "VaultConfig.PINS is sane")
 		-- A 2.2-stud player must fit between the pedestal and the arms.
 		check(VaultConfig.RING_GAP >= 2.5, "the vault ring gap must fit a standing player")
 		local guard = VaultConfig.GUARDIAN

@@ -6,16 +6,25 @@
 
 	  DOOR      slides aside while the vault's `DoorOpen` attribute is true.
 	  BARRIER   the doorway's invisible `VaultBarrier` never collides on the
-	            server. Here it is made solid LOCALLY when this player lacks
-	            the zone's Speed (or the door is forced shut), so an honest
-	            client is simply stopped at the door. The server ejects anyone
-	            who gets in anyway.
+	            server. Here it is made solid LOCALLY until this player has
+	            cracked the vault's lock (or while the door is forced shut),
+	            so an honest client is simply stopped at the door. The server
+	            ejects anyone who gets in anyway.
+	  PROMPT    the "Crack the Lock" prompt at the door (VaultLock) is enabled
+	            only while this player can attempt: not already through, not
+	            locked out, not mid-attempt. The minigame itself is
+	            VaultMinigameController's.
 	  LASERS    each `VaultBeam` is posed every frame from its attributes and
 	            the server clock (LaserGeometry.sweepAt), the same function the
 	            server tests. Only vaults near the camera are animated.
-	  SIGN      the plaque's status line: needs X Speed / restocks in m:ss.
+	  SIGN      the plaque's status line: crack the lock / unlocked / locked
+	            out / restocks in m:ss.
 	  BANNER    the "vault restocked" image (VaultConfig.Art.RestockBanner)
 	            with the restock toast, once the art exists.
+
+	What this player may do comes from three Player attributes VaultService
+	publishes: VaultUnlocked ("1;7" - zones cracked since the last Night),
+	VaultLockedOut (boolean) and VaultAttempt (the zone of a running attempt).
 ]]
 
 local Players = game:GetService("Players")
@@ -25,11 +34,9 @@ local TweenService = game:GetService("TweenService")
 
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
-local StateStore = require(script.Parent.Parent.StateStore)
 
 local VaultController = {}
 
@@ -38,8 +45,14 @@ local player = Players.LocalPlayer
 --- Beyond this the arms are not animated (they are inside a closed room).
 local ANIMATE_RANGE = 260
 
+local GREEN = Color3.fromRGB(140, 255, 160)
+local RED = Color3.fromRGB(255, 150, 140)
+local GOLD = Color3.fromRGB(255, 214, 120)
+local PALE = Color3.fromRGB(235, 240, 250)
+
 type Beam = { part: BasePart, arm: Geometry.SweepArm }
 type Entry = {
+	zoneIndex: number,
 	folder: Instance,
 	barrier: BasePart?,
 	door: Model?,
@@ -48,15 +61,44 @@ type Entry = {
 	beams: { Beam },
 	center: Vector3,
 	status: TextLabel?,
+	prompt: ProximityPrompt?,
 }
 
 local entries: { Entry } = {}
-local speedPower = 0
+
+-- ==========================================================
+-- WHAT THIS PLAYER MAY DO
+-- ==========================================================
+
+local function unlockedZones(): { [number]: true }
+	local out = {}
+	local raw = player:GetAttribute("VaultUnlocked")
+	if type(raw) == "string" then
+		for piece in raw:gmatch("[^;]+") do
+			local zone = tonumber(piece)
+			if zone then
+				out[zone] = true
+			end
+		end
+	end
+	return out
+end
+
+local function isLockedOut(): boolean
+	return player:GetAttribute("VaultLockedOut") == true
+end
+
+local function attemptZone(): number
+	return tonumber(player:GetAttribute("VaultAttempt")) or 0
+end
 
 local function qualifies(entry: Entry): boolean
-	local required = tonumber(entry.folder:GetAttribute("RequiredSpeed")) or math.huge
-	return speedPower >= required
+	return unlockedZones()[entry.zoneIndex] == true
 end
+
+-- ==========================================================
+-- DRAWING
+-- ==========================================================
 
 local function refreshBarrier(entry: Entry)
 	local barrier = entry.barrier
@@ -66,6 +108,15 @@ local function refreshBarrier(entry: Entry)
 	local forced = entry.folder:GetAttribute("DoorForced")
 	local solid = if forced == "closed" then true elseif forced == "open" then false else not qualifies(entry)
 	barrier.CanCollide = solid
+end
+
+local function refreshPrompt(entry: Entry)
+	local prompt = entry.prompt
+	if not prompt then
+		return
+	end
+	local forced = entry.folder:GetAttribute("DoorForced")
+	prompt.Enabled = VaultConfig.ENABLED and forced ~= "open" and not qualifies(entry) and not isLockedOut() and attemptZone() == 0
 end
 
 local function refreshDoor(entry: Entry)
@@ -93,28 +144,49 @@ local function refreshSign(entry: Entry)
 	if not label then
 		return
 	end
-	local required = tonumber(entry.folder:GetAttribute("RequiredSpeed")) or 0
-	local need = if required > 0 then `NEEDS {NumberFormat.short(required)} SPEED` else "OPEN TO ALL"
 	if not VaultConfig.ENABLED then
-		label.Text = "CLOSED"
-	elseif entry.folder:GetAttribute("Stocked") == true then
-		label.Text = `STOCKED - {need}`
-	else
+		label.Text, label.TextColor3 = "CLOSED", RED
+		return
+	end
+	if isLockedOut() then
+		label.Text, label.TextColor3 = "LOCKED OUT UNTIL NIGHTFALL", RED
+		return
+	end
+	local stocked = entry.folder:GetAttribute("Stocked") == true
+	if not stocked then
 		local at = tonumber(entry.folder:GetAttribute("RestockAt")) or 0
 		label.Text = if at > 0 then `RESTOCKS IN {formatClock(at - workspace:GetServerTimeNow())}` else "EMPTY"
+		label.TextColor3 = PALE
+		return
 	end
-	label.TextColor3 = if qualifies(entry) then Color3.fromRGB(140, 255, 160) else Color3.fromRGB(255, 150, 140)
+	if qualifies(entry) then
+		label.Text, label.TextColor3 = "UNLOCKED - GO!", GREEN
+	else
+		label.Text, label.TextColor3 = "STOCKED - CRACK THE LOCK", GOLD
+	end
+end
+
+local function refreshAll()
+	for _, entry in entries do
+		refreshBarrier(entry)
+		refreshPrompt(entry)
+		refreshSign(entry)
+	end
 end
 
 local function register(folder: Instance)
 	local door = folder:FindFirstChild("Door")
 	local barrier = folder:FindFirstChild("VaultBarrier")
+	local lock = folder:FindFirstChild("VaultLock")
+	local prompt = lock and lock:FindFirstChildOfClass("ProximityPrompt")
 	local entry: Entry = {
+		zoneIndex = tonumber(folder:GetAttribute("VaultZone")) or 0,
 		folder = folder,
 		barrier = if barrier and barrier:IsA("BasePart") then barrier else nil,
 		door = if door and door:IsA("Model") then door else nil,
 		beams = {},
 		center = Vector3.zero,
+		prompt = prompt,
 	}
 	local socket = folder:FindFirstChild("SpawnSockets")
 	local anchor = socket and socket:FindFirstChildWhichIsA("BasePart")
@@ -165,6 +237,7 @@ local function register(folder: Instance)
 	end)
 	folder:GetAttributeChangedSignal("DoorForced"):Connect(function()
 		refreshBarrier(entry)
+		refreshPrompt(entry)
 	end)
 	for _, name in { "Stocked", "RestockAt" } do
 		folder:GetAttributeChangedSignal(name):Connect(function()
@@ -173,6 +246,7 @@ local function register(folder: Instance)
 	end
 	table.insert(entries, entry)
 	refreshBarrier(entry)
+	refreshPrompt(entry)
 	refreshDoor(entry)
 	refreshSign(entry)
 end
@@ -235,13 +309,9 @@ local function showBanner()
 end
 
 function VaultController.start()
-	StateStore.onKeyChanged("speedPower", function(value)
-		speedPower = tonumber(value) or 0
-		for _, entry in entries do
-			refreshBarrier(entry)
-			refreshSign(entry)
-		end
-	end)
+	for _, name in { "VaultUnlocked", "VaultLockedOut", "VaultAttempt" } do
+		player:GetAttributeChangedSignal(name):Connect(refreshAll)
+	end
 
 	Remotes.get("Notify").OnClientEvent:Connect(function(_kind: string, _message: string, detail: any)
 		if detail == "vault" then

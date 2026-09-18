@@ -472,6 +472,13 @@ do
 	local VaultService = require(Services.VaultService)
 	local CrewService = require(Services.CrewService)
 	CarryService.pickupVeto = VaultService.pickupVeto
+	-- [vault-minigames] A failed lock locks the player out until the next
+	-- Nightfall; VaultService does not require NightService, so its clock is
+	-- handed over here.
+	VaultService.setNightfallClock(function()
+		local NightService = require(Services.NightService)
+		return if NightService.isNight() then NightService.remaining() + NightService.daySecondsFor() else NightService.remaining()
+	end)
 	HeistService.areCrewmates = CrewService.areCrewmates
 	StateService.addProvider("crew", CrewService.summarise)
 	VaultService.start()

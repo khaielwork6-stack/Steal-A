@@ -4,34 +4,49 @@
 	The zone vaults (vaults-crews area; docs/handoff-parts/vaults-crews.md).
 	VaultBuilder built the rooms; this service runs them.
 
+	  THE LOCK  [vault-minigames] The door answers to ONE flag: has this player
+	            cracked this vault's lock. The "Crack the Lock" prompt at the
+	            door starts an ATTEMPT: the server rolls which of the two
+	            minigames it is (VaultConfig.MINIGAMES, equal odds), builds the
+	            parameters, sends them to the client, and watches. The client
+	            plays it and reports a verdict; the server believes a FAILURE
+	            at once and a SUCCESS only if the token matches, the attempt is
+	            still alive, and it did not come back impossibly fast. Dying,
+	            walking off, leaving, a timeout, or Roblox reporting a failure
+	            all end the attempt the same way: a LOCKOUT from every vault
+	            until the next Nightfall, saved on the profile so a rejoin
+	            cannot shed it. Night clears every lockout and every unlock.
+	            Speed has no say anywhere in here.
 	  STOCK     registers each vault pedestal with LootService (a socket with
 	            its own roll table) and restocks it: RESTOCK_SECONDS after it
 	            was emptied, with a server-wide toast, and at every Night when
 	            VaultConfig.RESTOCK_AT_NIGHT is on.
 	  DOOR      the door opens (DoorOpen attribute, animated by the clients)
-	            while a player with the zone's Speed is near it or inside. The
-	            doorway barrier never collides on the server; VaultController
-	            makes it solid on the client of a player the door refuses, and
-	            this service EJECTS any such player who is inside anyway (an
+	            while an unlocked player is near it or inside. The doorway
+	            barrier never collides on the server; VaultController makes it
+	            solid on the client of a player the door refuses, and this
+	            service EJECTS any such player who is inside anyway (an
 	            exploit, or a tag-along through an open door).
 	  STEAL     CarryService.pickupVeto (wired in init): vault loot needs the
-	            zone's Speed, and a pedestal steal needs the thief inside the
+	            lock cracked, and a pedestal steal needs the thief inside the
 	            laser ring (from the movement-verified position).
 	  LASERS    one moving field per vault in LaserService; the arms are
 	            functions of the server clock (LaserGeometry.sweepAt).
 	  GUARD     GuardianService posts a Vault Guardian from the vault's post.
 
-	Nothing here is saved. The server owns every outcome; the client only
-	draws the door, the arms and the sign.
+	Only the lockout stamp is saved. The server owns every outcome; the client
+	draws the door, the arms, the sign and the minigame.
 ]]
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local NightConfig = require(ReplicatedStorage.Shared.Config.NightConfig)
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
@@ -45,6 +60,7 @@ local StateService = require(script.Parent.StateService)
 local VaultService = {}
 
 export type DoorMode = "open" | "closed"
+export type Method = "Cut" | "Pins"
 
 type Vault = {
 	zoneIndex: number,
@@ -57,34 +73,75 @@ type Vault = {
 	forced: DoorMode?,
 }
 
+type Attempt = {
+	zoneIndex: number,
+	method: Method,
+	token: string,
+	startedAt: number,
+	--- A success reported sooner than this is a lie (the minigame cannot be
+	--- finished that fast), and is treated as a failure.
+	minSeconds: number,
+}
+
 local vaults: { [number]: Vault } = {}
 --- Studio only: players the door and the ring ignore (debug teleports).
 local bypass: { [Player]: boolean } = {}
 --- os.clock of the last "the door refused you" toast, per player.
 local lastRefusal: { [Player]: number } = {}
+--- Vaults this player has cracked since the last Night, per zone.
+local unlocked: { [Player]: { [number]: true } } = {}
+--- The one attempt a player may have running.
+local attempts: { [Player]: Attempt } = {}
+--- Seconds until the next Nightfall begins, injected by init from
+--- NightService (which this leaf-ish service must not require).
+local secondsToNightfall: (() -> number)? = nil
 
 -- ==========================================================
 -- RULES
 -- ==========================================================
 
-function VaultService.requiredSpeed(zoneIndex: number): number
-	local zone = ZoneConfig.Zones[zoneIndex]
-	return if zone then zone.recommendedSpeed * VaultConfig.SPEED_GATE_FRACTION else math.huge
+local function now(): number
+	return workspace:GetServerTimeNow()
 end
 
---- Whether the vault door lets this player through.
+--- True while the profile says every vault refuses this player.
+function VaultService.isLockedOut(player: Player): boolean
+	local profile = DataService.get(player)
+	return profile ~= nil and (tonumber(profile.VaultLockoutUntil) or 0) > now()
+end
+
+--- Whether the vault door lets this player through: the lock is cracked.
 function VaultService.qualifies(player: Player, zoneIndex: number): boolean
 	if bypass[player] then
 		return true
 	end
-	local profile = DataService.get(player)
-	return profile ~= nil and profile.SpeedPower >= VaultService.requiredSpeed(zoneIndex)
+	local mine = unlocked[player]
+	return mine ~= nil and mine[zoneIndex] == true
+end
+
+--- What the client reads: the cracked vaults, the lockout, the live attempt.
+local function publish(player: Player)
+	local list = {}
+	for zone in unlocked[player] or {} do
+		table.insert(list, zone)
+	end
+	table.sort(list)
+	player:SetAttribute("VaultUnlocked", table.concat(list, ";"))
+	player:SetAttribute("VaultLockedOut", VaultService.isLockedOut(player))
+	local attempt = attempts[player]
+	player:SetAttribute("VaultAttempt", if attempt then attempt.zoneIndex else 0)
 end
 
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	return if root and root:IsA("BasePart") then root else nil
+end
+
+local function alive(player: Player): boolean
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0 and character.Parent ~= nil
 end
 
 local function flatDistance(a: Vector3, b: Vector3): number
@@ -98,7 +155,7 @@ function VaultService.pickupVeto(player: Player, loot: any): string?
 	end
 	local zoneIndex = loot.zoneIndex
 	if not VaultService.qualifies(player, zoneIndex) then
-		return `You need {NumberFormat.short(VaultService.requiredSpeed(zoneIndex))} Speed for this vault!`
+		return if VaultService.isLockedOut(player) then VaultConfig.LOCKOUT_MESSAGE else "Crack the vault's lock first!"
 	end
 	if loot.state == "Spawned" and not bypass[player] then
 		local vault = vaults[zoneIndex]
@@ -124,10 +181,10 @@ local function eject(player: Player, vault: Vault)
 	MovementService.allowTeleport(player)
 	-- Just outside the door, facing the corridor.
 	character:PivotTo(vault.frame * CFrame.new(0, 4, -8) * CFrame.Angles(0, math.pi, 0))
-	local now = os.clock()
-	if now - (lastRefusal[player] or 0) > 3 then
-		lastRefusal[player] = now
-		StateService.notify(player, "error", `The vault door needs {NumberFormat.short(VaultService.requiredSpeed(vault.zoneIndex))} Speed!`)
+	local clock = os.clock()
+	if clock - (lastRefusal[player] or 0) > 3 then
+		lastRefusal[player] = clock
+		StateService.notify(player, "error", if VaultService.isLockedOut(player) then VaultConfig.LOCKOUT_MESSAGE else "Crack the lock to enter the vault!")
 	end
 end
 
@@ -173,6 +230,198 @@ local function doorPass()
 end
 
 -- ==========================================================
+-- THE LOCK: ATTEMPTS, VERDICTS, LOCKOUT
+-- ==========================================================
+
+--- One of the two methods, by weight. Rolled HERE so the client cannot pick.
+local function rollMethod(): Method
+	local total = 0
+	for _, method in VaultConfig.MINIGAMES do
+		total += method.weight
+	end
+	local pick = math.random() * total
+	for _, method in VaultConfig.MINIGAMES do
+		pick -= method.weight
+		if pick <= 0 then
+			return method.key :: Method
+		end
+	end
+	return "Cut"
+end
+
+--- Everything the client needs to draw the chosen minigame. Randomness lives
+--- here so every attempt is a fresh puzzle and the client cannot replay a
+--- known one.
+local function paramsFor(method: Method, zoneIndex: number): ({ [string]: any }, number)
+	if method == "Cut" then
+		local cut = VaultConfig.CUT
+		return {
+			rotationSeconds = cut.rotationSeconds,
+			padFraction = cut.padFraction,
+			graceSeconds = cut.graceSeconds,
+			wobble = cut.wobble,
+			startAngle = math.random() * 360,
+			direction = if math.random() < 0.5 then 1 else -1,
+		}, cut.rotationSeconds * 0.85
+	end
+	local pins = VaultConfig.PINS
+	local band = math.clamp(math.ceil(zoneIndex / 4), 1, #pins.countByBand)
+	local count = pins.countByBand[band]
+	local list = {}
+	for index = 1, count do
+		list[index] = {
+			height = pins.heightMin + math.random() * (pins.heightMax - pins.heightMin),
+			amplitude = pins.amplitudeMin + math.random() * (pins.amplitudeMax - pins.amplitudeMin),
+			period = pins.periodMin + math.random() * (pins.periodMax - pins.periodMin),
+			phase = math.random() * math.pi * 2,
+		}
+	end
+	return { pins = list, notchFraction = pins.notchFraction }, 1.2 + count * 0.3
+end
+
+local function endAttempt(player: Player)
+	attempts[player] = nil
+	publish(player)
+end
+
+--- The one punishment, for every way of failing.
+local function lockOut(player: Player)
+	local profile = DataService.get(player)
+	local seconds = if secondsToNightfall then secondsToNightfall() else NightConfig.CYCLE_SECONDS
+	if profile then
+		profile.VaultLockoutUntil = now() + math.max(seconds, 1)
+	end
+	unlocked[player] = nil
+	-- A failure the SERVER decided (walked off, died, timed out) reaches a
+	-- client whose minigame is still open; it has to be told, first, so it
+	-- can drop the HUD claim before the lockout toast tries to show.
+	local attempt = attempts[player]
+	if attempt then
+		Remotes.get("VaultMinigame"):FireClient(player, "fail", attempt.token)
+	end
+	endAttempt(player)
+	StateService.notify(player, "error", VaultConfig.LOCKOUT_MESSAGE, "vaultLockout")
+	StateService.sound(player, "UiDenied")
+	-- Locked out and standing inside a vault is the same as any intruder.
+	local root = rootOf(player)
+	local zone = root and Layout.inVault(root.Position)
+	if zone and vaults[zone] and vaults[zone].forced ~= "open" then
+		eject(player, vaults[zone])
+	end
+end
+
+local function succeed(player: Player, zoneIndex: number)
+	local mine = unlocked[player] or {}
+	mine[zoneIndex] = true
+	unlocked[player] = mine
+	endAttempt(player)
+	StateService.notify(player, "success", `Zone {zoneIndex} vault cracked - the door is yours!`, "vaultOpen")
+	StateService.sound(player, "ZoneUnlock")
+end
+
+--- Ends an attempt WITHOUT a verdict (Nightfall cancelled it): no lockout.
+local function abort(player: Player, attempt: Attempt)
+	Remotes.get("VaultMinigame"):FireClient(player, "abort", attempt.token)
+	endAttempt(player)
+end
+
+--- The prompt at a door. Every refusal is a toast, so the player always
+--- knows why nothing happened.
+local function beginAttempt(player: Player, zoneIndex: number)
+	local vault = vaults[zoneIndex]
+	if not vault or not VaultConfig.ENABLED then
+		return
+	end
+	if attempts[player] then
+		return -- one at a time; the running one decides
+	end
+	if VaultService.isLockedOut(player) then
+		StateService.notify(player, "error", VaultConfig.LOCKOUT_MESSAGE, "vaultLockout")
+		return
+	end
+	if VaultService.qualifies(player, zoneIndex) then
+		StateService.notify(player, "info", "This vault is already open for you.")
+		return
+	end
+	if not alive(player) then
+		return
+	end
+	local root = rootOf(player)
+	if not root or flatDistance(root.Position, vault.frame.Position) > VaultConfig.ATTEMPT_LEASH then
+		return
+	end
+	local method = rollMethod()
+	local params, minSeconds = paramsFor(method, zoneIndex)
+	local attempt: Attempt = {
+		zoneIndex = zoneIndex,
+		method = method,
+		token = HttpService:GenerateGUID(false),
+		startedAt = os.clock(),
+		minSeconds = minSeconds,
+	}
+	attempts[player] = attempt
+	publish(player)
+	Remotes.get("VaultMinigame"):FireClient(player, "start", attempt.token, zoneIndex, method, params)
+end
+
+--- The client's verdict. A failure is believed; a success has to be earned.
+local function onResult(player: Player, token: any, success: any)
+	local attempt = attempts[player]
+	if not attempt or type(token) ~= "string" or token ~= attempt.token then
+		return
+	end
+	if success ~= true then
+		lockOut(player)
+		return
+	end
+	local elapsed = os.clock() - attempt.startedAt
+	local root = rootOf(player)
+	local vault = vaults[attempt.zoneIndex]
+	if elapsed < attempt.minSeconds or not alive(player) or not root or not vault
+		or flatDistance(root.Position, vault.frame.Position) > VaultConfig.ATTEMPT_LEASH then
+		lockOut(player)
+		return
+	end
+	succeed(player, attempt.zoneIndex)
+end
+
+--- Everything that ends an attempt from OUTSIDE the minigame: death, walking
+--- away, a timeout. All of it is a failure.
+local function attemptPass()
+	for player, attempt in attempts do
+		local vault = vaults[attempt.zoneIndex]
+		local root = rootOf(player)
+		local away = not root or not vault or flatDistance(root.Position, vault.frame.Position) > VaultConfig.ATTEMPT_LEASH
+		if not alive(player) or away or os.clock() - attempt.startedAt > VaultConfig.ATTEMPT_TIMEOUT then
+			lockOut(player)
+		end
+	end
+end
+
+--- Nightfall: every lockout ends, every door re-locks, every running attempt
+--- is cancelled without blame (the Night reset is nobody's fault).
+local function clearForNight()
+	for _, player in Players:GetPlayers() do
+		local profile = DataService.get(player)
+		if profile then
+			profile.VaultLockoutUntil = 0
+		end
+		unlocked[player] = nil
+		local attempt = attempts[player]
+		if attempt then
+			abort(player, attempt)
+		else
+			publish(player)
+		end
+	end
+end
+
+--- init injects NightService's clock so this file need not require it.
+function VaultService.setNightfallClock(fn: () -> number)
+	secondsToNightfall = fn
+end
+
+-- ==========================================================
 -- STOCK
 -- ==========================================================
 
@@ -189,7 +438,7 @@ local function restockPass()
 	if not VaultConfig.ENABLED then
 		return
 	end
-	local now = workspace:GetServerTimeNow()
+	local clock = now()
 	for zoneIndex, vault in vaults do
 		local socket = LootService.getSocket(zoneIndex, Layout.VAULT_SOCKET)
 		if not socket then
@@ -201,9 +450,9 @@ local function restockPass()
 			end
 			publishStock(vault, true)
 		elseif not vault.restockAt then
-			vault.restockAt = now + VaultConfig.RESTOCK_SECONDS
+			vault.restockAt = clock + VaultConfig.RESTOCK_SECONDS
 			publishStock(vault, false)
-		elseif now >= vault.restockAt and not LootService.isClosed() then
+		elseif clock >= vault.restockAt and not LootService.isClosed() then
 			local loot = LootService.restockVault(zoneIndex, false)
 			if loot then
 				vault.restockAt = nil
@@ -232,6 +481,7 @@ function VaultService.restockAll(reroll: boolean): number
 end
 
 local function onNight()
+	clearForNight()
 	if not VaultConfig.ENABLED or not VaultConfig.RESTOCK_AT_NIGHT then
 		return
 	end
@@ -270,7 +520,7 @@ function VaultService.forceRestock(zoneIndex: number?, reroll: boolean?): { [str
 	return out
 end
 
---- Forces a door open or closed; nil hands it back to the Speed rule.
+--- Forces a door open or closed; nil hands it back to the lock rule.
 function VaultService.setDoor(zoneIndex: number?, mode: DoorMode?)
 	for index, vault in vaults do
 		if zoneIndex == nil or zoneIndex == index then
@@ -284,6 +534,29 @@ end
 function VaultService.setBypass(player: Player, on: boolean)
 	if RunService:IsStudio() then
 		bypass[player] = if on then true else nil
+	end
+end
+
+--- Studio only: cracks a vault for a player without the minigame.
+function VaultService.debugCrack(player: Player, zoneIndex: number)
+	if RunService:IsStudio() then
+		succeed(player, zoneIndex)
+	end
+end
+
+--- Studio only: applies or clears the lockout by hand.
+function VaultService.debugLockout(player: Player, on: boolean)
+	if not RunService:IsStudio() then
+		return
+	end
+	if on then
+		lockOut(player)
+	else
+		local profile = DataService.get(player)
+		if profile then
+			profile.VaultLockoutUntil = 0
+		end
+		publish(player)
 	end
 end
 
@@ -310,7 +583,7 @@ end
 
 --- Everything a tester wants to see, per vault.
 function VaultService.states(): { [string]: any }
-	local now = workspace:GetServerTimeNow()
+	local clock = now()
 	local out = {}
 	for zoneIndex, vault in vaults do
 		local socket = LootService.getSocket(zoneIndex, Layout.VAULT_SOCKET)
@@ -323,20 +596,31 @@ function VaultService.states(): { [string]: any }
 				onSeconds = arm.onSeconds, offSeconds = arm.offSeconds,
 			}
 			table.insert(arms, string.format("h=%.1f period=%.2fs angle=%.0fdeg lit=%s",
-				arm.height, arm.period, math.deg(Geometry.sweepAngle(sweep, now)) % 360, tostring(Geometry.sweepLit(sweep, now))))
+				arm.height, arm.period, math.deg(Geometry.sweepAngle(sweep, clock)) % 360, tostring(Geometry.sweepLit(sweep, clock))))
+		end
+		local crackedBy = {}
+		for player, mine in unlocked do
+			if mine[zoneIndex] then
+				table.insert(crackedBy, player.Name)
+			end
 		end
 		out[`zone{zoneIndex}`] = {
 			host = vault.folder:GetAttribute("HostZone"),
-			requiredSpeed = VaultService.requiredSpeed(zoneIndex),
+			crackedBy = crackedBy,
 			doorOpen = vault.folder:GetAttribute("DoorOpen"),
 			doorForced = vault.forced,
 			loot = if loot then `{loot.name} [{loot.rarity}] ({loot.state})` else nil,
-			restockIn = if vault.restockAt then math.max(0, math.floor(vault.restockAt - now)) else nil,
+			restockIn = if vault.restockAt then math.max(0, math.floor(vault.restockAt - clock)) else nil,
 			ringInner = vault.ring.inner,
 			ringOuter = vault.ring.outer,
 			arms = arms,
 		}
 	end
+	local live = {}
+	for player, attempt in attempts do
+		live[player.Name] = `{attempt.method} at zone {attempt.zoneIndex}, {math.floor(os.clock() - attempt.startedAt)}s`
+	end
+	out.attempts = live
 	return out
 end
 
@@ -382,15 +666,48 @@ function VaultService.start()
 		VaultService.restockAll(false)
 	end
 
+	-- THE PROMPT. Only the vault's own lock prompt; its zone is the folder's.
+	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+		if prompt.Name ~= "VaultLockPrompt" then
+			return
+		end
+		local anchor = prompt.Parent
+		local folder = anchor and anchor.Parent
+		local zoneIndex = folder and tonumber(folder:GetAttribute("VaultZone"))
+		if zoneIndex then
+			beginAttempt(player, zoneIndex)
+		end
+	end)
+	Remotes.get("VaultMinigameResult").OnServerEvent:Connect(onResult)
+
 	ReplicatedStorage:GetAttributeChangedSignal("NightPhase"):Connect(function()
 		if ReplicatedStorage:GetAttribute("NightPhase") == "Night" then
 			onNight()
 		end
 	end)
 
+	-- The saved lockout rides in with the profile.
+	local function onPlayer(player: Player)
+		task.spawn(function()
+			if DataService.waitForProfile(player) then
+				publish(player)
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(onPlayer)
+	for _, player in Players:GetPlayers() do
+		onPlayer(player)
+	end
 	Players.PlayerRemoving:Connect(function(player)
+		-- Leaving mid-attempt is a failure; the stamp is on the profile
+		-- before it saves.
+		if attempts[player] then
+			lockOut(player)
+		end
 		bypass[player] = nil
 		lastRefusal[player] = nil
+		unlocked[player] = nil
+		attempts[player] = nil
 	end)
 
 	task.spawn(function()
@@ -398,6 +715,7 @@ function VaultService.start()
 			task.wait(VaultConfig.DOOR_CHECK_INTERVAL)
 			local ok, err = pcall(function()
 				doorPass()
+				attemptPass()
 				return true
 			end)
 			if not ok then

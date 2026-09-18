@@ -33,6 +33,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
@@ -41,72 +42,118 @@ local HUDLayoutController = {}
 
 local player = Players.LocalPlayer
 
---- Inset of the rail from the left edge and the gap between its buttons, as a
---- fraction of the rail's height. ~12-16px at desktop sizes.
-local RAIL_INSET = UDim.new(0, 14)
-local RAIL_GAP = UDim.new(0.06, 0)
+--- Inset of the rail from the left screen edge.
+local RAIL_INSET = UDim.new(0, 12)
 
---- Per-button identity. Plate = the TextButton's own fill (reads as the border),
---- top/bottom = the inner gradient, ring = the inner stroke.
-type Accent = { plate: Color3, top: Color3, bottom: Color3, ring: Color3 }
+--- Per-button identity: ONE accent colour, drawn as the tile's single ring
+--- (and a faint tint of its face). The tiles themselves are dark charcoal -
+--- the owner's reference HUD - not the pack's full-colour gradients.
+type Accent = { ring: Color3 }
 local ACCENTS: { [string]: Accent } = {
-	Shop = {
-		plate = Color3.fromRGB(150, 26, 40),
-		top = Color3.fromRGB(255, 96, 118),
-		bottom = Color3.fromRGB(226, 42, 78),
-		ring = Color3.fromRGB(255, 170, 186),
-	},
-	Upgrades = {
-		plate = Color3.fromRGB(22, 120, 70),
-		top = Color3.fromRGB(96, 240, 150),
-		bottom = Color3.fromRGB(28, 190, 110),
-		ring = Color3.fromRGB(180, 255, 210),
-	},
-	Index = {
-		plate = Color3.fromRGB(46, 50, 150),
-		top = Color3.fromRGB(120, 140, 255),
-		bottom = Color3.fromRGB(70, 90, 230),
-		ring = Color3.fromRGB(190, 200, 255),
-	},
-	Storage = {
-		plate = Color3.fromRGB(160, 92, 10),
-		top = Color3.fromRGB(255, 196, 80),
-		bottom = Color3.fromRGB(240, 140, 30),
-		ring = Color3.fromRGB(255, 226, 160),
-	},
+	Shop = { ring = Color3.fromRGB(255, 92, 124) },
+	Upgrades = { ring = Color3.fromRGB(86, 232, 140) },
+	Index = { ring = Color3.fromRGB(96, 150, 255) },
+	Storage = { ring = Color3.fromRGB(255, 170, 60) },
 	-- [trading-gifting-boards] The Trade opener (TradeController).
-	Trade = {
-		plate = Color3.fromRGB(112, 30, 150),
-		top = Color3.fromRGB(214, 130, 255),
-		bottom = Color3.fromRGB(156, 64, 226),
-		ring = Color3.fromRGB(236, 200, 255),
-	},
+	Trade = { ring = Color3.fromRGB(198, 112, 255) },
 }
+
+--- The tile: dark charcoal, top-lit.
+local TILE_TOP = Color3.fromRGB(40, 43, 54)
+local TILE_BOTTOM = Color3.fromRGB(24, 26, 34)
+--- Corner radius and ring thickness of every tile.
+local TILE_RADIUS = 14
+local TILE_RING = 2.5
+--- Desktop tile size and column gap; the touch layout derives its own.
+local RAIL_TILE = 60
+local RAIL_GAP = 10
+--- Where the rail's top sits: under Roblox's own top-left buttons.
+local RAIL_TOP = 58
 
 local STAT_ROWS = {
 	{ key = "Cash", icon = "rbxassetid://112931960147028", color = Color3.fromRGB(110, 240, 130) },
 	{ key = "Income", icon = "rbxassetid://112931960147028", color = Color3.fromRGB(180, 255, 190) },
 	{ key = "Speed", icon = "rbxassetid://102080723305863", color = Color3.fromRGB(110, 210, 255) },
 }
+--- The economy pill's height and figure size, desktop and touch.
+local STAT_HEIGHT = 38
+local STAT_TEXT = 16
+local STAT_HEIGHT_TOUCH = 32
+local STAT_TEXT_TOUCH = 14
+local WHITE = Color3.fromRGB(255, 255, 255)
 
 -- ==========================================================
 -- COLOUR
 -- ==========================================================
 
---- Recolours one rail button the way the pack authors colour: all three layers.
+--- Restyles one rail tile to the owner's reference: a compact rounded square,
+--- dark charcoal, ONE accent ring, the icon alone in the middle - no caption,
+--- no studs, no rays, no plate lip. The pack's own click/hover script still
+--- drives it (the button keeps its name and its stamps); this only changes
+--- how it looks, and adds the hover glow and the click sound.
 function HUDLayoutController.tint(button: GuiButton, accent: Accent)
-	button.BackgroundColor3 = accent.plate
+	button.BackgroundColor3 = WHITE
+	button.BackgroundTransparency = 0
+	button.BorderSizePixel = 0
+	local plateGradient = button:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
+	plateGradient.Rotation = 90
+	plateGradient.Color = ColorSequence.new(TILE_TOP, TILE_BOTTOM)
+	plateGradient.Parent = button
+	local plateCorner = button:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+	plateCorner.CornerRadius = UDim.new(0, TILE_RADIUS)
+	plateCorner.Parent = button
+	local ring = button:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+	ring.Color = accent.ring
+	ring.Thickness = TILE_RING
+	ring.Transparency = 0
+	ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ring.Parent = button
+
+	-- The pack's inset body: flattened into the tile and its own ring off.
 	local face = button:FindFirstChild("Frame")
-	if not face then
-		return
+	if face and face:IsA("GuiObject") then
+		face.AnchorPoint = Vector2.new(0.5, 0.5)
+		face.Position = UDim2.fromScale(0.5, 0.5)
+		face.Size = UDim2.fromScale(1, 1)
+		face.BackgroundTransparency = 1
+		local faceRing = face:FindFirstChildOfClass("UIStroke")
+		if faceRing then
+			faceRing.Enabled = false
+		end
+		for _, child in face:GetChildren() do
+			if (child:IsA("ImageLabel") or child:IsA("CanvasGroup")) and child.Name ~= "Icon" then
+				child.Visible = false
+			end
+		end
+		local icon = face:FindFirstChild("Icon")
+		if icon and icon:IsA("ImageLabel") then
+			icon.AnchorPoint = Vector2.new(0.5, 0.5)
+			icon.Position = UDim2.fromScale(0.5, 0.5)
+			icon.Size = UDim2.fromScale(0.64, 0.64)
+			icon.ScaleType = Enum.ScaleType.Fit
+			icon.Visible = true
+		end
 	end
-	local gradient = face:FindFirstChildOfClass("UIGradient")
-	if gradient then
-		gradient.Color = ColorSequence.new(accent.top, accent.bottom)
+	local title = button:FindFirstChild("Title")
+	if title and title:IsA("GuiObject") then
+		title.Visible = false
 	end
-	local ring = face:FindFirstChildOfClass("UIStroke")
-	if ring then
-		ring.Color = accent.ring
+
+	-- Hover glow and click sound, once per tile. The pack already scales it
+	-- on hover and press; this adds the ring lighting up and the click.
+	if not button:GetAttribute("RailStyled") then
+		button:SetAttribute("RailStyled", true)
+		button.MouseEnter:Connect(function()
+			ring.Thickness = TILE_RING + 1
+			plateGradient.Color = ColorSequence.new(TILE_TOP:Lerp(accent.ring, 0.16), TILE_BOTTOM:Lerp(accent.ring, 0.08))
+		end)
+		button.MouseLeave:Connect(function()
+			ring.Thickness = TILE_RING
+			plateGradient.Color = ColorSequence.new(TILE_TOP, TILE_BOTTOM)
+		end)
+		button.MouseButton1Click:Connect(function()
+			Audio.play("UiClick")
+		end)
 	end
 end
 
@@ -263,21 +310,43 @@ end
 -- RAIL
 -- ==========================================================
 
-local function layoutRail(buttons: GuiObject, left: GuiObject)
-	-- Off the edge. The rail was pinned at X = 0 with its buttons touching the
-	-- border; an inset and a gap are the whole difference between "stacked" and
-	-- "laid out".
-	buttons.Position = UDim2.new(0, 0, 0.47, 0)
-	-- Slightly shorter than the pack's 0.62 and lifted a touch, so the rail's
-	-- last tile clears the stat card below it instead of touching it.
-	buttons.Size = UDim2.new(buttons.Size.X.Scale, buttons.Size.X.Offset, 0.56, 0)
-	local pad = buttons:FindFirstChildOfClass("UIPadding") or Instance.new("UIPadding")
-	pad.PaddingLeft = RAIL_INSET
-	pad.Parent = buttons
+--- The five tiles, in the order the column must draw them. Set explicitly
+--- rather than trusted to whoever created each button: Upgrades, Storage and
+--- Trade are cloned in later by their own controllers, and the pack's Shop
+--- and Index carry whatever LayoutOrder the pack shipped with.
+local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4, Trade = 5 }
 
+--- The rail as ONE column of fixed tiles, from a given tile size and gap:
+--- top-left under Roblox's buttons, no panel behind it, no padding. Shared
+--- by the desktop and touch layouts, which differ only in the numbers.
+local function layoutColumn(buttons: GuiObject, left: GuiObject, tile: number, gap: number, top: number)
+	local tiles = 0
+	for _, child in left:GetChildren() do
+		if MENU_ORDER[child.Name] and child:IsA("GuiObject") then
+			tiles += 1
+			child.LayoutOrder = MENU_ORDER[child.Name]
+		end
+	end
+	tiles = math.max(tiles, 1)
+	local pad = buttons:FindFirstChildOfClass("UIPadding")
+	if pad then
+		pad:Destroy()
+	end
+	buttons.AnchorPoint = Vector2.new(0, 0)
+	buttons.Position = UDim2.fromOffset(RAIL_INSET.Offset, top)
+	buttons.Size = UDim2.fromOffset(tile, tile * tiles + gap * (tiles - 1))
+	left.AnchorPoint, left.Position, left.Size = Vector2.zero, UDim2.new(), UDim2.fromScale(1, 1)
 	local grid = left:FindFirstChildOfClass("UIGridLayout")
 	if grid then
-		grid.CellPadding = UDim2.new(0, 0, RAIL_GAP.Scale, RAIL_GAP.Offset)
+		grid.CellSize = UDim2.fromOffset(tile, tile)
+		grid.CellPadding = UDim2.fromOffset(0, gap)
+		grid.FillDirection = Enum.FillDirection.Horizontal
+		-- THE LINE THAT MAKES IT A COLUMN: one per row.
+		grid.FillDirectionMaxCells = 1
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		grid.VerticalAlignment = Enum.VerticalAlignment.Top
+		grid.StartCorner = Enum.StartCorner.TopLeft
 	end
 	local list = buttons:FindFirstChildOfClass("UIListLayout")
 	if list then
@@ -285,49 +354,77 @@ local function layoutRail(buttons: GuiObject, left: GuiObject)
 	end
 end
 
+local function layoutRail(buttons: GuiObject, left: GuiObject)
+	layoutColumn(buttons, left, RAIL_TILE, RAIL_GAP, RAIL_TOP)
+	-- Tiles added later (Upgrades, Storage, Trade arrive after this pass)
+	-- grow the column.
+	left.ChildAdded:Connect(function()
+		task.defer(layoutColumn, buttons, left, RAIL_TILE, RAIL_GAP, RAIL_TOP)
+	end)
+end
+
 -- ==========================================================
 -- STAT CARD
 -- ==========================================================
 
---- One row of the stat card: an icon and the EXISTING amount label, moved in.
-local function statRow(parent: Instance, spec: { key: string, icon: string, color: Color3 }, label: TextLabel?, order: number)
-	local row = Instance.new("Frame")
-	row.Name = spec.key
-	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1, 0, 1 / #STAT_ROWS, 0)
-	row.LayoutOrder = order
-	row.Parent = parent
+--- One item of the economy pill: an icon and the EXISTING amount label,
+--- moved in, sized by its text. A thin divider separates it from the next.
+local function statItem(parent: Instance, spec: { key: string, icon: string, color: Color3 }, label: TextLabel?, order: number, divider: boolean)
+	local item = Instance.new("Frame")
+	item.Name = spec.key
+	item.BackgroundTransparency = 1
+	item.AutomaticSize = Enum.AutomaticSize.X
+	item.Size = UDim2.new(0, 0, 1, 0)
+	item.LayoutOrder = order * 2
+	item.Parent = parent
+	local row = Instance.new("UIListLayout")
+	row.FillDirection = Enum.FillDirection.Horizontal
+	row.VerticalAlignment = Enum.VerticalAlignment.Center
+	row.Padding = UDim.new(0, 6)
+	row.SortOrder = Enum.SortOrder.LayoutOrder
+	row.Parent = item
 
 	local icon = Instance.new("ImageLabel")
 	icon.Name = "Icon"
 	icon.BackgroundTransparency = 1
 	icon.Image = spec.icon
-	icon.Size = UDim2.fromScale(0.8, 0.8)
-	icon.Position = UDim2.fromScale(0.04, 0.5)
-	icon.AnchorPoint = Vector2.new(0, 0.5)
+	icon.Size = UDim2.new(0.6, 0, 0.6, 0)
+	icon.LayoutOrder = 1
 	icon.ZIndex = 6
-	icon.Parent = row
+	icon.Parent = item
 	local ratio = Instance.new("UIAspectRatioConstraint")
 	ratio.AspectRatio = 1
 	ratio.Parent = icon
 
 	if label then
-		label.Parent = row
-		label.AnchorPoint = Vector2.new(0, 0.5)
-		label.Position = UDim2.fromScale(0.26, 0.5)
-		label.Size = UDim2.fromScale(0.72, 0.78)
+		local limit = label:FindFirstChildOfClass("UITextSizeConstraint")
+		if limit then
+			limit:Destroy()
+		end
+		label.Parent = item
+		label.AutomaticSize = Enum.AutomaticSize.X
+		label.Size = UDim2.new(0, 0, 1, 0)
+		label.Position = UDim2.new()
+		label.AnchorPoint = Vector2.zero
 		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextScaled = true
+		label.TextScaled = false
+		label.Font = Enum.Font.GothamBold
+		label.TextSize = STAT_TEXT
 		label.TextColor3 = spec.color
-		-- With no plate behind it the number needs its own edge to stay
-		-- legible over grass, sky and the lobby's white walls.
-		label.TextStrokeColor3 = Color3.fromRGB(10, 12, 24)
-		label.TextStrokeTransparency = 0.1
+		label.TextStrokeTransparency = 1
+		label.LayoutOrder = 2
 		label.ZIndex = 6
-		local limit = label:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
-		limit.MinTextSize = 12
-		limit.MaxTextSize = 30
-		limit.Parent = label
+	end
+
+	if divider then
+		local line = Instance.new("Frame")
+		line.Name = `Divider{order}`
+		line.BackgroundColor3 = Color3.fromRGB(78, 84, 104)
+		line.BorderSizePixel = 0
+		line.Size = UDim2.new(0, 1, 0.55, 0)
+		line.LayoutOrder = order * 2 + 1
+		line.ZIndex = 6
+		line.Parent = parent
 	end
 end
 
@@ -341,40 +438,52 @@ local function buildStatCard(ui: ScreenGui)
 		return
 	end
 
-	-- NO BOX. The three figures sit straight on the world, bottom-left, each
-	-- an icon and a bold outlined number - the way the reference games draw
-	-- them. The plate / studded face / gradient card this used to be was one
-	-- more bordered rectangle on a HUD the owner asked to have fewer of, and
-	-- on a phone it ate a corner of the play area to frame three numbers.
+	-- ONE PILL. Cash, Cash/s and Speed in a single compact horizontal pill,
+	-- bottom-left: a dark translucent capsule, three icon + figure items with
+	-- thin dividers, sized by its text. The owner's reference HUD. It keeps
+	-- the name StatHUD so UIStateController still hides it during a carry.
 	local card = Instance.new("Frame")
 	card.Name = "StatHUD"
 	card.AnchorPoint = Vector2.new(0, 1)
-	card.Position = UDim2.new(0, 14, 1, -14)
-	card.Size = UDim2.fromScale(0.16, 0.155)
-	card.BackgroundTransparency = 1
+	card.Position = UDim2.new(0, 12, 1, -12)
+	card.AutomaticSize = Enum.AutomaticSize.X
+	card.Size = UDim2.fromOffset(0, STAT_HEIGHT)
+	card.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+	card.BackgroundTransparency = 0.22
 	card.BorderSizePixel = 0
 	card.ZIndex = 4
 	card.Parent = ui
-	local limit = Instance.new("UISizeConstraint")
-	limit.MinSize = Vector2.new(170, 90)
-	limit.MaxSize = Vector2.new(300, 112)
-	limit.Parent = card
+	local capsule = Instance.new("UICorner")
+	capsule.CornerRadius = UDim.new(1, 0)
+	capsule.Parent = card
+	local edge = Instance.new("UIStroke")
+	edge.Color = Color3.fromRGB(64, 70, 88)
+	edge.Thickness = 1.5
+	edge.Transparency = 0.15
+	edge.Parent = card
+	local inset = Instance.new("UIPadding")
+	inset.PaddingLeft = UDim.new(0, 12)
+	inset.PaddingRight = UDim.new(0, 12)
+	inset.Parent = card
 
 	local rows = Instance.new("Frame")
 	rows.Name = "Rows"
 	rows.BackgroundTransparency = 1
-	rows.Size = UDim2.fromScale(1, 1)
+	rows.AutomaticSize = Enum.AutomaticSize.X
+	rows.Size = UDim2.new(0, 0, 1, 0)
 	rows.ZIndex = 6
 	rows.Parent = card
 	local list = Instance.new("UIListLayout")
-	list.FillDirection = Enum.FillDirection.Vertical
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.VerticalAlignment = Enum.VerticalAlignment.Center
+	list.Padding = UDim.new(0, 10)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Parent = rows
 
 	for order, spec in STAT_ROWS do
 		local chip = currencies:FindFirstChild(spec.key)
 		local label = chip and chip:FindFirstChild("Amount")
-		statRow(rows, spec, if label and label:IsA("TextLabel") then label else nil, order)
+		statItem(rows, spec, if label and label:IsA("TextLabel") then label else nil, order, order < #STAT_ROWS)
 	end
 
 	-- The pack's Currencies strip is now empty of anything we show; hide it so
@@ -448,51 +557,21 @@ end
 -- sits 64-93px up from the bottom-left corner depending on which control style
 -- Roblox serves, which is why no fixed fraction of the screen can be right.
 --
--- Three steps, in order, stopping at the first that fits:
---   1. The owner's layout: 60px tiles centred at 56% of the screen. On any
---      screen with room for it, the block is exactly what it always was.
---   2. Smaller tiles, packed under the stat card, never below 44px - the
---      smallest reliable finger target.
---   3. The whole block shrunk uniformly, still two by two. Only on the
---      smallest phones, and never below TOUCH_MIN_BLOCK_SCALE.
--- Captions are the pack's own fixed-height labels, so they stay readable at
--- every tile size.
+-- ONE COLUMN of icon tiles (the owner's reference HUD): the tile is whatever
+-- fits five between the Roblox buttons and the thumbstick, 44-60 px.
 
 --- Menu tile size on touch, in pixels. The owner's size, used whenever it fits.
 local TOUCH_TILE = 60
 --- The smallest tile drawn before the block is shrunk as a whole instead.
 local TOUCH_TILE_MIN = 44
---- The smallest the whole block is ever scaled. Past this the captions stop
---- being legible, and a block that is slightly too tall is the lesser harm.
-local TOUCH_MIN_BLOCK_SCALE = 0.72
 local TOUCH_TILE_GAP = 8
---- Vertical gap between the two rows: room for the caption under each tile.
-local TOUCH_TILE_LABEL_GAP = 26
---- How far each caption hangs below its plate - the pack's Title is 18 tall
---- at +14 - so the BOTTOM row needs this much clear space beneath it too.
-local TOUCH_CAPTION_DROP = 32
+--- Where the touch rail starts: under Roblox's top-left buttons.
+local RAIL_TOP_TOUCH = 52
 --- Clearance kept from the stat card above and the thumbstick ring below.
 local TOUCH_BLOCK_MARGIN = 8
---- The block's centre in the owner's layout, as a share of the HUD's height.
-local TOUCH_BLOCK_CENTRE = 0.56
 --- Largest font any TextScaled label inside a panel may reach on touch, so a
 --- short label in a tall row does not balloon.
 local TOUCH_PANEL_MAX_TEXT = 26
-
---- Rows in the block: two for the original four tiles. [trading-gifting-
---- boards] A fifth tile (Trade) makes it three; fitTouchRail sets this from
---- the buttons actually in the rail before it measures.
-local menuRows = 2
-
---- The grid's rows, as laid out (without the bottom row's captions).
-local function blockHeight(tile: number): number
-	return tile * menuRows + TOUCH_TILE_LABEL_GAP * (menuRows - 1)
-end
-
---- How much screen the block really covers, captions included.
-local function blockExtent(tile: number): number
-	return blockHeight(tile) + TOUCH_CAPTION_DROP
-end
 
 --- Top of Roblox's resting thumbstick ring, in `ui`'s local coordinates, or
 --- nil when there is no thumbstick to measure (keyboard, gamepad, or the
@@ -508,58 +587,6 @@ local function thumbstickTop(ui: ScreenGui): number?
 	end
 	return nil
 end
-
---- Bottom of the stat card, in `ui`'s local coordinates.
----
---- On touch the card lives top-left. A card still reading in the LOWER half is
---- its desktop position from before layoutTouchStats moved it - Roblox only
---- updates AbsolutePosition on the next frame - so it is ignored rather than
---- used to push the menu block off the bottom of the screen for a frame.
-local function statBottom(ui: ScreenGui): number?
-	local card = ui:FindFirstChild("StatHUD")
-	if card and card:IsA("GuiObject") and card.Visible and card.AbsoluteSize.Y > 0 then
-		local top = card.AbsolutePosition.Y - ui.AbsolutePosition.Y
-		if top > ui.AbsoluteSize.Y * 0.5 then
-			return nil
-		end
-		return top + card.AbsoluteSize.Y
-	end
-	return nil
-end
-
---- Works out tile size, block scale and where the block's top goes. Pure
---- arithmetic on three measurements, so it can be reasoned about (and was
---- checked) for any screen height without a device.
----
---- `ceiling`/`floor` are the local Y the block's visual extent must stay
---- between; `hudHeight` is the HUD's own height. Returns the tile size, the
---- uniform scale to apply to the block, and the block's top Y - or `nil` for
---- the top when the owner's centred layout fits and should be used as-is.
-local function fitBlock(ceiling: number, floor: number, hudHeight: number): (number, number, number?)
-	-- 1. The owner's layout, if it clears both.
-	local centredTop = hudHeight * TOUCH_BLOCK_CENTRE - blockHeight(TOUCH_TILE) / 2
-	if centredTop >= ceiling and centredTop + blockExtent(TOUCH_TILE) <= floor then
-		return TOUCH_TILE, 1, nil
-	end
-
-	local available = floor - ceiling
-	-- 2. The biggest tile that fits, down to the finger-size floor.
-	local tile = math.floor((available - TOUCH_TILE_LABEL_GAP * (menuRows - 1) - TOUCH_CAPTION_DROP) / menuRows)
-	if tile >= TOUCH_TILE_MIN then
-		return math.min(tile, TOUCH_TILE), 1, ceiling
-	end
-
-	-- 3. Minimum tiles, the whole block scaled to fit - still two by two.
-	local scale = math.clamp(available / blockExtent(TOUCH_TILE_MIN), TOUCH_MIN_BLOCK_SCALE, 1)
-	return TOUCH_TILE_MIN, scale, ceiling
-end
-HUDLayoutController.fitBlock = fitBlock
-
---- The four buttons, in the order the grid must draw them. Set explicitly
---- rather than trusted to whoever created each button: Upgrades and Storage
---- are cloned in later by their own controllers, and the pack's Shop and
---- Index carry whatever LayoutOrder the pack shipped with.
-local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4, Trade = 5 }
 
 --- Lays the four menu tiles out as a two-by-two block sized for THIS screen.
 --- Safe to call again at any time: it recomputes from live measurements and
@@ -577,71 +604,30 @@ local function fitTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
 		hudScale = hudUiScale.Scale
 	end
 
-	-- [trading-gifting-boards] Rows from the tiles actually present.
+	-- ONE COLUMN of icon tiles under Roblox's top-left buttons, ending above
+	-- the thumbstick's resting ring (or the economy pill when there is no
+	-- ring yet). The tile is whatever fits five in that span, between the
+	-- 44 px finger minimum and the desktop size. In the HUD's local pixels,
+	-- before its UIScale.
 	local tiles = 0
 	for _, child in left:GetChildren() do
 		if MENU_ORDER[child.Name] and child:IsA("GuiObject") then
 			tiles += 1
 		end
 	end
-	menuRows = math.max(2, math.ceil(tiles / 2))
-
-	-- In the HUD's local pixels, before its UIScale.
-	local ceiling = ((statBottom(ui) or 120) + TOUCH_BLOCK_MARGIN) / hudScale
+	tiles = math.max(tiles, 1)
+	local top = RAIL_TOP_TOUCH / hudScale
 	local ringTop = thumbstickTop(ui)
-	local floorY = ((ringTop or (hudHeight - 150)) - TOUCH_BLOCK_MARGIN) / hudScale
-	local tile, scale, top = fitBlock(ceiling, floorY, hudHeight / hudScale)
-
-	local width = tile * 2 + TOUCH_TILE_GAP + RAIL_INSET.Offset
-	if top then
-		buttons.AnchorPoint = Vector2.new(0, 0)
-		buttons.Position = UDim2.fromOffset(0, top)
-	else
-		buttons.AnchorPoint = Vector2.new(0, 0.5)
-		buttons.Position = UDim2.new(0, 0, TOUCH_BLOCK_CENTRE, 0)
-	end
-	buttons.Size = UDim2.fromOffset(width, blockHeight(tile))
-
-	-- The uniform shrink for step 3. Its own UIScale, named, so it cannot be
-	-- mistaken for the per-button hover scales the pack creates.
+	local floorY = ((ringTop or (hudHeight - 60)) - TOUCH_BLOCK_MARGIN) / hudScale
+	local tile = math.clamp(math.floor((floorY - top - TOUCH_TILE_GAP * (tiles - 1)) / tiles), TOUCH_TILE_MIN, TOUCH_TILE)
 	local fit = buttons:FindFirstChild("FitScale")
-	if scale < 0.999 then
-		if not fit then
-			local made = Instance.new("UIScale")
-			made.Name = "FitScale"
-			made.Parent = buttons
-			fit = made
-		end
-		(fit :: UIScale).Scale = scale
-	elseif fit then
-		(fit :: UIScale).Scale = 1
+	if fit and fit:IsA("UIScale") then
+		fit.Scale = 1
 	end
-
-	left.Size = UDim2.fromScale(1, 1)
-	local grid = left:FindFirstChildOfClass("UIGridLayout")
-	if grid then
-		grid.CellSize = UDim2.fromOffset(tile, tile)
-		-- The row gap is the caption's height: each tile's label hangs below
-		-- its plate, and at a tighter gap the bottom row drew over the top
-		-- row's words.
-		grid.CellPadding = UDim2.fromOffset(TOUCH_TILE_GAP, TOUCH_TILE_LABEL_GAP)
-		grid.FillDirection = Enum.FillDirection.Horizontal
-		-- THE LINE THAT MAKES IT TWO BY TWO. At most two per row, so four
-		-- buttons can only ever be two rows, however wide the block is.
-		grid.FillDirectionMaxCells = 2
-		grid.SortOrder = Enum.SortOrder.LayoutOrder
-		grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
-		grid.VerticalAlignment = Enum.VerticalAlignment.Top
-		grid.StartCorner = Enum.StartCorner.TopLeft
-	end
+	layoutColumn(buttons, left, tile, TOUCH_TILE_GAP, top)
 	for _, button in left:GetChildren() do
-		local order = MENU_ORDER[button.Name]
-		if order and button:IsA("GuiObject") then
-			button.LayoutOrder = order
-			-- Belt and braces on the layering: the TOP row draws over the
-			-- bottom row, so a caption that still overhangs sits in front of
-			-- the tile below it rather than being clipped behind it.
-			button.ZIndex = if order <= 2 then 4 else 2
+		if MENU_ORDER[button.Name] and button:IsA("GuiObject") then
+			button.ZIndex = 4
 		end
 	end
 end
@@ -699,25 +685,13 @@ local function layoutTouchStats(ui: ScreenGui)
 	if not cardHud or not cardHud:IsA("GuiObject") then
 		return
 	end
-	-- BOTTOM-LEFT on touch (it was top-left, under the Roblox buttons): the
-	-- corner the reference games keep their money in, below the menu block
-	-- and beside the thumbstick's resting spot, so nothing in the top-left
-	-- competes with Roblox's own buttons and the numbers are where a thumb
-	-- never covers them.
+	-- The same pill, a touch smaller, bottom-left.
 	cardHud.AnchorPoint = Vector2.new(0, 1)
-	cardHud.Position = UDim2.new(0, 12, 1, -10)
-	cardHud.Size = UDim2.fromOffset(164, 78)
-	local limit = cardHud:FindFirstChildOfClass("UISizeConstraint")
-	if limit then
-		limit.MinSize = Vector2.new(150, 70)
-		limit.MaxSize = Vector2.new(180, 84)
-	end
+	cardHud.Position = UDim2.new(0, 10, 1, -10)
+	cardHud.Size = UDim2.fromOffset(0, STAT_HEIGHT_TOUCH)
 	for _, label in cardHud:GetDescendants() do
 		if label:IsA("TextLabel") then
-			local textLimit = label:FindFirstChildOfClass("UITextSizeConstraint")
-			if textLimit then
-				textLimit.MaxTextSize = 18
-			end
+			label.TextSize = STAT_TEXT_TOUCH
 		end
 	end
 end

@@ -14,7 +14,9 @@
 	inside a ring of rotating lasers.
 
 	  Vault                      Folder, attributes: VaultZone, HostZone,
-	                             RequiredSpeed, DoorOpen, RestockAt, Stocked
+	                             DoorOpen, RestockAt, Stocked
+	    VaultLock                  invisible anchor with the "Crack the Lock"
+	                             ProximityPrompt (vault-minigames)
 	    Structure                walls, ceiling, pedestal (collide, query)
 	    Decorations              PartKit.decor parts only
 	    Door                     Model the CLIENT slides aside (DoorOpen)
@@ -41,7 +43,6 @@ local ServerStorage = game:GetService("ServerStorage")
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local VaultConfig = require(ReplicatedStorage.Shared.Config.VaultConfig)
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local PartKit = require(script.Parent.PartKit)
 
@@ -103,9 +104,32 @@ local function statusPlaque(parent: Instance, cf: CFrame, width: number, zoneInd
 	status.Name = "Status"
 	status.BackgroundTransparency, status.Size, status.Position = 1, UDim2.fromScale(0.94, 0.38), UDim2.fromScale(0.03, 0.56)
 	status.Font, status.TextScaled, status.TextColor3 = Enum.Font.GothamBold, true, Color3.fromRGB(235, 240, 250)
-	local speed = ZoneConfig.Zones[zoneIndex].recommendedSpeed * VaultConfig.SPEED_GATE_FRACTION
-	status.Text = if speed > 0 then `NEEDS {NumberFormat.short(speed)} SPEED` else "OPEN TO ALL"
+	-- The client rewrites this from the vault's state; nothing about Speed.
+	status.Text = "CRACK THE LOCK"
 	status.Parent = gui
+end
+
+--- [vault-minigames] The lock at the door: an invisible anchor on the
+--- corridor side carrying the "Crack the Lock" prompt. VaultService answers
+--- the prompt; VaultController enables it only for a player who can attempt
+--- (not unlocked, not locked out).
+local function lockPrompt(parent: Instance, cf: CFrame, doorHeight: number)
+	local anchor = Instance.new("Part")
+	anchor.Name = "VaultLock"
+	anchor.Size = Vector3.new(1, 1, 1)
+	anchor.CFrame = cf * CFrame.new(0, doorHeight * 0.45, -2.2)
+	anchor.Anchored, anchor.CanCollide, anchor.CanQuery, anchor.CanTouch = true, false, false, false
+	anchor.Transparency = 1
+	anchor.Parent = parent
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "VaultLockPrompt"
+	prompt.ActionText = "Crack the Lock"
+	prompt.ObjectText = "Vault"
+	prompt.HoldDuration = 0.4
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
+	prompt.Parent = anchor
 end
 
 --- The round door, as one Model the client can slide. Codex art, when it
@@ -181,7 +205,6 @@ local function buildVault(zone: Instance, zoneIndex: number)
 	local vault = PartKit.folder("Vault", zone)
 	vault:SetAttribute("VaultZone", zoneIndex)
 	vault:SetAttribute("HostZone", host)
-	vault:SetAttribute("RequiredSpeed", ZoneConfig.Zones[zoneIndex].recommendedSpeed * VaultConfig.SPEED_GATE_FRACTION)
 	vault:SetAttribute("DoorOpen", false)
 	vault:SetAttribute("RestockAt", 0)
 	vault:SetAttribute("Stocked", false)
@@ -223,6 +246,7 @@ local function buildVault(zone: Instance, zoneIndex: number)
 	-- Hazard stripes on the corridor floor in front of the door.
 	decor(decorations, "DoorStep", Vector3.new(doorWidth + 4, 0.04, 5), at(0, 0.03, -3.5), Color3.fromRGB(230, 180, 40), Enum.Material.DiamondPlate)
 	statusPlaque(decorations, at(0, doorHeight + 5, -1.2), math.min(length - 4, 30), zoneIndex)
+	lockPrompt(vault, frame, doorHeight)
 
 	-- INTERIOR.
 	decor(decorations, "VaultFloor", Vector3.new(length - 4, 0.03, depth - 4), at(0, 0.02, depth / 2), DARK, Enum.Material.DiamondPlate)
