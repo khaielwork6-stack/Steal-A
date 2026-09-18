@@ -64,6 +64,7 @@ local posed: { [Model]: Posed } = {}
 
 local function poseFor(entry: Posed, now: number): CFrame
 	local model = entry.model
+	if model:GetAttribute("PetAnimationActive") == true then return CFrame.identity end
 	local state = model:GetAttribute("State")
 	local walking = model:GetAttribute("PoseWalkTrack") == true
 	local tuning = if entry.base then BASE_POSE else MUSEUM_POSE

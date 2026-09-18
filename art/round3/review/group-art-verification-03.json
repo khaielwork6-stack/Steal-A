@@ -1,0 +1,20 @@
+{
+  "ownership": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"id\":\"133370093057404\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"124002686981066\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"108143118255944\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"80816721279234\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"128705041445279\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"86306346367596\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"123629992926005\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"123896313953244\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"121194724737766\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"116536438530861\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"115260215543732\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"84952495015282\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"100293139295633\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"104189024270889\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"108735095300507\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"80926532451649\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"110600193223369\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"115916291082817\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"89651521516052\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"}]"
+      }
+    ],
+    "isError": false
+  },
+  "loading": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"ok\":true,\"images\":[{\"id\":\"133370093057404\",\"loaded\":true},{\"id\":\"124002686981066\",\"loaded\":true},{\"id\":\"108143118255944\",\"loaded\":true},{\"id\":\"80816721279234\",\"loaded\":true},{\"id\":\"128705041445279\",\"loaded\":true},{\"id\":\"86306346367596\",\"loaded\":true},{\"id\":\"123629992926005\",\"loaded\":true},{\"id\":\"123896313953244\",\"loaded\":true},{\"id\":\"121194724737766\",\"loaded\":true},{\"id\":\"116536438530861\",\"loaded\":true},{\"id\":\"115260215543732\",\"loaded\":true},{\"id\":\"84952495015282\",\"loaded\":true},{\"id\":\"100293139295633\",\"loaded\":true},{\"id\":\"104189024270889\",\"loaded\":true},{\"id\":\"108735095300507\",\"loaded\":true},{\"id\":\"80926532451649\",\"loaded\":true},{\"id\":\"110600193223369\",\"loaded\":true},{\"id\":\"115916291082817\",\"loaded\":true},{\"id\":\"89651521516052\",\"loaded\":true}],\"statuses\":{\"rbxassetid://100293139295633\":\"Success\",\"rbxassetid://123896313953244\":\"Success\",\"rbxassetid://116536438530861\":\"Success\",\"rbxassetid://124002686981066\":\"Success\",\"rbxassetid://123629992926005\":\"Success\",\"rbxassetid://80816721279234\":\"Success\",\"rbxassetid://86306346367596\":\"Success\",\"rbxassetid://80926532451649\":\"Success\",\"rbxassetid://84952495015282\":\"Success\",\"rbxassetid://121194724737766\":\"Success\",\"rbxassetid://89651521516052\":\"Success\",\"rbxassetid://104189024270889\":\"Success\",\"rbxassetid://108735095300507\":\"Success\",\"rbxassetid://133370093057404\":\"Success\",\"rbxassetid://115916291082817\":\"Success\",\"rbxassetid://110600193223369\":\"Success\",\"rbxassetid://115260215543732\":\"Success\",\"rbxassetid://108143118255944\":\"Success\",\"rbxassetid://128705041445279\":\"Success\"}}"
+      }
+    ],
+    "isError": false
+  }
+}

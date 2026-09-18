@@ -5,7 +5,7 @@
 
 	THE LEAST INVASIVE PLACE. The Shop panel already opens from the HUD and
 	ShopController already builds its sections from ShopKit; this adds one
-	more section AFTER them (LayoutOrder 40/41, past Speed's 30/31) with the
+	more section AFTER them (LayoutOrder 50/51, past Gift's 40/41/42) with the
 	same header and card components, and never touches ShopController's own
 	sections or its demo cleanup (the names used here are not in its list).
 
@@ -29,7 +29,7 @@ local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
 
 local GadgetShopController = {}
 
-local SECTION_ORDER = 40
+local SECTION_ORDER = 50
 local HEADER_HEIGHT = 0.075 -- ShopController's header height, for a matching look
 local CELL_WIDTH = 0.47
 local ROW_GAP = 8

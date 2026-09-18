@@ -47,10 +47,10 @@ SeasonPassConfig.STARTS_AT = DateTime.fromUniversalTime(2026, 9, 14, 0, 0, 0).Un
 SeasonPassConfig.ENDS_AT = DateTime.fromUniversalTime(2026, 11, 9, 0, 0, 0).UnixTimestamp
 
 --- Banner art for the PASS tab. 0 = no art yet (a gradient banner is drawn).
-SeasonPassConfig.BANNER_IMAGE = "rbxassetid://0"
+SeasonPassConfig.BANNER_IMAGE = "rbxassetid://129767194657030"
 --- The premium badge / lock icon. 0 = a text badge is drawn.
-SeasonPassConfig.PREMIUM_BADGE_IMAGE = "rbxassetid://0"
-SeasonPassConfig.LOCK_IMAGE = "rbxassetid://0"
+SeasonPassConfig.PREMIUM_BADGE_IMAGE = "rbxassetid://116117219554176"
+SeasonPassConfig.LOCK_IMAGE = "rbxassetid://122764576805899"
 
 SeasonPassConfig.STEAL_XP = 10
 SeasonPassConfig.DAILY_STEAL_XP_CAP = 200
@@ -104,19 +104,19 @@ export type Reward = {
 }
 
 local function cash(minutes: number, floor: number): Reward
-	return { kind = "cash", minutes = minutes, floor = floor, icon = "rbxassetid://0" }
+	return { kind = "cash", minutes = minutes, floor = floor, icon = "rbxassetid://125470424066769" }
 end
 
 local function speed(fraction: number, floor: number, cap: number): Reward
-	return { kind = "speed", fraction = fraction, floor = floor, cap = cap, icon = "rbxassetid://0" }
+	return { kind = "speed", fraction = fraction, floor = floor, cap = cap, icon = "rbxassetid://83161544861662" }
 end
 
 local function title(text: string): Reward
-	return { kind = "title", title = text, icon = "rbxassetid://0" }
+	return { kind = "title", title = text, icon = "rbxassetid://113278101868190" }
 end
 
 local function guardian(key: string): Reward
-	return { kind = "guardian", guardianKey = key, icon = "rbxassetid://0" }
+	return { kind = "guardian", guardianKey = key, icon = "rbxassetid://115452231897906" }
 end
 
 --- PLACEHOLDER trail key: "Grey" is an existing, cash-bought trail. Replace
@@ -124,7 +124,7 @@ end
 SeasonPassConfig.SEASON_TRAIL_KEY = "Grey"
 
 local function trail(): Reward
-	return { kind = "trail", trailKey = SeasonPassConfig.SEASON_TRAIL_KEY, icon = "rbxassetid://0" }
+	return { kind = "trail", trailKey = SeasonPassConfig.SEASON_TRAIL_KEY, icon = "rbxassetid://133370093057404" }
 end
 
 export type Tier = { tier: number, free: Reward, premium: Reward }

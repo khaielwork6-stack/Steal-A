@@ -1,0 +1,2021 @@
+[
+  {
+    "name": "daily-hud",
+    "subject": "Red-bound cream calendar, gold star and small gift bow.",
+    "configKeys": [
+      "DailyRewardConfig.HUD_ICON"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "74169425678933",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "quests-hud",
+    "subject": "Cream parchment checklist, two green checks and a gold star badge on purple ribbon.",
+    "configKeys": [
+      "QuestConfig.HUD_ICON"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "130246222392131",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "invite-hud",
+    "subject": "White head-and-shoulders silhouette with white plus symbol at upper right, dark green outline. Isolated person and plus only; absolutely no circle, disc, or button backdrop.",
+    "configKeys": [
+      "SocialConfig.INVITE_ICON"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "93427904685916",
+    "status": "verified-upload"
+  },
+  {
+    "name": "trade-hud",
+    "subject": "Two curved swap arrows, one gold and one pale lilac.",
+    "configKeys": [
+      "TradeConfig.Icons.Trade"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "110158632383782",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "crew-hud",
+    "subject": "Three friendly heads with center person forward, teal and aqua.",
+    "configKeys": [
+      "CrewConfig.Icons.Crew"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "91226244660515",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "reward-rays",
+    "subject": "A white sunburst of 18 straight rays from the EXACT center, alternating wide and narrow, evenly spaced. Pure white only. Each ray fades from 70% opacity near center to fully transparent before canvas edge. No outline, shadow, objects, circles, color, or visible square edge. This is a reusable tintable game VFX texture.",
+    "configKeys": [
+      "RewardUiConfig.RAYS_IMAGE"
+    ],
+    "size": [
+      1024,
+      1024
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "reward-flame",
+    "subject": "One centered glossy cartoon streak flame with three tongues, outer red-orange #FF5424, middle orange #FFA028, yellow-white core #FFEE6E, thick navy outline and soft white highlight upper left. Fills 85% height.",
+    "configKeys": [
+      "RewardUiConfig.FLAME_ICON"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "116397382100155",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "reward-grand-prize",
+    "subject": "Open treasure chest in three-quarter front view, gold trim, dark purple-red wood, overflowing green cash bundles and gold coins, one cyan-blue speed arrow sticking out at an angle. Warm glow inside lid. Thick dark navy outline. Chest fills 88% width, subject stays fully inside frame.",
+    "configKeys": [
+      "RewardUiConfig.GRAND_PRIZE_ICON"
+    ],
+    "size": [
+      768,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "140168730782089",
+    "status": "verified-upload",
+    "sourceSize": [
+      1536,
+      1024
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "reward-coin",
+    "subject": "One thick gold coin tilted 20 degrees to reveal its rim. Embossed dollar symbol in center, strong white glint upper left, thick dark navy outline. Simple silhouette readable at 22 pixels.",
+    "configKeys": [
+      "RewardUiConfig.COIN_ICON"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "83482526445300",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "reward-cash-pile",
+    "subject": "A generous wide pile of green cash bundles with pale paper bands, several gold coins scattered in front, glossy top-left highlights, thick dark navy outlines. Strong simple silhouette fills 88% width.",
+    "configKeys": [
+      "RewardUiConfig.CASH_PILE_ICON"
+    ],
+    "size": [
+      768,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "124885277911990",
+    "status": "verified-upload",
+    "sourceSize": [
+      1536,
+      1024
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-1",
+    "subject": "A small stack of three green banknotes.",
+    "configKeys": [
+      "DailyRewardConfig.Days[1].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "118237015540809",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-2",
+    "subject": "One blue-white lightning sneaker with two motion lines.",
+    "configKeys": [
+      "DailyRewardConfig.Days[2].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "76635701852767",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-3",
+    "subject": "A thick green cash bundle with a paper band and two gold coins.",
+    "configKeys": [
+      "DailyRewardConfig.Days[3].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "89001890281554",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-4",
+    "subject": "A winged blue sneaker with three motion lines and a small lightning bolt.",
+    "configKeys": [
+      "DailyRewardConfig.Days[4].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "133687516171997",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-5",
+    "subject": "A green money bag spilling coins and notes, dollar symbol embossed on bag.",
+    "configKeys": [
+      "DailyRewardConfig.Days[5].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "122784984039918",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "daily-day-6",
+    "subject": "A glowing blue lightning bolt over a winged sneaker, surrounded by sparkles.",
+    "configKeys": [
+      "DailyRewardConfig.Days[6].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "83421894336494",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "codes-ticket",
+    "subject": "Red gift box with gold ribbon and bow and small gold ticket sticking out of lid.",
+    "configKeys": [
+      "CodesConfig.HEADER_ICON"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "117680902903904",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "settings-graphics",
+    "subject": "A chunky navy computer monitor with glowing cyan screen and a bright white sparkle.",
+    "configKeys": [
+      "UiArtConfig.Settings.Graphics"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "118270120953339",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "settings-auto-reveal",
+    "subject": "A purple and gold mystery crate opening itself, lid floating above with golden sparkles and one circular arrow.",
+    "configKeys": [
+      "UiArtConfig.Settings.AutoReveal"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "140007065017606",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "storage-items",
+    "subject": "A chunky orange and gold storage chest seen at three-quarter angle.",
+    "configKeys": [
+      "UiArtConfig.Storage.Items"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "124366213690633",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "storage-guardians",
+    "subject": "A cute paw print on a glossy cyan-purple shield.",
+    "configKeys": [
+      "UiArtConfig.Storage.Guardians"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "114586694055167",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "storage-weapons",
+    "subject": "A wooden baseball bat with a bright gold impact star, diagonal silhouette.",
+    "configKeys": [
+      "UiArtConfig.Storage.Weapons"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "78573523320091",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "fusion-icon",
+    "subject": "Small arcane-tech fusion machine with three input tubes feeding a central purple-cyan energy orb chamber, chunky metal base, two curved arms, three tiny item silhouettes spiraling inward.",
+    "configKeys": [
+      "FusionConfig.ICON"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "86914837074279",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "auto-reveal-pass",
+    "subject": "Purple mystery crate popping open by itself, golden stopwatch badge and circular-arrow motif, no words.",
+    "configKeys": [
+      "AutoRevealPassCard.ICON"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "98876576301515",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Classic",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: bright green grass, dark grey fence posts, white rails and cyan neon caps. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Classic\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "122910334010235",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Sunset",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: warm sandstone floor, terracotta posts, cream rails, orange paper lanterns and dusk sky. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Sunset\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "130625653009493",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Midnight",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: dark slate floor, navy posts, cyan rails and metal beacon, night sky. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Midnight\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "87748470112947",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Jungle",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: mossy grass and cobblestone, stone totems, bushes and vines. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Jungle\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "82383429796738",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Frost",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: glacier-blue ice floor, white ice fence and pale ice crystals. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Frost\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "78146481409731",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-Lava",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: black basalt, molten-orange cracks, black iron braziers. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Lava\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "99098592123330",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-NeonNight",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: black glass floor, magenta neon fence and cyan orbs, synthwave night glow. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"NeonNight\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "129189897009316",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "theme-RoyalGold",
+    "subject": "Full-bleed wide 3/4 view of a player base corner: white marble floor, gold fence and gold crown ornaments. Short fence with two posts and rails, glowing cap accents, a stone display pedestal with small purple glowing mystery orb centered. Keep main objects within central 60% width for a 3:1 crop. No text, ribbons or logos. Premium glossy stylized game render.",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"RoyalGold\"].thumbnail"
+    ],
+    "size": [
+      768,
+      384
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "95896104729019",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "pedestal-Default",
+    "subject": "One short round museum display pedestal with wide cap and base, pale grey museum stone, small purple glowing orb on top. Three-quarter view under soft spotlight on dark blue studio background. Full-bleed 2:1. Centered. No text.",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Default\"].thumbnail"
+    ],
+    "size": [
+      512,
+      256
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "117727520280928",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "pedestal-Marble",
+    "subject": "One short round museum display pedestal with wide cap and base, white marble with gold trim ring, small purple glowing orb on top. Three-quarter view under soft spotlight on dark blue studio background. Full-bleed 2:1. Centered. No text.",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Marble\"].thumbnail"
+    ],
+    "size": [
+      512,
+      256
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "124190212352604",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "pedestal-Obsidian",
+    "subject": "One short round museum display pedestal with wide cap and base, black glassy stone with purple neon trim ring, small purple glowing orb on top. Three-quarter view under soft spotlight on dark blue studio background. Full-bleed 2:1. Centered. No text.",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Obsidian\"].thumbnail"
+    ],
+    "size": [
+      512,
+      256
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "137911196029906",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "pedestal-GoldPlinth",
+    "subject": "One short round museum display pedestal with wide cap and base, solid polished gold with white trim ring, small purple glowing orb on top. Three-quarter view under soft spotlight on dark blue studio background. Full-bleed 2:1. Centered. No text.",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"GoldPlinth\"].thumbnail"
+    ],
+    "size": [
+      512,
+      256
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "132414674734023",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "pedestal-Crystal",
+    "subject": "One short round museum display pedestal with wide cap and base, translucent pale-blue crystal with cyan neon trim ring, small purple glowing orb on top. Three-quarter view under soft spotlight on dark blue studio background. Full-bleed 2:1. Centered. No text.",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Crystal\"].thumbnail"
+    ],
+    "size": [
+      512,
+      256
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "140580441452762",
+    "status": "verified-upload",
+    "sourceSize": [
+      1774,
+      887
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "base-TabTreadmill",
+    "subject": "Chunky cartoon treadmill side view with motion swoosh and small up arrow.",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.TabTreadmill"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "88108320358342",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "base-TabBase",
+    "subject": "Tiny green grass square plot with short white fence, flag and one pedestal.",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.TabBase"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "73130452273324",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "base-SectionThemes",
+    "subject": "Gold and teal paint roller over a small house outline.",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.SectionThemes"
+    ],
+    "size": [
+      128,
+      128
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "77072843582885",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "base-SectionPedestals",
+    "subject": "Small gold-rimmed display pedestal with a white sparkle.",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.SectionPedestals"
+    ],
+    "size": [
+      128,
+      128
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "138820984899615",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-banner",
+    "subject": "Wide night-time museum hall, violet-blue palette, glass case holding glowing mystery container, red crossing laser beams, sleepy guard silhouette with flashlight on right, gold coins and sparkles. LEFT 55% dark and low-detail for text overlay; important art central 80%. No text.",
+    "configKeys": [
+      "SeasonPassConfig.BANNER_IMAGE"
+    ],
+    "size": [
+      1600,
+      480
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "129767194657030",
+    "status": "verified-upload",
+    "sourceSize": [
+      2172,
+      724
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-premium",
+    "subject": "Gold crown on purple gem shield.",
+    "configKeys": [
+      "SeasonPassConfig.PREMIUM_BADGE_IMAGE"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "116117219554176",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-lock",
+    "subject": "Chunky gold padlock with purple keyhole.",
+    "configKeys": [
+      "SeasonPassConfig.LOCK_IMAGE"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "122764576805899",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-cash",
+    "subject": "Green cash stack and gold coins.",
+    "configKeys": [
+      "SeasonPassConfig.cash().icon"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "125470424066769",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-speed",
+    "subject": "Blue lightning sneaker.",
+    "configKeys": [
+      "SeasonPassConfig.speed().icon"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "83161544861662",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-title",
+    "subject": "Gold nameplate ribbon, completely blank.",
+    "configKeys": [
+      "SeasonPassConfig.title().icon"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "113278101868190",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-guardian",
+    "subject": "Paw print on a shield.",
+    "configKeys": [
+      "SeasonPassConfig.guardian().icon"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "115452231897906",
+    "status": "verified-upload",
+    "sourceSize": [
+      1254,
+      1254
+    ],
+    "hasAlpha": true,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "season-trail",
+    "subject": "Rainbow comet streak.",
+    "configKeys": [
+      "SeasonPassConfig.trail().icon"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "133370093057404",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-steal",
+    "subject": "Gloved hand grabbing a glowing mystery crate.",
+    "configKeys": [
+      "QuestConfig.Icons.steal"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "124002686981066",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-escape",
+    "subject": "Running sneaker with dust cloud and red siren.",
+    "configKeys": [
+      "QuestConfig.Icons.escape"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "108143118255944",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-reveal",
+    "subject": "Mystery crate bursting open with bright sparkles.",
+    "configKeys": [
+      "QuestConfig.Icons.reveal"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "80816721279234",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-train",
+    "subject": "Small treadmill with speed lines.",
+    "configKeys": [
+      "QuestConfig.Icons.train"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "128705041445279",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-earn",
+    "subject": "One gold coin with dollar sign.",
+    "configKeys": [
+      "QuestConfig.Icons.earn"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "86306346367596",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-bat",
+    "subject": "Wooden baseball bat and impact star.",
+    "configKeys": [
+      "QuestConfig.Icons.bat"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "123629992926005",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-trap",
+    "subject": "Round spring trap with teeth.",
+    "configKeys": [
+      "QuestConfig.Icons.trap"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "123896313953244",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-discover",
+    "subject": "Open collection book with magnifying glass.",
+    "configKeys": [
+      "QuestConfig.Icons.discover"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "121194724737766",
+    "status": "verified-upload"
+  },
+  {
+    "name": "quest-spin",
+    "subject": "Colorful prize wheel.",
+    "configKeys": [
+      "QuestConfig.Icons.spin"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "116536438530861",
+    "status": "verified-upload"
+  },
+  {
+    "name": "social-friends",
+    "subject": "Two overlapping friendly heads with small upward arrow, white with dark navy outline.",
+    "configKeys": [
+      "SocialConfig.FRIENDS_PILL_ICON"
+    ],
+    "size": [
+      128,
+      128
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "115260215543732",
+    "status": "verified-upload"
+  },
+  {
+    "name": "social-premium",
+    "subject": "Generic glossy gold coin and upward arrow, no Roblox branding.",
+    "configKeys": [
+      "SocialConfig.PREMIUM_PILL_ICON"
+    ],
+    "size": [
+      128,
+      128
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "84952495015282",
+    "status": "verified-upload"
+  },
+  {
+    "name": "announce-frame",
+    "subject": "A SQUARE 9-slice game ribbon frame with rounded corners, thick navy outline and thin gold inner trim. Outer 64 pixel corner regions on 512 square design, small sparkles ONLY in corners. Central area flat dark navy #0E1020 at 90% opacity. No text and no central design; this square frame will stretch horizontally in engine.",
+    "configKeys": [
+      "SocialConfig.ANNOUNCE_FRAME_IMAGE"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "trade-header",
+    "subject": "Two cartoon hands shaking over one small gold coin, purple and gold tones.",
+    "configKeys": [
+      "TradeConfig.Icons.TradeHeader"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "100293139295633",
+    "status": "verified-upload"
+  },
+  {
+    "name": "trade-ready",
+    "subject": "Glossy rounded green badge with bold white checkmark.",
+    "configKeys": [
+      "TradeConfig.Icons.Ready"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "104189024270889",
+    "status": "verified-upload"
+  },
+  {
+    "name": "gift-icon",
+    "subject": "Pink present box with gold ribbon and bow, a few white sparkles.",
+    "configKeys": [
+      "TradeConfig.Icons.Gift"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "108735095300507",
+    "status": "verified-upload"
+  },
+  {
+    "name": "board-Steals",
+    "subject": "Exact text \"TOP STEALS\" in bold rounded white cartoon letters with thick dark brown outline #28140A, small loot sack with dollar sign on left. Wide 4:1 transparent header plate, readable at distance.",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Steals\"].headerImage"
+    ],
+    "size": [
+      1024,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "80926532451649",
+    "status": "verified-upload"
+  },
+  {
+    "name": "board-Index",
+    "subject": "Exact text \"TOP INDEX %\" in bold rounded white cartoon letters with thick dark brown outline #28140A, small open book with star on left. Wide 4:1 transparent header plate, readable at distance.",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Index\"].headerImage"
+    ],
+    "size": [
+      1024,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "110600193223369",
+    "status": "verified-upload"
+  },
+  {
+    "name": "board-PlayTime",
+    "subject": "Exact text \"MOST TIME PLAYED\" in bold rounded white cartoon letters with thick dark brown outline #28140A, small stopwatch on left. Wide 4:1 transparent header plate, readable at distance.",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"PlayTime\"].headerImage"
+    ],
+    "size": [
+      1024,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "115916291082817",
+    "status": "verified-upload"
+  },
+  {
+    "name": "board-Weekly",
+    "subject": "Exact text \"TOP EARNERS THIS WEEK\" in bold rounded white cartoon letters with thick dark brown outline #28140A, small calendar and coin on left. Wide 4:1 transparent header plate, readable at distance.",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Weekly\"].headerImage"
+    ],
+    "size": [
+      1024,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "89651521516052",
+    "status": "verified-upload"
+  },
+  {
+    "name": "gadget-Smoke",
+    "subject": "Gunmetal spherical smoke bomb with pale grey band and lit fabric fuse, enormous billowing grey smoke cloud behind fills 40% of frame.",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Smoke.icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "107139254495198",
+    "status": "verified-upload"
+  },
+  {
+    "name": "gadget-Jammer",
+    "subject": "Dark blue handheld device with glowing cyan screen and antenna, cyan lightning zigzag cutting a red laser line.",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Jammer.icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "120036928718933",
+    "status": "verified-upload"
+  },
+  {
+    "name": "gadget-Grapple",
+    "subject": "Wood-grip hook launcher with three-prong brass hook flying upper-right on a trailing rope.",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Grapple.icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "124548706027503",
+    "status": "verified-upload"
+  },
+  {
+    "name": "smoke-puff",
+    "subject": "One dense grayscale cartoon cumulus smoke puff, opaque middle and softly feathered 15% edges, no dark outline, no hard edge, no colored glow.",
+    "configKeys": [
+      "GadgetConfig.SMOKE_TEXTURE"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "jam-spark",
+    "subject": "Single pure-white four-point electric spark, sharp simple silhouette, transparent surroundings, no outline.",
+    "configKeys": [
+      "GadgetConfig.JAM_TEXTURE"
+    ],
+    "size": [
+      128,
+      128
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "crew-Leader",
+    "subject": "A gold star on a small gold crown.",
+    "configKeys": [
+      "CrewConfig.Icons.Leader"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "122735442625813",
+    "status": "verified-upload"
+  },
+  {
+    "name": "crew-Invite",
+    "subject": "One aqua friendly head with plus badge.",
+    "configKeys": [
+      "CrewConfig.Icons.Invite"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "81513139298073",
+    "status": "verified-upload"
+  },
+  {
+    "name": "crew-Assist",
+    "subject": "Two teal hands high-fiving with a burst of gold coins.",
+    "configKeys": [
+      "CrewConfig.Icons.Assist"
+    ],
+    "size": [
+      256,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "111666852027338",
+    "status": "verified-upload"
+  },
+  {
+    "name": "vault-restocked",
+    "subject": "Exact words \"VAULT RESTOCKED!\" in chunky white-to-gold cartoon letters with thick dark outline, over round steel vault door on left with gold bars and sparkles bursting out. No other words.",
+    "configKeys": [
+      "VaultConfig.Art.RestockBanner"
+    ],
+    "size": [
+      1024,
+      256
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "130118824436627",
+    "status": "verified-upload"
+  },
+  {
+    "name": "loading-wide",
+    "subject": "Night grand cartoon museum corridor, marble columns, velvet ropes, glass cases holding glowing sealed gold/purple/cyan mystery containers. Red lasers criss-cross floor, chubby guard dozes on stool at side, small hooded thief sprints toward camera hugging glowing container. Busy details left and right thirds. Center 25-55% height calm and low-detail for overlaid title/progress. Bottom 45% darkened for tips. Violet night, marble and gold. No text.",
+    "configKeys": [
+      "LoadingConfig.BACKGROUND_WIDE"
+    ],
+    "size": [
+      1920,
+      1080
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "71586324904614",
+    "status": "verified-upload",
+    "sourceSize": [
+      1672,
+      941
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "loading-tall",
+    "subject": "Vertical night grand cartoon museum corridor, marble columns, glass cases holding glowing sealed mystery containers, red laser beams in lower third. Small hooded thief hugging glowing gold container in lower-middle, sleepy guard near top. Middle 30-55% height calm low-detail. Violet night, marble and gold. No text.",
+    "configKeys": [
+      "LoadingConfig.BACKGROUND_TALL"
+    ],
+    "size": [
+      1080,
+      1920
+    ],
+    "transparent": false,
+    "groupId": 3774675,
+    "assetId": "106780645977439",
+    "status": "verified-upload",
+    "sourceSize": [
+      941,
+      1672
+    ],
+    "hasAlpha": false,
+    "exportStatus": "high-resolution original; exact-size export pending"
+  },
+  {
+    "name": "loading-logo",
+    "subject": "Exact words \"STEAL & RUN!\" in chunky rounded slightly italic cartoon display lettering. Gold-orange vertical gradient #FFF096 to #FFA028, very thick navy outline, 3D bevel extrusion. Keep ampersand legible; red laser crosses BEHIND letters, motion streaks behind RUN!. Readable at 280px wide, transparent background. No other text.",
+    "configKeys": [
+      "LoadingConfig.LOGO"
+    ],
+    "size": [
+      1600,
+      600
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "tip-laser",
+    "subject": "Two crossing red laser beams with small emitter nubs.",
+    "configKeys": [
+      "LoadingConfig.TIPS[1].icon",
+      "LoadingConfig.TIPS[2].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "86946041675183",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-crouch",
+    "subject": "Small cartoon figure ducking low under a red laser beam.",
+    "configKeys": [
+      "LoadingConfig.TIPS[3].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "78917459454723",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-guard",
+    "subject": "Sleeping cartoon guard head with blue cap and one \"Z\".",
+    "configKeys": [
+      "LoadingConfig.TIPS[4].icon",
+      "LoadingConfig.TIPS[6].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "117053812199694",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-doorway",
+    "subject": "Museum doorway arch with green inviting glow.",
+    "configKeys": [
+      "LoadingConfig.TIPS[5].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "89705702085201",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-moon",
+    "subject": "Violet crescent moon over tiny museum roof.",
+    "configKeys": [
+      "LoadingConfig.TIPS[7].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "76730471536319",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-container",
+    "subject": "Sealed glowing gold mystery container with a timer ring.",
+    "configKeys": [
+      "LoadingConfig.TIPS[8].icon",
+      "LoadingConfig.TIPS[9].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "109736568255684",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-speed",
+    "subject": "Speed sneaker with rainbow trail streak.",
+    "configKeys": [
+      "LoadingConfig.TIPS[10].icon",
+      "LoadingConfig.TIPS[11].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "70402015527894",
+    "status": "verified-upload"
+  },
+  {
+    "name": "tip-gift",
+    "subject": "Gold ticket with red gift bow.",
+    "configKeys": [
+      "LoadingConfig.TIPS[12].icon",
+      "LoadingConfig.TIPS[13].icon",
+      "LoadingConfig.TIPS[14].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "86189194981847",
+    "status": "verified-upload"
+  },
+  {
+    "name": "event-MutationWeekend",
+    "subject": "Mystery container bursting with swirl of golden and magenta sparkles, small \"x2\" shaped sparkle.",
+    "configKeys": [
+      "EventConfig.Events[key=\"MutationWeekend\"].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "140055665799716",
+    "status": "verified-upload"
+  },
+  {
+    "name": "event-NightRush",
+    "subject": "Violet crescent moon with stopwatch face, gold hands and speed lines.",
+    "configKeys": [
+      "EventConfig.Events[key=\"NightRush\"].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "94979236210375",
+    "status": "verified-upload"
+  },
+  {
+    "name": "event-Halloween",
+    "subject": "Orange jack-o-lantern wearing tiny navy museum guard cap, purple shadow.",
+    "configKeys": [
+      "EventConfig.Events[key=\"Halloween\"].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "107687218130733",
+    "status": "verified-upload"
+  },
+  {
+    "name": "event-Winter",
+    "subject": "Snow-capped ice-blue mystery container with red ribbon and white snowflakes.",
+    "configKeys": [
+      "EventConfig.Events[key=\"Winter\"].icon"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": "79020660911259",
+    "status": "verified-upload"
+  },
+  {
+    "name": "badge_FirstSteal",
+    "subject": "Final badge for \"Sticky Fingers\". Subject: A gloved hand lifting a glowing sealed crate off a museum pedestal. A round collectible medal with bronze glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstSteal; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_FirstEscape",
+    "subject": "Final badge for \"Clean Getaway\". Subject: A running cartoon thief with a crate, crossing a red finish line, with speed lines. A round collectible medal with bronze glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstEscape; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_FirstReveal",
+    "subject": "Final badge for \"What's Inside?\". Subject: A crate bursting open with light and confetti; a question mark in the glow. A round collectible medal with bronze glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstReveal; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_FirstMythicReveal",
+    "subject": "Final badge for \"Myth Maker\". Subject: The burst-open crate with a red (#FF4E4E) glowing silhouette rising out. A round collectible medal with silver glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstMythicReveal; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_FirstSecretReveal",
+    "subject": "Final badge for \"Top Secret\". Subject: A pink (#FF4A8C) glowing crate stamped with a keyhole and a \"classified\" ribbon (no words). A round collectible medal with gold glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstSecretReveal; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_IndexZoneComplete",
+    "subject": "Final badge for \"Curator\". Subject: An open collection book with 8 filled slots and a check mark. A round collectible medal with silver glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:IndexZoneComplete; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_IndexComplete",
+    "subject": "Final badge for \"Master Curator\". Subject: A golden book with a crown on top, radiating light. A round collectible medal with gold glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:IndexComplete; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Steals100",
+    "subject": "Final badge for \"Career Thief\". Subject: A money-bag-shaped loot sack with a large \"100\". A round collectible medal with silver glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Steals100; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Steals1000",
+    "subject": "Final badge for \"Legendary Thief\". Subject: A heap of crates with a large \"1000\" and a star. A round collectible medal with gold glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Steals1000; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_FirstHeist",
+    "subject": "Final badge for \"Base Raider\". Subject: A cartoon mask over a small house with a stolen trophy. A round collectible medal with bronze glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:FirstHeist; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Streak7",
+    "subject": "Final badge for \"Regular\". Subject: A calendar page with 7 flame ticks and a large \"7\". A round collectible medal with silver glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Streak7; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone01",
+    "subject": "Final badge for \"Zone 1 Explorer\". Subject: Classic museum: a columned building with a vase. A round collectible medal with zone #D6BE8C glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone01; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone02",
+    "subject": "Final badge for \"Zone 2 Explorer\". Subject: Pirate Island: an anchor, a treasure chest and a palm tree. A round collectible medal with zone #50BEEB glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone02; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone03",
+    "subject": "Final badge for \"Zone 3 Explorer\". Subject: Castle: towers with a crown. A round collectible medal with zone #BEA0FF glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone03; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone04",
+    "subject": "Final badge for \"Zone 4 Explorer\". Subject: Area 51: a flying saucer over a desert fence. A round collectible medal with zone #78FF96 glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone04; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone05",
+    "subject": "Final badge for \"Zone 5 Explorer\". Subject: North Pole: a present with snowflakes and candy canes. A round collectible medal with zone #96DCFF glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone05; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone06",
+    "subject": "Final badge for \"Zone 6 Explorer\". Subject: Ancient Egypt: a pyramid with a golden scarab. A round collectible medal with zone #FFC850 glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone06; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone07",
+    "subject": "Final badge for \"Zone 7 Explorer\". Subject: Gym: a dumbbell and a trophy belt. A round collectible medal with zone #6EEB6E glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone07; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone08",
+    "subject": "Final badge for \"Zone 8 Explorer\". Subject: Bank: a vault door and gold bars. A round collectible medal with zone #FFDC5A glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone08; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone09",
+    "subject": "Final badge for \"Zone 9 Explorer\". Subject: Secret Lab: a bubbling flask and a glowing crystal. A round collectible medal with zone #78FFF0 glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone09; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone10",
+    "subject": "Final badge for \"Zone 10 Explorer\". Subject: Grandma's House: a cookie jar and a knitted heart. A round collectible medal with zone #FFBE96 glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone10; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone11",
+    "subject": "Final badge for \"Zone 11 Explorer\". Subject: Construction Site: a hard hat, a crane and cones. A round collectible medal with zone #FFA53C glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone11; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  },
+  {
+    "name": "badge_Zone12",
+    "subject": "Final badge for \"Zone 12 Explorer\". Subject: Airport: a jet taking off over a runway. A round collectible medal with zone #96C8FF glossy rim and thick dark navy outline. All important details inside central 460px circle on 512px canvas (Roblox circle crop). Consistent glossy cartoon medal family. No words except the numbers explicitly in the subject.",
+    "configKeys": [
+      "BadgeConfig:Zone12; owner uploads badge art; DO NOT change badge IDs"
+    ],
+    "size": [
+      512,
+      512
+    ],
+    "transparent": true,
+    "groupId": 3774675,
+    "assetId": null,
+    "status": "pending"
+  }
+]

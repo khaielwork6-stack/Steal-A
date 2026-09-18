@@ -32,6 +32,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
@@ -73,15 +75,6 @@ local priceCache: { [number]: number } = {}
 -- When a failed lookup may be retried, per product.
 local priceRetryAt: { [number]: number } = {}
 local PRICE_RETRY_AFTER = 30
-
--- Guards overlapping fit passes when the viewport changes rapidly.
-local fitToken = 0
-
--- [round3-ui-base-settings] Extra panel scale while the BASE tab is open
--- (BaseThemeController asks through the attach hook), and the fit pass to
--- re-run when it changes. The fit pass still clamps the result to the screen.
-local contentBoost = 1
-local refitPanel: (() -> ())? = nil
 
 -- ==========================================================
 -- HELPERS
@@ -626,7 +619,13 @@ local function buildCard(card: Frame, scroll: ScrollingFrame)
 	if choose and choose:IsA("Frame") then
 		choose.AnchorPoint = Vector2.new(0.5, 0.5)
 		choose.Position = UDim2.fromScale(0.5, 0.885)
-		choose.Size = UDim2.fromScale(0.94, 0.21)
+		local function fitActions()
+			choose.AnchorPoint = Vector2.new(0.5, 1)
+			choose.Position = UDim2.new(0.5, 0, 1, -4)
+			choose.Size = UDim2.new(0.94, 0, 0, 48 / ClipSafe.scaleChain(choose))
+		end
+		inner:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitActions)
+		task.defer(fitActions)
 		choose.ZIndex = 4
 		local layout = choose:FindFirstChildOfClass("UIListLayout")
 		if layout then
@@ -723,15 +722,7 @@ local function buildPanel(ui: ScreenGui): boolean
 	-- [fusion-autoreveal-bases] TREADMILL | BASE tabs and the BASE page
 	-- (themes, pedestal skins). Its own module; it only shrinks the card.
 	local attached, attachError = pcall(function()
-		require(script.Parent.BaseThemeController).attach(found, scroll, kept :: Frame, {
-			setBoost = function(value: number)
-				contentBoost = value
-				local refit = refitPanel
-				if refit then
-					refit()
-				end
-			end,
-		})
+		require(script.Parent.BaseThemeController).attach(found, scroll, kept :: Frame)
 	end)
 	if not attached then
 		warn(`[UpgradesController] BASE section failed: {attachError}`)
@@ -816,78 +807,9 @@ function UpgradesController.start()
 	end
 	buildOpener(ui)
 
-	-- HUDController scales the whole of MainUI down to 0.72 on narrow viewports
-	-- so the side menu does not eat the play area. That is right for the HUD and
-	-- wrong for a modal: on a 678x339 phone it shrank this panel until the level
-	-- row rendered at 12x5 pixels. A modal wants MORE of a small screen, not
-	-- less, so its own UIScale cancels the HUD's and then some, clamped so it
-	-- never overflows a tall desktop.
+	-- PanelStyle owns modal sizing, including compensation for the HUD scale.
 	local panelScale = (panel :: Frame):FindFirstChildOfClass("UIScale")
-	if not panelScale then
-		panelScale = Instance.new("UIScale")
-		panelScale.Parent = panel
-	end
-
-	local header = (panel :: Frame):FindFirstChild("Top")
-
-	local function applyPanelScale()
-		local camera = workspace.CurrentCamera
-		local hudScale = ui:FindFirstChildOfClass("UIScale")
-		if not camera or not panelScale then
-			return
-		end
-		local undoHud = if hudScale and hudScale.Scale > 0 then 1 / hudScale.Scale else 1
-		-- Short viewports get an extra nudge: height is what runs out first.
-		local shortBoost = math.clamp(420 / math.max(camera.ViewportSize.Y, 1), 1, 1.3)
-		local wanted = math.clamp(undoHud * shortBoost * contentBoost, 1, 1.75 * contentBoost)
-		;(panelScale :: UIScale).Scale = wanted
-
-		-- Then shrink until it actually fits. The pack's header is anchored at
-		-- 0.5,0.5 on the panel's top EDGE, so it deliberately overhangs upward -
-		-- and MainUI's UIScale scales about the origin, which biases every
-		-- centred panel toward the top of the screen. Rather than model both
-		-- quirks, measure the result and step down until nothing is cut off.
-		--
-		-- Yields between steps: AbsolutePosition is only recomputed on the next
-		-- frame, so reading it straight after writing Scale returns stale values.
-		if not header or not header:IsA("GuiObject") then
-			return
-		end
-		fitToken += 1
-		local token = fitToken
-		task.spawn(function()
-			for _ = 1, 20 do
-				task.wait()
-				if token ~= fitToken or not panelScale or not panel then
-					return
-				end
-				local top = header.AbsolutePosition.Y
-				local bottom = (panel :: Frame).AbsolutePosition.Y + (panel :: Frame).AbsoluteSize.Y
-				-- Sideways too: the BASE boost makes the panel wider as well.
-				local left = (panel :: Frame).AbsolutePosition.X
-				local right = left + (panel :: Frame).AbsoluteSize.X
-				local fits = top >= 4
-					and bottom <= camera.ViewportSize.Y - 4
-					and left >= 4
-					and right <= camera.ViewportSize.X - 4
-				if fits or (panelScale :: UIScale).Scale <= 0.85 then
-					return
-				end
-				;(panelScale :: UIScale).Scale -= 0.05
-			end
-		end)
-	end
-
-	refitPanel = applyPanelScale
-	applyPanelScale()
-	local camera = workspace.CurrentCamera
-	if camera then
-		camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyPanelScale)
-	end
-	local hudScale = ui:FindFirstChildOfClass("UIScale")
-	if hudScale then
-		hudScale:GetPropertyChangedSignal("Scale"):Connect(applyPanelScale)
-	end
+	if panelScale then panelScale.Scale = 1 end
 
 	-- Both purchase paths land here: Cash writes the profile directly and Robux
 	-- writes it from ProcessReceipt, and either way the server pushes state. So
@@ -897,7 +819,7 @@ function UpgradesController.start()
 	-- Slowly turn the preview so the panel feels alive.
 	RunService.RenderStepped:Connect(function(delta)
 		local view = viewport
-		if not view or not panel or not panel.Visible then
+		if not view or not panel or not panel.Visible or Effects.isReduced() or Effects.isLowGraphics() then
 			return
 		end
 		local model = view:FindFirstChild("Preview")

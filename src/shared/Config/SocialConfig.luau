@@ -27,7 +27,7 @@ SocialConfig.INVITE_PROMPT_MESSAGE = "Steal with me in Steal & Run!"
 SocialConfig.INVITE_MESSAGE_ID = ""
 --- The HUD button's icon, or "rbxassetid://0" to draw the text-only face.
 --- Codex: docs/codex-prompts/social.md "Invite HUD icon".
-SocialConfig.INVITE_ICON = "rbxassetid://0"
+SocialConfig.INVITE_ICON = "rbxassetid://93427904685916"
 
 -- ==========================================================
 -- REFERRAL REWARDS (paid to the INVITER, through the mailbox)
@@ -78,8 +78,8 @@ SocialConfig.PREMIUM_BOOST = 0.10
 --- The pill offers PromptPremiumPurchase to non-Premium players when tapped.
 SocialConfig.PREMIUM_UPSELL_ENABLED = true
 --- Pill icons ("rbxassetid://0" = text only). Codex: social.md.
-SocialConfig.FRIENDS_PILL_ICON = "rbxassetid://0"
-SocialConfig.PREMIUM_PILL_ICON = "rbxassetid://0"
+SocialConfig.FRIENDS_PILL_ICON = "rbxassetid://115260215543732"
+SocialConfig.PREMIUM_PILL_ICON = "rbxassetid://84952495015282"
 
 --- The combined social income multiplier, 1 or more.
 function SocialConfig.multiplier(friendCount: number, premium: boolean): number

@@ -1,0 +1,103 @@
+{
+  "files": [
+    {
+      "chunks": 24,
+      "name": "texture_Tail",
+      "length": 2148876
+    },
+    {
+      "chunks": 21,
+      "name": "texture_HindRight",
+      "length": 1820040
+    },
+    {
+      "chunks": 21,
+      "name": "texture_HindLeft",
+      "length": 1821700
+    },
+    {
+      "chunks": 19,
+      "name": "texture_FrontRight",
+      "length": 1700732
+    },
+    {
+      "chunks": 20,
+      "name": "texture_FrontLeft",
+      "length": 1772300
+    },
+    {
+      "chunks": 29,
+      "name": "texture_Head",
+      "length": 2522016
+    },
+    {
+      "chunks": 22,
+      "name": "texture_Torso",
+      "length": 1957588
+    },
+    {
+      "chunks": 5,
+      "name": "mesh",
+      "length": 386792
+    }
+  ],
+  "name": "Cat",
+  "parts": [
+    {
+      "faces": 630,
+      "name": "Tail",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 664,
+      "name": "HindRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 670,
+      "name": "HindLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 580,
+      "name": "FrontRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 560,
+      "name": "FrontLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1368,
+      "name": "Head",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 994,
+      "name": "Torso",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

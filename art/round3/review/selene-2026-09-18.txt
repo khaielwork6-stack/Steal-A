@@ -1,0 +1,814 @@
+warning[unused_variable]: SAFE_DELAY is assigned a value, but never used
+   ┌─ src\client\Controllers\ChaseAudioController.luau:46:7
+   │
+46 │ local SAFE_DELAY = 0.5
+   │       ^^^^^^^^^^
+
+warning[unused_variable]: player is assigned a value, but never used
+   ┌─ src\client\Controllers\BossOfferController.luau:46:7
+   │
+46 │ local player = Players.LocalPlayer
+   │       ^^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+   ┌─ src\client\Controllers\BossOfferController.luau:65:38
+   │
+65 │ local SHOWN_POSITION = if TOUCH then UDim2.new(0.5, 0, 0.13, 0) else UDim2.new(0.5, 0, 0.085, 0)
+   │                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │
+   = try: UDim2.fromScale(0.5, 0.13)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+   ┌─ src\client\Controllers\BossOfferController.luau:65:70
+   │
+65 │ local SHOWN_POSITION = if TOUCH then UDim2.new(0.5, 0, 0.13, 0) else UDim2.new(0.5, 0, 0.085, 0)
+   │                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │
+   = try: UDim2.fromScale(0.5, 0.085)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+   ┌─ src\client\Controllers\BossOfferController.luau:67:25
+   │
+67 │ local HIDDEN_POSITION = UDim2.new(0.5, 0, -0.08, 0)
+   │                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │
+   = try: UDim2.fromScale(0.5, -0.08)
+
+warning[unused_variable]: clickButton is assigned a value, but never used
+   ┌─ src\client\Controllers\BaseSignController.luau:71:7
+   │
+71 │ local clickButton: TextButton? = nil
+   │       ^^^^^^^^^^^
+
+warning[unused_variable]: button is assigned a value, but never used
+   ┌─ src\client\Controllers\CrouchController.luau:13:7
+   │
+13 │ local button: TextButton?
+   │       ^^^^^^
+
+warning[unused_variable]: token is assigned a value, but never used
+   ┌─ src\client\Controllers\EventStandController.luau:56:8
+   │
+56 │     local token = os.clock()
+   │           ^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+   ┌─ src\client\Controllers\DropController.luau:57:26
+   │
+57 │ local RESTING_POSITION = UDim2.new(0.5, 0, 0.86, 0)
+   │                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │
+   = try: UDim2.fromScale(0.5, 0.86)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+   ┌─ src\client\Controllers\DropController.luau:60:25
+   │
+60 │ local HIDDEN_POSITION = UDim2.new(0.5, 0, 1.12, 0)
+   │                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │
+   = try: UDim2.fromScale(0.5, 1.12)
+
+warning[unused_variable]: TweenService is assigned a value, but never used
+   ┌─ src\client\Controllers\HUDController.luau:26:7
+   │
+26 │ local TweenService = game:GetService("TweenService")
+   │       ^^^^^^^^^^^^
+
+warning[global_usage]: use of `_G` is not allowed, structure your code in a more idiomatic way
+    ┌─ src\client\Controllers\GadgetStoreController.luau:283:19
+    │
+283 │     local closeAll = _G.CloseAllUIFrames
+    │                      ^^
+
+warning[unused_variable]: CLAIMED_COLOR is assigned a value, but never used
+   ┌─ src\client\Controllers\GroupGiftController.luau:84:7
+   │
+84 │ local CLAIMED_COLOR = Color3.fromRGB(150, 156, 170)
+   │       ^^^^^^^^^^^^^
+
+warning[unused_variable]: CLAIMED_ACCENT is assigned a value, but never used
+   ┌─ src\client\Controllers\GroupGiftController.luau:85:7
+   │
+85 │ local CLAIMED_ACCENT = Color3.fromRGB(70, 74, 88)
+   │       ^^^^^^^^^^^^^^
+
+warning[unused_variable]: gui is assigned a value, but never used
+    ┌─ src\client\Controllers\HotbarController.luau:114:7
+    │
+114 │ local gui: ScreenGui? = nil
+    │       ^^^
+
+warning[unused_variable]: Remotes is assigned a value, but never used
+   ┌─ src\client\Controllers\PurchasePolicyController.luau:29:7
+   │
+29 │ local Remotes = require(ReplicatedStorage.Shared.Remotes)
+   │       ^^^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets offset, and can be simplified using UDim2.fromOffset
+    ┌─ src\client\Controllers\NightController.luau:205:18
+    │
+205 │     icon.Position = UDim2.new(0, 8, 0, 0)
+    │                     ^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromOffset(8, 0)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets offset, and can be simplified using UDim2.fromOffset
+    ┌─ src\client\Controllers\NightController.luau:220:19
+    │
+220 │     label.Position = UDim2.new(0, 42, 0, 0)
+    │                      ^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromOffset(42, 0)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\HUDLayoutController.luau:269:21
+    │
+269 │     buttons.Position = UDim2.new(0, 0, 0.47, 0)
+    │                        ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0, 0.47)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\HUDLayoutController.luau:296:13
+    │
+296 │     row.Size = UDim2.new(1, 0, 1 / #STAT_ROWS, 0)
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(1, 1 / #STAT_ROWS)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\HUDLayoutController.luau:630:22
+    │
+630 │         buttons.Position = UDim2.new(0, 0, TOUCH_BLOCK_CENTRE, 0)
+    │                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0, TOUCH_BLOCK_CENTRE)
+
+warning[unused_variable]: latest is assigned a value, but never used
+   ┌─ src\client\Controllers\OfferRailController.luau:72:7
+   │
+72 │ local latest: any = nil
+   │       ^^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets offset, and can be simplified using UDim2.fromOffset
+    ┌─ src\client\Controllers\InteractController.luau:352:25
+    │
+352 │     objectLabel.Position = UDim2.new(0, textLeft, 0, 12)
+    │                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromOffset(textLeft, 12)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets offset, and can be simplified using UDim2.fromOffset
+    ┌─ src\client\Controllers\InteractController.luau:355:25
+    │
+355 │     actionLabel.Position = UDim2.new(0, textLeft, 0, 46)
+    │                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromOffset(textLeft, 46)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets offset, and can be simplified using UDim2.fromOffset
+    ┌─ src\client\Controllers\InteractController.luau:625:26
+    │
+625 │         actionLabel.Position = UDim2.new(0, textLeft, 0, 46)
+    │                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromOffset(textLeft, 46)
+
+warning[unused_variable]: player is assigned a value, but never used
+   ┌─ src\client\Controllers\SlapDisplayController.luau:22:7
+   │
+22 │ local player = Players.LocalPlayer
+   │       ^^^^^^
+
+warning[unused_variable]: player is assigned a value, but never used
+   ┌─ src\client\Controllers\ShopController.luau:49:7
+   │
+49 │ local player = Players.LocalPlayer
+   │       ^^^^^^
+
+warning[unused_variable]: player is assigned a value, but never used
+   ┌─ src\client\Controllers\ToastController.luau:31:7
+   │
+31 │ local player = Players.LocalPlayer
+   │       ^^^^^^
+
+warning[unused_variable]: TweenService is assigned a value, but never used
+   ┌─ src\client\Controllers\SettingsController.luau:47:7
+   │
+47 │ local TweenService = game:GetService("TweenService")
+   │       ^^^^^^^^^^^^
+
+warning[unused_variable]: grid is assigned a value, but never used
+   ┌─ src\client\Controllers\TrailShopController.luau:57:7
+   │
+57 │ local grid: Frame? = nil
+   │       ^^^^
+
+warning[global_usage]: use of `_G` is not allowed, structure your code in a more idiomatic way
+    ┌─ src\client\Controllers\TrailShopController.luau:482:19
+    │
+482 │     local closeAll = _G.CloseAllUIFrames
+    │                      ^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\StarterTaskController.luau:222:20
+    │
+222 │     marker.Position = UDim2.new(0, 0, 0.5, 0)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0, 0.5)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\StarterTaskController.luau:253:20
+    │
+253 │     reward.Position = UDim2.new(1, 0, 0.5, 0)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(1, 0.5)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\StarterTaskController.luau:647:20
+    │
+647 │     marker.Position = UDim2.new(0, 0, 0.5, 0)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0, 0.5)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\StarterTaskController.luau:678:20
+    │
+678 │     reward.Position = UDim2.new(1, 0, 0.5, 0)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(1, 0.5)
+
+warning[if_same_then_else]: this has the same block as a previous if
+    ┌─ src\client\Controllers\SpinWheelController.luau:142:4
+    │
+140 │             thing.Enabled = not hidden
+    │             -------------------------- note: same as this
+141 │         elseif thing:IsA("SurfaceGui") or thing:IsA("BillboardGui") then
+142 │             thing.Enabled = not hidden
+    │             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[if_same_then_else]: this has the same block as a previous if
+    ┌─ src\client\Controllers\SpinWheelController.luau:144:4
+    │
+140 │             thing.Enabled = not hidden
+    │             -------------------------- note: same as this
+    ·
+144 │             thing.Enabled = not hidden
+    │             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning[unused_variable]: player is assigned a value, but never used
+   ┌─ src\client\Controllers\TreadmillOfferController.luau:45:7
+   │
+45 │ local player = Players.LocalPlayer
+   │       ^^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\client\Controllers\TreadmillOfferController.luau:387:14
+    │
+387 │     deal.Size = UDim2.new(0.3, 0, 0.3, 0)
+    │                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0.3, 0.3)
+
+warning[global_usage]: use of `_G` is not allowed, structure your code in a more idiomatic way
+    ┌─ src\client\Controllers\TradeController.luau:429:21
+    │
+429 │         local closeAll = (_G :: any).CloseAllUIFrames
+    │                           ^^
+
+warning[unused_variable]: GameConfig is assigned a value, but never used
+   ┌─ src\client\Controllers\UpgradesController.luau:35:7
+   │
+35 │ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+   │       ^^^^^^^^^^
+
+warning[unused_variable]: ... is defined, but never used
+    ┌─ src\server\Services\DebugCommands\Monetization.luau:139:24
+    │
+139 │     local stub = function(...: any): (boolean, string)
+    │                           ^^^
+
+warning[unused_variable]: CARRY_FRONT_OFFSET is assigned a value, but never used
+    ┌─ src\server\Services\CarryService.luau:205:7
+    │
+205 │ local CARRY_FRONT_OFFSET = CFrame.new(0, 0.5, -3.5)
+    │       ^^^^^^^^^^^^^^^^^^
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:413:2
+    │
+ 65 │ local onCarryChanged: (Player) -> () = function() end
+    │ -----------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 68 │     onCarryChanged = fn
+    │     -------------- note: function defined here
+    ·
+413 │     onCarryChanged(player)
+    │     ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:510:3
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+510 │         notify(player, "error", reason)
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:524:3
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+524 │         notify(player, "error", "Could not pick that up.")
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:542:2
+    │
+ 65 │ local onCarryChanged: (Player) -> () = function() end
+    │ -----------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 68 │     onCarryChanged = fn
+    │     -------------- note: function defined here
+    ·
+542 │     onCarryChanged(player)
+    │     ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:553:2
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+553 │     notify(player, "success", `STOLEN: {loot.name}!`)
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:592:3
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+592 │         notify(player, "error", `The guardian took back the {loot.name}!`)
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:669:30
+    │  
+ 48 │ ╭ local canRecover: (LootService.LootInstance) -> boolean = function()
+    │         ---------- note: function defined here
+ 49 │ │     return false
+ 50 │ │ end
+    │ ╰───' note: function defined here
+    · │
+ 53 │       canRecover = fn
+    │       ---------- note: function defined here
+    ·  
+669 │           if stillThisDrop() and not canRecover(loot) then
+    │                                      ^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:712:3
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+712 │         notify(player, "info", `The {loot.name} went back to its pedestal.`)
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:734:2
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+734 │     notify(player, "error", `You dropped the {loot.name}!`)
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:742:3
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+742 │         notify(player, "error", reason)
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:764:2
+    │
+ 65 │ local onCarryChanged: (Player) -> () = function() end
+    │ -----------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 68 │     onCarryChanged = fn
+    │     -------------- note: function defined here
+    ·
+764 │     onCarryChanged(player)
+    │     ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:765:2
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+765 │     notify(player, "info", `Grabbed the {loot.name}!`)
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:796:2
+    │
+ 65 │ local onCarryChanged: (Player) -> () = function() end
+    │ -----------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 68 │     onCarryChanged = fn
+    │     -------------- note: function defined here
+    ·
+796 │     onCarryChanged(player)
+    │     ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:835:2
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+835 │     notify(player, "error", "NIGHT FELL - the item went back!")
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:955:2
+    │
+ 41 │ local notify: (Player, string, string) -> () = function() end
+    │ -------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 57 │     notify = fn
+    │     ------ note: function defined here
+    ·
+955 │     notify(player, "error", `The {loot.name} went back - that was too fast!`)
+    │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 2 arguments were supplied
+    ┌─ src\server\Services\CarryService.luau:991:6
+    │
+ 42 │ local onDelivered: (Player, LootService.LootInstance) -> () = function() end
+    │ ----------------------------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+ 74 │     onDelivered = fn
+    │     ----------- note: function defined here
+    ·
+991 │                     onDelivered(player, loot)
+    │                     ^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 3 arguments were supplied
+     ┌─ src\server\Services\CarryService.luau:1047:4
+     │
+  41 │ local notify: (Player, string, string) -> () = function() end
+     │ -------------------------------------------------------------
+     │ │     │
+     │ │     note: function defined here
+     │ note: function defined here
+     ·
+  57 │     notify = fn
+     │     ------ note: function defined here
+     ·
+1047 │             notify(player, "error", reason)
+     │             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\ItemAssetBuilder.luau:412:3
+    │
+412 │         assert(min and max)
+    │         ^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\DebugCommands\Security.luau:173:22
+    │
+173 │             local character = assert(player.Character)
+    │                               ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\DebugCommands\Security.luau:230:22
+    │
+230 │             local character = assert(player.Character)
+    │                               ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\DebugCommands\Security.luau:290:22
+    │
+290 │             local character = assert(player.Character)
+    │                               ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[unused_variable]: tameShine is defined, but never used
+    ┌─ src\server\Services\EventStandService.luau:103:16
+    │
+103 │ local function tameShine(emitter: ParticleEmitter)
+    │                ^^^^^^^^^
+
+warning[unused_variable]: max is defined, but never used
+   ┌─ src\server\Services\ItemArtAudit.luau:56:14
+   │
+56 │    local min,max=LootModel.visibleExtents(source)
+   │              ^^^
+
+warning[unused_variable]: Players is assigned a value, but never used
+  ┌─ src\server\Services\ItemArtReview.luau:6:7
+  │
+6 │ local Players=game:GetService("Players")
+  │       ^^^^^^^
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 2 arguments were supplied
+    ┌─ src\server\Services\MovementService.luau:378:3
+    │
+103 │ local onViolation: (Player, Vector3) -> () = function() end
+    │ -----------------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+    ·
+109 │     onViolation = fn
+    │     ----------- note: function defined here
+    ·
+378 │         onViolation(player, target)
+    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[unused_variable]: zone is defined, but never used
+    ┌─ src\server\Services\MysterySpawnService.luau:105:30
+    │
+105 │ local function blockerParams(zone: Instance, sockets: Instance): RaycastParams
+    │                              ^^^^
+
+warning[unused_variable]: MysteryConfig is assigned a value, but never used
+   ┌─ src\server\Services\LootService.luau:76:7
+   │
+76 │ local MysteryConfig = require(ReplicatedStorage.Shared.Config.MysteryConfig)
+   │       ^^^^^^^^^^^^^
+
+warning[unused_variable]: levelForProductKey is defined, but never used
+    ┌─ src\server\Services\MonetizationService.luau:346:16
+    │
+346 │ local function levelForProductKey(key: string): number?
+    │                ^^^^^^^^^^^^^^^^^^
+
+warning[unused_variable]: IndexService is assigned a value, but never used
+   ┌─ src\server\Services\PlacementService.luau:38:7
+   │
+38 │ local IndexService = require(script.Parent.IndexService)
+   │       ^^^^^^^^^^^^
+
+warning[unused_variable]: GameConfig is assigned a value, but never used
+   ┌─ src\server\init.server.luau:22:7
+   │
+22 │ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+   │       ^^^^^^^^^^
+
+warning[unused_variable]: NumberFormat is assigned a value, but never used
+   ┌─ src\server\init.server.luau:24:7
+   │
+24 │ local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+   │       ^^^^^^^^^^^^
+
+warning[unused_variable]: ZoneConfig is assigned a value, but never used
+   ┌─ src\server\init.server.luau:27:7
+   │
+27 │ local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
+   │       ^^^^^^^^^^
+
+warning[unused_variable]: MysterySpawnService is assigned a value, but never used
+   ┌─ src\server\init.server.luau:60:7
+   │
+60 │ local MysterySpawnService = require(Services.MysterySpawnService)
+   │       ^^^^^^^^^^^^^^^^^^^
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+    ┌─ src\server\init.server.luau:83:2
+    │
+ 81 │ local heistLeaveHook: (Player) -> () = function() end
+    │ -----------------------------------------------------
+    │ │     │
+    │ │     note: function defined here
+    │ note: function defined here
+ 82 │ Players.PlayerRemoving:Connect(function(player)
+ 83 │     heistLeaveHook(player)
+    │     ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+    ·
+265 │ heistLeaveHook = HeistService.onPlayerLeaving
+    │ -------------- note: function defined here
+
+warning[unused_variable]: ProximityPromptService is assigned a value, but never used
+   ┌─ src\server\Services\SpeedService.luau:18:7
+   │
+18 │ local ProximityPromptService = game:GetService("ProximityPromptService")
+   │       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning[unused_variable]: ESCORT_REACH is assigned a value, but never used
+     ┌─ src\server\Services\GuardianService.luau:1012:7
+     │
+1012 │ local ESCORT_REACH = 7
+     │       ^^^^^^^^^^^^
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 2 arguments were supplied
+     ┌─ src\server\Services\GuardianService.luau:1966:16
+     │
+ 231 │ local onEscape: (LootService.LootInstance, Player) -> () = function() end
+     │ -------------------------------------------------------------------------
+     │ │     │
+     │ │     note: function defined here
+     │ note: function defined here
+     ·
+ 242 │     onEscape = fn
+     │     -------- note: function defined here
+     ·
+1966 │         if loot then onEscape(loot, target) end
+     │                      ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 1 arguments were supplied
+     ┌─ src\server\Services\GuardianService.luau:2022:16
+     │
+ 230 │ local onCatch: (LootService.LootInstance) -> () = function() end
+     │ ----------------------------------------------------------------
+     │ │     │
+     │ │     note: function defined here
+     │ note: function defined here
+     ·
+ 238 │     onCatch = fn
+     │     ------- note: function defined here
+     ·
+2022 │         if loot then onCatch(loot) end
+     │                      ^^^^^^^^^^^^^ expected 0 arguments
+
+warning[mismatched_arg_count]: this function takes 0 arguments but 2 arguments were supplied
+     ┌─ src\server\Services\GuardianService.luau:2149:4
+     │
+ 231 │ local onEscape: (LootService.LootInstance, Player) -> () = function() end
+     │ -------------------------------------------------------------------------
+     │ │     │
+     │ │     note: function defined here
+     │ note: function defined here
+     ·
+ 242 │     onEscape = fn
+     │     -------- note: function defined here
+     ·
+2149 │             onEscape(loot, player)
+     │             ^^^^^^^^^^^^^^^^^^^^^^ expected 0 arguments
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:281:20
+    │
+281 │     local character = assert(player.Character)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:301:18
+    │
+301 │                 local loot = assert(socket.loot)
+    │                              ^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:357:20
+    │
+357 │     local character = assert(player.Character)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:377:16
+    │
+377 │         local loot = assert(socket.loot)
+    │                      ^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:499:20
+    │
+499 │     local character = assert(player.Character)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[incorrect_standard_library_use]: standard library function `assert` requires 2 parameters, 1 passed
+    ┌─ src\server\Services\MuseumTests.luau:601:20
+    │
+601 │     local character = assert(player.Character)
+    │                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = A failed assertion without a message is unhelpful to users.
+
+warning[unused_variable]: displayScale is defined, but never used
+    ┌─ src\shared\Util\MysteryModel.luau:429:55
+    │
+429 │ function MysteryModel.addMysterySparkle(model: Model, displayScale: number)
+    │                                                       ^^^^^^^^^^^^
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\shared\Util\UIAnim.luau:426:18
+    │
+426 │         bar.Position = UDim2.new(0, 0, 0.5, 0)
+    │                        ^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(0, 0.5)
+
+warning[roblox_manual_fromscale_or_fromoffset]: this UDim2.new call only sets scale, and can be simplified using UDim2.fromScale
+    ┌─ src\shared\Util\UIAnim.luau:429:10
+    │
+429 │         Size = UDim2.new(math.clamp(alpha, 0, 1), 0, height or bar.Size.Y.Scale, 0),
+    │                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    │
+    = try: UDim2.fromScale(math.clamp(alpha, 0, 1), height or bar.Size.Y.Scale)
+
+Results:
+0 errors
+91 warnings
+0 parse errors

@@ -2,6 +2,7 @@
 -- Restyles bound rows; the mixer, save and toggle callbacks stay with SettingsController.
 local RS = game:GetService("ReplicatedStorage")
 local PanelStyle = require(RS.Shared.Util.PanelStyle)
+local UiArtConfig = require(RS.Shared.Config.UiArtConfig)
 local SettingsPresentation = {}
 
 function SettingsPresentation.row(row: GuiObject)
@@ -26,6 +27,8 @@ function SettingsPresentation.row(row: GuiObject)
 	end
 	if icons then for _,icon in icons:GetChildren() do
 		if icon:IsA("ImageLabel") then
+			local art = (UiArtConfig.Settings :: { [string]: string })[row.Name]
+			if art and art ~= "rbxassetid://0" then icon.Image = art end
 			icon.Size, icon.Position = UDim2.fromScale(0.09, 0.7), UDim2.fromScale(0.07, 0.5)
 			icon.ScaleType = Enum.ScaleType.Fit
 		end

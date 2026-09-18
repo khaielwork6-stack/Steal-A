@@ -57,7 +57,7 @@ FusionConfig.MIN_COST = 250
 
 --- The glowing fusion-machine art (docs/codex-prompts). "rbxassetid://0" =
 --- not made yet; the popup then shows no icon.
-FusionConfig.ICON = "rbxassetid://0"
+FusionConfig.ICON = "rbxassetid://86914837074279"
 
 --- Server request budget (FusionRequest), per player.
 FusionConfig.REQUESTS_PER_SECOND = 2

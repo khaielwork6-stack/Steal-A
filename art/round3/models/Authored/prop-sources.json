@@ -1,0 +1,5627 @@
+[
+  {
+    "name": "SunsetLantern",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.SunsetLantern",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Foot",
+        "size": [
+          0.18,
+          0.9,
+          0.9
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperGlobe",
+        "size": [
+          1.8,
+          2,
+          1.8
+        ],
+        "position": [
+          0,
+          1.35,
+          0
+        ],
+        "color": [
+          255,
+          140,
+          55
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0,
+        "light": {
+          "color": [
+            255,
+            151,
+            56
+          ],
+          "range": 10,
+          "brightness": 0.6
+        }
+      },
+      {
+        "name": "PaperRib0",
+        "size": [
+          0.045,
+          0.9271417565478831,
+          0.9271417565478831
+        ],
+        "position": [
+          0,
+          0.5,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib1",
+        "size": [
+          0.045,
+          1.4771732519669218,
+          1.4771732519669218
+        ],
+        "position": [
+          0,
+          0.78,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib2",
+        "size": [
+          0.045,
+          1.724966725499838,
+          1.724966725499838
+        ],
+        "position": [
+          0,
+          1.06,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib3",
+        "size": [
+          0.045,
+          1.8,
+          1.8
+        ],
+        "position": [
+          0,
+          1.34,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib4",
+        "size": [
+          0.045,
+          1.724966725499838,
+          1.724966725499838
+        ],
+        "position": [
+          0,
+          1.62,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib5",
+        "size": [
+          0.045,
+          1.4771732519669218,
+          1.4771732519669218
+        ],
+        "position": [
+          0,
+          1.9000000000000001,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PaperRib6",
+        "size": [
+          0.045,
+          0.9271417565478831,
+          0.9271417565478831
+        ],
+        "position": [
+          0,
+          2.18,
+          0
+        ],
+        "color": [
+          200,
+          86,
+          27
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TopCap",
+        "size": [
+          0.12,
+          0.76,
+          0.76
+        ],
+        "position": [
+          0,
+          2.38,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LowerCap",
+        "size": [
+          0.12,
+          0.8,
+          0.8
+        ],
+        "position": [
+          0,
+          0.36,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Finial",
+        "size": [
+          0.14,
+          0.35,
+          0.14
+        ],
+        "position": [
+          0,
+          2.56,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "MidnightBeacon",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.MidnightBeacon",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Plinth",
+        "size": [
+          0.3,
+          1.3,
+          1.3
+        ],
+        "position": [
+          0,
+          0.15,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Stem",
+        "size": [
+          1.5,
+          0.7,
+          0.7
+        ],
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LightCollar",
+        "size": [
+          0.15,
+          1.04,
+          1.04
+        ],
+        "position": [
+          0,
+          0.5,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LightCollar",
+        "size": [
+          0.15,
+          1.04,
+          1.04
+        ],
+        "position": [
+          0,
+          1.35,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LightCollar",
+        "size": [
+          0.15,
+          1.04,
+          1.04
+        ],
+        "position": [
+          0,
+          1.65,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Lens",
+        "size": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "position": [
+          0,
+          1.95,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "glass",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0.25
+      },
+      {
+        "name": "Cap",
+        "size": [
+          0.15,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0,
+          2.25,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "MidnightOrb",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.MidnightOrb",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Base",
+        "size": [
+          0.18,
+          1.24,
+          1.24
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Stem",
+        "size": [
+          0.9,
+          0.2,
+          0.2
+        ],
+        "position": [
+          0,
+          0.62,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Glass",
+        "size": [
+          1.55,
+          1.55,
+          1.55
+        ],
+        "position": [
+          0,
+          1.68,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "glass",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0.55
+      },
+      {
+        "name": "Core",
+        "size": [
+          0.73,
+          0.73,
+          0.73
+        ],
+        "position": [
+          0,
+          1.68,
+          0
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          0.81,
+          1.68,
+          0.0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          4.9598195365467806e-17,
+          1.68,
+          0.81
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          -0.81,
+          1.68,
+          9.919639073093561e-17
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          -1.4879458609640342e-16,
+          1.68,
+          -0.81
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "NeonOrb",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.NeonOrb",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Base",
+        "size": [
+          0.18,
+          1.24,
+          1.24
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Stem",
+        "size": [
+          0.9,
+          0.2,
+          0.2
+        ],
+        "position": [
+          0,
+          0.62,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Glass",
+        "size": [
+          1.55,
+          1.55,
+          1.55
+        ],
+        "position": [
+          0,
+          1.68,
+          0
+        ],
+        "color": [
+          242,
+          63,
+          246
+        ],
+        "material": "glass",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0.55
+      },
+      {
+        "name": "Core",
+        "size": [
+          0.73,
+          0.73,
+          0.73
+        ],
+        "position": [
+          0,
+          1.68,
+          0
+        ],
+        "color": [
+          242,
+          63,
+          246
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          0.81,
+          1.68,
+          0.0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          4.9598195365467806e-17,
+          1.68,
+          0.81
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          -0.81,
+          1.68,
+          9.919639073093561e-17
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OrbitStud",
+        "size": [
+          0.18,
+          0.18,
+          0.18
+        ],
+        "position": [
+          -1.4879458609640342e-16,
+          1.68,
+          -0.81
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "JungleTotem",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.JungleTotem",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Foot",
+        "size": [
+          1.65,
+          0.35,
+          1.45
+        ],
+        "position": [
+          0,
+          0.175,
+          0
+        ],
+        "color": [
+          70,
+          89,
+          73
+        ],
+        "material": "slate",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CarvedStone",
+        "size": [
+          1.22,
+          2.3,
+          1.05
+        ],
+        "position": [
+          0,
+          1.48,
+          0
+        ],
+        "color": [
+          112,
+          131,
+          104
+        ],
+        "material": "slate",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Brow",
+        "size": [
+          1.45,
+          0.26,
+          1.23
+        ],
+        "position": [
+          0,
+          2.35,
+          -0.05
+        ],
+        "color": [
+          57,
+          74,
+          58
+        ],
+        "material": "slate",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Eye",
+        "size": [
+          0.3,
+          0.22,
+          0.08
+        ],
+        "position": [
+          -0.34,
+          1.94,
+          -0.565
+        ],
+        "color": [
+          163,
+          230,
+          129
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Eye",
+        "size": [
+          0.3,
+          0.22,
+          0.08
+        ],
+        "position": [
+          0.34,
+          1.94,
+          -0.565
+        ],
+        "color": [
+          163,
+          230,
+          129
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Nose",
+        "size": [
+          0.26,
+          0.4,
+          0.32
+        ],
+        "position": [
+          0,
+          1.63,
+          -0.65
+        ],
+        "color": [
+          74,
+          90,
+          72
+        ],
+        "material": "slate",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Mouth",
+        "size": [
+          0.62,
+          0.11,
+          0.1
+        ],
+        "position": [
+          0,
+          1.25,
+          -0.57
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Moss",
+        "size": [
+          0.48,
+          0.2,
+          0.43
+        ],
+        "position": [
+          -0.5,
+          2.67,
+          0.0
+        ],
+        "color": [
+          48,
+          113,
+          53
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Moss",
+        "size": [
+          0.48,
+          0.2,
+          0.43
+        ],
+        "position": [
+          -0.27,
+          2.67,
+          0.11780593787310552
+        ],
+        "color": [
+          48,
+          113,
+          53
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Moss",
+        "size": [
+          0.48,
+          0.2,
+          0.43
+        ],
+        "position": [
+          -0.03999999999999998,
+          2.67,
+          0.12730163975559544
+        ],
+        "color": [
+          48,
+          113,
+          53
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Moss",
+        "size": [
+          0.48,
+          0.2,
+          0.43
+        ],
+        "position": [
+          0.19000000000000006,
+          2.67,
+          0.01975680112838141
+        ],
+        "color": [
+          48,
+          113,
+          53
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Moss",
+        "size": [
+          0.48,
+          0.2,
+          0.43
+        ],
+        "position": [
+          0.42000000000000004,
+          2.67,
+          -0.10595234934310996
+        ],
+        "color": [
+          48,
+          113,
+          53
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "JungleBush",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.JungleBush",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "WoodCore",
+        "size": [
+          1,
+          0.36,
+          0.36
+        ],
+        "position": [
+          0,
+          0.5,
+          0
+        ],
+        "color": [
+          90,
+          64,
+          41
+        ],
+        "material": "wood",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0.0,
+          0.95,
+          0.0
+        ],
+        "color": [
+          38,
+          107,
+          49
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          -0.47930591510180953,
+          1.27,
+          0.4390510673582481
+        ],
+        "color": [
+          42,
+          114,
+          52
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0.05687433923564016,
+          1.5899999999999999,
+          -0.6475069957432965
+        ],
+        "color": [
+          46,
+          121,
+          55
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0.3954283544459659,
+          0.95,
+          0.5158841115019492
+        ],
+        "color": [
+          50,
+          128,
+          58
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          -0.6400471062661826,
+          1.27,
+          -0.11331240779493677
+        ],
+        "color": [
+          54,
+          135,
+          61
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0.54850507317612,
+          1.5899999999999999,
+          -0.3487723967002827
+        ],
+        "color": [
+          58,
+          142,
+          64
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          -0.1688812815389402,
+          0.95,
+          0.6276775547570307
+        ],
+        "color": [
+          62,
+          149,
+          67
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          -0.29944108181738566,
+          1.27,
+          -0.576918571827978
+        ],
+        "color": [
+          66,
+          156,
+          70
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "LeafCluster",
+        "size": [
+          1.1,
+          1.1,
+          1.1
+        ],
+        "position": [
+          0.610493225352966,
+          1.5899999999999999,
+          0.223154703732932
+        ],
+        "color": [
+          70,
+          163,
+          73
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TrailingVine",
+        "size": [
+          0.13,
+          1,
+          0.13
+        ],
+        "position": [
+          -0.6,
+          0.65,
+          -0.35
+        ],
+        "color": [
+          34,
+          89,
+          41
+        ],
+        "material": "wood",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          -10.799999999999999
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TrailingVine",
+        "size": [
+          0.13,
+          1,
+          0.13
+        ],
+        "position": [
+          0.6,
+          0.65,
+          -0.35
+        ],
+        "color": [
+          34,
+          89,
+          41
+        ],
+        "material": "wood",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          10.799999999999999
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "FrostCrystal",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.FrostCrystal",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "IceShaft",
+        "size": [
+          0.55,
+          2.9,
+          0.55
+        ],
+        "position": [
+          0,
+          1.45,
+          0
+        ],
+        "color": [
+          128,
+          214,
+          250
+        ],
+        "material": "glass",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0.17
+      },
+      {
+        "name": "IcePoint",
+        "size": [
+          0.55,
+          0.65,
+          0.55
+        ],
+        "position": [
+          0,
+          2.98,
+          0
+        ],
+        "color": [
+          183,
+          241,
+          255
+        ],
+        "material": "glass",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0.12
+      },
+      {
+        "name": "IceShaft",
+        "size": [
+          0.55,
+          1.9,
+          0.55
+        ],
+        "position": [
+          -0.62,
+          0.95,
+          0.12
+        ],
+        "color": [
+          143,
+          221,
+          250
+        ],
+        "material": "glass",
+        "shape": "block",
+        "rotation": [
+          0,
+          35,
+          0
+        ],
+        "transparency": 0.17
+      },
+      {
+        "name": "IcePoint",
+        "size": [
+          0.55,
+          0.65,
+          0.55
+        ],
+        "position": [
+          -0.62,
+          1.98,
+          0.12
+        ],
+        "color": [
+          183,
+          241,
+          255
+        ],
+        "material": "glass",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          35,
+          0
+        ],
+        "transparency": 0.12
+      },
+      {
+        "name": "IceShaft",
+        "size": [
+          0.55,
+          1.5,
+          0.55
+        ],
+        "position": [
+          0.55,
+          0.75,
+          0.32
+        ],
+        "color": [
+          158,
+          228,
+          250
+        ],
+        "material": "glass",
+        "shape": "block",
+        "rotation": [
+          0,
+          70,
+          0
+        ],
+        "transparency": 0.17
+      },
+      {
+        "name": "IcePoint",
+        "size": [
+          0.55,
+          0.65,
+          0.55
+        ],
+        "position": [
+          0.55,
+          1.58,
+          0.32
+        ],
+        "color": [
+          183,
+          241,
+          255
+        ],
+        "material": "glass",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          70,
+          0
+        ],
+        "transparency": 0.12
+      },
+      {
+        "name": "IceShaft",
+        "size": [
+          0.55,
+          1.2,
+          0.55
+        ],
+        "position": [
+          0.12,
+          0.6,
+          -0.55
+        ],
+        "color": [
+          173,
+          235,
+          250
+        ],
+        "material": "glass",
+        "shape": "block",
+        "rotation": [
+          0,
+          105,
+          0
+        ],
+        "transparency": 0.17
+      },
+      {
+        "name": "IcePoint",
+        "size": [
+          0.55,
+          0.65,
+          0.55
+        ],
+        "position": [
+          0.12,
+          1.28,
+          -0.55
+        ],
+        "color": [
+          183,
+          241,
+          255
+        ],
+        "material": "glass",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          105,
+          0
+        ],
+        "transparency": 0.12
+      }
+    ]
+  },
+  {
+    "name": "LavaBrazier",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.LavaBrazier",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Foot",
+        "size": [
+          0.22,
+          1.26,
+          1.26
+        ],
+        "position": [
+          0,
+          0.11,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Pedestal",
+        "size": [
+          1,
+          0.56,
+          0.56
+        ],
+        "position": [
+          0,
+          0.7,
+          0
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "IronBowl",
+        "size": [
+          1.8,
+          0.75,
+          1.8
+        ],
+        "position": [
+          0,
+          1.38,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MoltenPool",
+        "size": [
+          0.12,
+          1.5,
+          1.5
+        ],
+        "position": [
+          0,
+          1.7,
+          0
+        ],
+        "color": [
+          255,
+          102,
+          22
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0,
+        "light": {
+          "color": [
+            255,
+            115,
+            28
+          ],
+          "range": 10,
+          "brightness": 0.6
+        }
+      },
+      {
+        "name": "BowlClaw",
+        "size": [
+          0.15,
+          0.65,
+          0.15
+        ],
+        "position": [
+          0.77,
+          1.73,
+          0.0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BowlClaw",
+        "size": [
+          0.15,
+          0.65,
+          0.15
+        ],
+        "position": [
+          0.23794308566870953,
+          1.73,
+          0.7323135175472683
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BowlClaw",
+        "size": [
+          0.15,
+          0.65,
+          0.15
+        ],
+        "position": [
+          -0.6229430856687095,
+          1.73,
+          0.4525946442652044
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BowlClaw",
+        "size": [
+          0.15,
+          0.65,
+          0.15
+        ],
+        "position": [
+          -0.6229430856687096,
+          1.73,
+          -0.45259464426520424
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BowlClaw",
+        "size": [
+          0.15,
+          0.65,
+          0.15
+        ],
+        "position": [
+          0.23794308566870936,
+          1.73,
+          -0.7323135175472684
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "RoyalCrown",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.RoyalCrown",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "VelvetBase",
+        "size": [
+          0.42,
+          1.6,
+          1.6
+        ],
+        "position": [
+          0,
+          0.3,
+          0
+        ],
+        "color": [
+          85,
+          26,
+          85
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBand",
+        "size": [
+          0.28,
+          1.8,
+          1.8
+        ],
+        "position": [
+          0,
+          0.45,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CrownPoint",
+        "size": [
+          0.3,
+          1.1,
+          0.26
+        ],
+        "position": [
+          0.7,
+          0.98,
+          0.0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TipJewel",
+        "size": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "position": [
+          0.7,
+          1.55,
+          0.0
+        ],
+        "color": [
+          54,
+          218,
+          242
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CrownPoint",
+        "size": [
+          0.3,
+          1.1,
+          0.26
+        ],
+        "position": [
+          0.2163118960624632,
+          0.98,
+          0.6657395614066074
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          -72,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TipJewel",
+        "size": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "position": [
+          0.2163118960624632,
+          1.55,
+          0.6657395614066074
+        ],
+        "color": [
+          54,
+          218,
+          242
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CrownPoint",
+        "size": [
+          0.3,
+          1.1,
+          0.26
+        ],
+        "position": [
+          -0.5663118960624631,
+          0.98,
+          0.41144967660473125
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          -144,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TipJewel",
+        "size": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "position": [
+          -0.5663118960624631,
+          1.55,
+          0.41144967660473125
+        ],
+        "color": [
+          54,
+          218,
+          242
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CrownPoint",
+        "size": [
+          0.3,
+          1.1,
+          0.26
+        ],
+        "position": [
+          -0.5663118960624631,
+          0.98,
+          -0.4114496766047311
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          -216,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TipJewel",
+        "size": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "position": [
+          -0.5663118960624631,
+          1.55,
+          -0.4114496766047311
+        ],
+        "color": [
+          54,
+          218,
+          242
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "CrownPoint",
+        "size": [
+          0.3,
+          1.1,
+          0.26
+        ],
+        "position": [
+          0.21631189606246304,
+          0.98,
+          -0.6657395614066075
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "wedge",
+        "rotation": [
+          0,
+          -288,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "TipJewel",
+        "size": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "position": [
+          0.21631189606246304,
+          1.55,
+          -0.6657395614066075
+        ],
+        "color": [
+          54,
+          218,
+          242
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "RoyalUrn",
+    "destination": "ServerStorage.GameAssets.ThemeDecor.RoyalUrn",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Foot",
+        "size": [
+          0.2,
+          1.12,
+          1.12
+        ],
+        "position": [
+          0,
+          0.1,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Stem",
+        "size": [
+          0.4,
+          0.4,
+          0.4
+        ],
+        "position": [
+          0,
+          0.4,
+          0
+        ],
+        "color": [
+          235,
+          241,
+          244
+        ],
+        "material": "marble",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MarbleBody",
+        "size": [
+          1.55,
+          1.75,
+          1.35
+        ],
+        "position": [
+          0,
+          1.37,
+          0
+        ],
+        "color": [
+          235,
+          241,
+          244
+        ],
+        "material": "marble",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Neck",
+        "size": [
+          0.45,
+          0.8,
+          0.8
+        ],
+        "position": [
+          0,
+          2.26,
+          0
+        ],
+        "color": [
+          235,
+          241,
+          244
+        ],
+        "material": "marble",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Lip",
+        "size": [
+          0.18,
+          1.14,
+          1.14
+        ],
+        "position": [
+          0,
+          2.5,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldHandle",
+        "size": [
+          0.35,
+          1,
+          0.3
+        ],
+        "position": [
+          -0.85,
+          1.67,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldHandle",
+        "size": [
+          0.35,
+          1,
+          0.3
+        ],
+        "position": [
+          0.85,
+          1.67,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "VaultDoor",
+    "destination": "ServerStorage.GameAssets.Vault.VaultDoor",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "GoldRim",
+        "size": [
+          2.7,
+          26,
+          26
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SteelFace",
+        "size": [
+          2.85,
+          23.8,
+          23.8
+        ],
+        "position": [
+          0,
+          0,
+          -0.05
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InsetFace",
+        "size": [
+          2.95,
+          21.6,
+          21.6
+        ],
+        "position": [
+          0,
+          0,
+          -0.1
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          11.25,
+          0.0,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          7.95495128834866,
+          7.95495128834866,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          6.888638245203862e-16,
+          11.25,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          -7.954951288348659,
+          7.95495128834866,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          -11.25,
+          1.3777276490407724e-15,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          -7.954951288348662,
+          -7.954951288348659,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          -2.0665914735611584e-15,
+          -11.25,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Bolt",
+        "size": [
+          0.48,
+          1.2,
+          1.2
+        ],
+        "position": [
+          7.954951288348657,
+          -7.954951288348662,
+          -1.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Hub",
+        "size": [
+          3.7,
+          4.2,
+          4.2
+        ],
+        "position": [
+          0,
+          0,
+          -0.45
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "HubInset",
+        "size": [
+          3.8,
+          3.2,
+          3.2
+        ],
+        "position": [
+          0,
+          0,
+          -0.5
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          90,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelSpoke",
+        "size": [
+          6,
+          0.55,
+          0.55
+        ],
+        "position": [
+          3.0,
+          0.0,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelGrip",
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "position": [
+          6.0,
+          0.0,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelSpoke",
+        "size": [
+          6,
+          0.55,
+          0.55
+        ],
+        "position": [
+          -1.4999999999999993,
+          2.598076211353316,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          120
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelGrip",
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "position": [
+          -2.9999999999999987,
+          5.196152422706632,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelSpoke",
+        "size": [
+          6,
+          0.55,
+          0.55
+        ],
+        "position": [
+          -1.5000000000000013,
+          -2.5980762113533156,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          240
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "WheelGrip",
+        "size": [
+          1,
+          1,
+          1
+        ],
+        "position": [
+          -3.0000000000000027,
+          -5.196152422706631,
+          -2.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "FaceBrace",
+        "size": [
+          0.65,
+          13,
+          0.24
+        ],
+        "position": [
+          -6,
+          0,
+          -1.7
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "FaceBrace",
+        "size": [
+          0.65,
+          13,
+          0.24
+        ],
+        "position": [
+          6,
+          0,
+          -1.7
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "VaultDecor",
+    "destination": "ServerStorage.GameAssets.Vault.VaultDecor",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Pallet",
+        "size": [
+          2.6,
+          0.3,
+          4
+        ],
+        "position": [
+          -14,
+          0.15,
+          14
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "wood",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          -14.6,
+          0.6,
+          12.4
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          -14.6,
+          0.6,
+          13.6
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          -13.4,
+          1.08,
+          12.4
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          -13.4,
+          1.08,
+          13.6
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "DepositPanel",
+        "size": [
+          0.25,
+          5,
+          5.8
+        ],
+        "position": [
+          -15.35,
+          6,
+          8
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          4.8,
+          6.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          4.8,
+          6.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          4.8,
+          9.350000000000001
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          4.8,
+          9.350000000000001
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          7.199999999999999,
+          6.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          7.199999999999999,
+          6.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          7.199999999999999,
+          9.350000000000001
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          7.199999999999999,
+          9.350000000000001
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "DepositPanel",
+        "size": [
+          0.25,
+          5,
+          5.8
+        ],
+        "position": [
+          -15.35,
+          6,
+          49
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          4.8,
+          47.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          4.8,
+          47.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          4.8,
+          50.35
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          4.8,
+          50.35
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          7.199999999999999,
+          47.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          7.199999999999999,
+          47.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          -15.18,
+          7.199999999999999,
+          50.35
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          -15.02,
+          7.199999999999999,
+          50.35
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MoneyBag",
+        "size": [
+          1.25,
+          1.9,
+          1.35
+        ],
+        "position": [
+          -14.6,
+          0.95,
+          54
+        ],
+        "color": [
+          160,
+          127,
+          72
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BagTie",
+        "size": [
+          0.2,
+          0.44,
+          0.44
+        ],
+        "position": [
+          -14.6,
+          1.9,
+          54
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MoneyBag",
+        "size": [
+          1.25,
+          1.9,
+          1.35
+        ],
+        "position": [
+          -13.4,
+          0.95,
+          54
+        ],
+        "color": [
+          160,
+          127,
+          72
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BagTie",
+        "size": [
+          0.2,
+          0.44,
+          0.44
+        ],
+        "position": [
+          -13.4,
+          1.9,
+          54
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SteelPlate",
+        "size": [
+          0.22,
+          6,
+          5
+        ],
+        "position": [
+          -15.38,
+          5,
+          25
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "AlarmBeacon",
+        "size": [
+          0.7,
+          1.1,
+          0.7
+        ],
+        "position": [
+          -15,
+          10,
+          25
+        ],
+        "color": [
+          245,
+          48,
+          40
+        ],
+        "material": "glass",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Pallet",
+        "size": [
+          2.6,
+          0.3,
+          4
+        ],
+        "position": [
+          14,
+          0.15,
+          14
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "wood",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          13.4,
+          0.6,
+          12.4
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          13.4,
+          0.6,
+          13.6
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          14.6,
+          1.08,
+          12.4
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "GoldBullion",
+        "size": [
+          1.1,
+          0.5,
+          1.1
+        ],
+        "position": [
+          14.6,
+          1.08,
+          13.6
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "DepositPanel",
+        "size": [
+          0.25,
+          5,
+          5.8
+        ],
+        "position": [
+          15.35,
+          6,
+          8
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          4.8,
+          6.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          4.8,
+          6.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          4.8,
+          9.350000000000001
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          4.8,
+          9.350000000000001
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          7.199999999999999,
+          6.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          7.199999999999999,
+          6.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          7.199999999999999,
+          9.350000000000001
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          7.199999999999999,
+          9.350000000000001
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "DepositPanel",
+        "size": [
+          0.25,
+          5,
+          5.8
+        ],
+        "position": [
+          15.35,
+          6,
+          49
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          4.8,
+          47.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          4.8,
+          47.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          4.8,
+          50.35
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          4.8,
+          50.35
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          7.199999999999999,
+          47.65
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          7.199999999999999,
+          47.65
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeDoor",
+        "size": [
+          0.18,
+          2.1,
+          2.45
+        ],
+        "position": [
+          15.18,
+          7.199999999999999,
+          50.35
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SafeHandle",
+        "size": [
+          0.28,
+          0.13,
+          0.65
+        ],
+        "position": [
+          15.02,
+          7.199999999999999,
+          50.35
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MoneyBag",
+        "size": [
+          1.25,
+          1.9,
+          1.35
+        ],
+        "position": [
+          13.4,
+          0.95,
+          54
+        ],
+        "color": [
+          160,
+          127,
+          72
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BagTie",
+        "size": [
+          0.2,
+          0.44,
+          0.44
+        ],
+        "position": [
+          13.4,
+          1.9,
+          54
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "MoneyBag",
+        "size": [
+          1.25,
+          1.9,
+          1.35
+        ],
+        "position": [
+          14.6,
+          0.95,
+          54
+        ],
+        "color": [
+          160,
+          127,
+          72
+        ],
+        "material": "plastic",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "BagTie",
+        "size": [
+          0.2,
+          0.44,
+          0.44
+        ],
+        "position": [
+          14.6,
+          1.9,
+          54
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "SteelPlate",
+        "size": [
+          0.22,
+          6,
+          5
+        ],
+        "position": [
+          15.38,
+          5,
+          25
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "AlarmBeacon",
+        "size": [
+          0.7,
+          1.1,
+          0.7
+        ],
+        "position": [
+          15,
+          10,
+          25
+        ],
+        "color": [
+          245,
+          48,
+          40
+        ],
+        "material": "glass",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  },
+  {
+    "name": "FusionMachine",
+    "destination": "ServerStorage.GameAssets.Props.FusionMachine",
+    "parts": [
+      {
+        "name": "Origin",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 1
+      },
+      {
+        "name": "Foundation",
+        "size": [
+          12,
+          0.65,
+          12
+        ],
+        "position": [
+          0,
+          0.325,
+          0
+        ],
+        "color": [
+          24,
+          31,
+          58
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "FrontTrim",
+        "size": [
+          11.5,
+          0.16,
+          0.15
+        ],
+        "position": [
+          0,
+          0.7,
+          -5.8
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Chamber",
+        "size": [
+          4.2,
+          8,
+          3.6
+        ],
+        "position": [
+          0,
+          4.7,
+          1.8
+        ],
+        "color": [
+          235,
+          241,
+          244
+        ],
+        "material": "plastic",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0,
+        "mesh": {
+          "id": "119080625621647",
+          "texture": "74397465322379",
+          "scale": [
+            4.168367376094099,
+            4.168367376094099,
+            4.168367376094099
+          ]
+        },
+        "attachment": {
+          "name": "Core",
+          "position": [
+            0,
+            0.6,
+            0
+          ]
+        }
+      },
+      {
+        "name": "InputFoot",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          -4,
+          0.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputGlass",
+        "size": [
+          3.7,
+          1.58,
+          1.58
+        ],
+        "position": [
+          -4,
+          2.85,
+          -3.7
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "glass",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0.55
+      },
+      {
+        "name": "InputFluid",
+        "size": [
+          2.5,
+          1.04,
+          1.04
+        ],
+        "position": [
+          -4,
+          2.3,
+          -3.7
+        ],
+        "color": [
+          79,
+          229,
+          255
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputCap",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          -4,
+          4.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Conduit",
+        "size": [
+          0.22,
+          0.22,
+          4.4
+        ],
+        "position": [
+          -4,
+          0.95,
+          -1.45
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "ConduitRiser",
+        "size": [
+          0.22,
+          2,
+          0.22
+        ],
+        "position": [
+          -4,
+          1.95,
+          0.72
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputFoot",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          0,
+          0.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputGlass",
+        "size": [
+          3.7,
+          1.58,
+          1.58
+        ],
+        "position": [
+          0,
+          2.85,
+          -3.7
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "glass",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0.55
+      },
+      {
+        "name": "InputFluid",
+        "size": [
+          2.5,
+          1.04,
+          1.04
+        ],
+        "position": [
+          0,
+          2.3,
+          -3.7
+        ],
+        "color": [
+          211,
+          102,
+          255
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputCap",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          0,
+          4.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Conduit",
+        "size": [
+          0.22,
+          0.22,
+          4.4
+        ],
+        "position": [
+          0,
+          0.95,
+          -1.45
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "ConduitRiser",
+        "size": [
+          0.22,
+          2,
+          0.22
+        ],
+        "position": [
+          0,
+          1.95,
+          0.72
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputFoot",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          4,
+          0.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputGlass",
+        "size": [
+          3.7,
+          1.58,
+          1.58
+        ],
+        "position": [
+          4,
+          2.85,
+          -3.7
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "glass",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0.55
+      },
+      {
+        "name": "InputFluid",
+        "size": [
+          2.5,
+          1.04,
+          1.04
+        ],
+        "position": [
+          4,
+          2.3,
+          -3.7
+        ],
+        "color": [
+          122,
+          245,
+          156
+        ],
+        "material": "neon",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "InputCap",
+        "size": [
+          0.3,
+          2,
+          2
+        ],
+        "position": [
+          4,
+          4.85,
+          -3.7
+        ],
+        "color": [
+          237,
+          180,
+          53
+        ],
+        "material": "metal",
+        "shape": "cylinder",
+        "rotation": [
+          0,
+          0,
+          90
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "Conduit",
+        "size": [
+          0.22,
+          0.22,
+          4.4
+        ],
+        "position": [
+          4,
+          0.95,
+          -1.45
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "ConduitRiser",
+        "size": [
+          0.22,
+          2,
+          0.22
+        ],
+        "position": [
+          4,
+          1.95,
+          0.72
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OuterPylon",
+        "size": [
+          0.55,
+          5,
+          0.55
+        ],
+        "position": [
+          -5.45,
+          3,
+          2.8
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PowerNode",
+        "size": [
+          0.8,
+          0.8,
+          0.8
+        ],
+        "position": [
+          -5.45,
+          5.6,
+          2.8
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "OuterPylon",
+        "size": [
+          0.55,
+          5,
+          0.55
+        ],
+        "position": [
+          5.45,
+          3,
+          2.8
+        ],
+        "color": [
+          83,
+          99,
+          120
+        ],
+        "material": "metal",
+        "shape": "block",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      },
+      {
+        "name": "PowerNode",
+        "size": [
+          0.8,
+          0.8,
+          0.8
+        ],
+        "position": [
+          5.45,
+          5.6,
+          2.8
+        ],
+        "color": [
+          55,
+          224,
+          255
+        ],
+        "material": "neon",
+        "shape": "ball",
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "transparency": 0
+      }
+    ]
+  }
+]

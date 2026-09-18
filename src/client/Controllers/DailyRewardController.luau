@@ -573,7 +573,8 @@ local function layoutTiles()
 	local twoW, twoH = fit(4, 3, 2)
 	-- One row only when its tiles are genuinely big: at the pack panel's size
 	-- one row made ~50 px tiles with clipped text (seen in Studio).
-	local oneRow = not Device.isPhone() and oneW >= 118 and oneW * oneH >= twoW * twoH
+	local oneRow = (size.X / size.Y >= 2.8 and oneW >= 64)
+		or (not Device.isPhone() and oneW >= 118 and oneW * oneH >= twoW * twoH)
 
 	local rows: { LayoutRow }
 	local unitW: number, tileH: number

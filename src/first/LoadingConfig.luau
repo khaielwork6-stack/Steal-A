@@ -20,8 +20,8 @@ LoadingConfig.TITLE = "STEAL & RUN!"
 LoadingConfig.SUBTITLE = "Break in. Grab it. Get out."
 
 --- 16:9 background (desktop, tablet landscape) and 9:16 (phone portrait).
-LoadingConfig.BACKGROUND_WIDE = "rbxassetid://0"
-LoadingConfig.BACKGROUND_TALL = "rbxassetid://0"
+LoadingConfig.BACKGROUND_WIDE = "rbxassetid://71586324904614"
+LoadingConfig.BACKGROUND_TALL = "rbxassetid://106780645977439"
 --- The game logo. 0 = the TITLE text is drawn instead.
 LoadingConfig.LOGO = "rbxassetid://0"
 
@@ -42,20 +42,20 @@ LoadingConfig.MAX_SECONDS = 60
 LoadingConfig.FADE_SECONDS = 0.6
 
 LoadingConfig.TIPS = {
-	{ icon = "rbxassetid://0", text = "Touching a laser wakes that room's guard instantly!" },
-	{ icon = "rbxassetid://0", text = "Crouch under high beams and jump over low ones." },
-	{ icon = "rbxassetid://0", text = "Crouching makes you slower - only crouch when a beam is in the way." },
-	{ icon = "rbxassetid://0", text = "Grabbing a container is quiet. The guard wakes when you carry it out the door - so RUN!" },
-	{ icon = "rbxassetid://0", text = "You get a short grace period at the doorway before the guard notices you." },
-	{ icon = "rbxassetid://0", text = "Cross the red safe line to escape a chasing guard." },
-	{ icon = "rbxassetid://0", text = "Every few minutes Night falls: everyone goes home and every case is refilled." },
-	{ icon = "rbxassetid://0", text = "Stolen containers stay sealed. Wait for the timer on your base, then reveal them!" },
-	{ icon = "rbxassetid://0", text = "Shiny, Golden, Flaming and Corrupted loot earns more Cash every second." },
-	{ icon = "rbxassetid://0", text = "Train Speed on your treadmill to reach the deeper, richer zones." },
-	{ icon = "rbxassetid://0", text = "Trails make you faster. Find them in the Trail shop." },
-	{ icon = "rbxassetid://0", text = "Your trophies keep earning a share of their Cash while you're offline." },
-	{ icon = "rbxassetid://0", text = "Mutation Weekend: mutation chances are doubled every Saturday and Sunday (UTC)." },
-	{ icon = "rbxassetid://0", text = "Keep an eye on our group and updates for free reward codes!" },
+	{ icon = "rbxassetid://86946041675183", text = "Touching a laser wakes that room's guard instantly!" },
+	{ icon = "rbxassetid://86946041675183", text = "Crouch under high beams and jump over low ones." },
+	{ icon = "rbxassetid://78917459454723", text = "Crouching makes you slower - only crouch when a beam is in the way." },
+	{ icon = "rbxassetid://117053812199694", text = "Grabbing a container is quiet. The guard wakes when you carry it out the door - so RUN!" },
+	{ icon = "rbxassetid://89705702085201", text = "You get a short grace period at the doorway before the guard notices you." },
+	{ icon = "rbxassetid://117053812199694", text = "Cross the red safe line to escape a chasing guard." },
+	{ icon = "rbxassetid://76730471536319", text = "Every few minutes Night falls: everyone goes home and every case is refilled." },
+	{ icon = "rbxassetid://109736568255684", text = "Stolen containers stay sealed. Wait for the timer on your base, then reveal them!" },
+	{ icon = "rbxassetid://109736568255684", text = "Shiny, Golden, Flaming and Corrupted loot earns more Cash every second." },
+	{ icon = "rbxassetid://70402015527894", text = "Train Speed on your treadmill to reach the deeper, richer zones." },
+	{ icon = "rbxassetid://70402015527894", text = "Trails make you faster. Find them in the Trail shop." },
+	{ icon = "rbxassetid://86189194981847", text = "Your trophies keep earning a share of their Cash while you're offline." },
+	{ icon = "rbxassetid://86189194981847", text = "Mutation Weekend: mutation chances are doubled every Saturday and Sunday (UTC)." },
+	{ icon = "rbxassetid://86189194981847", text = "Keep an eye on our group and updates for free reward codes!" },
 } :: { Tip }
 
 return LoadingConfig

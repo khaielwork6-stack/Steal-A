@@ -32,7 +32,7 @@ local OWNED_COLOR = Color3.fromRGB(96, 104, 124)
 
 --- Pass icon (Codex prompt: docs/codex-prompts/fusion-autoreveal-bases.md).
 --- "rbxassetid://0" = keep the pack's own card art.
-AutoRevealPassCard.ICON = "rbxassetid://0"
+AutoRevealPassCard.ICON = "rbxassetid://98876576301515"
 
 local card: Frame? = nil
 local lastOwned: boolean? = nil
@@ -79,6 +79,7 @@ function AutoRevealPassCard.build(grid: Frame, order: number): number
 	if not built then
 		return 0
 	end
+	require(ReplicatedStorage.Shared.Util.PanelStyle).productCard(built)
 	built.Name = "Card_AutoReveal"
 	built.LayoutOrder = order
 	built.Parent = grid

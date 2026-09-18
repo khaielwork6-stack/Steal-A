@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-18",
+  "scope": "Landscape mobile UI geometry and GUI hit-query checks; no input injection, purchases, or player-profile changes.",
+  "main": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"viewport\":[567,319],\"panels\":[{\"panel\":\"Shop\",\"buttons\":15,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Upgrades\",\"buttons\":5,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Settings\",\"buttons\":12,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Index\",\"buttons\":14,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Storage\",\"buttons\":24,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Daily\",\"buttons\":2,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Quests\",\"buttons\":9,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Trade\",\"buttons\":1,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Crew\",\"buttons\":1,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]}]}"
+      }
+    ],
+    "isError": false
+  },
+  "alternates": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"viewport\":[567,319],\"panels\":[{\"panel\":\"Quests\",\"buttons\":64,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Upgrades\",\"buttons\":29,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"StorageGuardians\",\"buttons\":5,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"StorageWeapons\",\"buttons\":6,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"StorageFuse\",\"buttons\":6,\"size\":[534.9600219726563,302.4000244140625],\"blocked\":[],\"position\":[16.019989013671876,12.893585205078125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"TradeWindow\",\"buttons\":4,\"size\":[535,303],\"blocked\":[],\"position\":[16,8],\"fits\":true,\"small\":[],\"unreachable\":[]}]}"
+      }
+    ],
+    "isError": false
+  },
+  "iphone17Earlier": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"viewport\":[749,361],\"panels\":[{\"panel\":\"Shop\",\"buttons\":15,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Upgrades\",\"buttons\":29,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Settings\",\"buttons\":12,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Index\",\"buttons\":14,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Storage\",\"buttons\":24,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Daily\",\"buttons\":2,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Quests\",\"buttons\":64,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Trade\",\"buttons\":1,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]},{\"panel\":\"Crew\",\"buttons\":1,\"size\":[716.550048828125,344.25],\"blocked\":[],\"position\":[16.2249755859375,14.511993408203125],\"fits\":true,\"small\":[],\"unreachable\":[]}]}"
+      }
+    ],
+    "isError": false
+  },
+  "limitations": [
+    "No physical-device tap test.",
+    "Trade and Crew used a one-player session; live multiplayer actions were not invoked.",
+    "Git commit/push and remaining Round 3 artwork work are still pending."
+  ]
+}

@@ -302,7 +302,7 @@ local function refreshDisplay(slot: Slot, key: string)
 	local source = BaseGuardianService.modelFor(key)
 	if source then
 		local flat = Vector3.new(def.faceLocal.X, 0, def.faceLocal.Z)
-		local yaw = if flat.Magnitude > 0.01 then math.atan2(flat.X, -flat.Z) else 0
+		local yaw = if source:GetAttribute("PetRig") == true then 0 elseif flat.Magnitude > 0.01 then math.atan2(flat.X, -flat.Z) else 0
 		local rig = GuardianService.buildRigFrom(source, BaseGuardianConfig.HEIGHT, 1, "Display", CFrame.Angles(0, yaw, 0))
 		local root = rig.PrimaryPart
 		local humanoid = rig:FindFirstChildWhichIsA("Humanoid")

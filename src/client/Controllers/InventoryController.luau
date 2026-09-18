@@ -49,6 +49,8 @@ local InventoryPresentation = require(script.Parent.InventoryPresentation)
 local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
 local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+local UiArtConfig = require(ReplicatedStorage.Shared.Config.UiArtConfig)
+local FusionConfig = require(ReplicatedStorage.Shared.Config.FusionConfig)
 
 local InventoryController = {}
 
@@ -1030,12 +1032,10 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 	bar.Size = UDim2.fromScale(0.94, 0.085)
 	bar.BackgroundTransparency = 1
 	bar.ZIndex = list.ZIndex + 1
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
+	local layout = Instance.new("UIGridLayout")
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0.02, 0)
 	layout.Parent = bar
 
 	for order, name in TABS do
@@ -1077,6 +1077,19 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 				PanelStyle.corner(d, 24)
 			end
 		end
+		local art = if name == "Fuse" then FusionConfig.ICON else (UiArtConfig.Storage :: { [string]: string })[name]
+		if art and art ~= "rbxassetid://0" then
+			local icon = Instance.new("ImageLabel")
+			icon.Name, icon.BackgroundTransparency = "TabIcon", 1
+			icon.Image, icon.ScaleType = art, Enum.ScaleType.Fit
+			icon.AnchorPoint, icon.Position = Vector2.new(0, 0.5), UDim2.fromScale(0.05, 0.5)
+			icon.Size, icon.ZIndex = UDim2.fromScale(0.22, 0.7), button.ZIndex + 3
+			icon.Parent = button
+			local text = priceLabel(button)
+			if text then
+				text.Position, text.Size = UDim2.fromScale(0.63, 0.5), UDim2.fromScale(0.68, 0.66)
+			end
+		end
 		button.Name = `Tab{name}`
 		button.LayoutOrder = order
 		button.AnchorPoint = Vector2.new(0, 0)
@@ -1107,8 +1120,45 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		local topHeight = if header and header:IsA("GuiObject") then header.AbsoluteSize.Y / factor else 60 / factor
 		local short = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y < 500
 		bar.Position = UDim2.new(0.5, 0, 0, topHeight + (if short then 8 else 12) / factor)
-		bar.Size = UDim2.new(0.96, 0, 0, (if short then 46 else 52) / factor)
-		list.Size = UDim2.new(0.98, 0, 1, -(topHeight + (if short then 66 else 82) / factor))
+		local narrow = built.AbsoluteSize.X < 500
+		local rows = if narrow then 2 else 1
+		local columns = if narrow then 2 else 4
+		local tabHeight = if short then 46 else 52
+		local barHeight = rows * tabHeight + (rows - 1) * 8
+		bar.Size = UDim2.new(0.96, 0, 0, barHeight / factor)
+		layout.CellPadding = UDim2.fromOffset(8 / factor, 8 / factor)
+		layout.CellSize = UDim2.new(1 / columns, -8 / factor, 0, tabHeight / factor)
+		list.Size = UDim2.new(0.98, 0, 1, -(topHeight + (barHeight + 24) / factor))
+		local headerBody = header and header:FindFirstChild("Frame")
+		if headerBody and headerBody:IsA("GuiObject") then
+			local portrait = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X < 500
+			if titleLabel then
+				titleLabel.Position = UDim2.fromScale(if portrait then 0.34 else 0.30, if portrait then 0.24 else 0.5)
+				titleLabel.Size = UDim2.fromScale(if portrait then 0.40 else 0.26, if portrait then 0.32 else 0.6)
+			end
+			if countLabel then
+				countLabel.Position = UDim2.fromScale(if portrait then 0.17 else 0.50, if portrait then 0.70 else 0.5)
+				countLabel.Size = UDim2.fromScale(if portrait then 0.23 else 0.14, if portrait then 0.28 else 0.5)
+			end
+			local meter = headerBody:FindFirstChild("CapacityMeter")
+			if meter and meter:IsA("GuiObject") then
+				meter.Position = UDim2.fromScale(if portrait then 0.05 else 0.43, if portrait then 0.91 else 0.80)
+				meter.Size = UDim2.fromScale(if portrait then 0.25 else 0.14, 0.06)
+			end
+			if upgradeButton then
+				upgradeButton.Position = UDim2.fromScale(if portrait then 0.64 else 0.70, if portrait then 0.73 else 0.5)
+				upgradeButton.Size = UDim2.new(if portrait then 0.62 else 0.30, 0, 0, 48 / factor)
+			end
+			local close = headerBody:FindFirstChild("Close")
+			if close and close:IsA("GuiObject") then
+				close.Position = UDim2.new(1, -28 / factor, 0, (if portrait then 28 else (topHeight * factor) / 2) / factor)
+			end
+			local icon = headerBody:FindFirstChild("Icon")
+			if icon and icon:IsA("GuiObject") then
+				icon.Position = UDim2.fromScale(0.075, if portrait then 0.24 else 0.5)
+				icon.Size = UDim2.fromOffset(32 / factor, 32 / factor)
+			end
+		end
 	end
 	built:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitControls)
 	task.defer(fitControls)

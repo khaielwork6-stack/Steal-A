@@ -23,16 +23,16 @@ RewardUiConfig.NO_ART = "rbxassetid://0"
 --- the grand prize tile, the claim moment and the offline cash stack.
 RewardUiConfig.RAYS_IMAGE = "rbxassetid://0"
 --- The streak flame in the calendar header.
-RewardUiConfig.FLAME_ICON = "rbxassetid://0"
+RewardUiConfig.FLAME_ICON = "rbxassetid://116397382100155"
 --- The day 7 GRAND PRIZE chest (overrides the day's own icon on that tile
 --- when set; DailyRewardConfig.Days[7].icon still wins if both are set).
-RewardUiConfig.GRAND_PRIZE_ICON = "rbxassetid://0"
+RewardUiConfig.GRAND_PRIZE_ICON = "rbxassetid://140168730782089"
 --- One coin, flown from a claimed reward to the HUD cash counter. Falls back
 --- to the pack's cash stack.
-RewardUiConfig.COIN_ICON = "rbxassetid://0"
+RewardUiConfig.COIN_ICON = "rbxassetid://83482526445300"
 --- The big cash pile on the WELCOME BACK card. Falls back to the pack's cash
 --- stack.
-RewardUiConfig.CASH_PILE_ICON = "rbxassetid://0"
+RewardUiConfig.CASH_PILE_ICON = "rbxassetid://124885277911990"
 
 --- How many coins fly per claim (Reduced Effects: none).
 RewardUiConfig.COIN_COUNT = 12

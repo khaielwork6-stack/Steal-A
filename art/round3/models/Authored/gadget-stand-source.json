@@ -1,0 +1,379 @@
+{
+  "name": "GadgetStand",
+  "destination": "ServerStorage.GameAssets.Props.GadgetStand",
+  "parts": [
+    {
+      "name": "Origin",
+      "size": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "color": [
+        24,
+        31,
+        58
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 1
+    },
+    {
+      "name": "StallArt",
+      "size": [
+        16,
+        12,
+        9
+      ],
+      "position": [
+        0,
+        6,
+        0
+      ],
+      "color": [
+        235,
+        241,
+        244
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0,
+      "mesh": {
+        "id": "107813382287779",
+        "texture": "98101039727657",
+        "scale": [
+          10.239198500239468,
+          6.251220022326296,
+          9.631488443931826
+        ]
+      }
+    },
+    {
+      "name": "CounterCollision",
+      "size": [
+        14,
+        4.4,
+        2.4
+      ],
+      "position": [
+        0,
+        2.2,
+        -3.4
+      ],
+      "color": [
+        24,
+        31,
+        58
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 1
+    },
+    {
+      "name": "BackCollision",
+      "size": [
+        15,
+        10,
+        0.5
+      ],
+      "position": [
+        0,
+        5,
+        4.1
+      ],
+      "color": [
+        24,
+        31,
+        58
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 1
+    },
+    {
+      "name": "LeftPostCollision",
+      "size": [
+        0.7,
+        11,
+        0.7
+      ],
+      "position": [
+        -7.2,
+        5.5,
+        -3.4
+      ],
+      "color": [
+        24,
+        31,
+        58
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 1
+    },
+    {
+      "name": "RightPostCollision",
+      "size": [
+        0.7,
+        11,
+        0.7
+      ],
+      "position": [
+        7.2,
+        5.5,
+        -3.4
+      ],
+      "color": [
+        24,
+        31,
+        58
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 1
+    },
+    {
+      "name": "StockCrate0",
+      "size": [
+        2.2,
+        1.7,
+        1.8
+      ],
+      "position": [
+        -4.8,
+        1,
+        2.7
+      ],
+      "color": [
+        83,
+        99,
+        120
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "CrateBand0",
+      "size": [
+        2.25,
+        0.2,
+        1.85
+      ],
+      "position": [
+        -4.8,
+        1.2,
+        2.7
+      ],
+      "color": [
+        237,
+        180,
+        53
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "StockCrate1",
+      "size": [
+        2.2,
+        1.7,
+        1.8
+      ],
+      "position": [
+        -1.6,
+        1,
+        2.7
+      ],
+      "color": [
+        83,
+        99,
+        120
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "CrateBand1",
+      "size": [
+        2.25,
+        0.2,
+        1.85
+      ],
+      "position": [
+        -1.6,
+        1.2,
+        2.7
+      ],
+      "color": [
+        237,
+        180,
+        53
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "StockCrate2",
+      "size": [
+        2.2,
+        1.7,
+        1.8
+      ],
+      "position": [
+        1.6,
+        1,
+        2.7
+      ],
+      "color": [
+        83,
+        99,
+        120
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "CrateBand2",
+      "size": [
+        2.25,
+        0.2,
+        1.85
+      ],
+      "position": [
+        1.6,
+        1.2,
+        2.7
+      ],
+      "color": [
+        237,
+        180,
+        53
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "StockCrate3",
+      "size": [
+        2.2,
+        1.7,
+        1.8
+      ],
+      "position": [
+        4.8,
+        1,
+        2.7
+      ],
+      "color": [
+        83,
+        99,
+        120
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    },
+    {
+      "name": "CrateBand3",
+      "size": [
+        2.25,
+        0.2,
+        1.85
+      ],
+      "position": [
+        4.8,
+        1.2,
+        2.7
+      ],
+      "color": [
+        237,
+        180,
+        53
+      ],
+      "material": "plastic",
+      "shape": "block",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "transparency": 0
+    }
+  ]
+}

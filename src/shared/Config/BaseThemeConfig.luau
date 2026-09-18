@@ -92,10 +92,10 @@ BaseThemeConfig.REQUESTS_PER_SECOND = 3
 --- upgrade arrow for TREADMILL, a drawn mini plot for BASE, a drawn swatch
 --- for the sections. See docs/codex-prompts/round3.md.
 BaseThemeConfig.UiIcons = {
-	TabTreadmill = "rbxassetid://0",
-	TabBase = "rbxassetid://0",
-	SectionThemes = "rbxassetid://0",
-	SectionPedestals = "rbxassetid://0",
+	TabTreadmill = "rbxassetid://88108320358342",
+	TabBase = "rbxassetid://73130452273324",
+	SectionThemes = "rbxassetid://77072843582885",
+	SectionPedestals = "rbxassetid://138820984899615",
 } :: { [string]: string }
 
 -- ==========================================================
@@ -114,7 +114,7 @@ local THEMES: { Theme } = {
 		name = "Classic",
 		blurb = "The museum's own green plot.",
 		cash = 0,
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://122910334010235",
 	},
 	{
 		key = "Sunset",
@@ -129,7 +129,7 @@ local THEMES: { Theme } = {
 		decor = {
 			{ anchor = "gate", shape = "Ball", size = Vector3.new(2.2, 2.2, 2.2), color = rgb(255, 170, 70), material = Enum.Material.Neon, light = 10, modelName = "SunsetLantern" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://130625653009493",
 	},
 	{
 		key = "Midnight",
@@ -146,7 +146,7 @@ local THEMES: { Theme } = {
 			{ anchor = "gate", shape = "Cylinder", size = Vector3.new(2.6, 1.6, 1.6), color = rgb(70, 220, 255), material = Enum.Material.Neon, light = 12, modelName = "MidnightBeacon" },
 			{ anchor = "backCorner", shape = "Ball", size = Vector3.new(1.6, 1.6, 1.6), color = rgb(70, 220, 255), material = Enum.Material.Neon, light = 0, modelName = "MidnightOrb" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://87748470112947",
 	},
 	{
 		key = "Jungle",
@@ -164,7 +164,7 @@ local THEMES: { Theme } = {
 			{ anchor = "gate", shape = "Block", size = Vector3.new(2.4, 3, 2.4), color = rgb(120, 112, 90), material = Enum.Material.Cobblestone, light = 0, modelName = "JungleTotem" },
 			{ anchor = "backCorner", shape = "Ball", size = Vector3.new(3, 3, 3), color = rgb(70, 130, 50), material = Enum.Material.Grass, light = 0, modelName = "JungleBush" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://82383429796738",
 	},
 	{
 		key = "Frost",
@@ -181,7 +181,7 @@ local THEMES: { Theme } = {
 		decor = {
 			{ anchor = "gate", shape = "Block", size = Vector3.new(1.4, 3.4, 1.4), color = rgb(190, 235, 255), material = Enum.Material.Ice, light = 8, modelName = "FrostCrystal" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://78146481409731",
 	},
 	{
 		key = "Lava",
@@ -199,7 +199,7 @@ local THEMES: { Theme } = {
 			{ anchor = "gate", shape = "Cylinder", size = Vector3.new(1.4, 2.6, 2.6), color = rgb(255, 110, 30), material = Enum.Material.Neon, light = 12, modelName = "LavaBrazier" },
 			{ anchor = "backCorner", shape = "Cylinder", size = Vector3.new(1.2, 2, 2), color = rgb(255, 110, 30), material = Enum.Material.Neon, light = 0, modelName = "LavaBrazier" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://99098592123330",
 	},
 	-- ROBUX-EXCLUSIVE (Game Pass placeholders; see MonetizationConfig.ThemePasses)
 	{
@@ -218,7 +218,7 @@ local THEMES: { Theme } = {
 			{ anchor = "gate", shape = "Ball", size = Vector3.new(2.4, 2.4, 2.4), color = rgb(255, 60, 220), material = Enum.Material.Neon, light = 14, modelName = "NeonOrb" },
 			{ anchor = "backCorner", shape = "Ball", size = Vector3.new(2, 2, 2), color = rgb(90, 220, 255), material = Enum.Material.Neon, light = 10, modelName = "NeonOrb" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://129189897009316",
 	},
 	{
 		key = "RoyalGold",
@@ -237,7 +237,7 @@ local THEMES: { Theme } = {
 			{ anchor = "gate", shape = "Ball", size = Vector3.new(2.2, 2.2, 2.2), color = rgb(255, 206, 60), material = Enum.Material.Foil, light = 8, modelName = "RoyalCrown" },
 			{ anchor = "backCorner", shape = "Block", size = Vector3.new(1.6, 2.4, 1.6), color = rgb(236, 232, 224), material = Enum.Material.Marble, light = 0, modelName = "RoyalUrn" },
 		},
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://95896104729019",
 	},
 }
 BaseThemeConfig.Themes = THEMES
@@ -247,7 +247,7 @@ BaseThemeConfig.Themes = THEMES
 -- ==========================================================
 
 local PEDESTALS: { PedestalSkin } = {
-	{ key = "Default", name = "Museum Stone", cash = 0, thumbnail = "rbxassetid://0" },
+	{ key = "Default", name = "Museum Stone", cash = 0, thumbnail = "rbxassetid://117727520280928" },
 	{
 		key = "Marble",
 		name = "White Marble",
@@ -256,7 +256,7 @@ local PEDESTALS: { PedestalSkin } = {
 		material = Enum.Material.Marble,
 		trimColor = rgb(230, 190, 90),
 		trimMaterial = Enum.Material.Foil,
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://124190212352604",
 	},
 	{
 		key = "Obsidian",
@@ -266,7 +266,7 @@ local PEDESTALS: { PedestalSkin } = {
 		material = Enum.Material.Basalt,
 		trimColor = rgb(170, 90, 255),
 		trimMaterial = Enum.Material.Neon,
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://137911196029906",
 	},
 	{
 		key = "GoldPlinth",
@@ -276,7 +276,7 @@ local PEDESTALS: { PedestalSkin } = {
 		material = Enum.Material.Foil,
 		trimColor = rgb(255, 255, 255),
 		trimMaterial = Enum.Material.SmoothPlastic,
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://132414674734023",
 	},
 	{
 		key = "Crystal",
@@ -287,7 +287,7 @@ local PEDESTALS: { PedestalSkin } = {
 		transparency = 0.25,
 		trimColor = rgb(120, 230, 255),
 		trimMaterial = Enum.Material.Neon,
-		thumbnail = "rbxassetid://0",
+		thumbnail = "rbxassetid://140580441452762",
 	},
 }
 BaseThemeConfig.Pedestals = PEDESTALS

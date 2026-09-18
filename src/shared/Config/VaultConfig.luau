@@ -243,7 +243,7 @@ VaultConfig.Art = {
 	--- Interior decor set (ServerStorage.GameAssets.Vault.VaultDecor), optional.
 	DecorModelName = "VaultDecor",
 	--- The "VAULT RESTOCKED!" banner image shown with the restock toast.
-	RestockBanner = "rbxassetid://0",
+	RestockBanner = "rbxassetid://130118824436627",
 }
 
 return VaultConfig

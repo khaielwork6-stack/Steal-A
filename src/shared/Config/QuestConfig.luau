@@ -185,20 +185,20 @@ end
 --- short text glyph instead. Codex fills these (docs/codex-prompts/
 --- retention-quests-pass.md, section "Quest type icons").
 QuestConfig.Icons = {
-	steal = "rbxassetid://0",
-	escape = "rbxassetid://0",
-	reveal = "rbxassetid://0",
-	train = "rbxassetid://0",
-	earn = "rbxassetid://0",
-	bat = "rbxassetid://0",
-	trap = "rbxassetid://0",
-	discover = "rbxassetid://0",
-	spin = "rbxassetid://0",
+	steal = "rbxassetid://124002686981066",
+	escape = "rbxassetid://108143118255944",
+	reveal = "rbxassetid://80816721279234",
+	train = "rbxassetid://128705041445279",
+	earn = "rbxassetid://86306346367596",
+	bat = "rbxassetid://123629992926005",
+	trap = "rbxassetid://123896313953244",
+	discover = "rbxassetid://121194724737766",
+	spin = "rbxassetid://116536438530861",
 } :: { [string]: string }
 
 --- The HUD "Quests" button icon. 0 = keep the art of the BASE button it is
 --- cloned from (QuestController).
-QuestConfig.HUD_ICON = "rbxassetid://0"
+QuestConfig.HUD_ICON = "rbxassetid://130246222392131"
 
 --- The text glyph drawn while an icon is still 0.
 QuestConfig.Glyphs = {

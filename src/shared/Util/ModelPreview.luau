@@ -16,6 +16,7 @@
 ]]
 
 local RunService = game:GetService("RunService")
+local Effects = require(game:GetService("ReplicatedStorage").Shared.Util.Effects)
 
 local ModelPreview = {}
 
@@ -44,7 +45,7 @@ export type Options = {
 	background: Color3?,
 }
 
-type Live = { model: Model, centre: Vector3, phase: number, baseYaw: number, rotation: CFrame }
+type Live = { model: Model, centre: Vector3, phase: number, baseYaw: number, rotation: CFrame, static: boolean? }
 
 local live: { [Live]: boolean } = {}
 local loop: RBXScriptConnection? = nil
@@ -77,6 +78,12 @@ local function step()
 			live[entry] = nil
 			continue
 		end
+		if Effects.isReduced() or Effects.isLowGraphics() then
+			if not entry.static then model:PivotTo(CFrame.new(entry.centre) * entry.rotation) end
+			entry.static = true
+			continue
+		end
+		entry.static = false
 		local yaw = now * TURN_SPEED + entry.phase
 		local bob = math.sin(now * 1.7 + entry.phase) * BOB_STUDS
 		-- The pivot was moved onto the bounding centre when the preview was
@@ -143,7 +150,9 @@ function ModelPreview.mount(host: GuiObject, source: Model, options: Options?): 
 	local model = source:Clone()
 	model.Name = "Preview"
 	sanitise(model)
-	local rotation = CFrame.Angles(0, opts.faceYaw or 0, 0)
+	-- New quadruped rigs share a -Z forward axis; legacy imports keep their yaw.
+	local faceYaw = if source:GetAttribute("PetRig") == true then 0 else opts.faceYaw or 0
+	local rotation = CFrame.Angles(0, faceYaw, 0)
 	model:PivotTo(rotation)
 	model.Parent = world
 
@@ -155,7 +164,8 @@ function ModelPreview.mount(host: GuiObject, source: Model, options: Options?): 
 	local centre = (min + max) / 2
 	local radius = math.max((max - min).Magnitude / 2, 0.5)
 	local distance = radius / math.sin(math.rad(FOV) / 2) * (opts.fit or FIT)
-	camera.CFrame = CFrame.lookAt(centre + VIEW_DIRECTION * distance, centre)
+	local viewDirection = if source:GetAttribute("PetRig") == true then Vector3.new(1, 0.62, -1.25).Unit else VIEW_DIRECTION
+	camera.CFrame = CFrame.lookAt(centre + viewDirection * distance, centre)
 
 	-- Pivot onto the bounding centre (the parts do not move), so the shared
 	-- loop can turn the model in place rather than orbit it around wherever
@@ -166,7 +176,7 @@ function ModelPreview.mount(host: GuiObject, source: Model, options: Options?): 
 
 	local entry: Live? = nil
 	if opts.animate ~= false then
-		entry = { model = model, centre = centre, phase = math.random() * math.pi * 2, baseYaw = opts.faceYaw or 0, rotation = rotation }
+		entry = { model = model, centre = centre, phase = math.random() * math.pi * 2, baseYaw = faceYaw, rotation = rotation }
 		live[entry :: Live] = true
 		if not loop then
 			loop = RunService.RenderStepped:Connect(step)

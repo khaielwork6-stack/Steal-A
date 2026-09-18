@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "chunks": 30,
+      "name": "texture_body",
+      "length": 2652156
+    },
+    {
+      "chunks": 4,
+      "name": "mesh",
+      "length": 333668
+    }
+  ],
+  "name": "Grapple",
+  "parts": [
+    {
+      "faces": 4880,
+      "name": "body",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

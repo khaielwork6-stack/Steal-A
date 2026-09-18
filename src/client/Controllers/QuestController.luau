@@ -52,7 +52,7 @@ local player = Players.LocalPlayer
 
 local PANEL_NAME = "Quests"
 local NO_ART = "rbxassetid://0"
-local MIN_TOUCH = 44
+local MIN_TOUCH = 48
 
 local WHITE = Color3.fromRGB(255, 255, 255)
 local DIM_TEXT = Color3.fromRGB(190, 198, 214)
@@ -1129,49 +1129,45 @@ end
 -- PANEL SCALE (UpgradesController's approach, simplified)
 -- ==========================================================
 
-local fitToken = 0
-
+-- PanelStyle handles screen fitting; keep touch floors in sync with HUD scaling.
 local function applyPanelScale()
 	local frame = panel
+	if not frame then return end
+	local scale = frame:FindFirstChildOfClass("UIScale")
+	if scale then scale.Scale = 1 end
+	local strip = frame:FindFirstChild("QuestTabs")
+	local factor = hudScale()
 	local camera = workspace.CurrentCamera
-	if not frame or not camera then
-		return
+	local short = camera ~= nil and camera.ViewportSize.Y < 500
+	local header = if short then 52 else 64
+	if strip and strip:IsA("GuiObject") then
+		minHeight(strip)
+		strip.AnchorPoint = Vector2.new(0.5, 0)
+		strip.Position, strip.Size = UDim2.new(0.5, 0, 0, header / factor), UDim2.new(0.7, 0, 0, 48 / factor)
 	end
-	local s: UIScale
-	local existing = frame:FindFirstChildOfClass("UIScale")
-	if existing then
-		s = existing
-	else
-		s = Instance.new("UIScale")
-		s.Parent = frame
-	end
-	s.Scale = math.clamp(1 / hudScale(), 1, 1.4)
-	local header = frame:FindFirstChild("Top")
-	if not header or not header:IsA("GuiObject") then
-		return
-	end
-	fitToken += 1
-	local token = fitToken
-	task.spawn(function()
-		for _ = 1, 12 do
-			task.wait()
-			if token ~= fitToken then
-				return
-			end
-			local topY = header.AbsolutePosition.Y
-			local bottom = frame.AbsolutePosition.Y + frame.AbsoluteSize.Y
-			if (topY >= 4 and bottom <= camera.ViewportSize.Y - 4) or s.Scale <= 0.85 then
-				break
-			end
-			s.Scale -= 0.05
+	for _, page in { questsPage, passPage } do
+		if page then
+			page.Position = UDim2.new(0.5, 0, 0, (header + 52) / factor)
+			page.Size = UDim2.new(0.94, 0, 1, -(header + 60) / factor)
 		end
-		-- The 44 px floors depend on the final scale.
-		for _, column in columns do
-			minHeight(column.free.button)
-			minHeight(column.premium.button)
+	end
+	if passPage then
+		local banner = passPage:FindFirstChild("Banner") :: Frame
+		local captions = passPage:FindFirstChild("TrackCaptions") :: Frame
+		local h = if short then 56 else 96
+		banner.Size = UDim2.new(1, 0, 0, h / factor)
+		for _, part in { captions, track } do
+			if part then
+				part.Position = UDim2.new(if part == track then 0.13 else 0, 0, 0, (h + 4) / factor)
+				part.Size = UDim2.new(if part == track then 0.87 else 0.12, 0, 1, -(h + 4) / factor)
+			end
 		end
-		fitColumns()
-	end)
+	end
+	for _, column in columns do
+		minHeight(column.free.button)
+		minHeight(column.premium.button)
+	end
+	fitColumns()
 end
 
 -- ==========================================================
@@ -1227,6 +1223,7 @@ function QuestController.start()
 	PanelStyle.window(frame, 960, 610)
 	buildOpener(screen)
 
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyPanelScale)
 	applyPanelScale()
 	local camera = workspace.CurrentCamera
 	if camera then

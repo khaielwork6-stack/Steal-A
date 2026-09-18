@@ -61,17 +61,39 @@ function PanelStyle.window(frame: Frame, width: number, height: number)
 			local ratio = top:FindFirstChildOfClass("UIAspectRatioConstraint")
 			if ratio then ratio:Destroy() end
 			top.AnchorPoint, top.Position = Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0)
-			top.Size = UDim2.new(1, 0, 0, (if viewport.Y < 500 then 52 else 64) / factor)
+			local headerHeight = if frame.Name == "Storage" and viewport.X < 500 then 112
+				else if viewport.Y < 500 then 52 else 64
+			top.Size = UDim2.new(1, 0, 0, headerHeight / factor)
 			local close = top:FindFirstChild("Close", true)
 			if close and close:IsA("GuiButton") then
+				close.Active = true
 				close.Size = UDim2.fromOffset(48 / factor, 48 / factor)
 			end
+		end
+	end
+	-- Device scaling can settle after ViewportSize changes. Refitting on the
+	-- ancestor scales keeps the window and close target at their screen size.
+	local watched: { [UIScale]: boolean } = {}
+	local function watchScales()
+		local node: Instance? = frame
+		while node do
+			local scale = node:FindFirstChildOfClass("UIScale")
+			if scale and not watched[scale] then
+				watched[scale] = true
+				scale:GetPropertyChangedSignal("Scale"):Connect(fit)
+			end
+			if node:IsA("LayerCollector") then break end
+			node = node.Parent
 		end
 	end
 	frame:GetPropertyChangedSignal("Visible"):Connect(fit)
 	local camera = workspace.CurrentCamera
 	if camera then camera:GetPropertyChangedSignal("ViewportSize"):Connect(fit) end
-	frame.AncestryChanged:Connect(fit)
+	frame.AncestryChanged:Connect(function()
+		watchScales()
+		fit()
+	end)
+	watchScales()
 	task.defer(fit)
 end
 

@@ -1,0 +1,103 @@
+{
+  "files": [
+    {
+      "chunks": 19,
+      "name": "texture_Tail",
+      "length": 1629740
+    },
+    {
+      "chunks": 20,
+      "name": "texture_HindRight",
+      "length": 1782152
+    },
+    {
+      "chunks": 20,
+      "name": "texture_HindLeft",
+      "length": 1724812
+    },
+    {
+      "chunks": 19,
+      "name": "texture_FrontRight",
+      "length": 1653608
+    },
+    {
+      "chunks": 19,
+      "name": "texture_FrontLeft",
+      "length": 1626256
+    },
+    {
+      "chunks": 24,
+      "name": "texture_Head",
+      "length": 2085176
+    },
+    {
+      "chunks": 21,
+      "name": "texture_Torso",
+      "length": 1885488
+    },
+    {
+      "chunks": 5,
+      "name": "mesh",
+      "length": 382248
+    }
+  ],
+  "name": "Panda",
+  "parts": [
+    {
+      "faces": 170,
+      "name": "Tail",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 612,
+      "name": "HindRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 622,
+      "name": "HindLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 656,
+      "name": "FrontRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 656,
+      "name": "FrontLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1342,
+      "name": "Head",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1416,
+      "name": "Torso",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

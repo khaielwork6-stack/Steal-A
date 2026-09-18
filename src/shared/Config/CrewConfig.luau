@@ -41,10 +41,10 @@ CrewConfig.NAMEPLATE_MAX_DISTANCE = 150
 --- Placeholder art: "rbxassetid://0" = not made yet, the UI uses text.
 --- See docs/codex-prompts/vaults-crews.md.
 CrewConfig.Icons = {
-	Crew = "rbxassetid://0",
-	Leader = "rbxassetid://0",
-	Invite = "rbxassetid://0",
-	Assist = "rbxassetid://0",
+	Crew = "rbxassetid://91226244660515",
+	Leader = "rbxassetid://122735442625813",
+	Invite = "rbxassetid://81513139298073",
+	Assist = "rbxassetid://111666852027338",
 }
 
 return CrewConfig

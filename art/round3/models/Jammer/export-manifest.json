@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "chunks": 25,
+      "name": "texture_body",
+      "length": 2219452
+    },
+    {
+      "chunks": 3,
+      "name": "mesh",
+      "length": 239536
+    }
+  ],
+  "name": "Jammer",
+  "parts": [
+    {
+      "faces": 3566,
+      "name": "body",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

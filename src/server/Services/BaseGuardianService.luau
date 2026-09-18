@@ -51,6 +51,7 @@ local GuardianService = require(script.Parent.GuardianService)
 local MonetizationService = require(script.Parent.MonetizationService)
 local RagdollService = require(script.Parent.RagdollService)
 local StateService = require(script.Parent.StateService)
+local PetAnimationTracks = require(script.Parent.PetAnimationTracks)
 
 local BaseGuardianService = {}
 
@@ -70,6 +71,7 @@ type Guardian = {
 	root: BasePart,
 	humanoid: Humanoid,
 	shellMotor: Weld?,
+	petTracks: PetAnimationTracks.Player?,
 	walkTrack: AnimationTrack?,
 	idleTrack: AnimationTrack?,
 	walkSpeedPerRate: number,
@@ -577,6 +579,7 @@ local function despawn(g: Guardian)
 		byOwner[g.owner] = nil
 	end
 	setChased(g, g.target, false)
+	if g.petTracks then g.petTracks.destroy() end
 	g.model:Destroy()
 	setBayLabel(g.plot, "GUARDIAN", "Equip a Guardian", MapPalette.SlotNeonEmpty)
 end
@@ -594,7 +597,7 @@ local function spawnFor(owner: Player?, ownerUserId: number, plot: Instance, def
 	end
 	ensureBay(plot)
 
-	local model = GuardianService.buildRigFrom(source, BaseGuardianConfig.HEIGHT, 1, `BaseGuardian_{def.key}`, CFrame.Angles(0, yawFor(def), 0))
+	local model = GuardianService.buildRigFrom(source, BaseGuardianConfig.HEIGHT, 1, `BaseGuardian_{def.key}`, if source:GetAttribute("PetRig") == true then CFrame.identity else CFrame.Angles(0, yawFor(def), 0))
 	local humanoid = model:FindFirstChildWhichIsA("Humanoid")
 	local root = model.PrimaryPart
 	if not humanoid or not root then
@@ -622,6 +625,7 @@ local function spawnFor(owner: Player?, ownerUserId: number, plot: Instance, def
 	model.Parent = holder
 	root.Anchored = true
 
+	local petTracks = PetAnimationTracks.attach(model, def.animations)
 	local walk, idle, perRate = GuardianService.prepareWalk(model)
 	-- Which moving pose the client animator plays (see GuardianService).
 	model:SetAttribute("PoseWalkTrack", walk ~= nil)
@@ -650,6 +654,7 @@ local function spawnFor(owner: Player?, ownerUserId: number, plot: Instance, def
 		root = root,
 		humanoid = humanoid,
 		shellMotor = if motor and motor:IsA("Weld") then motor else nil,
+		petTracks = petTracks,
 		walkTrack = walk,
 		idleTrack = idle,
 		walkSpeedPerRate = perRate,
@@ -933,6 +938,7 @@ local function hit(g: Guardian, target: Player, now: number)
 	g.attackUntil = now + ATTACK_SECONDS
 	-- The swipe plays on the clients from this one replicated stamp (B8b).
 	g.model:SetAttribute("AttackAt", workspace:GetServerTimeNow())
+	if g.petTracks then g.petTracks.defend(now) end
 
 	-- OUTWARD FROM THE BASE CENTRE, never a fixed world direction: the launch
 	-- always carries the intruder off the plot.
@@ -1030,6 +1036,13 @@ local function animate(g: Guardian, now: number)
 	local motor = g.shellMotor
 	if not motor then
 		return
+	end
+	if g.petTracks then
+		local velocity = g.root.AssemblyLinearVelocity
+		if g.petTracks.update(g.state, Vector3.new(velocity.X, 0, velocity.Z).Magnitude, now) then
+			motor.C0 = CFrame.identity
+			return
+		end
 	end
 	local track, idle = g.walkTrack, g.idleTrack
 

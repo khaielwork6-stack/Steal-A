@@ -42,6 +42,9 @@ local ShopKit = require(ReplicatedStorage.Shared.Util.ShopKit)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
+local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+
 local IndexController = {}
 
 local player = Players.LocalPlayer
@@ -383,8 +386,19 @@ local function takeCardTemplates(ui: ScreenGui, list: ScrollingFrame)
 end
 
 local function buildTabs(frame: Frame, source: TextButton)
-	local strip = Instance.new("Frame")
+	local strip = Instance.new("ScrollingFrame")
 	strip.Name = "ZoneTabs"
+	strip.BorderSizePixel = 0
+	strip.CanvasSize = UDim2.new()
+	strip.AutomaticCanvasSize = Enum.AutomaticSize.X
+	strip.ScrollingDirection = Enum.ScrollingDirection.X
+	-- The pack initializes every scrolling frame as vertical; preserve this tab strip.
+	strip:GetPropertyChangedSignal("ScrollingDirection"):Connect(function()
+		if strip.ScrollingDirection ~= Enum.ScrollingDirection.X then
+			strip.ScrollingDirection = Enum.ScrollingDirection.X
+		end
+	end)
+	strip.ScrollBarThickness = 3
 	strip.AnchorPoint = Vector2.new(0.5, 0.5)
 	strip.Position = UDim2.fromScale(0.5, 0.255)
 	strip.Size = UDim2.fromScale(0.94, 0.075)
@@ -393,7 +407,7 @@ local function buildTabs(frame: Frame, source: TextButton)
 
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Padding = UDim.new(0.008, 0)
@@ -574,6 +588,43 @@ local function buildPanel(ui: ScreenGui): boolean
 		warn("[IndexController] Buttons.Left.Index missing - tabs and claim bar not built.")
 	end
 
+
+	PanelStyle.window(frame, 900, 620)
+	local function fitIndex()
+		local factor = ClipSafe.scaleChain(frame)
+		local h = frame.AbsoluteSize.Y / factor
+		local topFrame = frame:FindFirstChild("Top")
+		local headerHeight = if topFrame and topFrame:IsA("GuiObject") then topFrame.AbsoluteSize.Y / factor else 52 / factor
+		local features = frame:FindFirstChild("Features")
+		if features and features:IsA("GuiObject") then features.Visible = false end
+		local strip = frame:FindFirstChild("ZoneTabs")
+		if strip and strip:IsA("ScrollingFrame") then
+			strip.AnchorPoint = Vector2.new(0.5, 0)
+			strip.Position = UDim2.new(0.5, 0, 0, headerHeight + 4 / factor)
+			strip.Size = UDim2.new(0.94, 0, 0, 50 / factor)
+			for _, tab in strip:GetChildren() do
+				if tab:IsA("GuiButton") then tab.Size = UDim2.fromOffset(48 / factor, 48 / factor) end
+			end
+		end
+		header.Position = UDim2.new(0.5, 0, 0, headerHeight + 69 / factor)
+		header.Size = UDim2.new(0.94, 0, 0, 24 / factor)
+		list.AnchorPoint = Vector2.new(0.5, 0)
+		list.Position = UDim2.new(0.5, 0, 0, headerHeight + 84 / factor)
+		list.Size = UDim2.new(0.94, 0, 0, math.max(50 / factor, h - headerHeight - 148 / factor))
+		list.ClipsDescendants = true
+		if grid then
+			grid.CellSize = UDim2.new(0.225, 0, 0, 112 / factor)
+			grid.CellPadding = UDim2.new(0.03, 0, 0, 8 / factor)
+		end
+		if claimButton then
+			claimButton.AnchorPoint = Vector2.new(0.5, 1)
+			claimButton.Position = UDim2.new(0.5, 0, 1, -8 / factor)
+			claimButton.Size = UDim2.new(0.94, 0, 0, 48 / factor)
+		end
+	end
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitIndex)
+	frame:GetPropertyChangedSignal("Visible"):Connect(fitIndex)
+	task.defer(fitIndex)
 	return true
 end
 

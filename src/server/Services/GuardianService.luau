@@ -472,6 +472,14 @@ local function shellSkeleton(shell: Model): (Humanoid?, BasePart?)
 	if not humanoid then
 		return nil, nil
 	end
+	-- Authored quadrupeds have their own joint names and uploaded clips.
+	if shell:GetAttribute("PetRig") == true then
+		local root = shell:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") and shell:FindFirstChildWhichIsA("Motor6D", true) then
+			return humanoid, root
+		end
+		return nil, nil
+	end
 	local signature = RIG_SIGNATURES[humanoid.RigType.Name]
 	if not signature then
 		return nil, nil
@@ -1756,7 +1764,7 @@ end
 
 local function prepareWalk(model: Model): (AnimationTrack?, AnimationTrack?, number)
 	local shell = model:FindFirstChild("Shell")
-	if not shell or shell:GetAttribute("Rigged") ~= true then
+	if not shell or shell:GetAttribute("Rigged") ~= true or shell:GetAttribute("PetRig") == true then
 		return nil, nil, 1
 	end
 	local humanoid = shell:FindFirstChildWhichIsA("Humanoid", true)

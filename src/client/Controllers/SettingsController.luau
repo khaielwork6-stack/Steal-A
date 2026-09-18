@@ -238,6 +238,9 @@ local function bindSlider(row: Instance, initial: number, onChange: (number) -> 
 	hit.AutoButtonColor = false
 	hit.AnchorPoint = Vector2.new(0, 0.5)
 	hit.Size = UDim2.new(1, 0, 0, 48 / ClipSafe.scaleChain(track))
+	track:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		hit.Size = UDim2.new(1, 0, 0, 48 / ClipSafe.scaleChain(track))
+	end)
 	hit.Position = UDim2.fromScale(0, 0.5)
 	hit.ZIndex = 9
 	hit.Active = true
@@ -680,6 +683,18 @@ function SettingsController.start()
 			warn(`[SettingsController] panel layout failed: {err}`)
 		end
 	end)
+
+	-- Studio UI review changes only local effects, never the saved preferences.
+	if game:GetService("RunService"):IsStudio() then
+		local function previewEffects()
+			local mode = player:GetAttribute("EffectsUiPreview")
+			local preview = mode == "Full" or mode == "Reduced" or mode == "Low" or mode == "Both"
+			applyReduced(if preview then mode == "Reduced" or mode == "Both" else current.ReducedVFX)
+			applyGraphics(if preview then mode == "Low" or mode == "Both" else current.LowGraphics)
+			player:SetAttribute("EffectsUiPreviewApplied", if preview then mode else nil)
+		end
+		player:GetAttributeChangedSignal("EffectsUiPreview"):Connect(previewEffects)
+	end
 
 	-- Restore from the save on the first push that carries settings; later
 	-- pushes echo what we sent, so only a genuine difference repaints.

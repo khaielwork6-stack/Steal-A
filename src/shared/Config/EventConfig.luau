@@ -82,7 +82,7 @@ EventConfig.Events = {
 		title = "MUTATION WEEKEND",
 		banner = "2x mutation chance on museum loot!",
 		color = Color3.fromRGB(255, 120, 230),
-		icon = "rbxassetid://0",
+		icon = "rbxassetid://140055665799716",
 		-- Saturday 00:00 UTC for 48 hours -> Monday 00:00 UTC.
 		weekly = { weekday = 7, hour = 0, durationHours = 48 },
 		enabled = true,
@@ -94,7 +94,7 @@ EventConfig.Events = {
 		title = "NIGHT RUSH",
 		banner = "Faster loot refreshes!",
 		color = Color3.fromRGB(150, 110, 255),
-		icon = "rbxassetid://0",
+		icon = "rbxassetid://94979236210375",
 		-- Friday 18:00 - 22:00 UTC (a weekday evening in Europe, afternoon in
 		-- the Americas).
 		weekly = { weekday = 6, hour = 18, durationHours = 4 },
@@ -109,7 +109,7 @@ EventConfig.Events = {
 		title = "HALLOWEEN",
 		banner = "The museum is haunted...",
 		color = Color3.fromRGB(255, 140, 40),
-		icon = "rbxassetid://0",
+		icon = "rbxassetid://107687218130733",
 		from = { month = 10, day = 25 },
 		to = { month = 11, day = 1 },
 		enabled = true,
@@ -121,7 +121,7 @@ EventConfig.Events = {
 		title = "WINTER FESTIVAL",
 		banner = "Happy holidays from the museum!",
 		color = Color3.fromRGB(120, 210, 255),
-		icon = "rbxassetid://0",
+		icon = "rbxassetid://79020660911259",
 		from = { month = 12, day = 18 },
 		to = { month = 1, day = 2 },
 		enabled = true,

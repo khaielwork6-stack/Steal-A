@@ -15,7 +15,7 @@
 	              per other player in the server: INVITE / KICK / ACCEPT.
 	  NAMEPLATES  a "CREW" tag over each crew mate's head, local only.
 
-	Touch targets are at least 56 px before MainUI's phone UIScale (>= 44
+	Touch targets are at least 68 px before MainUI's phone UIScale (>= 44
 	effective). Every button we drive is claimed (UIAnim.claimButton) except
 	the opener, which the pack must own to open the panel.
 ]]
@@ -44,7 +44,7 @@ local GREY = Color3.fromRGB(90, 96, 110)
 local PANEL = Color3.fromRGB(24, 30, 44)
 local GOLD = Color3.fromRGB(255, 210, 90)
 
-local ROW_HEIGHT = 56
+local ROW_HEIGHT = 68
 
 local crew: any = nil
 local cardList: Frame? = nil

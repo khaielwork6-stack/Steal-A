@@ -20,9 +20,7 @@
 	           ClipSafe.guard: THEMES cards (2 columns, 1 on a narrow panel)
 	           then PEDESTAL SKINS cards (3 / 2 columns). Every card has ONE
 	           full-width action: BUY $X / R$ X / EQUIP / EQUIPPED.
-	While BASE is open the panel is scaled up a little (hooks.setBoost ->
-	UpgradesController), still clamped to the screen by the panel's fit pass,
-	so the cards read at a glance on a laptop and on a phone.
+	PanelStyle fits both tabs to the screen and preserves large touch targets.
 
 	WHY NOTHING HERE IS CLONED FROM THE PACK
 	The first version cloned the treadmill card's Money button into each row.
@@ -119,7 +117,7 @@ local NAME_H = 24
 local DESC_H = 17
 local TAG_H = 22
 local SKIN_NAME_H = 22
-local BUTTON_H = 46 -- >= 44 px on touch: the panel scale is >= 1 there
+local BUTTON_H = 64 -- stays above 44 screen pixels at the smallest HUD scale
 local SECTION_H = 36
 --- Screen pixels of list width from which themes get 2 columns, skins 3.
 local WIDE_LIST = 430
@@ -820,15 +818,48 @@ local function layoutGrid()
 	local skinW = math.floor((width - CELL_GAP * (skinCols - 1)) / skinCols)
 	local themeTile = math.floor(math.clamp(themeW * (if wide then 0.42 else 0.36), 72, 132))
 	local skinTile = math.floor(math.clamp(skinW * 0.55, 60, 104))
-	local signature = `{themeW}|{skinW}|{themeTile}|{skinTile}`
-	if signature == layoutSignature then
-		return
-	end
+	local camera = workspace.CurrentCamera
+	local compact = camera ~= nil and camera.ViewportSize.Y < 500
+	local signature = `{themeW}|{skinW}|{themeTile}|{skinTile}|{compact}|{factor}`
+	if signature == layoutSignature then return end
 	layoutSignature = signature
-	tGrid.CellSize = UDim2.fromOffset(themeW, themeHeight(themeTile))
-	sGrid.CellSize = UDim2.fromOffset(skinW, skinHeight(skinTile))
+	local compactHeight = 106 / factor
+	tGrid.CellSize = UDim2.fromOffset(themeW, if compact then compactHeight else themeHeight(themeTile))
+	sGrid.CellSize = UDim2.fromOffset(if compact then themeW else skinW, if compact then compactHeight else skinHeight(skinTile))
 	for _, card in cards do
-		card.tile.Size = UDim2.new(1, 0, 0, if card.isTheme then themeTile else skinTile)
+		local content = card.root:FindFirstChild("Content") :: Frame
+		local stack = content:FindFirstChildOfClass("UIListLayout")
+		if compact then
+			if stack then stack:Destroy() end
+			card.tile.Position, card.tile.Size = UDim2.new(), UDim2.fromScale(0.3, 1)
+			for _, child in content:GetChildren() do
+				if child:IsA("GuiObject") and child.Name ~= "Tile" then
+					child.Visible = child.Name == "Name" or child.Name == "Action"
+					child.Position = UDim2.fromScale(0.34, 0)
+					child.Size = UDim2.new(0.66, 0, 0, 32 / factor)
+				end
+			end
+			card.button.AnchorPoint = Vector2.new(0, 1)
+			card.button.Position = UDim2.fromScale(0.34, 1)
+			card.button.Size = UDim2.new(0.66, 0, 0, 48 / factor)
+		else
+			if not stack then
+				stack = Instance.new("UIListLayout")
+				stack.SortOrder = Enum.SortOrder.LayoutOrder
+				stack.Padding = UDim.new(0, GAP)
+				stack.Parent = content
+			end
+			for _, child in content:GetChildren() do
+				if child:IsA("GuiObject") then
+					child.Visible = true
+					child.AnchorPoint = Vector2.zero
+					local h = if child.Name == "Tile" then (if card.isTheme then themeTile else skinTile)
+						elseif child.Name == "Name" then (if card.isTheme then NAME_H else SKIN_NAME_H)
+						elseif child.Name == "Blurb" then DESC_H elseif child.Name == "Tag" then TAG_H else BUTTON_H
+					child.Size = UDim2.new(1, 0, 0, h)
+				end
+			end
+		end
 	end
 end
 
@@ -1210,6 +1241,20 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 	holder.Parent = scroll
 	page = holder
 
+	local function fitTabs()
+		local factor = ClipSafe.scaleChain(scroll)
+		bar.Size = UDim2.new(0.94, 0, 0, 48 / factor)
+		minimum.MinSize = Vector2.new(0, 48 / factor)
+		for _, body in { card, holder } do
+			body.Position = UDim2.new(0.5, 0, 0, 56 / factor)
+			body.Size = UDim2.new(0.97, 0, 1, -60 / factor)
+		end
+	end
+	scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTabs)
+	panel:GetPropertyChangedSignal("Visible"):Connect(fitTabs)
+	task.defer(fitTabs)
+
+
 	-- Banner (fixed).
 	local banner = Instance.new("Frame")
 	banner.Name = "Banner"
@@ -1240,7 +1285,7 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 	bannerTitle = title
 	local nameLabel = text(banner, "ThemeName", "", WHITE, Enum.TextXAlignment.Left, 34)
 	nameLabel.Position = UDim2.fromScale(0.39, 0.32)
-	nameLabel.Size = UDim2.fromScale(0.58, 0.32)
+	nameLabel.Size = UDim2.fromScale(0.34, 0.32)
 	bannerName = nameLabel
 	local sub = text(banner, "Pedestal", "", DIM, Enum.TextXAlignment.Left, 18)
 	sub.Position = UDim2.fromScale(0.39, 0.68)
@@ -1251,7 +1296,7 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 	back.Text = ""
 	back.AnchorPoint = Vector2.new(1, 1)
 	back.Position = UDim2.new(1, -10, 1, -8)
-	back.Size = UDim2.fromScale(0.22, 0.4)
+	back.Size = UDim2.new(0.22, 0, 0, 48 / ClipSafe.scaleChain(banner))
 	back.BorderSizePixel = 0
 	back.BackgroundColor3 = WHITE
 	back.Visible = false
@@ -1271,6 +1316,9 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 		update()
 	end)
 	bannerBack = back
+	banner:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		back.Size = UDim2.new(0.22, 0, 0, 48 / ClipSafe.scaleChain(banner))
+	end)
 
 	-- Grid (scrolls; wrapped in the clip guard below).
 	local grid = Instance.new("ScrollingFrame")
@@ -1342,6 +1390,7 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 		player:GetAttributeChangedSignal("BaseUiPreview"):Connect(function()
 			lastOwned = nil
 			lastEquipped = {}
+			if isStudioPreview() then selectTab("Base") end
 			BaseThemeController.refresh()
 		end)
 		player:GetAttributeChangedSignal("DebugUiAudit"):Connect(function()
@@ -1355,7 +1404,7 @@ function BaseThemeController.attach(panel: Frame, scroll: ScrollingFrame, card: 
 	-- page is on screen; both hold still under Reduced Effects.
 	RunService.RenderStepped:Connect(function(delta: number)
 		local open = panelRef
-		if not open or not open.Visible or activeTab ~= "Base" or Effects.isReduced() then
+		if not open or not open.Visible or activeTab ~= "Base" or Effects.isReduced() or Effects.isLowGraphics() then
 			return
 		end
 		local model = view:FindFirstChild("Preview")

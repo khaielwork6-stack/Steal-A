@@ -28,6 +28,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
+local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 
 local UIStateController = {}
 
@@ -38,14 +39,17 @@ local player = Players.LocalPlayer
 --- pack's own open/close logic. The DROP button is not in it either - it is
 --- the one thing a carrier keeps. The offer rail is matched by prefix because
 --- the pack named it with a trailing space.
-local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "CrewCard" }
+local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "Notifications", "NightTimer", "CrewCard", "EventPill" }
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
-local HUD_SCREENS = { "HotbarUI", "TouchGui" }
+local HUD_SCREENS = { "HotbarUI", "TouchGui", "CrouchUI", "ShiftLockUI" }
 --- Claims a screen stays up for (round3-gameplay): a carrier keeps the
 --- hotbar so the gadgets on 3-5 stay usable (HotbarController shows only the
 --- gadget slots during a carry). Any OTHER claim still hides it.
-local SCREEN_KEEP: { [string]: { [string]: true } } = { HotbarUI = { carry = true }, TouchGui = { carry = true } }
+local SCREEN_KEEP: { [string]: { [string]: true } } = {
+	HotbarUI = { carry = true }, TouchGui = { carry = true },
+	CrouchUI = { carry = true }, ShiftLockUI = { carry = true },
+}
 
 --- Claims tied to the character's life, released on respawn. Everything else
 --- (panel claims) is released by its panel.
@@ -145,6 +149,10 @@ local function applyHidden()
 			remembered[element] = element.Visible
 		end
 		if element.Visible then
+			if Effects.isReduced() then
+				element.Visible = false
+				continue
+			end
 			-- Scale away rather than snapping off, and only then stop drawing.
 			local scale = element:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
 			scale.Parent = element
@@ -213,12 +221,53 @@ function UIStateController.hasClaim(reason: string): boolean
 end
 
 function UIStateController.start()
+	-- Device switches and respawns may create or re-enable touch screens
+	-- while a modal is already open. Apply the current claims immediately.
+	task.spawn(function()
+		local pg = player:WaitForChild("PlayerGui")
+		local function watchScreen(child: Instance)
+			if not child:IsA("ScreenGui") or not table.find(HUD_SCREENS, child.Name) then return end
+			child:GetPropertyChangedSignal("Enabled"):Connect(function()
+				if child.Enabled and screenSuppressed(child) then
+					remembered[child] = true
+					child.Enabled = false
+				end
+			end)
+			child.Destroying:Connect(function() remembered[child] = nil end)
+			refreshScreens()
+		end
+		for _, child in pg:GetChildren() do watchScreen(child) end
+		pg.ChildAdded:Connect(watchScreen)
+	end)
 	-- A pack panel is a modal too: hotbar/cash/night HUD must not cover its controls.
 	task.spawn(function()
 		local pg = player:WaitForChild("PlayerGui")
 		local ui = pg:WaitForChild("MainUI", 30)
 		local frames = ui and ui:WaitForChild("Frames", 30)
 		if not frames then return end
+		-- HUD controllers can repaint visibility after a modal opens (notably
+		-- the night timer). Keep the claim effective until the modal closes.
+		local function watchHud(child: Instance)
+			if not child:IsA("GuiObject") then return end
+			local matched = table.find(HUD_ELEMENTS, child.Name) ~= nil
+			for _, prefix in HUD_PREFIXES do
+				matched = matched or child.Name:find(prefix, 1, true) == 1
+			end
+			if not matched then return end
+			local function suppress()
+				if child.Visible and anyClaim() then
+					remembered[child] = true
+					child.Visible = false
+				end
+			end
+			child:GetPropertyChangedSignal("Visible"):Connect(suppress)
+			child.Destroying:Connect(function() remembered[child] = nil end)
+			suppress()
+		end
+		if ui then
+			for _, child in ui:GetChildren() do watchHud(child) end
+			ui.ChildAdded:Connect(watchHud)
+		end
 		local function watch(frame: Instance)
 			if not frame:IsA("GuiObject") then return end
 			local reason = "panel:" .. frame.Name

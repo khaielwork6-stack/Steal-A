@@ -127,7 +127,7 @@ function GiftShopSection.build(list: ScrollingFrame, order: number): { GuiObject
 	row.Name = "GiftRecipient"
 	row.LayoutOrder = order + 1
 	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1, 0, 0, 52)
+	row.Size = UDim2.new(1, 0, 0, 72)
 	row.Visible = false
 	row.Parent = list
 	pickerRow = row
@@ -136,7 +136,7 @@ function GiftShopSection.build(list: ScrollingFrame, order: number): { GuiObject
 	b.Name = "GiftPicker"
 	b.AnchorPoint = Vector2.new(0.5, 0.5)
 	b.Position = UDim2.fromScale(0.5, 0.5)
-	b.Size = UDim2.new(0.94, 0, 0, 46)
+	b.Size = UDim2.new(0.94, 0, 0, 64)
 	b.BackgroundColor3 = GIFT_ACCENT
 	b.AutoButtonColor = false
 	b.Font = Enum.Font.FredokaOne
@@ -155,6 +155,7 @@ function GiftShopSection.build(list: ScrollingFrame, order: number): { GuiObject
 	limit.MaxTextSize = 24
 	limit.Parent = b
 	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0.14, 0)
 	pad.PaddingTop = UDim.new(0.18, 0)
 	pad.PaddingBottom = UDim.new(0.18, 0)
 	pad.Parent = b
@@ -163,9 +164,11 @@ function GiftShopSection.build(list: ScrollingFrame, order: number): { GuiObject
 		icon.Name = "GiftIcon"
 		icon.BackgroundTransparency = 1
 		icon.Image = TradeConfig.Icons.Gift
-		icon.Size = UDim2.fromScale(1, 1.4)
-		icon.Position = UDim2.fromScale(0.01, -0.2)
-		icon.Parent = b
+		icon.Size = UDim2.fromOffset(44, 44)
+		icon.AnchorPoint = Vector2.new(0, 0.5)
+		icon.Position = UDim2.fromScale(0.035, 0.5)
+		icon.ZIndex = b.ZIndex + 1
+		icon.Parent = row
 		local ratio = Instance.new("UIAspectRatioConstraint")
 		ratio.AspectRatio = 1
 		ratio.Parent = icon

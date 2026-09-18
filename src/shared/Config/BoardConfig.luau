@@ -35,10 +35,10 @@ export type BoardDef = {
 }
 
 BoardConfig.Boards = {
-	{ key = "Steals", header = "TOP STEALS", headerImage = "rbxassetid://0", besides = "Money", side = 1, slot = 1 },
-	{ key = "Weekly", header = "TOP EARNERS THIS WEEK", headerImage = "rbxassetid://0", besides = "Money", side = -1, slot = 1 },
-	{ key = "Index", header = "TOP INDEX %", headerImage = "rbxassetid://0", besides = "Speed", side = 1, slot = 1 },
-	{ key = "PlayTime", header = "MOST TIME PLAYED", headerImage = "rbxassetid://0", besides = "Speed", side = -1, slot = 1 },
+	{ key = "Steals", header = "TOP STEALS", headerImage = "rbxassetid://80926532451649", besides = "Money", side = 1, slot = 1 },
+	{ key = "Weekly", header = "TOP EARNERS THIS WEEK", headerImage = "rbxassetid://89651521516052", besides = "Money", side = -1, slot = 1 },
+	{ key = "Index", header = "TOP INDEX %", headerImage = "rbxassetid://110600193223369", besides = "Speed", side = 1, slot = 1 },
+	{ key = "PlayTime", header = "MOST TIME PLAYED", headerImage = "rbxassetid://115916291082817", besides = "Speed", side = -1, slot = 1 },
 } :: { BoardDef }
 
 --- Clear gap between neighbouring boards, in studs.

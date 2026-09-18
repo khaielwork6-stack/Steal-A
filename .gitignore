@@ -22,3 +22,15 @@ sourcemap.json
 
 # Agent worktrees
 /.claude/worktrees/
+
+# Local art export dependencies and transfer chunks
+/art/round3/.tool-deps/
+/art/round3/models/*/*.b64
+**/__pycache__/
+
+# Round 3 generated art binaries (regenerable; already uploaded as Roblox asset IDs)
+/art/round3/upload/images/
+/art/round3/upload/ready/
+/art/round3/models/*/*.glb
+/art/round3/models/*/mesh.json
+/art/round3/models/*/*.png

@@ -1,0 +1,103 @@
+{
+  "files": [
+    {
+      "chunks": 23,
+      "name": "texture_Tail",
+      "length": 2034840
+    },
+    {
+      "chunks": 27,
+      "name": "texture_HindRight",
+      "length": 2406796
+    },
+    {
+      "chunks": 25,
+      "name": "texture_HindLeft",
+      "length": 2219432
+    },
+    {
+      "chunks": 23,
+      "name": "texture_FrontRight",
+      "length": 2032852
+    },
+    {
+      "chunks": 23,
+      "name": "texture_FrontLeft",
+      "length": 1986668
+    },
+    {
+      "chunks": 28,
+      "name": "texture_Head",
+      "length": 2478936
+    },
+    {
+      "chunks": 25,
+      "name": "texture_Torso",
+      "length": 2211248
+    },
+    {
+      "chunks": 5,
+      "name": "mesh",
+      "length": 391248
+    }
+  ],
+  "name": "Tiger",
+  "parts": [
+    {
+      "faces": 194,
+      "name": "Tail",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 830,
+      "name": "HindRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 668,
+      "name": "HindLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 610,
+      "name": "FrontRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 588,
+      "name": "FrontLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1414,
+      "name": "Head",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1174,
+      "name": "Torso",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

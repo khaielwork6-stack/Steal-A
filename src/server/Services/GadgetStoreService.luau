@@ -171,10 +171,11 @@ local function chooseFrame(): (CFrame?, string)
 end
 
 local function buildDisplays(parent: Instance, base: CFrame)
+	local counterTopY = tonumber(parent:GetAttribute("CounterTopY")) or COUNTER_TOP_Y
 	for index, key in GadgetConfig.Order do
 		local def = GadgetConfig.Gadgets[key]
 		local x = PEDESTAL_X[index] or 0
-		local pedestalAt = base * CFrame.new(x, COUNTER_TOP_Y + 0.2 + 0.45, COUNTER_Z)
+		local pedestalAt = base * CFrame.new(x, counterTopY + 0.2 + 0.45, COUNTER_Z)
 		local pedestal = part(`Pedestal_{key}`, Vector3.new(0.9, 2.6, 2.6), pedestalAt * CFrame.Angles(0, 0, math.rad(90)), NAVY_DARK, Enum.Material.Metal, parent, false)
 		pedestal.Shape = Enum.PartType.Cylinder
 		local ring = part(`PedestalRing_{key}`, Vector3.new(0.2, 2.9, 2.9), (pedestalAt + Vector3.new(0, 0.42, 0)) * CFrame.Angles(0, 0, math.rad(90)), def.color, Enum.Material.Neon, parent, false)
@@ -198,9 +199,28 @@ local function buildDisplays(parent: Instance, base: CFrame)
 end
 
 local function build(map: Instance, base: CFrame): Model
-	local stall = Instance.new("Model")
+	local assets = game:GetService("ServerStorage"):FindFirstChild("GameAssets")
+	local props = assets and assets:FindFirstChild("Props")
+	local template = props and props:FindFirstChild("GadgetStand")
+	local authored = template ~= nil and template:IsA("Model") and template:FindFirstChildWhichIsA("BasePart", true) ~= nil
+	local stall = if authored then (template :: Model):Clone() else Instance.new("Model")
 	stall.Name = GadgetStoreService.MODEL_NAME
+	-- Authored art owns its appearance; the service retains displays and prompts.
+	if authored then
+		for _, descendant in stall:GetDescendants() do
+			if descendant:IsA("LuaSourceContainer") then descendant:Destroy()
+			elseif descendant:IsA("BasePart") then descendant.Anchored = true end
+		end
+		stall:PivotTo(base)
+		stall:SetAttribute("ArtSource", "GameAssets.Props.GadgetStand")
+	end
+	local pitch = math.rad(AWNING_PITCH)
+	local awningDepth = DEPTH + 3
+	local awningY, awningZ = POST_HEIGHT + 0.9, -0.6
+	local frontY = awningY + awningDepth / 2 * math.sin(pitch)
+	local frontZ = awningZ - awningDepth / 2 * math.cos(pitch)
 
+	if not authored then
 	-- Platform and back wall.
 	part("Platform", Vector3.new(WIDTH, 0.6, DEPTH), base * CFrame.new(0, 0.3, 0), NAVY_DARK, Enum.Material.DiamondPlate, stall, true)
 	part("BackWall", Vector3.new(WIDTH, POST_HEIGHT - 0.6, 0.6), base * CFrame.new(0, 0.6 + (POST_HEIGHT - 0.6) / 2, DEPTH / 2 - 0.3), NAVY, Enum.Material.SmoothPlastic, stall, true)
@@ -232,12 +252,6 @@ local function build(map: Instance, base: CFrame): Model
 	local stripCount = 9
 	local span = WIDTH + 1.4
 	local stripWidth = span / stripCount
-	local awningDepth = DEPTH + 3
-	local pitch = math.rad(AWNING_PITCH)
-	local awningY = POST_HEIGHT + 0.9
-	local awningZ = -0.6
-	local frontY = awningY + awningDepth / 2 * math.sin(pitch)
-	local frontZ = awningZ - awningDepth / 2 * math.cos(pitch)
 	for index = 1, stripCount do
 		local x = -span / 2 + stripWidth * (index - 0.5)
 		local color = if index % 2 == 1 then CYAN else AWNING_LIGHT
@@ -245,10 +259,14 @@ local function build(map: Instance, base: CFrame): Model
 		part("Scallop", Vector3.new(stripWidth + 0.02, 1.1, 0.28), base * CFrame.new(x, frontY - 0.6, frontZ), color, Enum.Material.Fabric, stall, false)
 	end
 
+	end
+
 	-- The GADGETS board stands on the awning's front lip, above the displays
 	-- (never in front of them). The customer is on the stall's -Z side, which
 	-- is a part's FRONT face.
-	local board = part("Board", Vector3.new(WIDTH - 2, 2.6, 0.5), base * CFrame.new(0, frontY + 1.45, frontZ + 0.4), NAVY_DARK, Enum.Material.SmoothPlastic, stall, false)
+	local authoredBoard = stall:FindFirstChild("Board", true)
+	local board = if authoredBoard and authoredBoard:IsA("BasePart") then authoredBoard
+		else part("Board", Vector3.new(WIDTH - 2, 2.6, 0.5), base * CFrame.new(0, frontY + 1.45, frontZ + 0.4), NAVY_DARK, Enum.Material.SmoothPlastic, stall, false)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Face"
 	gui.Face = Enum.NormalId.Front
@@ -302,7 +320,7 @@ local function build(map: Instance, base: CFrame): Model
 	})
 
 	stall:SetAttribute("PromptName", GadgetStoreService.PROMPT_NAME)
-	stall.PrimaryPart = stall:FindFirstChild("Platform") :: BasePart
+	stall.PrimaryPart = stall.PrimaryPart or stall:FindFirstChild("Platform") :: BasePart? or stall:FindFirstChildWhichIsA("BasePart", true)
 	stall.Parent = map
 	return stall
 end

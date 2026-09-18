@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Smoke",
+    "prompt": "A handheld spherical smoke bomb gadget, 1.5 units tall. Gunmetal gray round bomb body with a broad pale silver band, chunky brass fuse socket on top, short curved brown rope fuse and tiny orange ember. Premium stylized realistic Roblox museum heist prop, beautifully beveled metal surfaces, recognizable silhouette. One compact object centered at origin. No smoke cloud, no background, no stand, no text.",
+    "tri": 2200
+  },
+  {
+    "name": "Jammer",
+    "prompt": "A handheld laser jammer gadget, compact dark navy rounded rectangular rugged radio device with brass corner bumpers, bright cyan illuminated front screen, small cyan lightning symbol, three chunky buttons, one black telescoping antenna with cyan tip. Premium stylized realistic Roblox museum heist prop, beveled readable silhouette, 2 units tall, front points negative Z. No text, background, ground or stand.",
+    "tri": 2500
+  },
+  {
+    "name": "Grapple",
+    "prompt": "A handheld grappling hook launcher gadget for a stylized realistic Roblox museum heist. Wooden pistol grip below a short chunky gunmetal barrel, polished brass three-prong grappling hook mounted in the barrel muzzle, neatly coiled brown rope reel attached to side. Clear compact tool silhouette. 2 units total height. Barrel points negative Z, grip downwards. Premium polished beveled surfaces. No background, ground, stand or text.",
+    "tri": 2800
+  },
+  {
+    "name": "GadgetStand",
+    "prompt": "A premium stylized realistic black market gadget kiosk market stall, 16 wide 12 high 9 deep. Dark navy beveled panels, brushed steel posts, cyan neon front counter trim, bold cyan and white striped fabric awning with scalloped edge, blank sign board above awning. Open front facing negative Z. Countertop near front at 3.6 height and completely empty so three products can be placed later. Storage shelves and stock crates against back wall. Origin floor level center. No text, no products on counter, no people, no ground plane.",
+    "tri": 5500
+  }
+]

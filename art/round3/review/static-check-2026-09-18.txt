@@ -1,0 +1,5 @@
+tools/check.sh: line 10: dirname: command not found
+tools/check.sh: line 21: mkdir: command not found
+curl: (7) Failed to connect to raw.githubusercontent.com:443 after 14 ms: Could not connect to server
+tools/check.sh: line 23: rm: command not found
+tools/check.sh: could not download the Roblox type definitions

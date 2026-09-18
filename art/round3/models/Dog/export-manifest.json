@@ -1,0 +1,103 @@
+{
+  "files": [
+    {
+      "chunks": 24,
+      "name": "texture_Tail",
+      "length": 2117752
+    },
+    {
+      "chunks": 23,
+      "name": "texture_HindRight",
+      "length": 2067196
+    },
+    {
+      "chunks": 24,
+      "name": "texture_HindLeft",
+      "length": 2100484
+    },
+    {
+      "chunks": 21,
+      "name": "texture_FrontRight",
+      "length": 1841044
+    },
+    {
+      "chunks": 22,
+      "name": "texture_FrontLeft",
+      "length": 1911268
+    },
+    {
+      "chunks": 26,
+      "name": "texture_Head",
+      "length": 2269424
+    },
+    {
+      "chunks": 25,
+      "name": "texture_Torso",
+      "length": 2223080
+    },
+    {
+      "chunks": 5,
+      "name": "mesh",
+      "length": 381568
+    }
+  ],
+  "name": "Dog",
+  "parts": [
+    {
+      "faces": 562,
+      "name": "Tail",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 656,
+      "name": "HindRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 636,
+      "name": "HindLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 538,
+      "name": "FrontRight",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 532,
+      "name": "FrontLeft",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1162,
+      "name": "Head",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "faces": 1378,
+      "name": "Torso",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

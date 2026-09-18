@@ -596,6 +596,8 @@ local MENU_ORDER = { Shop = 1, Upgrades = 2, Index = 3, Storage = 4, Trade = 5 }
 --- Safe to call again at any time: it recomputes from live measurements and
 --- rewrites every property it owns.
 local function fitTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
+	local camera = workspace.CurrentCamera
+	if camera and camera.ViewportSize.Y < 500 then return end -- MobileHudLayout owns the landscape rail.
 	local hudHeight = ui.AbsoluteSize.Y
 	if hudHeight <= 0 then
 		return
@@ -874,6 +876,8 @@ function HUDLayoutController.start()
 			applyTouchOnce()
 		end
 	end)
+
+	require(script.Parent.MobileHudLayout).start(ui)
 
 	-- The gear pops in with the rest of the HUD rather than appearing.
 	local gear = ui:FindFirstChild("SettingsGear", true)

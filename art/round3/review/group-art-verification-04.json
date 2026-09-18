@@ -1,0 +1,20 @@
+{
+  "ownership": {
+    "content": [
+      {
+        "type": "text",
+        "text": "[{\"id\":\"93427904685916\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"107139254495198\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"120036928718933\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"124548706027503\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"122735442625813\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"81513139298073\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"111666852027338\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"130118824436627\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"86946041675183\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"},{\"id\":\"78917459454723\",\"ok\":true,\"group\":3774675,\"creatorType\":\"Group\"}]"
+      }
+    ],
+    "isError": false
+  },
+  "loading": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Client datamodel is not available in Edit mode"
+      }
+    ],
+    "isError": true
+  }
+}

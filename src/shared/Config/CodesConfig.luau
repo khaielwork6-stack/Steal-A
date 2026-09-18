@@ -71,7 +71,7 @@ CodesConfig.MAX_LENGTH = 24
 --- The icon at the left of the CODES row in Settings (CodesController).
 --- "rbxassetid://0" = no icon yet; the row shows its title only. Codex fills
 --- this in (docs/codex-prompts/retention-codes-daily.md).
-CodesConfig.HEADER_ICON = "rbxassetid://0"
+CodesConfig.HEADER_ICON = "rbxassetid://117680902903904"
 
 -- ==========================================================
 -- RATE LIMITING (per player, server-side)

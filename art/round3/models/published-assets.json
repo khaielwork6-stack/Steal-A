@@ -1,0 +1,1260 @@
+{
+  "FusionMachineCore": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/FusionMachine/FusionMachine.glb",
+    "operationPath": "/assets/v1/operations/5f7cd1da-4285-49a7-bde8-34b44cbf9eb4",
+    "assetId": "128746381614439",
+    "response": {
+      "path": "assets/128746381614439",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:06:46.573692300Z",
+      "assetId": "128746381614439",
+      "displayName": "Steal and Run - FusionMachineCore",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "CatGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Cat/Cat.glb",
+    "operationPath": "/assets/v1/operations/9d873ecc-3137-43d2-bcba-5697a409daca",
+    "assetId": "74956460285502",
+    "response": {
+      "path": "assets/74956460285502",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:25:55.040883Z",
+      "assetId": "74956460285502",
+      "displayName": "Steal and Run - CatGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "DogGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Dog/Dog.glb",
+    "operationPath": "/assets/v1/operations/f6c1d3b8-c5c3-4068-83a0-6fa476f8a3e9",
+    "assetId": "99584066862696",
+    "response": {
+      "path": "assets/99584066862696",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:38:10.048581200Z",
+      "assetId": "99584066862696",
+      "displayName": "Steal and Run - DogGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "FusionMachine": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/FusionMachine.rbxmx",
+    "operationPath": "/assets/v1/operations/16bc7d54-aecd-4463-8496-1d906c825275",
+    "assetId": "108935952210398",
+    "response": {
+      "path": "assets/108935952210398",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:38:58.337050900Z",
+      "assetId": "108935952210398",
+      "displayName": "Steal and Run - FusionMachine",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "SunsetLantern": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/SunsetLantern.rbxmx",
+    "operationPath": "/assets/v1/operations/7a8c0319-eaf4-4fd9-9570-5dd879e41487",
+    "assetId": "111451996138195",
+    "response": {
+      "path": "assets/111451996138195",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:05.157624100Z",
+      "assetId": "111451996138195",
+      "displayName": "Steal and Run - SunsetLantern",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "MidnightBeacon": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/MidnightBeacon.rbxmx",
+    "operationPath": "/assets/v1/operations/b01a942e-9326-4a2a-918a-8d92b1b46bc2",
+    "assetId": "79027602317648",
+    "response": {
+      "path": "assets/79027602317648",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:07.748386900Z",
+      "assetId": "79027602317648",
+      "displayName": "Steal and Run - MidnightBeacon",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "MidnightOrb": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/MidnightOrb.rbxmx",
+    "operationPath": "/assets/v1/operations/8b521dc5-640c-4f29-b125-c85db6be9cbf",
+    "assetId": "97296811963681",
+    "response": {
+      "path": "assets/97296811963681",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:10.366217500Z",
+      "assetId": "97296811963681",
+      "displayName": "Steal and Run - MidnightOrb",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "JungleTotem": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/JungleTotem.rbxmx",
+    "operationPath": "/assets/v1/operations/9921c3f6-a14a-4156-b8f9-eeb2eedccbfa",
+    "assetId": "86846241306165",
+    "response": {
+      "path": "assets/86846241306165",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:13.077688400Z",
+      "assetId": "86846241306165",
+      "displayName": "Steal and Run - JungleTotem",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "JungleBush": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/JungleBush.rbxmx",
+    "operationPath": "/assets/v1/operations/c6d879a3-e5dc-40aa-b848-de3e2f790e73",
+    "assetId": "91867977843564",
+    "response": {
+      "path": "assets/91867977843564",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:16.144978100Z",
+      "assetId": "91867977843564",
+      "displayName": "Steal and Run - JungleBush",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "FrostCrystal": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/FrostCrystal.rbxmx",
+    "operationPath": "/assets/v1/operations/6564cd42-eba9-470d-8969-bfb714bc3e16",
+    "assetId": "129980892527930",
+    "response": {
+      "path": "assets/129980892527930",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:18.796033900Z",
+      "assetId": "129980892527930",
+      "displayName": "Steal and Run - FrostCrystal",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "LavaBrazier": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/LavaBrazier.rbxmx",
+    "operationPath": "/assets/v1/operations/82a83882-9dc2-4f11-9176-39c57bd1117e",
+    "assetId": "91030258592033",
+    "response": {
+      "path": "assets/91030258592033",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:21.695966800Z",
+      "assetId": "91030258592033",
+      "displayName": "Steal and Run - LavaBrazier",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "NeonOrb": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/NeonOrb.rbxmx",
+    "operationPath": "/assets/v1/operations/a09344b4-9afb-4c9b-8354-8e4719525902",
+    "assetId": "82823140314630",
+    "response": {
+      "path": "assets/82823140314630",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:24.576002700Z",
+      "assetId": "82823140314630",
+      "displayName": "Steal and Run - NeonOrb",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "RoyalCrown": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/RoyalCrown.rbxmx",
+    "operationPath": "/assets/v1/operations/efdc592a-28c9-46ca-b9fc-c9693651da1f",
+    "assetId": "122912390543872",
+    "response": {
+      "path": "assets/122912390543872",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:27.680624Z",
+      "assetId": "122912390543872",
+      "displayName": "Steal and Run - RoyalCrown",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "RoyalUrn": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/RoyalUrn.rbxmx",
+    "operationPath": "/assets/v1/operations/3f6b7aec-c538-486c-b978-5cf7b7e61efc",
+    "assetId": "117639234932239",
+    "response": {
+      "path": "assets/117639234932239",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:30.205775200Z",
+      "assetId": "117639234932239",
+      "displayName": "Steal and Run - RoyalUrn",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "VaultDoor": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/VaultDoor.rbxmx",
+    "operationPath": "/assets/v1/operations/111c4620-0cbd-4478-a916-ff5e9b416f8d",
+    "assetId": "75285011403908",
+    "response": {
+      "path": "assets/75285011403908",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:33.095461Z",
+      "assetId": "75285011403908",
+      "displayName": "Steal and Run - VaultDoor",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "VaultDecor": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/VaultDecor.rbxmx",
+    "operationPath": "/assets/v1/operations/9cda59f9-7b01-49ad-a331-5ff683e835d9",
+    "assetId": "105111462987247",
+    "response": {
+      "path": "assets/105111462987247",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:41:36.141061300Z",
+      "assetId": "105111462987247",
+      "displayName": "Steal and Run - VaultDecor",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Cat_Idle": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Cat_Idle.rbxmx",
+    "operationPath": "/assets/v1/operations/f7694374-f4ad-4f48-bad6-02ca4eeae73a",
+    "assetId": "98207642113935",
+    "response": {
+      "path": "assets/98207642113935",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:45:33.575322500Z",
+      "assetId": "98207642113935",
+      "displayName": "Steal and Run - Cat_Idle",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Cat_Walk": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Cat_Walk.rbxmx",
+    "operationPath": "/assets/v1/operations/41aa45e0-4872-4301-ad46-8a2940a47190",
+    "assetId": "86017711119189",
+    "response": {
+      "path": "assets/86017711119189",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:28.653258200Z",
+      "assetId": "86017711119189",
+      "displayName": "Steal and Run - Cat_Walk",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Cat_Run": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Cat_Run.rbxmx",
+    "operationPath": "/assets/v1/operations/9e9f18c1-b53a-4c7c-8a9a-7ffe9db1546f",
+    "assetId": "107806966347823",
+    "response": {
+      "path": "assets/107806966347823",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:31.546286400Z",
+      "assetId": "107806966347823",
+      "displayName": "Steal and Run - Cat_Run",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Cat_Attack": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Cat_Attack.rbxmx",
+    "operationPath": "/assets/v1/operations/26078725-6cdf-40ca-b59c-f83101aee671",
+    "assetId": "131851895932656",
+    "response": {
+      "path": "assets/131851895932656",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:34.695368600Z",
+      "assetId": "131851895932656",
+      "displayName": "Steal and Run - Cat_Attack",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Cat_Celebrate": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Cat_Celebrate.rbxmx",
+    "operationPath": "/assets/v1/operations/bd58c6bd-d354-4c77-92b3-a9f301157414",
+    "assetId": "125189349670781",
+    "response": {
+      "path": "assets/125189349670781",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:37.257255300Z",
+      "assetId": "125189349670781",
+      "displayName": "Steal and Run - Cat_Celebrate",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Dog_Idle": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Dog_Idle.rbxmx",
+    "operationPath": "/assets/v1/operations/d066e0d9-b0d2-4a90-96d8-05190bdc9e43",
+    "assetId": "93389363917500",
+    "response": {
+      "path": "assets/93389363917500",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:40.372643600Z",
+      "assetId": "93389363917500",
+      "displayName": "Steal and Run - Dog_Idle",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Dog_Walk": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Dog_Walk.rbxmx",
+    "operationPath": "/assets/v1/operations/8d80f208-409c-460e-88a8-ae9d7046bf8d",
+    "assetId": "110095845081773",
+    "response": {
+      "path": "assets/110095845081773",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:42.822943200Z",
+      "assetId": "110095845081773",
+      "displayName": "Steal and Run - Dog_Walk",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Dog_Run": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Dog_Run.rbxmx",
+    "operationPath": "/assets/v1/operations/ce4ede73-8684-49f0-81cb-57c524ec5c4f",
+    "assetId": "72166106550588",
+    "response": {
+      "path": "assets/72166106550588",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:45.833201900Z",
+      "assetId": "72166106550588",
+      "displayName": "Steal and Run - Dog_Run",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Dog_Attack": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Dog_Attack.rbxmx",
+    "operationPath": "/assets/v1/operations/a14e3e10-b082-4203-8c17-9931e5d341c0",
+    "assetId": "103286940956093",
+    "response": {
+      "path": "assets/103286940956093",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:48.819818Z",
+      "assetId": "103286940956093",
+      "displayName": "Steal and Run - Dog_Attack",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Dog_Celebrate": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Dog_Celebrate.rbxmx",
+    "operationPath": "/assets/v1/operations/ff08d3fa-5330-4210-a846-8606c8e9fbaf",
+    "assetId": "133222140307048",
+    "response": {
+      "path": "assets/133222140307048",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:51.768638900Z",
+      "assetId": "133222140307048",
+      "displayName": "Steal and Run - Dog_Celebrate",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Panda_Idle": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Panda_Idle.rbxmx",
+    "operationPath": "/assets/v1/operations/aa53998f-0810-411b-b75d-f365598db334",
+    "assetId": "117194207679535",
+    "response": {
+      "path": "assets/117194207679535",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:54.378703400Z",
+      "assetId": "117194207679535",
+      "displayName": "Steal and Run - Panda_Idle",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Panda_Walk": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Panda_Walk.rbxmx",
+    "operationPath": "/assets/v1/operations/26ac6e2e-ae01-4aeb-952b-ddf5447833e7",
+    "assetId": "131488084556817",
+    "response": {
+      "path": "assets/131488084556817",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:47:57.452310900Z",
+      "assetId": "131488084556817",
+      "displayName": "Steal and Run - Panda_Walk",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Panda_Run": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Panda_Run.rbxmx",
+    "operationPath": "/assets/v1/operations/c2971b07-e780-41d4-a221-f9879524abc3",
+    "assetId": "72901433036988",
+    "response": {
+      "path": "assets/72901433036988",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:00.391670600Z",
+      "assetId": "72901433036988",
+      "displayName": "Steal and Run - Panda_Run",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Panda_Attack": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Panda_Attack.rbxmx",
+    "operationPath": "/assets/v1/operations/9c4f2d3d-b2c8-4683-a966-85904f3fed83",
+    "assetId": "106425376685017",
+    "response": {
+      "path": "assets/106425376685017",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:03.242188600Z",
+      "assetId": "106425376685017",
+      "displayName": "Steal and Run - Panda_Attack",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Panda_Celebrate": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Panda_Celebrate.rbxmx",
+    "operationPath": "/assets/v1/operations/9b02abff-7166-44ea-b6f0-d0b2f4c02710",
+    "assetId": "105830630023635",
+    "response": {
+      "path": "assets/105830630023635",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:05.992329200Z",
+      "assetId": "105830630023635",
+      "displayName": "Steal and Run - Panda_Celebrate",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Tiger_Idle": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Tiger_Idle.rbxmx",
+    "operationPath": "/assets/v1/operations/1036c11c-0fc5-4fae-9989-61f1af601567",
+    "assetId": "79772555440715",
+    "response": {
+      "path": "assets/79772555440715",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:09.301791500Z",
+      "assetId": "79772555440715",
+      "displayName": "Steal and Run - Tiger_Idle",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Tiger_Walk": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Tiger_Walk.rbxmx",
+    "operationPath": "/assets/v1/operations/6efce3ac-5485-48da-b887-ce73dec607fa",
+    "assetId": "124197879948844",
+    "response": {
+      "path": "assets/124197879948844",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:11.964063900Z",
+      "assetId": "124197879948844",
+      "displayName": "Steal and Run - Tiger_Walk",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Tiger_Run": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Tiger_Run.rbxmx",
+    "operationPath": "/assets/v1/operations/ac290849-bcb5-4d0d-a6ac-84a53b672fd5",
+    "assetId": "120750987796109",
+    "response": {
+      "path": "assets/120750987796109",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:14.890907800Z",
+      "assetId": "120750987796109",
+      "displayName": "Steal and Run - Tiger_Run",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Tiger_Attack": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Tiger_Attack.rbxmx",
+    "operationPath": "/assets/v1/operations/5a575f5a-f5a2-4ccf-9fd2-f5a73fc7913b",
+    "assetId": "72130760347287",
+    "response": {
+      "path": "assets/72130760347287",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:18.197807800Z",
+      "assetId": "72130760347287",
+      "displayName": "Steal and Run - Tiger_Attack",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "Tiger_Celebrate": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Animation",
+    "file": "art/round3/animations/Tiger_Celebrate.rbxmx",
+    "operationPath": "/assets/v1/operations/c11fc041-d409-4fca-af0f-c4789da0e2e2",
+    "assetId": "128958869338990",
+    "response": {
+      "path": "assets/128958869338990",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T11:48:20.719439900Z",
+      "assetId": "128958869338990",
+      "displayName": "Steal and Run - Tiger_Celebrate",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Animation",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "TigerGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Tiger/Tiger.glb",
+    "operationPath": "/assets/v1/operations/ecd29ca6-0dad-4f17-8d7a-a8a64f09c533",
+    "assetId": "112110698685083",
+    "response": {
+      "path": "assets/112110698685083",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:22:28.781851300Z",
+      "assetId": "112110698685083",
+      "displayName": "Steal and Run - TigerGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "PandaGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Panda/Panda.glb",
+    "operationPath": "/assets/v1/operations/132363d9-8dca-47f6-b6d1-201bec91ba3d",
+    "assetId": "82736801107416",
+    "response": {
+      "path": "assets/82736801107416",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:23:57.788691500Z",
+      "assetId": "82736801107416",
+      "displayName": "Steal and Run - PandaGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "CatRig": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Cat/Cat.rbxmx",
+    "operationPath": "/assets/v1/operations/f86eb1a3-388a-4f88-b754-bc727950fc1f",
+    "assetId": "135182190054746",
+    "response": {
+      "path": "assets/135182190054746",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:25:23.140585400Z",
+      "assetId": "135182190054746",
+      "displayName": "Steal and Run - CatRig",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "DogRig": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Dog/Dog.rbxmx",
+    "operationPath": "/assets/v1/operations/3c2d7899-68df-445a-ac59-3912bebbf97a",
+    "assetId": "85452640086496",
+    "response": {
+      "path": "assets/85452640086496",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:44:00.612013300Z",
+      "assetId": "85452640086496",
+      "displayName": "Steal and Run - DogRig",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "TigerRig": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Tiger/Tiger.rbxmx",
+    "operationPath": "/assets/v1/operations/0373c8ae-479c-4f9c-93f8-66c47c96227d",
+    "assetId": "84516261229639",
+    "response": {
+      "path": "assets/84516261229639",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:47:06.963383600Z",
+      "assetId": "84516261229639",
+      "displayName": "Steal and Run - TigerRig",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "PandaRigFailedAttempt1": {
+    "status": "failed",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Panda/Panda.rbxmx",
+    "operationPath": "/assets/v1/operations/cda885c8-a849-4635-b69c-5d790986fc7d",
+    "error": {
+      "code": "Internal",
+      "message": "Failed to load asset content",
+      "details": []
+    }
+  },
+  "PandaRig": {
+    "status": "failed",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Panda/Panda.rbxmx",
+    "operationPath": "/assets/v1/operations/d80c4848-e6b2-4a3c-b2dc-d49ab9e371b0",
+    "error": {
+      "code": "Internal",
+      "message": "Failed to load asset content",
+      "details": []
+    }
+  },
+  "VaultGuardian": {
+    "status": "verified-owner-and-joints",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/VaultGuardian.rbxmx",
+    "assetId": "88336333524417",
+    "verification": {
+      "owner": 3774675,
+      "joints": 33
+    },
+    "note": "Recovered upload result after concurrent ledger writer; asset verified directly through Studio."
+  },
+  "PandaRigBinary": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Panda/Panda.rbxm",
+    "operationPath": "/assets/v1/operations/7d563143-70ef-4db3-a8e2-87fe01dd5163",
+    "assetId": "98041202503043",
+    "response": {
+      "path": "assets/98041202503043",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:50:35.833303800Z",
+      "assetId": "98041202503043",
+      "displayName": "Steal and Run - PandaRigBinary",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "SmokeGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Smoke/Smoke.glb",
+    "operationPath": "/assets/v1/operations/25fcbf37-afbb-4a92-9714-7aec92e5e76f",
+    "assetId": "138474430197580",
+    "response": {
+      "path": "assets/138474430197580",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:53:31.870794900Z",
+      "assetId": "138474430197580",
+      "displayName": "Steal and Run - SmokeGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "JammerGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Jammer/Jammer.glb",
+    "operationPath": "/assets/v1/operations/02bee988-8850-4291-b4b9-b43abedd5911",
+    "assetId": "138994551638786",
+    "response": {
+      "path": "assets/138994551638786",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:53:41.213376800Z",
+      "assetId": "138994551638786",
+      "displayName": "Steal and Run - JammerGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "GrappleGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Grapple/Grapple.glb",
+    "operationPath": "/assets/v1/operations/ffdf1461-3933-4296-9062-5dd261f3c690",
+    "assetId": "139033216660411",
+    "response": {
+      "path": "assets/139033216660411",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:53:49.727407700Z",
+      "assetId": "139033216660411",
+      "displayName": "Steal and Run - GrappleGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "GadgetStandGeometry": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/GadgetStand/GadgetStand.glb",
+    "operationPath": "/assets/v1/operations/8b98c96e-bbdd-4887-9a7e-1e58839ea66b",
+    "assetId": "87679546761284",
+    "response": {
+      "path": "assets/87679546761284",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:54:02.516498500Z",
+      "assetId": "87679546761284",
+      "displayName": "Steal and Run - GadgetStandGeometry",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  },
+  "GadgetStand": {
+    "status": "awaiting-ownership-and-load-check",
+    "groupId": "3774675",
+    "type": "Model",
+    "file": "art/round3/models/Authored/GadgetStand.rbxmx",
+    "operationPath": "/assets/v1/operations/d90b1bd0-1ccc-4537-8cc2-f50c3cd4044c",
+    "assetId": "120520960178120",
+    "response": {
+      "path": "assets/120520960178120",
+      "revisionId": "1",
+      "revisionCreateTime": "2026-09-18T12:58:48.773051300Z",
+      "assetId": "120520960178120",
+      "displayName": "Steal and Run - GadgetStand",
+      "description": "Original Round 3 game art for Steal and Run.",
+      "assetType": "Model",
+      "creationContext": {
+        "creator": {
+          "groupId": "3774675"
+        }
+      },
+      "moderationResult": {
+        "moderationState": "Approved"
+      },
+      "state": "Active"
+    }
+  }
+}

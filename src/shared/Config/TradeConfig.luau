@@ -85,13 +85,13 @@ TradeConfig.HUD_BUTTON = true
 --- a text glyph instead. Codex fills these (docs/codex-prompts/trading-gifting-boards.md).
 TradeConfig.Icons = {
 	--- The HUD rail button's icon (square, transparent background).
-	Trade = "rbxassetid://0",
+	Trade = "rbxassetid://110158632383782",
 	--- The Shop's gift toggle / Gift-to button icon (square).
-	Gift = "rbxassetid://0",
+	Gift = "rbxassetid://108735095300507",
 	--- The trade window's header badge (square).
-	TradeHeader = "rbxassetid://0",
+	TradeHeader = "rbxassetid://100293139295633",
 	--- Shown on a side that has pressed READY / CONFIRM (square).
-	Ready = "rbxassetid://0",
+	Ready = "rbxassetid://104189024270889",
 }
 
 --- True when an icon id has been filled in.

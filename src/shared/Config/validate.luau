@@ -1468,6 +1468,29 @@ return function(): Report
 		end
 	end
 
+	-- Round 3 upload slots accept genuine asset IDs or the zero placeholder.
+	do
+		local UiArtConfig = require(script.Parent.UiArtConfig)
+		for section, icons in UiArtConfig do
+			for key, value in icons do
+				check(string.match(value, "^rbxassetid://%d+$") ~= nil, `UiArtConfig.{section}.{key} must be an asset id`)
+			end
+		end
+	end
+
+	-- Uploaded pet clips are optional; a zero slot retains procedural movement.
+	do
+		local BaseGuardianConfig = require(script.Parent.BaseGuardianConfig)
+		for _, def in BaseGuardianConfig.Guardians do
+			if def.animations then
+				for _, key in { "idle", "walk", "run", "attack", "celebrate" } do
+					local id = (def.animations :: { [string]: string })[key]
+					check(type(id) == "string" and id:match("^rbxassetid://%d+$") ~= nil, `BaseGuardianConfig.{def.key}.animations.{key} must be an asset id`)
+				end
+			end
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

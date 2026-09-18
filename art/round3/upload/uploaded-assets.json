@@ -1,0 +1,1226 @@
+{
+  "daily-hud": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.HUD_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/210f2338-3564-49b0-b80c-da4e79f6790c",
+    "assetId": "74169425678933",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quests-hud": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.HUD_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/13158bb7-8057-4d76-8ce1-cf8a3ce58247",
+    "assetId": "130246222392131",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "trade-hud": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "TradeConfig.Icons.Trade"
+    ],
+    "operationPath": "/assets/v1/operations/be73508e-7f05-46c3-8e52-db0546163c7b",
+    "assetId": "110158632383782",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "crew-hud": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "CrewConfig.Icons.Crew"
+    ],
+    "operationPath": "/assets/v1/operations/85eb9880-3f00-4f28-b001-77d8cea4e2d9",
+    "assetId": "91226244660515",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "reward-flame": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "RewardUiConfig.FLAME_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/5d4b89ce-2ae7-4d46-85e3-d1047693b59d",
+    "assetId": "116397382100155",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "reward-grand-prize": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "RewardUiConfig.GRAND_PRIZE_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/c8023bc0-cd01-463e-878a-9fffba44881d",
+    "assetId": "140168730782089",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "reward-coin": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "RewardUiConfig.COIN_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/8645c438-6b75-4bc4-ba8b-f58ad4bee946",
+    "assetId": "83482526445300",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "reward-cash-pile": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "RewardUiConfig.CASH_PILE_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/f40f816b-5f8f-45c7-962c-494deae797ca",
+    "assetId": "124885277911990",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "codes-ticket": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "CodesConfig.HEADER_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/c41c2218-7ee8-4ee7-8529-8710fa57a035",
+    "assetId": "117680902903904",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "settings-graphics": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "UiArtConfig.Settings.Graphics"
+    ],
+    "operationPath": "/assets/v1/operations/18cc68e1-ecfb-4384-be81-e1f5a424799c",
+    "assetId": "118270120953339",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "settings-auto-reveal": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "UiArtConfig.Settings.AutoReveal"
+    ],
+    "operationPath": "/assets/v1/operations/2b64c642-2732-4f4d-8773-c9b42bb5f2b1",
+    "assetId": "140007065017606",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "storage-items": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "UiArtConfig.Storage.Items"
+    ],
+    "operationPath": "/assets/v1/operations/70f4bd03-5967-483e-a62b-4903b7709f42",
+    "assetId": "124366213690633",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "storage-guardians": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "UiArtConfig.Storage.Guardians"
+    ],
+    "operationPath": "/assets/v1/operations/e7b7c01b-81fd-41d7-b72f-77730dbd1fad",
+    "assetId": "114586694055167",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "storage-weapons": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "UiArtConfig.Storage.Weapons"
+    ],
+    "operationPath": "/assets/v1/operations/f558df8a-43fc-425c-abf8-eead151cea38",
+    "assetId": "78573523320091",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "fusion-icon": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "FusionConfig.ICON"
+    ],
+    "operationPath": "/assets/v1/operations/626205bb-1d1c-4c8e-b4c3-774a6c5c8b59",
+    "assetId": "86914837074279",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-1": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[1].icon"
+    ],
+    "operationPath": "/assets/v1/operations/97494123-0861-4f74-96be-fce7cf03134d",
+    "assetId": "118237015540809",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-2": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[2].icon"
+    ],
+    "operationPath": "/assets/v1/operations/f7b92101-0feb-4e3b-887a-14e337f81a79",
+    "assetId": "76635701852767",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-3": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[3].icon"
+    ],
+    "operationPath": "/assets/v1/operations/ed1e9982-729d-4c9c-ba62-2f310282de50",
+    "assetId": "89001890281554",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-4": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[4].icon"
+    ],
+    "operationPath": "/assets/v1/operations/3236ee89-046f-4a94-9593-4aa2b8ff3380",
+    "assetId": "133687516171997",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-5": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[5].icon"
+    ],
+    "operationPath": "/assets/v1/operations/4937a063-48cf-4de5-8db5-d2411f16e8bc",
+    "assetId": "122784984039918",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "daily-day-6": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "DailyRewardConfig.Days[6].icon"
+    ],
+    "operationPath": "/assets/v1/operations/68789900-71db-4dd6-8818-fa9ad96a360b",
+    "assetId": "83421894336494",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "auto-reveal-pass": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "AutoRevealPassCard.ICON"
+    ],
+    "operationPath": "/assets/v1/operations/be206b1e-1f00-4bfb-8f22-56a60a3bdfdc",
+    "assetId": "98876576301515",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Classic": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Classic\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/7f7d5c9d-2591-46dd-a4ed-a3e9c32a910e",
+    "assetId": "122910334010235",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Sunset": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Sunset\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/e76abe90-fbef-4174-8986-3ada7c06bdf4",
+    "assetId": "130625653009493",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Midnight": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Midnight\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/07ee4bc6-8161-4dec-a91a-d102445e0295",
+    "assetId": "87748470112947",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Jungle": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Jungle\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/95c51530-aa10-47e7-a994-7e5ca94ea290",
+    "assetId": "82383429796738",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Frost": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Frost\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/d8adf0af-ef1f-4697-a8d4-b034c463c6c0",
+    "assetId": "78146481409731",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-Lava": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"Lava\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/aff9c4aa-39ad-4060-aa49-6e3a8f904b9e",
+    "assetId": "99098592123330",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-NeonNight": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"NeonNight\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/c0b25640-e8cb-4ea9-9219-e2250edf00bc",
+    "assetId": "129189897009316",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "theme-RoyalGold": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Themes[key=\"RoyalGold\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/371cf080-0b8d-458b-a91e-9f1ea67516ab",
+    "assetId": "95896104729019",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "pedestal-Default": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Default\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/46ddd8d4-7a2a-4318-a806-fde6f4e3afef",
+    "assetId": "117727520280928",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "pedestal-Marble": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Marble\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/46a2ad7f-73a4-4cf0-ae2a-44e2eb748883",
+    "assetId": "124190212352604",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "pedestal-Obsidian": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Obsidian\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/6057717b-1971-406c-859e-e85714690521",
+    "assetId": "137911196029906",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "pedestal-GoldPlinth": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"GoldPlinth\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/2ce5b95c-3d18-4a6f-9b59-0a85ff799117",
+    "assetId": "132414674734023",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "pedestal-Crystal": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.Pedestals[key=\"Crystal\"].thumbnail"
+    ],
+    "operationPath": "/assets/v1/operations/601b4361-658f-4a70-8bf2-9a129d0213a6",
+    "assetId": "140580441452762",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "base-TabTreadmill": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.TabTreadmill"
+    ],
+    "operationPath": "/assets/v1/operations/e829510c-05fa-4fae-8f16-903f8bd1ad77",
+    "assetId": "88108320358342",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "base-TabBase": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.TabBase"
+    ],
+    "operationPath": "/assets/v1/operations/9f4fd9dd-2edc-4ad7-b935-b488aa9a9082",
+    "assetId": "73130452273324",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "base-SectionThemes": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.SectionThemes"
+    ],
+    "operationPath": "/assets/v1/operations/3aa0df70-2914-4a3e-8dab-e158f15aa9ff",
+    "assetId": "77072843582885",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "base-SectionPedestals": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BaseThemeConfig.UiIcons.SectionPedestals"
+    ],
+    "operationPath": "/assets/v1/operations/edb13c3c-78a9-4510-a94c-1c5f0886d658",
+    "assetId": "138820984899615",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-banner": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.BANNER_IMAGE"
+    ],
+    "operationPath": "/assets/v1/operations/debf9894-c242-4773-ab30-da8e026c194e",
+    "assetId": "129767194657030",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-premium": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.PREMIUM_BADGE_IMAGE"
+    ],
+    "operationPath": "/assets/v1/operations/65d2f1f8-0cd0-408f-830c-f2812275f520",
+    "assetId": "116117219554176",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-lock": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.LOCK_IMAGE"
+    ],
+    "operationPath": "/assets/v1/operations/71b357ca-731b-4188-b94d-be134936a446",
+    "assetId": "122764576805899",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-cash": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.cash().icon"
+    ],
+    "operationPath": "/assets/v1/operations/7685dd30-1e5e-4379-94b7-681bb5399bb4",
+    "assetId": "125470424066769",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-speed": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.speed().icon"
+    ],
+    "operationPath": "/assets/v1/operations/5f62568d-6593-41d5-8c8b-c9a15ae77d90",
+    "assetId": "83161544861662",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-title": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.title().icon"
+    ],
+    "operationPath": "/assets/v1/operations/6d478862-2ee3-41b1-acf4-bef3e169ec4d",
+    "assetId": "113278101868190",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-guardian": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.guardian().icon"
+    ],
+    "operationPath": "/assets/v1/operations/a8dc5415-92e0-4d31-b50f-6cc6b8bdf5cc",
+    "assetId": "115452231897906",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "loading-wide": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.BACKGROUND_WIDE"
+    ],
+    "operationPath": "/assets/v1/operations/fa564e08-f67b-465b-ab1a-88d1719059ac",
+    "assetId": "71586324904614",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "loading-tall": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.BACKGROUND_TALL"
+    ],
+    "operationPath": "/assets/v1/operations/f385d50b-0065-4ae5-a828-368db340bfd9",
+    "assetId": "106780645977439",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "season-trail": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SeasonPassConfig.trail().icon"
+    ],
+    "operationPath": "/assets/v1/operations/87841762-7ee7-4aee-a5e5-c92badd78c31",
+    "assetId": "133370093057404",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-steal": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.steal"
+    ],
+    "operationPath": "/assets/v1/operations/6e00e964-84ea-405e-b319-0d60f4e4f0fb",
+    "assetId": "124002686981066",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-escape": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.escape"
+    ],
+    "operationPath": "/assets/v1/operations/474edef4-f3da-4f11-8a5e-9296709ee8b8",
+    "assetId": "108143118255944",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-reveal": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.reveal"
+    ],
+    "operationPath": "/assets/v1/operations/768becbf-fd93-4f93-b483-2a6bbea1a1ca",
+    "assetId": "80816721279234",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-train": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.train"
+    ],
+    "operationPath": "/assets/v1/operations/06463217-0cec-4bd1-9ff4-e3de9199823a",
+    "assetId": "128705041445279",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-earn": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.earn"
+    ],
+    "operationPath": "/assets/v1/operations/4f5ea6e3-af1f-4c88-bad7-f39a830fc204",
+    "assetId": "86306346367596",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-bat": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.bat"
+    ],
+    "operationPath": "/assets/v1/operations/cec31e1b-a0ad-4355-a9e3-4e2e72501537",
+    "assetId": "123629992926005",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-trap": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.trap"
+    ],
+    "operationPath": "/assets/v1/operations/9bdc7d77-079a-4653-9aa3-741e4a6a8ae5",
+    "assetId": "123896313953244",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-discover": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.discover"
+    ],
+    "operationPath": "/assets/v1/operations/2bcb281a-8986-411b-be71-220fb8b72873",
+    "assetId": "121194724737766",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "quest-spin": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "QuestConfig.Icons.spin"
+    ],
+    "operationPath": "/assets/v1/operations/11e41b14-3243-4dc4-8ce2-103fbfed73e9",
+    "assetId": "116536438530861",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "social-friends": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SocialConfig.FRIENDS_PILL_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/91964ac6-3ca4-4460-838c-93b948efd85f",
+    "assetId": "115260215543732",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "social-premium": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SocialConfig.PREMIUM_PILL_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/4ebeb50b-7f4f-4544-ab83-eba1122a645c",
+    "assetId": "84952495015282",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "trade-header": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "TradeConfig.Icons.TradeHeader"
+    ],
+    "operationPath": "/assets/v1/operations/177adf0f-1813-4fb8-954b-36f4e1356be9",
+    "assetId": "100293139295633",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "trade-ready": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "TradeConfig.Icons.Ready"
+    ],
+    "operationPath": "/assets/v1/operations/4a37c6a0-e103-48c5-8587-4f40b4a35b17",
+    "assetId": "104189024270889",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "gift-icon": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "TradeConfig.Icons.Gift"
+    ],
+    "operationPath": "/assets/v1/operations/5cff609e-8b77-40ab-9fb1-33b03010dd2e",
+    "assetId": "108735095300507",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "board-Steals": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Steals\"].headerImage"
+    ],
+    "operationPath": "/assets/v1/operations/0a4e355c-b5ff-462b-8773-c3d45919b26d",
+    "assetId": "80926532451649",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "board-Index": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Index\"].headerImage"
+    ],
+    "operationPath": "/assets/v1/operations/7318c84f-8ff5-40ba-a83a-a861a8bd2aeb",
+    "assetId": "110600193223369",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "board-PlayTime": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"PlayTime\"].headerImage"
+    ],
+    "operationPath": "/assets/v1/operations/02537ebb-fb14-4ea8-90ae-4d77d11a80ad",
+    "assetId": "115916291082817",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "board-Weekly": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "BoardConfig.Boards[key=\"Weekly\"].headerImage"
+    ],
+    "operationPath": "/assets/v1/operations/c4ef7a05-61e0-4386-9f94-a57a208326ef",
+    "assetId": "89651521516052",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "invite-hud": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "SocialConfig.INVITE_ICON"
+    ],
+    "operationPath": "/assets/v1/operations/3292cd5c-9b04-4432-9019-563d4babd6f1",
+    "assetId": "93427904685916",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "gadget-Smoke": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Smoke.icon"
+    ],
+    "operationPath": "/assets/v1/operations/db8f1f41-174e-4e68-84bf-ee3e48c9b5a8",
+    "assetId": "107139254495198",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "gadget-Jammer": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Jammer.icon"
+    ],
+    "operationPath": "/assets/v1/operations/45a02993-6e9d-4283-b18c-23b59d60761c",
+    "assetId": "120036928718933",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "gadget-Grapple": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "GadgetConfig.Gadgets.Grapple.icon"
+    ],
+    "operationPath": "/assets/v1/operations/d88e8162-98a2-4364-99bc-3c4b39423dea",
+    "assetId": "124548706027503",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "crew-Leader": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "CrewConfig.Icons.Leader"
+    ],
+    "operationPath": "/assets/v1/operations/7876b906-a036-459f-8df2-f15055f590d4",
+    "assetId": "122735442625813",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "crew-Invite": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "CrewConfig.Icons.Invite"
+    ],
+    "operationPath": "/assets/v1/operations/0cc3e85f-d5b0-4772-94cc-07015142666e",
+    "assetId": "81513139298073",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "crew-Assist": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "CrewConfig.Icons.Assist"
+    ],
+    "operationPath": "/assets/v1/operations/d491d4be-112a-419c-b426-f2b688e0025b",
+    "assetId": "111666852027338",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "vault-restocked": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "VaultConfig.Art.RestockBanner"
+    ],
+    "operationPath": "/assets/v1/operations/283f20cf-d213-4ab5-8b05-5b548f0003e7",
+    "assetId": "130118824436627",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-laser": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[1].icon",
+      "LoadingConfig.TIPS[2].icon"
+    ],
+    "operationPath": "/assets/v1/operations/116403ee-9632-49a2-a3c2-b5dda7e18724",
+    "assetId": "86946041675183",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-crouch": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[3].icon"
+    ],
+    "operationPath": "/assets/v1/operations/96e7d1ab-7948-43b0-830d-419329362582",
+    "assetId": "78917459454723",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-guard": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[4].icon",
+      "LoadingConfig.TIPS[6].icon"
+    ],
+    "operationPath": "/assets/v1/operations/c523e298-58db-4f65-89aa-13704e28c4f7",
+    "assetId": "117053812199694",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-doorway": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[5].icon"
+    ],
+    "operationPath": "/assets/v1/operations/a7898813-6818-433d-bb45-6c6bf47068a2",
+    "assetId": "89705702085201",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-moon": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[7].icon"
+    ],
+    "operationPath": "/assets/v1/operations/26a3d70f-3c64-4781-a142-3a2c453d1b48",
+    "assetId": "76730471536319",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-container": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[8].icon",
+      "LoadingConfig.TIPS[9].icon"
+    ],
+    "operationPath": "/assets/v1/operations/23dba450-5e6c-4d89-b9b3-2a8ed146d643",
+    "assetId": "109736568255684",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-speed": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[10].icon",
+      "LoadingConfig.TIPS[11].icon"
+    ],
+    "operationPath": "/assets/v1/operations/d81360ac-af84-4860-8ee9-3e0465a05f42",
+    "assetId": "70402015527894",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "tip-gift": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "LoadingConfig.TIPS[12].icon",
+      "LoadingConfig.TIPS[13].icon",
+      "LoadingConfig.TIPS[14].icon"
+    ],
+    "operationPath": "/assets/v1/operations/f8bedcee-7bc4-40b0-b8d1-ae4c3b550c08",
+    "assetId": "86189194981847",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "event-MutationWeekend": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "EventConfig.Events[key=\"MutationWeekend\"].icon"
+    ],
+    "operationPath": "/assets/v1/operations/89bea6a4-9e12-474a-b85c-bf03fbf42683",
+    "assetId": "140055665799716",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "event-NightRush": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "EventConfig.Events[key=\"NightRush\"].icon"
+    ],
+    "operationPath": "/assets/v1/operations/421f961d-fefa-4787-b419-cc7b0100b5f4",
+    "assetId": "94979236210375",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "event-Halloween": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "EventConfig.Events[key=\"Halloween\"].icon"
+    ],
+    "operationPath": "/assets/v1/operations/e58b8efc-2fbf-4c83-bc0b-3a605a7fc7e0",
+    "assetId": "107687218130733",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  },
+  "event-Winter": {
+    "status": "verified",
+    "groupId": "3774675",
+    "configKeys": [
+      "EventConfig.Events[key=\"Winter\"].icon"
+    ],
+    "operationPath": "/assets/v1/operations/5cb04dba-e006-4c41-8b49-81a5854d281c",
+    "assetId": "79020660911259",
+    "verifiedCreatorType": "Group",
+    "verifiedCreatorId": 3774675,
+    "verifiedCreatorName": "99 Dreams Studio",
+    "studioPreload": "Success",
+    "studioImageLoaded": true
+  }
+}

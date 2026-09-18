@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "chunks": 30,
+      "name": "texture_body",
+      "length": 2676364
+    },
+    {
+      "chunks": 4,
+      "name": "mesh",
+      "length": 296304
+    }
+  ],
+  "name": "Smoke",
+  "parts": [
+    {
+      "faces": 4518,
+      "name": "body",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}

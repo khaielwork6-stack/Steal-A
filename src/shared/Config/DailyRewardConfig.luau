@@ -63,15 +63,15 @@ DailyRewardConfig.ROLLOVER_CHECK_SECONDS = 20
 
 --- The HUD button's icon and the placeholder that means "no art yet".
 DailyRewardConfig.NO_ICON = "rbxassetid://0"
-DailyRewardConfig.HUD_ICON = "rbxassetid://0"
+DailyRewardConfig.HUD_ICON = "rbxassetid://74169425678933"
 
 DailyRewardConfig.Days = {
-	{ day = 1, cashMinutes = 3, cashFloor = 500, icon = "rbxassetid://0" },
-	{ day = 2, speedGateFraction = 0.004, speedFloor = 150, speedMax = 100e3, icon = "rbxassetid://0" },
-	{ day = 3, cashMinutes = 5, cashFloor = 1500, icon = "rbxassetid://0" },
-	{ day = 4, speedGateFraction = 0.006, speedFloor = 300, speedMax = 150e3, icon = "rbxassetid://0" },
-	{ day = 5, cashMinutes = 10, cashFloor = 3000, icon = "rbxassetid://0" },
-	{ day = 6, speedGateFraction = 0.01, speedFloor = 600, speedMax = 250e3, icon = "rbxassetid://0" },
+	{ day = 1, cashMinutes = 3, cashFloor = 500, icon = "rbxassetid://118237015540809" },
+	{ day = 2, speedGateFraction = 0.004, speedFloor = 150, speedMax = 100e3, icon = "rbxassetid://76635701852767" },
+	{ day = 3, cashMinutes = 5, cashFloor = 1500, icon = "rbxassetid://89001890281554" },
+	{ day = 4, speedGateFraction = 0.006, speedFloor = 300, speedMax = 150e3, icon = "rbxassetid://133687516171997" },
+	{ day = 5, cashMinutes = 10, cashFloor = 3000, icon = "rbxassetid://122784984039918" },
+	{ day = 6, speedGateFraction = 0.01, speedFloor = 600, speedMax = 250e3, icon = "rbxassetid://83421894336494" },
 	{
 		day = 7,
 		-- The week's big one: cash AND Speed together. Not a guardian - the

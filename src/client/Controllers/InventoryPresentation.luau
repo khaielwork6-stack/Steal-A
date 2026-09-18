@@ -93,9 +93,13 @@ function InventoryPresentation.card(card: Frame)
 			layout.FillDirection = Enum.FillDirection.Horizontal
 			layout.Padding = UDim.new(0.04, 0)
 		end
+		local visibleButtons = 0
+		for _, action in choose:GetChildren() do
+			if action:IsA("GuiButton") and action.Visible then visibleButtons += 1 end
+		end
 		for _,button in choose:GetChildren() do
 			if button:IsA("GuiButton") then
-				button.Size = UDim2.fromScale(0.48, 1)
+				button.Size = UDim2.fromScale(if visibleButtons == 1 then 1 else 0.48, 1)
 				PanelStyle.corner(button, 10)
 			end
 		end

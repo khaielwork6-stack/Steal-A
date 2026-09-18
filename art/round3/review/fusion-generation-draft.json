@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"generationId\":\"5fe0a0d6-d6c4-410c-a3b4-ff8d5fd14497\",\"parts\":{\"1\":{\"name\":\"body_geom\",\"size\":\"0.9617198705673218, 1.9192166328430176, 0.8567572236061096\",\"meshId\":\"\",\"meshContent\":\"Content{SourceType=Opaque}\",\"textureId\":\"\"}}}"
+    }
+  ],
+  "isError": false
+}

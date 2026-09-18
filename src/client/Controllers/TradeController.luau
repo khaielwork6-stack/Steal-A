@@ -71,7 +71,7 @@ local PURPLE = Color3.fromRGB(156, 64, 226)
 
 --- Touch targets: at least this tall on screen (MainUI's phone UIScale is
 --- applied to the Frames panel, so its rows are sized with that in mind).
-local MIN_TOUCH = 44
+local MIN_TOUCH = 48
 
 local function round(target: GuiObject, radius: number?)
 	local corner = Instance.new("UICorner")
@@ -568,6 +568,57 @@ local function buildWindow()
 	phase.TextColor3 = Color3.fromRGB(206, 216, 232)
 	phaseLabel = phase
 
+	-- Landscape phones need full-sized cash input and item cards. Scroll the
+	-- offer details while READY / CONFIRM / CANCEL remain pinned and reachable.
+	local details = Instance.new("ScrollingFrame")
+	details.Name = "OfferDetails"
+	details.BackgroundTransparency = 1
+	details.BorderSizePixel = 0
+	details.ClipsDescendants = true
+	details.ScrollingDirection = Enum.ScrollingDirection.Y
+	details.ScrollBarThickness = 6
+	details.CanvasSize = UDim2.fromOffset(0, 474)
+	details.ZIndex = 10
+	details.Parent = frame
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.BackgroundTransparency = 1
+	content.Size = UDim2.new(1, -8, 0, 474)
+	content.Parent = details
+	for _, child in { mine, theirs, warning, frame:FindFirstChild("PickerTitle"), strip, count, phase } do
+		if child then child.Parent = content end
+	end
+	phase.Position, phase.Size = UDim2.fromOffset(8, 0), UDim2.new(1, -16, 0, 24)
+	for _, col in { mine, theirs } do
+		col.Position = UDim2.new(if col == mine then 0.02 else 0.51, 0, 0, 28)
+		col.Size = UDim2.new(0.47, 0, 0, 280)
+		local heading = col:FindFirstChild("Heading") :: GuiObject
+		heading.Position, heading.Size = UDim2.fromScale(0.02, 0), UDim2.new(0.96, 0, 0, 30)
+		local status = col:FindFirstChild("Status") :: GuiObject
+		status.Position, status.Size = UDim2.new(0.64, 0, 0, 34), UDim2.new(0.33, 0, 0, 48)
+		local grid = col:FindFirstChild("Grid") :: Frame
+		grid.Position, grid.Size = UDim2.new(0.03, 0, 0, 88), UDim2.new(0.94, 0, 1, -94)
+	end
+	box.Position, box.Size = UDim2.new(0.03, 0, 0, 34), UDim2.new(0.58, 0, 0, 48)
+	cashLabel.Position, cashLabel.Size = box.Position, box.Size
+	warning.Position, warning.Size = UDim2.new(0.03, 0, 0, 312), UDim2.new(0.94, 0, 0, 40)
+	local pickerTitle = content:FindFirstChild("PickerTitle") :: TextLabel
+	pickerTitle.Position, pickerTitle.Size = UDim2.new(0.03, 0, 0, 354), UDim2.new(0.94, 0, 0, 24)
+	strip.Position, strip.Size = UDim2.new(0.02, 0, 0, 382), UDim2.new(0.96, 0, 0, 88)
+	count.Parent = frame
+	count.Position, count.Size = UDim2.new(0.72, 0, 0, 12), UDim2.new(0.16, 0, 0, 32)
+	row.AnchorPoint = Vector2.new(0, 1)
+	row.Position, row.Size = UDim2.new(0.02, 0, 1, -8), UDim2.new(0.96, 0, 0, 48)
+	frame.Position = UDim2.fromScale(0.5, 0.5)
+	PanelStyle.window(frame, 960, 660)
+	local function fitDetails()
+		local headerHeight = if workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y < 500 then 52 else 64
+		details.Position = UDim2.fromOffset(0, headerHeight + 4)
+		details.Size = UDim2.new(1, 0, 1, -headerHeight - 64)
+	end
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitDetails)
+	fitDetails()
+
 	-- The countdown ticks locally from the server's end time.
 	RunService.Heartbeat:Connect(function()
 		if not frame.Visible or not session then
@@ -783,7 +834,7 @@ local function paintPanel()
 		row.LayoutOrder = order
 		row.BackgroundColor3 = INK
 		row.BackgroundTransparency = 0.25
-		row.Size = UDim2.new(0.96, 0, 0, 56)
+		row.Size = UDim2.new(0.96, 0, 0, 76)
 		row.ZIndex = 10
 		row.Parent = list
 		round(row, 10)

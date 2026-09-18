@@ -34,6 +34,7 @@ export type GuardianDef = {
 	gamePassId: number,
 	--- The imported model's name (ReplicatedStorage.GameAssets.BaseGuardians.<modelName>).
 	modelName: string,
+	animations: { idle: string, walk: string, run: string, attack: string, celebrate: string }?,
 	--- The owner's aura VFX kit for this animal (...BaseGuardians.Auras.<auraName>).
 	auraName: string,
 	color: Color3,
@@ -47,6 +48,7 @@ export type GuardianDef = {
 	tagline: string,
 }
 
+-- Animation assets are owned by group 3774675; clip proof is in art/round3/animations.
 local function pass(key: string): number
 	local def = MonetizationConfig.GuardianPassByKey[key]
 	return if def then def.gamePassId else 0
@@ -58,6 +60,7 @@ BaseGuardianConfig.Guardians = {
 		name = "Cat",
 		gamePassId = pass("Cat"),
 		modelName = "Cat",
+		animations = { idle = "rbxassetid://98207642113935", walk = "rbxassetid://86017711119189", run = "rbxassetid://107806966347823", attack = "rbxassetid://131851895932656", celebrate = "rbxassetid://125189349670781" },
 		auraName = "CatAura",
 		color = Color3.fromRGB(255, 176, 92),
 		accent = Color3.fromRGB(196, 96, 24),
@@ -69,6 +72,7 @@ BaseGuardianConfig.Guardians = {
 		name = "Dog",
 		gamePassId = pass("Dog"),
 		modelName = "Dog",
+		animations = { idle = "rbxassetid://93389363917500", walk = "rbxassetid://110095845081773", run = "rbxassetid://72166106550588", attack = "rbxassetid://103286940956093", celebrate = "rbxassetid://133222140307048" },
 		auraName = "DogAura",
 		color = Color3.fromRGB(122, 196, 255),
 		accent = Color3.fromRGB(38, 96, 200),
@@ -80,6 +84,7 @@ BaseGuardianConfig.Guardians = {
 		name = "Panda",
 		gamePassId = pass("Panda"),
 		modelName = "Panda",
+		animations = { idle = "rbxassetid://117194207679535", walk = "rbxassetid://131488084556817", run = "rbxassetid://72901433036988", attack = "rbxassetid://106425376685017", celebrate = "rbxassetid://105830630023635" },
 		auraName = "PandaAura",
 		color = Color3.fromRGB(150, 236, 160),
 		accent = Color3.fromRGB(40, 150, 80),
@@ -91,6 +96,7 @@ BaseGuardianConfig.Guardians = {
 		name = "Tiger",
 		gamePassId = pass("Tiger"),
 		modelName = "Tiger",
+		animations = { idle = "rbxassetid://79772555440715", walk = "rbxassetid://124197879948844", run = "rbxassetid://120750987796109", attack = "rbxassetid://72130760347287", celebrate = "rbxassetid://128958869338990" },
 		auraName = "TigerAura",
 		color = Color3.fromRGB(255, 140, 60),
 		accent = Color3.fromRGB(190, 60, 20),

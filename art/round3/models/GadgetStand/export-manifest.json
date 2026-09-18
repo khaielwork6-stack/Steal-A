@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "chunks": 34,
+      "name": "texture_body",
+      "length": 2997020
+    },
+    {
+      "chunks": 4,
+      "name": "mesh",
+      "length": 273960
+    }
+  ],
+  "name": "GadgetStand",
+  "parts": [
+    {
+      "faces": 4008,
+      "name": "body",
+      "textureSize": [
+        1024,
+        1024
+      ]
+    }
+  ]
+}
