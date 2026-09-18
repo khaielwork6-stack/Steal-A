@@ -828,6 +828,35 @@ return function(): Report
 				`{pack.key} must pay max(floor, income x minutes)`
 			)
 		end
+		-- STEAL TIERS: priced by INCOME, never by the rarity word.
+		--
+		-- The bug this guards: rarity is a per-zone ladder, so zone 12's worst
+		-- item (387M/sec) wore the "Common" label and sold for 7 R$ - eleven
+		-- times better value than the 599 R$ tier. Price must rise with the
+		-- prize, so both the ceilings and the prices have to ascend together
+		-- and the last ceiling has to be open.
+		local steals = MonetizationConfig.StealProducts
+		check(#steals == 10, `there must be ten Steal tiers, found {#steals}`)
+		check((MonetizationConfig :: any).StealProductByRarity == nil, "StealProductByRarity was retired - steals are priced by income")
+		for index = 2, #steals do
+			local a, b = steals[index - 1], steals[index]
+			check((b.maxIncome or 0) > (a.maxIncome or 0), `{b.key}'s income ceiling must be above {a.key}'s`)
+			check(b.robux > a.robux, `{b.key} must cost more than {a.key}`)
+		end
+		check(steals[#steals].maxIncome == math.huge, "the top Steal tier must have no ceiling")
+		for _, product in steals do
+			check(product.kind == "Steal" and product.productId > 0, `{product.key} must be a configured Steal product`)
+			-- Its own ceiling buys it, and a hair more does not.
+			check(MonetizationConfig.stealProductForIncome(product.maxIncome).key == product.key, `{product.key} must cover its own ceiling`)
+		end
+		check(MonetizationConfig.stealProductForIncome(0).key == steals[1].key, "a free item is the cheapest tier")
+		check(MonetizationConfig.stealProductForIncome(0 / 0).key == steals[1].key, "a NaN income must read as the cheapest tier")
+		check(MonetizationConfig.stealProductForIncome(1e18).key == steals[#steals].key, "an enormous income is the dearest tier")
+		-- THE REGRESSION ITSELF: zone 12's 387M/sec "Common" must not be
+		-- sold at the 7 R$ tier ever again.
+		local badge = MonetizationConfig.stealProductForIncome(387e6)
+		check(badge.robux >= 399, `a 387M/sec item must cost at least 399 R$, got {badge.robux} ({badge.key})`)
+
 		-- The 2x pass and the boosts are divided OUT of the income basis.
 		check(MonetizationConfig.baseIncome(200, 2) * 2 == MonetizationConfig.baseIncome(200, 1), "the 2x Cash pass must not scale purchased packs")
 		check(MonetizationConfig.baseIncome(0 / 0, 1) == 0, "a NaN income must read as zero")

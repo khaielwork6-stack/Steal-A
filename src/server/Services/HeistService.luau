@@ -135,8 +135,12 @@ local function findItem(profile: DataService.Profile, instanceId: string): (Data
 	return nil, nil
 end
 
+--- The tier this item is sold at: chosen by what it EARNS, never by its
+--- rarity word (MonetizationConfig STEAL PRODUCTS). `fulfil` re-derives it
+--- from the same function at receipt time, so the tier charged and the tier
+--- delivered can never disagree.
 local function productFor(item: DataService.DisplayItem): MonetizationConfig.ProductDef?
-	return MonetizationConfig.StealProductByRarity[RarityConfig.normaliseRarity(item.Rarity)]
+	return MonetizationConfig.stealProductForIncome(item.FinalIncome)
 end
 
 --- The price a prompt shows: the live one from Roblox, else the row's own.
@@ -704,9 +708,14 @@ function HeistService.fulfil(
 		warn(`[HeistService] receipt {purchaseId}: {live.itemName} is mid-robbery - left OPEN`)
 		return false, "retry"
 	end
-	-- Exactly the rarity that was paid for, or nothing.
-	if RarityConfig.normaliseRarity(target.Rarity) ~= product.rarity then
-		warn(`[HeistService] receipt {purchaseId}: {live.itemName} is {target.Rarity}, product is {product.rarity} - undeliverable`)
+	-- EXACTLY THE TIER THAT WAS PAID FOR, or nothing. Re-derived from the
+	-- item's income through the same function the prompt used, so an item
+	-- whose income changed between the prompt and the receipt (a mutation
+	-- re-roll, a migration) refunds rather than handing over a prize the
+	-- buyer underpaid for.
+	local owed = MonetizationConfig.stealProductForIncome(target.FinalIncome)
+	if owed.key ~= product.key then
+		warn(`[HeistService] receipt {purchaseId}: {live.itemName} earns {target.FinalIncome}/s ({owed.key}), product is {product.key} - undeliverable`)
 		abandon(live, profile)
 		return false, "undeliverable"
 	end

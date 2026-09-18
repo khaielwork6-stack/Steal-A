@@ -211,11 +211,16 @@ export type ProductDef = {
 	robux: number,
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
 	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
-	--- item of the matching rarity (HeistService) and carries no amount.
+	--- item in the matching INCOME band (HeistService) and carries no amount.
 	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift",
 	amount: number,
 	label: string,
-	--- Steal products only: the rarity this product pays for.
+	--- Steal products only: the highest per-second income this tier covers.
+	--- The cheapest tier whose ceiling covers the item is the one charged.
+	maxIncome: number?,
+	--- Steal products only: the rarity word this tier was NAMED after. It is
+	--- a label for the shop and nothing else - the price is chosen by
+	--- `maxIncome`, never by this (see STEAL PRODUCTS).
 	rarity: string?,
 	--- Reveal products only: the longest remaining wait, in seconds, this
 	--- tier covers. The cheapest tier that covers the wait is the one offered.
@@ -257,24 +262,66 @@ function MonetizationConfig.revealProductFor(remainingSeconds: number): ProductD
 	return MonetizationConfig.RevealProducts[#MonetizationConfig.RevealProducts]
 end
 
---- Player-to-player base stealing, one product per rarity. The server picks
---- the row from the REAL item's rarity in the victim's profile; a client can
---- never name one. `robux` is the brief's intended price and a display
---- fallback only - the live PriceInRobux is what the prompt shows, and at
---- handoff every one of these but Common differed from the intended value
---- (see HANDOFF §32), which is a Creator Dashboard decision, not a code one.
+-- ==========================================================
+-- STEAL PRODUCTS
+-- ==========================================================
+--
+-- PRICED BY WHAT THE ITEM EARNS, NEVER BY ITS RARITY WORD.
+--
+-- These used to be indexed on the target's rarity, and that was a hole you
+-- could drive a bus through. Rarity in this game is a PER-ZONE ladder
+-- (RarityConfig.ZoneRarities): "Common" means "the cheapest of this zone's
+-- eight items", not an absolute tier. Zone 12 is the only late zone whose
+-- ladder restarts at Common, so its worst item - the Golden Pilot Badge, at
+-- 387,000,000 a second - wore the cheapest label in the game and sold for
+-- 7 R$. That made the 7 R$ product ELEVEN TIMES better value than the 599 R$
+-- one (55.3M/sec per Robux against 5.0M), and 40,000x better than a 69 R$
+-- Legendary. The cheapest thing on the shelf was the best deal on it.
+--
+-- Now the server bands the item's FinalIncome and charges the cheapest tier
+-- whose ceiling covers it, so price rises with the prize everywhere, in every
+-- zone, for every item that will ever be added. `rarity` survives as the name
+-- each tier was born with; nothing reads it to decide a price.
+--
+-- THE CEILINGS ARE INCOME PER SECOND, and they are deliberately not clean
+-- decades at the top: most of the catalogue sits between 1e2 and 1e9, so the
+-- bands are tighter there and the last two carry the billion-a-second tail.
+--
+-- `robux` is the brief's intended price and a display fallback only - the live
+-- PriceInRobux is what the prompt shows, and at handoff every one of these but
+-- Common differed from the intended value (see HANDOFF §32), which is a
+-- Creator Dashboard decision, not a code one.
 MonetizationConfig.StealProducts = {
-	{ key = "StealCommon", productId = 3711862263, robux = 7, kind = "Steal", amount = 0, label = "Common", rarity = "Common" },
-	{ key = "StealUncommon", productId = 3711862399, robux = 12, kind = "Steal", amount = 0, label = "Uncommon", rarity = "Uncommon" },
-	{ key = "StealRare", productId = 3711862419, robux = 24, kind = "Steal", amount = 0, label = "Rare", rarity = "Rare" },
-	{ key = "StealEpic", productId = 3711862431, robux = 39, kind = "Steal", amount = 0, label = "Epic", rarity = "Epic" },
-	{ key = "StealLegendary", productId = 3711862445, robux = 69, kind = "Steal", amount = 0, label = "Legendary", rarity = "Legendary" },
-	{ key = "StealMythic", productId = 3711862461, robux = 149, kind = "Steal", amount = 0, label = "Mythic", rarity = "Mythic" },
-	{ key = "StealCosmic", productId = 3711862478, robux = 199, kind = "Steal", amount = 0, label = "Cosmic", rarity = "Cosmic" },
-	{ key = "StealSecret", productId = 3711862490, robux = 249, kind = "Steal", amount = 0, label = "Secret", rarity = "Secret" },
-	{ key = "StealEternal", productId = 3711862508, robux = 399, kind = "Steal", amount = 0, label = "Eternal", rarity = "Eternal" },
-	{ key = "StealDivine", productId = 3711862519, robux = 599, kind = "Steal", amount = 0, label = "Divine", rarity = "Divine" },
+	{ key = "StealCommon", productId = 3711862263, robux = 7, kind = "Steal", amount = 0, label = "Common", rarity = "Common", maxIncome = 5 },
+	{ key = "StealUncommon", productId = 3711862399, robux = 12, kind = "Steal", amount = 0, label = "Uncommon", rarity = "Uncommon", maxIncome = 20 },
+	{ key = "StealRare", productId = 3711862419, robux = 24, kind = "Steal", amount = 0, label = "Rare", rarity = "Rare", maxIncome = 200 },
+	{ key = "StealEpic", productId = 3711862431, robux = 39, kind = "Steal", amount = 0, label = "Epic", rarity = "Epic", maxIncome = 2.5e3 },
+	{ key = "StealLegendary", productId = 3711862445, robux = 69, kind = "Steal", amount = 0, label = "Legendary", rarity = "Legendary", maxIncome = 100e3 },
+	{ key = "StealMythic", productId = 3711862461, robux = 149, kind = "Steal", amount = 0, label = "Mythic", rarity = "Mythic", maxIncome = 600e3 },
+	{ key = "StealCosmic", productId = 3711862478, robux = 199, kind = "Steal", amount = 0, label = "Cosmic", rarity = "Cosmic", maxIncome = 12e6 },
+	{ key = "StealSecret", productId = 3711862490, robux = 249, kind = "Steal", amount = 0, label = "Secret", rarity = "Secret", maxIncome = 150e6 },
+	{ key = "StealEternal", productId = 3711862508, robux = 399, kind = "Steal", amount = 0, label = "Eternal", rarity = "Eternal", maxIncome = 900e6 },
+	--- The tail: everything above the Eternal ceiling.
+	{ key = "StealDivine", productId = 3711862519, robux = 599, kind = "Steal", amount = 0, label = "Divine", rarity = "Divine", maxIncome = math.huge },
 } :: { ProductDef }
+
+--- The steal tier that covers an item earning `income` a second: the cheapest
+--- one whose ceiling reaches it. THE ONE PLACE a steal price is decided - the
+--- prompt, the receipt check and the tests all come through here, so a
+--- client can never be charged one tier and handed another.
+function MonetizationConfig.stealProductForIncome(income: number?): ProductDef
+	local value = tonumber(income) or 0
+	if value ~= value then -- NaN from a corrupt save
+		value = 0
+	end
+	for _, product in MonetizationConfig.StealProducts do
+		if value <= (product.maxIncome or math.huge) then
+			return product
+		end
+	end
+	-- Unreachable while the last ceiling is infinite; still never nil.
+	return MonetizationConfig.StealProducts[#MonetizationConfig.StealProducts]
+end
 
 --- B. Direct Speed grants. Added verbatim - never scaled by a multiplier.
 MonetizationConfig.SpeedProducts = {
@@ -526,12 +573,9 @@ function MonetizationConfig.giftFor(packKey: string): ProductDef?
 end
 
 --- Steal product by the rarity it pays for.
-MonetizationConfig.StealProductByRarity = {} :: { [string]: ProductDef }
-for _, product in MonetizationConfig.StealProducts do
-	if product.rarity then
-		MonetizationConfig.StealProductByRarity[product.rarity] = product
-	end
-end
+--- RETIRED: `StealProductByRarity`. Pricing a steal off the rarity WORD is
+--- the bug this pass removed (see STEAL PRODUCTS); the lookup is gone so it
+--- cannot come back by accident. Use `stealProductForIncome`.
 
 MonetizationConfig.TrailByKey = {} :: { [string]: TrailDef }
 MonetizationConfig.TrailOrder = {} :: { [string]: number }
