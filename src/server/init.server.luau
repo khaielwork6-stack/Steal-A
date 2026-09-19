@@ -637,7 +637,10 @@ do
 	end
 	-- The HUD red dot: rewards waiting in the Quests panel.
 	StateService.addProvider("retention", function(player)
-		return { claimable = QuestService.claimableCount(player) }
+		return {
+			claimable = QuestService.claimableCount(player),
+			seasonClaimable = SeasonPassService.claimableCount(player),
+		}
 	end)
 
 	SeasonPassService.start()

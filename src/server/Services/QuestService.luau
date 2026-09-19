@@ -320,13 +320,16 @@ local function questRows(player: Player, profile: DataService.Profile, kind: Per
 	return rows, claimable
 end
 
---- Rewards waiting to be claimed, quests and season together.
+--- QUEST rewards waiting to be claimed. The season pass counts its own
+--- (SeasonPassService.claimableCount): the two are separate windows with
+--- separate openers, and a badge on one for a claim in the other sent
+--- players to an empty panel (owner, 2026-09-18).
 function QuestService.claimableCount(player: Player): number
 	local profile = DataService.get(player)
 	if not profile then
 		return 0
 	end
-	local count = SeasonPassService.claimableCount(player)
+	local count = 0
 	if QuestConfig.ENABLED then
 		for _, kind in PERIODS do
 			for _, entry in bucketFor(player, profile, kind).list do
@@ -355,7 +358,8 @@ function QuestService.summarise(player: Player): { [string]: any }?
 		end
 	end
 	payload.season = SeasonPassService.summarise(player)
-	payload.claimable = claimable + SeasonPassService.claimableCount(player)
+	payload.claimable = claimable
+	payload.seasonClaimable = SeasonPassService.claimableCount(player)
 	return payload
 end
 

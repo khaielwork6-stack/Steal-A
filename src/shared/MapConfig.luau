@@ -271,7 +271,7 @@ MapConfig.HUB = {
 	-- Slap, at X = 92), the Next Update board (128) and the booth (156). In
 	-- front of them, on the Z = -28 line, the two pedestals (104 and 138),
 	-- each ring nine studs across and clear of its neighbours.
-	trailBooth = CFrame.new(156, 0, -12) * CFrame.Angles(0, math.rad(180), 0),
+	trailBooth = CFrame.new(40, 0, -9) * CFrame.Angles(0, math.rad(180), 0),
 	-- Four studs off the shoulder wall's lobby face (Z = 0): EventStandService
 	-- raycasts back from here and seats the board flat against that wall.
 	eventStand = Vector3.new(128, 0, -4),
@@ -289,7 +289,7 @@ MapConfig.HUB = {
 	-- The SECOND sale pedestal, beside the first on the same line: thirty-four
 	-- studs along, so the two nine-stud rings and the Next Update board between
 	-- them (X = 128, on the wall) never touch.
-	guardianShopB = CFrame.lookAt(Vector3.new(138, 0, -28), Vector3.new(0, 0, -34)),
+	guardianShopB = CFrame.lookAt(Vector3.new(-104, 0, -28), Vector3.new(0, 0, -34)),
 	-- The GADGETS stall, BACK TO THE SHOULDER WALL AND FRONT TO THE BASES.
 	--
 	-- It used to have no home at all: with no marker the service fell through to

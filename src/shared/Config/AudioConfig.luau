@@ -58,6 +58,8 @@ AudioConfig.Cues = {
 	--- The HIT is a separate cue and often does not happen: a miss should still
 	--- be heard, or the weapon feels broken rather than dodged.
 	BatSwing = { id = asset(138283030240531), volume = 0.7, category = "world", rollOff = 90 },
+	--- A trap being set down on the ground, at the trap.
+	TrapPlace = { id = asset(9091607929), volume = 0.85, category = "world", rollOff = 90 },
 	--- A smoke bomb going off at the thrower's feet.
 	SmokeBomb = { id = asset(136838602519365), volume = 0.95, category = "world", rollOff = 120 },
 	--- The laser jammer coming on.

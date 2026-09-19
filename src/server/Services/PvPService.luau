@@ -580,9 +580,12 @@ function PvPService.tryPlaceTrap(player: Player, requested: Vector3?)
 		profile.TrapReadyAt = os.time() + PvPConfig.TRAP_REFILL
 	end
 
+	local trapPart = buildTrapPart(hit.Position, player)
+	-- Heard where it lands, by anyone near enough to care.
+	Audio.playAt("TrapPlace", trapPart)
 	table.insert(traps, {
 		owner = player,
-		part = buildTrapPart(hit.Position, player),
+		part = trapPart,
 		placedAt = os.clock(),
 		armedForOwnerAt = os.clock() + PvPConfig.TRAP_OWNER_IMMUNITY,
 		triggered = false,

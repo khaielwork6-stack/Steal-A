@@ -3,7 +3,9 @@
 	QuestController
 	TWO panels (retention pass; split 2026-09-18): Frames.Quests holds the
 	daily/weekly quests, Frames.SeasonPass holds the season track, and each
-	has its own HUD opener. The Quests button keeps its red dot.
+	has its own HUD opener. Each opener carries its OWN red dot - quest claims
+	on Quests, season claims on Season Pass - so a badge never points at a
+	window with nothing to claim in it (owner, 2026-09-18).
 
 	THIS FILE ONLY DRAWS. Progress, rewards, completion and ownership all come
 	from the server (QuestPush for the panel, StatePush `retention` for the
@@ -89,6 +91,9 @@ local dotLabel: TextLabel? = nil
 local opener: GuiButton? = nil
 local seasonPanel: Frame? = nil
 local seasonOpener: GuiButton? = nil
+--- The season opener's own red dot: SEASON claims only, never quest ones.
+local seasonDot: Frame? = nil
+local seasonDotLabel: TextLabel? = nil
 
 local latest: any = nil
 
@@ -1088,6 +1093,19 @@ end
 -- HUD BUTTON
 -- ==========================================================
 
+local function setSeasonDot(count: number)
+	local d, text = seasonDot, seasonDotLabel
+	if not d or not text then
+		return
+	end
+	local wasVisible = d.Visible
+	d.Visible = count > 0
+	text.Text = if count > 9 then "9+" else tostring(count)
+	if count > 0 and not wasVisible then
+		punch(d)
+	end
+end
+
 local function setDot(count: number)
 	local d, text = dot, dotLabel
 	if not d or not text then
@@ -1345,6 +1363,23 @@ local function buildSeasonOpener(screen: ScreenGui)
 	-- Parented LAST: the pack pairs a button with its frame when it first
 	-- sees the button, and Frames.SeasonPass must already exist.
 	button.Parent = holder
+	-- ITS OWN DOT. A season tier waiting to be claimed used to count on the
+	-- Quests button, which opens a window with nothing to claim in it.
+	local badge = Instance.new("Frame")
+	badge.Name = "SeasonDot"
+	badge.AnchorPoint = Vector2.new(0.5, 0.5)
+	badge.Position = UDim2.fromScale(0.95, 0.08)
+	badge.Size = UDim2.fromOffset(22, 22)
+	badge.BackgroundColor3 = DOT_RED
+	badge.Visible = false
+	badge.ZIndex = 20
+	corner(badge, 1)
+	stroke(badge, WHITE, 2)
+	local count = label("Count", badge, UDim2.fromScale(0.8, 0.8), UDim2.fromScale(0.5, 0.5), "")
+	count.ZIndex = 21
+	badge.Parent = button
+	seasonDot = badge
+	seasonDotLabel = count
 	seasonOpener = button
 	ensureOpenerWorks(button)
 end
@@ -1433,12 +1468,18 @@ function QuestController.start()
 		if type(payload.claimable) == "number" then
 			setDot(payload.claimable)
 		end
+		if type(payload.seasonClaimable) == "number" then
+			setSeasonDot(payload.seasonClaimable)
+		end
 	end)
 
 	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		local retention = state and state.retention
 		if retention and type(retention.claimable) == "number" then
 			setDot(retention.claimable)
+		end
+		if retention and type(retention.seasonClaimable) == "number" then
+			setSeasonDot(retention.seasonClaimable)
 		end
 	end)
 
