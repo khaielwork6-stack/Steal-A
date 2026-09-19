@@ -78,13 +78,10 @@ function MobileHudLayout.start(ui: ScreenGui)
 				end
 			end
 		end
-		-- The two clocks: bottom-right, left of the jump button, Nightfall
-		-- lowest and the event pill stacked above it (compact: icon + time).
+		-- The two clocks (NightTimer, EventPill) place THEMSELVES centre-right
+		-- on touch and are left alone here (owner, 2026-09-18); this only
+		-- needs the viewport height for the stat figures below.
 		local height = camera.ViewportSize.Y
-		for _, spec in { {"NightTimer", 36}, {"EventPill", 68} } do
-			local pill = ui:FindFirstChild(spec[1] :: string)
-			if pill and pill:IsA("GuiObject") then place(pill, -124, height - (spec[2] :: number), 96, 26, true) end
-		end
 		-- The stat figures (no box) sit bottom-left; the boost pills above
 		-- them, small, so neither reaches the thumbstick's resting spot.
 		if stats and stats:IsA("GuiObject") then

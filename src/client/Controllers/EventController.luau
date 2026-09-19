@@ -78,13 +78,16 @@ local function buildPill(ui: Instance)
 	local frame = Instance.new("Frame")
 	frame.Name = "EventPill"
 	-- COMPACT, and stacked on the Nightfall pill (NightController): directly
-	-- above it on touch (bottom-right, left of the jump button), to its left
-	-- on desktop (bottom-right), same height. Icon and time only.
-	frame.AnchorPoint = Vector2.new(1, 1)
+	-- above it, same height. On touch both sit CENTRE-RIGHT (owner,
+	-- 2026-09-18) - this one just above mid-height, the Nightfall pill just
+	-- below - clear of the offer tiles above and the jump button below. On
+	-- desktop this sits to the Nightfall pill's left, bottom-right.
 	if touch then
-		frame.Position = UDim2.new(1, -132, 1, -46)
+		frame.AnchorPoint = Vector2.new(1, 0.5)
+		frame.Position = UDim2.new(1, -10, 0.5, -18)
 		frame.Size = UDim2.fromOffset(104, 28)
 	else
+		frame.AnchorPoint = Vector2.new(1, 1)
 		frame.Position = UDim2.new(1, -156, 1, -12)
 		frame.Size = UDim2.fromOffset(132, 36)
 	end

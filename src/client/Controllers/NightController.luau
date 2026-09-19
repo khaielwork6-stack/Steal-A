@@ -57,18 +57,20 @@ local player = Players.LocalPlayer
 -- TUNING
 -- ==========================================================
 
---- Bottom-right, the slot the Displays counter used to occupy.
---- Bottom-right on desktop. On touch that corner belongs to Jump and the
---- shift lock, so the pill moves to the top strip, left of the settings
---- gear and offer tiles, where nothing else lives.
 --- COMPACT: the moon and the time, nothing else ("🌙 3:35"). The words
 --- ("Nightfall in", "Rush! Night in", "Night Reset") are gone - the moon is
---- the label, and the Night Rush has its own pill (EventController). On
---- touch it sits bottom-right, to the left of the jump button, where the
---- reference games keep theirs; on desktop, the bottom-right corner.
+--- the label, and the Night Rush has its own pill (EventController).
+---
+--- WHERE IT SITS. Desktop: the bottom-right corner. Touch: CENTRE-RIGHT
+--- (owner, 2026-09-18), anchored to the right edge at mid-height with the
+--- Night Rush pill stacked directly above it - the one strip of the right
+--- edge nothing else claims. Above it are the top buttons and the offer
+--- tiles (they end ~210 px down on a tablet, ~116 on a phone); below it the
+--- jump button and shift lock (the bottom ~160 px). The old bottom-right
+--- slot put it against the jump button; MobileHudLayout no longer moves it.
 local TOUCH = require(ReplicatedStorage.Shared.Util.Device).isTouch()
-local PILL_POSITION = if TOUCH then UDim2.new(1, -132, 1, -12) else UDim2.new(1, -16, 1, -12)
-local PILL_ANCHOR = Vector2.new(1, 1)
+local PILL_POSITION = if TOUCH then UDim2.new(1, -10, 0.5, 18) else UDim2.new(1, -16, 1, -12)
+local PILL_ANCHOR = if TOUCH then Vector2.new(1, 0.5) else Vector2.new(1, 1)
 local PILL_SIZE = if TOUCH then UDim2.fromOffset(104, 28) else UDim2.fromOffset(132, 36)
 
 local COLOR_CALM = Color3.fromRGB(226, 232, 244)

@@ -495,6 +495,9 @@ do
 end
 PlacementService.start()
 SpeedService.start()
+-- The walk-through lobby and the treadmill auto-mount; needs SpeedService's
+-- trigger test and GuardianService's collision groups, so it starts after both.
+require(Services.LobbyGhostService).start()
 -- After BaseService and EconomyService: a commit rebuilds the base and
 -- recalculates income through both of them.
 HatchService.start()

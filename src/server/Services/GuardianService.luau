@@ -408,6 +408,15 @@ local BODY_COLLISION_GROUP = "GuardianBody"
 --- Every player character part goes here, so the two rules above can be
 --- expressed as groups rather than per-part CanCollide games.
 local PLAYER_COLLISION_GROUP = "Players"
+--- THE LOBBY IS WALK-THROUGH (owner, 2026-09-18). A character standing in
+--- the safe zone is filed here instead of under Players: it still stands on
+--- the world, but passes through other players and through LobbyProp - the
+--- treadmill belts and triggers on every plot - so nobody body-blocks the
+--- spawn circle or another player's treadmill. LobbyGhostService moves
+--- characters between the two groups as they cross the safe line.
+local LOBBY_GHOST_GROUP = "LobbyGhost"
+local LOBBY_PROP_GROUP = "LobbyProp"
+GuardianService.LOBBY_PROP_GROUP = LOBBY_PROP_GROUP
 local shellGroupReady = false
 
 local function ensureShellCollisionGroup()
@@ -417,7 +426,7 @@ local function ensureShellCollisionGroup()
 	shellGroupReady = true
 	-- Registering an existing group is harmless, but a place could in theory
 	-- ship the name already; never let that stop the guardians being built.
-	for _, name in { SHELL_COLLISION_GROUP, BODY_COLLISION_GROUP, PLAYER_COLLISION_GROUP } do
+	for _, name in { SHELL_COLLISION_GROUP, BODY_COLLISION_GROUP, PLAYER_COLLISION_GROUP, LOBBY_GHOST_GROUP, LOBBY_PROP_GROUP } do
 		pcall(function()
 			PhysicsService:RegisterCollisionGroup(name)
 		end)
@@ -427,25 +436,39 @@ local function ensureShellCollisionGroup()
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, SHELL_COLLISION_GROUP, false)
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, PLAYER_COLLISION_GROUP, false)
 		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, BODY_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(SHELL_COLLISION_GROUP, LOBBY_GHOST_GROUP, false)
 		-- Bodies: world yes, players no, each other no (two guardians never
 		-- meet, but a Night reset can pass them through one another).
 		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, "Default", true)
 		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, PLAYER_COLLISION_GROUP, false)
 		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, BODY_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(BODY_COLLISION_GROUP, LOBBY_GHOST_GROUP, false)
 		-- Players keep colliding with everything they always did.
 		PhysicsService:CollisionGroupSetCollidable(PLAYER_COLLISION_GROUP, "Default", true)
 		PhysicsService:CollisionGroupSetCollidable(PLAYER_COLLISION_GROUP, PLAYER_COLLISION_GROUP, true)
+		PhysicsService:CollisionGroupSetCollidable(PLAYER_COLLISION_GROUP, LOBBY_PROP_GROUP, true)
+		-- Ghosts: the world yes; players, each other and the lobby props no.
+		PhysicsService:CollisionGroupSetCollidable(LOBBY_GHOST_GROUP, "Default", true)
+		PhysicsService:CollisionGroupSetCollidable(LOBBY_GHOST_GROUP, PLAYER_COLLISION_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(LOBBY_GHOST_GROUP, LOBBY_GHOST_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(LOBBY_GHOST_GROUP, LOBBY_PROP_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(LOBBY_PROP_GROUP, "Default", true)
 	end)
 end
 
---- Files every part of a character under the player group, now and as the
---- character adds parts (accessories, tools, the carry weld's loot is not a
---- child of the character so it is unaffected).
+--- Files every part of a character under the player group - or the lobby
+--- ghost group while the character's `LobbyGhost` attribute is set - now and
+--- as the character adds parts (accessories, tools, the carry weld's loot is
+--- not a child of the character so it is unaffected).
+local function groupFor(character: Model): string
+	return if character:GetAttribute("LobbyGhost") == true then LOBBY_GHOST_GROUP else PLAYER_COLLISION_GROUP
+end
+
 local function assignPlayerCollision(character: Model)
 	ensureShellCollisionGroup()
 	local function file(instance: Instance)
 		if instance:IsA("BasePart") then
-			instance.CollisionGroup = PLAYER_COLLISION_GROUP
+			instance.CollisionGroup = groupFor(character)
 		end
 	end
 	for _, descendant in character:GetDescendants() do
@@ -455,6 +478,21 @@ local function assignPlayerCollision(character: Model)
 end
 
 GuardianService.assignPlayerCollision = assignPlayerCollision
+
+--- Moves a character in or out of the walk-through lobby group. Idempotent.
+function GuardianService.setLobbyGhost(character: Model, on: boolean)
+	if (character:GetAttribute("LobbyGhost") == true) == on then
+		return
+	end
+	character:SetAttribute("LobbyGhost", on)
+	ensureShellCollisionGroup()
+	local group = groupFor(character)
+	for _, descendant in character:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.CollisionGroup = group
+		end
+	end
+end
 
 --- The part names a standard skeleton must have for Roblox's own walk cycle to
 --- find its joints. An animation's poses are matched by PART name, so a rig
