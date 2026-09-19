@@ -107,10 +107,23 @@ renumbered or reused.
 1. **One connection.** One `Heartbeat`, one `StateStore.subscribe`, one
    `CharacterAdded`; `start()` is guarded by a `started` flag. No
    `task.delay` chains - the scroll and the pulse are phases on `os.clock()`.
-2. **One pool.** Verified in Play: `TutorialFx` holds exactly 33 BaseParts
-   (8 x 4 wedges + the ring anchor). The Heartbeat path calls no
-   `Instance.new`; the raycast params object is reused and only its filter
-   table is rewritten.
+2. **One pool.** Verified in Play: `TutorialFx` holds exactly 97 BaseParts
+   (24 x 4 wedges + the ring anchor; 12 chevrons are used under Low
+   Graphics). The Heartbeat path calls no `Instance.new`; the raycast
+   params object is reused and only its filter table is rewritten.
+
+   **The route (revised the same day).** The trail is laid along a
+   PathfindingService route, not a straight line, so it turns where the
+   doorways are. The route is a fixed polyline in the world: where the
+   player stands on it is a projection, so the visible window (up to 24
+   chevrons, 140 studs) slides smoothly as they walk. It is recomputed only
+   when missing, for a new target, older than 8 s, or with the player more
+   than 9 studs off it - at most once per 0.6 s, in its own thread. Because
+   the objective is usually a point the navmesh cannot reach (a socket in a
+   case, a pad on a pedestal), the route is tried to the target, then the
+   floor under it, then the floor 4/8/12 studs short of it, and the last
+   stretch to the true target is added straight. The straight line is only
+   the fallback while no route exists.
 3. **Respawn.** Verified: killed the character with the train step showing;
    seven seconds later one folder, 33 parts, the trail back (3 chevrons)
    and the ring on, the line still reading "Train your Speed!".
