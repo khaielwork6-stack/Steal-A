@@ -31,7 +31,6 @@
 	through to whatever is underneath.
 ]]
 
-local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -499,6 +498,10 @@ local CARD_MIN_WIDTH = 168
 local CARD_MAX_WIDTH = 250
 --- Breathing room from Roblox's buttons on the left and the pill on the right.
 local CARD_GAP = 10
+--- The phone card is drawn a touch smaller than its metrics (owner,
+--- 2026-09-18), and shrinks further only when the gap it lives in is short.
+local COMPACT_SCALE = 0.86
+local COMPACT_MIN_SCALE = 0.6
 local CARD_PAD_X = 10
 local HEADING_HEIGHT = 14
 local ROW_HEIGHT = 22
@@ -565,16 +568,20 @@ local function rectOf(screen: ScreenGui, name: string): (Vector2?, Vector2?)
 	return nil, nil
 end
 
---- WHERE THE CARD GOES, MEASURED EVERY TIME.
+--- WHERE THE CARD GOES, MEASURED EVERY TIME: BOTTOM-LEFT (owner,
+--- 2026-09-18), in the gap between the menu rail and the economy pill.
 ---
---- Left edge: just right of Roblox's own menu and chat buttons, read from
---- GuiService.TopbarInset - the rect Roblox publishes as free for developer UI
---- in its top bar. Right edge: just left of the Nightfall pill. Vertically:
---- centred on the pill, so the card and the pill share one row.
+--- It used to sit in the top strip, centred on the Nightfall pill - and on a
+--- phone that strip is where the Season, Daily and Invite buttons live, so
+--- the card sat over them. Bottom-left is the one column nothing else
+--- claims: the rail ends above it, the pill (and the Friend Boost line,
+--- when it shows) sits below it.
 ---
---- If that strip is too narrow to be legible (a small phone in portrait, a
---- future pill that grows), the card drops to the line under the top bar,
---- right of the stat card, rather than squeezing to an unreadable width.
+--- The pill's top sets the card's bottom, the rail's bottom caps its top,
+--- and the card is drawn at COMPACT_SCALE - a touch smaller than its
+--- desktop metrics - shrinking further only when the gap is short, rather
+--- than ever overlapping either neighbour. Anchored bottom-left so the
+--- scale grows it up and to the right, away from the pill.
 local function placeCompact()
 	local card = cCard
 	local screen = cGui
@@ -588,41 +595,35 @@ local function placeCompact()
 		return
 	end
 
-	local inset = GuiService.TopbarInset
-	local left = if inset.Width > 0 then inset.Min.X + CARD_GAP else 120
-	local right = if inset.Width > 0 then inset.Max.X - CARD_GAP else view.X - CARD_GAP
-	local centreY = if inset.Height > 0 then inset.Min.Y + inset.Height / 2 else 30
-
-	local pillPos, pillSize = rectOf(screen, "NightTimer")
-	if pillPos and pillSize and pillPos.Y < view.Y * 0.25 then
-		right = math.min(right, pillPos.X - CARD_GAP)
-		centreY = pillPos.Y + pillSize.Y / 2
-	end
-
-	local top = centreY - CARD_HEIGHT / 2
-	-- Never off the top edge of the screen.
-	top = math.max(top, 4)
-
-	-- Keep clear of the stat card below if the two would share any pixels.
+	-- The floor: the economy pill, or the Friend Boost line above it.
+	local left = CARD_GAP
+	local bottom = view.Y - CARD_GAP
 	local statPos, statSize = rectOf(screen, "StatHUD")
 	if statPos and statSize then
-		local overlapsX = left < statPos.X + statSize.X and left + CARD_MIN_WIDTH > statPos.X
-		if overlapsX and top + CARD_HEIGHT > statPos.Y - 4 then
-			left = math.max(left, statPos.X + statSize.X + CARD_GAP)
-		end
+		left = statPos.X
+		bottom = statPos.Y - CARD_GAP
+	end
+	local boostPos, boostSize = rectOf(screen, "SocialBoosts")
+	if boostPos and boostSize and boostPos.Y < bottom then
+		bottom = boostPos.Y - 4
 	end
 
-	local room = right - left
-	if room < CARD_MIN_WIDTH then
-		-- The strip is too narrow. Next line down, right of the stat card.
-		local below = (if inset.Height > 0 then inset.Max.Y else 58) + 6
-		left = if statPos and statSize then statPos.X + statSize.X + CARD_GAP else CARD_GAP
-		top = below
-		room = view.X - left - CARD_GAP
+	-- The ceiling: the bottom of the menu rail.
+	local railPos, railSize = rectOf(screen, "Buttons")
+	local ceiling = if railPos and railSize then railPos.Y + railSize.Y + CARD_GAP / 2 else 0
+
+	local scale = COMPACT_SCALE
+	if bottom - CARD_HEIGHT * scale < ceiling then
+		scale = math.clamp((bottom - ceiling) / CARD_HEIGHT, COMPACT_MIN_SCALE, COMPACT_SCALE)
+	end
+	local sizer = card:FindFirstChildOfClass("UIScale")
+	if sizer then
+		sizer.Scale = scale
 	end
 
-	local width = math.clamp(room, CARD_MIN_WIDTH, CARD_MAX_WIDTH)
-	card.Position = UDim2.fromOffset(left, top)
+	local width = math.clamp(view.X * 0.34, CARD_MIN_WIDTH, CARD_MAX_WIDTH)
+	card.AnchorPoint = Vector2.new(0, 1)
+	card.Position = UDim2.fromOffset(left, bottom)
 	card.Size = UDim2.fromOffset(width, CARD_HEIGHT)
 end
 
