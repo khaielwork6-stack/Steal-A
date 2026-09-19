@@ -10,12 +10,51 @@ local RunService = game:GetService("RunService")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local Audio = require(ReplicatedStorage.Shared.Util.Audio)
+local AudioConfig = require(ReplicatedStorage.Shared.Config.AudioConfig)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
 
 local LaserService = {}
+
+--- THE ROOM ALARM. A broken beam rings where it was broken, for a few
+--- seconds, for everyone nearby - a static beam or one of the vault's
+--- rotating arms, which are the same trip as far as the room is concerned.
+---
+--- Parented to the tripping player's own root, so it travels the couple of
+--- studs they move while it rings rather than hanging in the air behind
+--- them, and destroyed on a timer: a looped Sound left behind becomes the
+--- room tone. One at a time per player - a beam clipped three times in four
+--- seconds is one alarm, not three on top of each other.
+local ringing: { [Player]: Sound } = {}
+
+local function ringAlarm(player: Player)
+	local existing = ringing[player]
+	if existing and existing.Parent then
+		return
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not root:IsA("BasePart") then
+		return
+	end
+	local sound = Audio.playAt("LaserAlarm", root)
+	if not sound then
+		return
+	end
+	ringing[player] = sound
+	task.delay(AudioConfig.ALARM_SECONDS, function()
+		if ringing[player] == sound then
+			ringing[player] = nil
+		end
+		if sound.Parent then
+			sound:Stop()
+			sound:Destroy()
+		end
+	end)
+end
 local INTERVAL = 0.1
 local limiter = RateLimiter.new(8, 12)
 type Sample = { position: Vector3, time: number, character: Model, serverTime: number }
@@ -143,6 +182,7 @@ local function step()
 					player:SetAttribute("LastLaserTrip", serverNow)
 					player:SetAttribute("LastLaserRoom", field.roomIndex)
 					GuardianService.alarm(field.zoneIndex, player, field.roomIndex)
+					ringAlarm(player)
 					break
 				end
 			end
@@ -181,6 +221,7 @@ local function step()
 				player:SetAttribute("LastLaserTrip", workspace:GetServerTimeNow())
 				player:SetAttribute("LastLaserRoom", room)
 				GuardianService.alarm(index, player, room)
+				ringAlarm(player)
 			end
 		end
 	end

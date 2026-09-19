@@ -47,6 +47,7 @@ local RunService = game:GetService("RunService")
 
 local GadgetConfig = require(ReplicatedStorage.Shared.Config.GadgetConfig)
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
+local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Validate = require(ReplicatedStorage.Shared.Util.Validate)
@@ -80,8 +81,8 @@ local mapParams: RaycastParams? = nil
 
 local NO_ASSET = "rbxassetid://0"
 
-local function notify(player: Player, kind: string, message: string)
-	StateService.notify(player, kind, message)
+local function notify(player: Player, kind: string, message: string, detail: string?)
+	StateService.notify(player, kind, message, detail)
 end
 
 local function folder(): Folder
@@ -515,24 +516,31 @@ end
 
 --- Applies one gadget's effect. Validates everything first and commits only
 --- when it returns true. `target` is the client's aim hint (hook only).
+---
+--- NO TOAST. Using a gadget used to print "Smoke bomb!" across the screen -
+--- a caption on something the player just did, on top of a screenful of
+--- smoke (owner, 2026-09-18). Each gadget has its own sound now, played AT
+--- the player so everyone nearby hears it happen, and the effect itself is
+--- the confirmation.
 local function apply(player: Player, def: GadgetConfig.GadgetDef, target: Vector3?, root: BasePart, humanoid: Humanoid, origin: Vector3): (boolean, string?)
 	if def.key == "Smoke" then
-		local lost = GuardianService.confuse(player, GadgetConfig.SMOKE_CONFUSE_SECONDS)
+		GuardianService.confuse(player, GadgetConfig.SMOKE_CONFUSE_SECONDS)
 		local feet = origin - Vector3.new(0, humanoid.HipHeight + root.Size.Y / 2, 0)
 		spawnSmoke(feet)
-		notify(player, "success", if lost > 0 then "SMOKE! The guard lost you." else "Smoke bomb!")
+		Audio.playAt("SmokeBomb", root)
 		return true
 	elseif def.key == "Jammer" then
 		if not LaserService.jam(player, GadgetConfig.JAM_SECONDS) then
 			return false, "The jammer failed."
 		end
-		notify(player, "success", `LASERS JAMMED for {GadgetConfig.JAM_SECONDS}s!`)
+		Audio.playAt("JammerUse", root)
 		return true
 	elseif def.key == "Grapple" then
 		local stop, anchorAt, reason = grappleTarget(player, root, humanoid, origin, target)
 		if not stop or not anchorAt then
 			return false, reason
 		end
+		Audio.playAt("GrappleFire", root)
 		startPull(player, root, stop, anchorAt)
 		return true
 	end
@@ -627,7 +635,7 @@ function GadgetService.buy(player: Player, key: string): (boolean, string?)
 	setCount(player, key, count + 1)
 	syncTools(player)
 	StateService.pushNow(player)
-	notify(player, "success", `{string.upper(def.label)} x{count + 1}`)
+	notify(player, "success", `{string.upper(def.label)} x{count + 1}`, "cashBuy")
 	return true
 end
 

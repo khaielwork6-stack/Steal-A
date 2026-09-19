@@ -307,14 +307,28 @@ function AudioController.start()
 	-- Toasts already carry a `detail` tag that drives the world VFX burst, so the
 	-- purchase and unlock cues ride that same tag rather than needing a sound
 	-- call added at every upgrade site on the server.
+	--
+	-- "levelup" WAS THE ONLY GOOD-NEWS TAG, on twenty-nine call sites - a quest
+	-- finishing, a wheel prize, a gift, a gadget bought - so everything good
+	-- made the same noise. The tags below split the ones worth telling apart;
+	-- "levelup" stays the catch-all for the rest, and now has its own sound
+	-- rather than borrowing the upgrade one.
+	local TOAST_CUES: { [string]: string } = {
+		levelup = "LevelUp",
+		unlock = "TreadmillUnlock",
+		grab = "Grab",
+		questComplete = "QuestComplete",
+		spinReward = "SpinReward",
+		cashBuy = "CashPurchase",
+		purchaseFail = "PurchaseFail",
+	}
 	Remotes.get("Notify").OnClientEvent:Connect(function(kind: string, _message: string, detail: string?)
 		-- EXACTLY ONE cue per toast. A specific cue replaces the generic one
 		-- rather than layering over it, for the same reason a boss hit replaces
 		-- the regular hit: two sounds on one event just muddies both.
-		if detail == "levelup" then
-			Audio.play("UpgradePurchase")
-		elseif detail == "unlock" then
-			Audio.play("TreadmillUnlock")
+		local tagged = if detail then TOAST_CUES[detail] else nil
+		if tagged then
+			Audio.play(tagged)
 		elseif kind == "error" then
 			-- A refused action should sound wrong, not merely informative.
 			Audio.play("UiDenied")

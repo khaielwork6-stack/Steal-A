@@ -91,6 +91,9 @@ export type WeaponDef = {
 	knockback: number,
 	lift: number,
 	stun: number,
+	--- Played AT the attacker the moment the swing starts - a miss is heard
+	--- too, so the weapon never feels broken when it does not connect.
+	swingCue: string,
 	--- AudioConfig cue played at the victim on a connect.
 	hitCue: string,
 	--- Whether owning it is a Game Pass (the Bat is free for everyone).
@@ -107,6 +110,7 @@ PvPConfig.Weapons = {
 		knockback = PvPConfig.KNOCKBACK_SPEED,
 		lift = PvPConfig.KNOCKBACK_LIFT,
 		stun = PvPConfig.RAGDOLL_DURATION,
+		swingCue = "BatSwing",
 		hitCue = "BatHit",
 		gamePass = false,
 	},
@@ -120,6 +124,8 @@ PvPConfig.Weapons = {
 		knockback = 70,
 		lift = 30,
 		stun = 1.5,
+		-- The bat's own swing, which is a whoosh either way.
+		swingCue = "BatSwing",
 		hitCue = "SlapHit",
 		gamePass = true,
 	},

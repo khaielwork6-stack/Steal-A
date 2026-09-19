@@ -38,7 +38,7 @@ local pickups: { [Player]: Pickup } = {}
 local stealLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.StealRequest)
 local dropLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.DropLootRequest)
 
-local notify: (Player, string, string) -> () = function() end
+local notify: (Player, string, string, string?) -> () = function() end
 local onDelivered: (Player, LootService.LootInstance) -> () = function() end
 
 --- Whether the zone's guardian can walk to a dropped item and bring it home.
@@ -53,7 +53,7 @@ function CarryService.setRecoveryCheck(fn: (LootService.LootInstance) -> boolean
 	canRecover = fn
 end
 
-function CarryService.setNotifier(fn: (Player, string, string) -> ())
+function CarryService.setNotifier(fn: (Player, string, string, string?) -> ())
 	notify = fn
 end
 
@@ -550,7 +550,7 @@ function CarryService.trySteal(player: Player, loot: LootService.LootInstance): 
 	-- reads "GET BACK TO YOUR BASE!", and this toast used to repeat it verbatim -
 	-- two messages saying the same thing at the same moment. One instructional
 	-- objective at a time, plus a short event toast, is the rule.
-	notify(player, "success", `STOLEN: {loot.name}!`)
+	notify(player, "success", `STOLEN: {loot.name}!`, "grab")
 	-- Last, and in a pcall: a listener that throws must not undo a steal that
 	-- has already happened.
 	local ok, err = pcall(onStolen, player, loot)

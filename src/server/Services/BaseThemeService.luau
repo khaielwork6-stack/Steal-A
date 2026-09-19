@@ -564,7 +564,7 @@ function BaseThemeService.buy(player: Player, key: string): (boolean, string?)
 	profile.BaseTheme.owned[key] = true
 	local def = BaseThemeConfig.ThemeByKey[key]
 	local skin = BaseThemeConfig.PedestalByKey[key]
-	StateService.notify(player, "success", `Unlocked {if def then def.name else if skin then skin.name else key}!`, "levelup")
+	StateService.notify(player, "success", `Unlocked {if def then def.name else if skin then skin.name else key}!`, "cashBuy")
 	-- A purchase is meant to be seen: it goes straight on.
 	return BaseThemeService.equip(player, key)
 end

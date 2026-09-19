@@ -291,7 +291,7 @@ local function grant(player: Player, profile: DataService.Profile, prize: Prize,
 	local segment = prize.segment
 	local function tell(message: string)
 		if announce then
-			StateService.notify(player, "success", message, "levelup")
+			StateService.notify(player, "success", message, "spinReward")
 		end
 	end
 

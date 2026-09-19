@@ -53,6 +53,24 @@ AudioConfig.Cues = {
 	--- Loops only while a guardian is asleep. Stops the instant it wakes.
 	Snoring = { id = asset(97721920245356), volume = 0.55, category = "world", looped = true, rollOff = 70 },
 
+	-- ---------- world: weapons, gadgets and security ----------
+	--- The bat (and the Slap) cutting the air, on the frame the swing starts.
+	--- The HIT is a separate cue and often does not happen: a miss should still
+	--- be heard, or the weapon feels broken rather than dodged.
+	BatSwing = { id = asset(138283030240531), volume = 0.7, category = "world", rollOff = 90 },
+	--- A smoke bomb going off at the thrower's feet.
+	SmokeBomb = { id = asset(136838602519365), volume = 0.95, category = "world", rollOff = 120 },
+	--- The laser jammer coming on.
+	JammerUse = { id = asset(137510557013265), volume = 0.9, category = "world", rollOff = 110 },
+	--- The grappling hook firing.
+	GrappleFire = { id = asset(119530429495654), volume = 0.9, category = "world", rollOff = 130 },
+	--- THE ROOM ALARM, for a few seconds after a beam is broken - a static
+	--- laser or one of the vault's rotating arms, both of which raise the same
+	--- alarm. Looped and positioned in the room that was tripped, so it tells
+	--- everyone nearby WHERE it happened; GuardianService stops and destroys it
+	--- after AudioConfig.ALARM_SECONDS.
+	LaserAlarm = { id = asset(7084812679), volume = 0.7, category = "world", looped = true, rollOff = 180 },
+
 	-- ---------- event: personal gameplay moments ----------
 	--- Crossing the red line with loot, and a chase-free delivery: the ONE
 	--- escape sound. The old sting that used to precede it is retired - not
@@ -91,6 +109,28 @@ AudioConfig.Cues = {
 	TreadmillUnlock = { id = asset(93360393539898), volume = 0.95, category = "event" },
 	UpgradePurchase = { id = asset(80736831159506), volume = 0.9, category = "event" },
 	ZoneUnlock = { id = asset(17648982831), volume = 0.95, category = "event" },
+	--- THE STEAL. An item coming off its stand and into the player's hands -
+	--- the most-repeated sound in the game, so it is kept short and dry.
+	Grab = { id = asset(138580733622165), volume = 0.9, category = "event" },
+	--- Anything bought with IN-GAME CASH: a gadget, a trail, a base or storage
+	--- upgrade. A coin sound, so it reads as "you spent money" wherever it is
+	--- used and never as "you were given something".
+	CashPurchase = { id = asset(73310199041612), volume = 0.85, category = "event" },
+	--- A purchase that could NOT go through - refused, unaffordable, or a
+	--- receipt that could not be delivered. Distinct from UiDenied, which is
+	--- every other refusal; buying is the one refusal worth its own sound.
+	PurchaseFail = { id = asset(128827503277042), volume = 0.8, category = "event" },
+	--- Progression: a base or storage upgrade, a season tier, an unlock. The
+	--- toast tag "levelup" plays this, which is ~29 call sites at once.
+	LevelUp = { id = asset(103427717192369), volume = 0.95, category = "event" },
+	--- A daily or weekly quest reaching its target, and the claim that follows.
+	QuestComplete = { id = asset(92757451615296), volume = 0.95, category = "event" },
+	--- The wheel's prize landing, after the disc has stopped and the banner has
+	--- named it. Not the ticking (SpinLoop) and not the wheel becoming ready
+	--- (SpinReady) - this is the payout itself.
+	SpinReward = { id = asset(78678697833241), volume = 0.95, category = "event" },
+	--- The vault door giving way once the lock is cracked.
+	VaultDoor = { id = asset(7757282096), volume = 0.95, category = "event" },
 
 	-- ---------- ui ----------
 	UiHover = { id = asset(136108770017536), volume = 0.35, category = "ui" },
@@ -99,6 +139,12 @@ AudioConfig.Cues = {
 	--- never for a refused action (that is UiDenied).
 	UiOpen = { id = asset(97861038165143), volume = 0.55, category = "ui" },
 	UiDenied = { id = asset(87047730068459), volume = 0.6, category = "ui" },
+	--- THE VAULT LOCK, per pin. One tumbler dropping into place - the single
+	--- most satisfying moment in the minigame, and until now it was a menu
+	--- click layered under the item-placed sound.
+	VaultNotch = { id = asset(92927842693188), volume = 0.85, category = "ui" },
+	--- A pin tapped off its notch: the lock jamming, and the attempt over.
+	VaultFail = { id = asset(108601872025792), volume = 0.8, category = "ui" },
 
 	-- ---------- music ----------
 	--- Plays only while the player is behind the red line. Faded, never cut.
@@ -154,6 +200,10 @@ end
 --- Hover fires on every mouse-over, so it needs a floor between plays or a
 --- cursor dragged along a menu machine-guns it.
 AudioConfig.HOVER_COOLDOWN = 0.06
+
+--- How long the room alarm rings after a beam is broken. Long enough to say
+--- "someone tripped it over there", short enough not to become the room tone.
+AudioConfig.ALARM_SECONDS = 4
 
 --- How close to the red line the music crossfade triggers, and the hysteresis
 --- band that stops it flapping when a player stands exactly on the boundary.

@@ -592,7 +592,7 @@ function MonetizationService.grantFallback(
 		player,
 		"success",
 		`Your purchase couldn't be completed, so you received {NumberFormat.cash(amount)} instead.`,
-		"levelup"
+		"purchaseFail"
 	)
 	return amount
 end

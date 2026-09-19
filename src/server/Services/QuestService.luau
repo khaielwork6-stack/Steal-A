@@ -200,7 +200,7 @@ local function onEvent(eventKind: string, player: Player, amount: number, info: 
 					player,
 					"success",
 					`QUEST COMPLETE: {QuestConfig.describe(template, entry.target)}  ·  claim it in Quests!`,
-					"levelup"
+					"questComplete"
 				)
 				hooks.markStateDirty(player)
 				ProgressEvents.fire(player, "questCompleted", 1, { period = kind, questId = entry.id })
@@ -270,7 +270,7 @@ function QuestService.claim(player: Player, kindArg: any, indexArg: any): (boole
 	if xp > 0 then
 		table.insert(parts, `+{xp} Season XP`)
 	end
-	hooks.notify(player, "success", `QUEST CLAIMED  ·  {table.concat(parts, "  ·  ")}`, "levelup")
+	hooks.notify(player, "success", `QUEST CLAIMED  ·  {table.concat(parts, "  ·  ")}`, "questComplete")
 	ProgressEvents.fire(player, "questClaimed", 1, { period = kind, questId = entry.id })
 
 	dirty[player] = true

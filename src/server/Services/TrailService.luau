@@ -202,7 +202,7 @@ function TrailService.buyWithCash(player: Player, trailKey: string): (boolean, s
 	profile.TrailsOwned[trailKey] = true
 	TrailService.equip(player, trailKey)
 
-	StateService.notify(player, "success", `{string.upper(trail.name)} UNLOCKED!`, "levelup")
+	StateService.notify(player, "success", `{string.upper(trail.name)} UNLOCKED!`, "cashBuy")
 	StateService.pushNow(player)
 	return true
 end

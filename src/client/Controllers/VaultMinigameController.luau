@@ -216,7 +216,7 @@ local function finish(current: Session, success: boolean, report: boolean?)
 		Remotes.get("VaultMinigameResult"):FireServer(current.token, success)
 	end
 	UIStateController.release(CLAIM)
-	Audio.play(if success then "ZoneUnlock" else "UiDenied")
+	Audio.play(if success then "VaultDoor" else "VaultFail")
 	local stage = current.screen:FindFirstChild("Stage")
 	if stage and stage:IsA("GuiObject") and not Effects.isReduced() then
 		UIAnim.punch(stage, if success then 0.12 else 0.06)
@@ -590,8 +590,7 @@ local function runPins(current: Session, stage: Frame, params: { [string]: any }
 			end
 			pin.locked = true
 			notch.BackgroundColor3 = GREEN
-			Audio.play("UiClick")
-			Audio.play("PlaceItem")
+			Audio.play("VaultNotch")
 			if not Effects.isReduced() then
 				local flash = Instance.new("Frame")
 				flash.AnchorPoint = Vector2.new(0.5, 0.5)

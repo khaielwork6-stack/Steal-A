@@ -308,6 +308,9 @@ function PvPService.trySwing(player: Player): (boolean, string?)
 		return false, "safe zone"
 	end
 
+	-- The WHOOSH goes now, with the wind-up, not on the connect: a miss has to
+	-- be heard or the weapon reads as broken rather than dodged.
+	Audio.playAt(weapon.swingCue, root)
 	lastSwing[player] = now
 	-- Resolved when the weapon ARRIVES, not when the button is pressed. The
 	-- client's wind-up runs for the same delay, so the connect, the sound and

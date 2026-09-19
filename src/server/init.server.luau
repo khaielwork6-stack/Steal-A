@@ -101,8 +101,8 @@ StateService.onPushed(function(player, state)
 end)
 
 -- Cross-service wiring is done here so the services themselves stay decoupled.
-CarryService.setNotifier(function(player, kind, message)
-	StateService.notify(player, kind, message)
+CarryService.setNotifier(function(player, kind, message, detail)
+	StateService.notify(player, kind, message, detail)
 end)
 
 -- A drop the guardian can walk to waits for the guardian; one it cannot reach

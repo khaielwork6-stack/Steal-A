@@ -316,7 +316,7 @@ local function succeed(player: Player, zoneIndex: number)
 	unlocked[player] = mine
 	endAttempt(player)
 	StateService.notify(player, "success", `Zone {zoneIndex} vault cracked - the door is yours!`, "vaultOpen")
-	StateService.sound(player, "ZoneUnlock")
+	StateService.sound(player, "VaultDoor")
 end
 
 --- Ends an attempt WITHOUT a verdict (Nightfall cancelled it): no lockout.
