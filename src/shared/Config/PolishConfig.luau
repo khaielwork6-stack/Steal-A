@@ -90,4 +90,50 @@ PolishConfig.TUTORIAL_POINTER_ICON = "rbxassetid://0"
 PolishConfig.ANALYTICS_CLIENT_PER_SECOND = 0.5
 PolishConfig.ANALYTICS_CLIENT_BURST = 3
 
+-- ==========================================================
+-- [analytics-discord] QUIT CONTEXT + PERFORMANCE SAMPLER
+-- ==========================================================
+-- Shared because the client reads it; nothing secret lives here (the
+-- webhook and the Discord switches are server-only, in
+-- ServerScriptService.Server.Config.DiscordConfig).
+
+--- MainUI.Frames panels the client may name as "the open panel". Anything
+--- else is reported as "Other"; nothing at all as "None". The server
+--- re-checks every name against this list.
+PolishConfig.ANALYTICS_PANELS = {
+	"Shop",
+	"Upgrades",
+	"Settings",
+	"Index",
+	"Sell",
+	"Quests",
+	"SeasonPass",
+	"Daily",
+	"Crew",
+	"Trade",
+	"GadgetStore",
+	"TrailShop",
+	"Storage",
+} :: { string }
+
+--- Panel reports: sustained rate and burst per player (their own limiter).
+PolishConfig.ANALYTICS_PANEL_PER_SECOND = 1
+PolishConfig.ANALYTICS_PANEL_BURST = 5
+
+--- The client FPS sampler (PerfController). A spike is recorded when the
+--- frame rate stays under PERF_FPS_THRESHOLD for PERF_LOW_SECONDS; then
+--- nothing for PERF_COOLDOWN_SECONDS, and at most PERF_SESSION_CAP per session.
+PolishConfig.PERF_SAMPLER_ENABLED = true
+PolishConfig.PERF_FPS_THRESHOLD = 25
+PolishConfig.PERF_LOW_SECONDS = 2
+PolishConfig.PERF_COOLDOWN_SECONDS = 60
+PolishConfig.PERF_SESSION_CAP = 10
+--- Radius (studs) of the one-off particle / effect count around the camera.
+PolishConfig.PERF_SCAN_RADIUS = 80
+--- Client script errors forwarded per session (deduplicated by message).
+PolishConfig.PERF_CLIENT_ERROR_CAP = 10
+--- The PerfReport remote: sustained rate and burst per player.
+PolishConfig.PERF_REPORT_PER_SECOND = 0.2
+PolishConfig.PERF_REPORT_BURST = 3
+
 return PolishConfig

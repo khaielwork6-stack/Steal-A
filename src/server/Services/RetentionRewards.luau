@@ -172,6 +172,7 @@ function RetentionRewards.grant(player: Player, profile: DataService.Profile, sp
 		-- Added to the saved total, never multiplied: the Speed pass scales
 		-- training gain only.
 		profile.SpeedPower += speed
+		require(script.Parent.ProgressEvents).fire(player, "speedGain", speed, { source = tostring(source) }) -- [analytics-discord]
 		SpeedService.applyMovement(player)
 		paid.speed = speed
 	end

@@ -681,6 +681,7 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 		-- A DIRECT GRANT, not a rate. Never scaled by the permanent multiplier
 		-- or by a trail: those multiply what you EARN, and this is a quantity.
 		profile.SpeedPower += product.amount
+		require(script.Parent.ProgressEvents).fire(player, "speedGain", product.amount, { source = "product" }) -- [analytics-discord]
 		SpeedService.applyMovement(player)
 		rememberGrant(profile, purchaseId)
 		StateService.notify(player, "success", `+{NumberFormat.short(product.amount)} SPEED!`, "levelup")
@@ -1067,6 +1068,9 @@ function MonetizationService.onProductPromptClosed(_player: Player, _productId: 
 
 local lastOfferAt: { [Player]: number } = {}
 
+--- [analytics-discord] Told each time the offer is sent. Injected by init.
+function MonetizationService.onBossOfferShown(_player: Player, _productKey: string, _zoneIndex: number) end
+
 --- Studio only: forgets the offer cooldown so `offer` can be fired twice.
 function MonetizationService.debugResetOfferCooldown(player: Player)
 	lastOfferAt[player] = nil
@@ -1100,6 +1104,9 @@ function MonetizationService.offerAfterCatch(player: Player, zoneIndex: number)
 		robux = product.robux,
 		zoneIndex = zoneIndex,
 	})
+	-- [analytics-discord] The "BossOffer" funnel's first step (init wires it
+	-- to AnalyticsEvents.bossOfferShown).
+	pcall(MonetizationService.onBossOfferShown, player, product.key, zoneIndex)
 end
 
 function MonetizationService.start()

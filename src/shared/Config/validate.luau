@@ -1575,6 +1575,40 @@ return function(): Report
 		end
 	end
 
+	-- ==========================================================
+	-- ANALYTICS-DISCORD (PolishConfig panels / perf sampler, and the
+	-- server-only DiscordConfig when this runs on the server)
+	-- ==========================================================
+	do
+		local PolishConfig = require(script.Parent.PolishConfig)
+		local seenPanels: { [string]: boolean } = {}
+		for _, name in PolishConfig.ANALYTICS_PANELS do
+			check(name ~= "None" and name ~= "Other" and not seenPanels[name], `ANALYTICS_PANELS: "{name}" is reserved or listed twice`)
+			check(#name <= 30 and string.match(name, "^%w+$") ~= nil, `ANALYTICS_PANELS: "{name}" must be a short plain name`)
+			seenPanels[name] = true
+		end
+		check(PolishConfig.ANALYTICS_PANEL_PER_SECOND > 0 and PolishConfig.ANALYTICS_PANEL_BURST >= 1, "panel report limiter must be positive")
+		check(PolishConfig.PERF_FPS_THRESHOLD > 0 and PolishConfig.PERF_FPS_THRESHOLD < 60, "PERF_FPS_THRESHOLD must be 1-59")
+		check(PolishConfig.PERF_LOW_SECONDS >= 0.5, "PERF_LOW_SECONDS must be at least 0.5")
+		check(PolishConfig.PERF_COOLDOWN_SECONDS >= 10, "PERF_COOLDOWN_SECONDS must be at least 10")
+		check(PolishConfig.PERF_SESSION_CAP >= 1 and PolishConfig.PERF_SESSION_CAP <= 50, "PERF_SESSION_CAP must be 1-50")
+		check(PolishConfig.PERF_CLIENT_ERROR_CAP >= 0 and PolishConfig.PERF_CLIENT_ERROR_CAP <= 50, "PERF_CLIENT_ERROR_CAP must be 0-50")
+		check(PolishConfig.PERF_REPORT_PER_SECOND > 0 and PolishConfig.PERF_REPORT_PER_SECOND <= 1, "PERF_REPORT_PER_SECOND must be (0, 1]")
+		check(PolishConfig.PERF_SCAN_RADIUS > 0 and PolishConfig.PERF_SCAN_RADIUS <= 200, "PERF_SCAN_RADIUS must be 1-200")
+		local server = game:GetService("ServerScriptService"):FindFirstChild("Server")
+		local configFolder = server and server:FindFirstChild("Config")
+		local discordModule = configFolder and configFolder:FindFirstChild("DiscordConfig")
+		if discordModule and discordModule:IsA("ModuleScript") then
+			local DiscordConfig = (require :: any)(discordModule)
+			for _, problem in DiscordConfig.problems() do
+				check(false, `DiscordConfig: {problem}`)
+			end
+			check(RarityConfig.Rank[DiscordConfig.REVEAL_MIN_RARITY] ~= nil, "DiscordConfig.REVEAL_MIN_RARITY must be a rarity name")
+			check(DiscordConfig.WEBHOOK == "" or string.match(DiscordConfig.WEBHOOK, "^https://") ~= nil,
+				"DiscordConfig.WEBHOOK must be empty or a full https webhook URL")
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else

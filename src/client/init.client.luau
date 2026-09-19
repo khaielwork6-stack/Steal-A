@@ -276,6 +276,12 @@ startLater("GadgetStoreController", function()
 	require(script.Controllers.GadgetStoreController).start()
 end)
 
+-- [analytics-discord] The FPS-spike sampler and the client error forwarder
+-- (PerfReport remote; the server's PerfFeed decides what to keep).
+startLater("PerfController", function()
+	require(script.Controllers.PerfController).start()
+end)
+
 print("[Client] controllers started")
 -- THE LOADING SCREEN IS GONE (owner, 2026-09-18). Roblox's own default one
 -- is left in place, and `LoadingScreenDone` is set here with `ClientReady`:

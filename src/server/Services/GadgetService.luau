@@ -611,6 +611,7 @@ function GadgetService.use(player: Player, key: string, target: Vector3?, requir
 	ready[key] = workspace:GetServerTimeNow() + def.cooldown
 	syncTools(player)
 	StateService.pushNow(player)
+	require(script.Parent.ProgressEvents).fire(player, "gadgetUsed", 1, { gadget = key }) -- [analytics-discord]
 	return true
 end
 

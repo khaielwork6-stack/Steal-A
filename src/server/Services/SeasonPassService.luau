@@ -283,6 +283,7 @@ local function grant(player: Player, profile: DataService.Profile, reward: Seaso
 	elseif reward.kind == "speed" then
 		local amount = SeasonPassConfig.amountFor(reward, baseIncome(player), SpinWheelConfig.nextGate(profile.HighestZoneReached))
 		profile.SpeedPower += amount
+		ProgressEvents.fire(player, "speedGain", amount, { source = "season" }) -- [analytics-discord]
 		hooks.refreshMovement(player)
 		return `+{NumberFormat.short(amount)} Speed`
 	elseif reward.kind == "guardian" and reward.guardianKey then
@@ -292,6 +293,7 @@ local function grant(player: Player, profile: DataService.Profile, reward: Seaso
 		end
 		-- Already owned (pass, wheel or an earlier season): never a blank.
 		profile.SpeedPower += SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED
+		ProgressEvents.fire(player, "speedGain", SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED, { source = "season" }) -- [analytics-discord]
 		hooks.refreshMovement(player)
 		return `+{NumberFormat.short(SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED)} Speed (you own the {key} Guardian)`
 	elseif reward.kind == "trail" and reward.trailKey then
@@ -302,6 +304,7 @@ local function grant(player: Player, profile: DataService.Profile, reward: Seaso
 			return `the {def.name}`
 		end
 		profile.SpeedPower += SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED
+		ProgressEvents.fire(player, "speedGain", SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED, { source = "season" }) -- [analytics-discord]
 		hooks.refreshMovement(player)
 		return `+{NumberFormat.short(SeasonPassConfig.DUPLICATE_GUARDIAN_SPEED)} Speed (trail already owned)`
 	elseif reward.kind == "title" and reward.title then

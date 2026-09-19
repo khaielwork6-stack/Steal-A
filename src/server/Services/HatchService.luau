@@ -242,6 +242,8 @@ function HatchService.commit(player: Player, instanceId: string, options: Commit
 	end
 
 	committing[instanceId] = true
+	-- [analytics-discord] How long it sat ready (0 for a paid instant reveal).
+	local readyFor = math.max(0, os.time() - (tonumber(item.HatchEndsAt) or os.time()))
 	-- FLIP FIRST. Everything below this line is presentation; the reward is
 	-- the player's from here, whatever happens to the animation.
 	item.Hatched = true
@@ -286,7 +288,9 @@ function HatchService.commit(player: Player, instanceId: string, options: Commit
 	-- [retention-quests-pass] Fired at the swap, not the flip: a quest toast
 	-- naming a rarity must not beat the roulette. ("reveal" is the social
 	-- pass's event at the same moment; this one feeds quests.)
-	local revealedInfo = { rarity = item.Rarity, itemId = item.ItemId }
+	local revealedInfo = { rarity = item.Rarity, itemId = item.ItemId,
+		-- [analytics-discord] zone, wait and how, for AnalyticsSession.
+		zone = item.ZoneId, waited = readyFor, auto = options ~= nil and options.auto == true, quick = quick, mutation = item.Mutation }
 	task.delay(swapDelay, function()
 		ProgressEvents.fire(player, "revealed", 1, revealedInfo) -- [retention-quests-pass]
 		if player.Parent then

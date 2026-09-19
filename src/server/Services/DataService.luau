@@ -338,6 +338,16 @@ export type Profile = {
 	-- ("2026W38"), for the weekly board. A different week in the save means
 	-- the count starts again from 0. Written only by LeaderboardService.
 	WeeklyEarned: { Week: string, Amount: number },
+	-- [analytics-discord] Lifetime analytics facts (AnalyticsSession). No
+	-- schema bump; reconcile fills and repairs it.
+	--   Sessions    sessions started since tracking began (the first one of a
+	--               brand-new player is 1).
+	--   FirstJoin   os.time() of a brand-new player's first load; 0 = the
+	--               player existed before this tracking (unknown).
+	--   FirstReveal / FirstEpic  the once-in-a-life timing events were logged.
+	--   D1Counted   this player's "came back the day after joining" is counted.
+	--   Purchases   Robux purchases seen since tracking (first-purchase flag).
+	AnalyticsLife: AnalyticsLife,
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -348,6 +358,16 @@ export type BaseThemeState = {
 	owned: { [string]: boolean },
 	equippedTheme: string,
 	equippedPedestal: string,
+}
+
+-- [analytics-discord]
+export type AnalyticsLife = {
+	Sessions: number,
+	FirstJoin: number,
+	FirstReveal: boolean,
+	FirstEpic: boolean,
+	D1Counted: boolean,
+	Purchases: number,
 }
 
 export type SessionLock = {
@@ -446,6 +466,8 @@ local function defaultProfile(): Profile
 		Titles = {},
 		-- [trading-gifting-boards] Nothing earned yet, in no particular week.
 		WeeklyEarned = { Week = "", Amount = 0 },
+		-- [analytics-discord] Only a brand-new profile knows its first join.
+		AnalyticsLife = { Sessions = 0, FirstJoin = os.time(), FirstReveal = false, FirstEpic = false, D1Counted = false, Purchases = 0 },
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -889,6 +911,25 @@ local function reconcile(profile: Profile): Profile
 		end
 		if type(raw.AnalyticsOnboarding) ~= "table" then
 			raw.AnalyticsOnboarding = if started then { legacy = true } else {}
+		end
+		-- [analytics-discord] A save without the field belongs to a player
+		-- who joined before tracking: first join unknown (0), and the
+		-- once-in-a-life timings are never logged for them. Repaired in place
+		-- otherwise, so a corrupt value cannot break the counters.
+		local life = raw.AnalyticsLife
+		if type(life) ~= "table" then
+			raw.AnalyticsLife = { Sessions = 0, FirstJoin = 0, FirstReveal = true, FirstEpic = true, D1Counted = true, Purchases = 0 }
+		else
+			local function count(value: any): number
+				local n = tonumber(value) or 0
+				return if n ~= n or n < 0 or n == math.huge then 0 else math.floor(n)
+			end
+			life.Sessions = count(life.Sessions)
+			life.FirstJoin = count(life.FirstJoin)
+			life.Purchases = count(life.Purchases)
+			life.FirstReveal = life.FirstReveal == true
+			life.FirstEpic = life.FirstEpic == true
+			life.D1Counted = life.D1Counted == true
 		end
 	end
 

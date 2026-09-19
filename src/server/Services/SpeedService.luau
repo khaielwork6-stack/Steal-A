@@ -648,7 +648,9 @@ local function trainPlayer(player: Player)
 	-- each other. Nothing here touches `profile.SpeedPower` except the gain:
 	-- multiplying the saved total would compound on every purchase.
 	local bonus = TreadmillConfig.bonusFactor(CarryService.trailMultiplierFor(player), SpeedService.trainingMultiplier(player))
-	profile.SpeedPower += TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
+	local gain = TreadmillConfig.gainPerTick(profile.TreadmillLevel, bonus)
+	profile.SpeedPower += gain
+	ProgressEvents.fire(player, "speedGain", gain, { source = "train" }) -- [analytics-discord] summed, sent every 5 min
 	SpeedService.applyMovement(player)
 	StateService.markDirty(player)
 

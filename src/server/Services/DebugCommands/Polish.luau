@@ -81,8 +81,9 @@ return {
 
 	--- analyticsDump: what was (or, in Studio with debug off, would have
 	--- been) sent, plus budgets, drops and the pending passive sums.
-	analyticsDump = function(_player: Player): any
-		return AnalyticsEvents.dump()
+	--- [analytics-discord] Optional filter word, e.g. `analyticsDump Quit`.
+	analyticsDump = function(_player: Player, filter: any?): any
+		return AnalyticsEvents.dump(if type(filter) == "string" then filter else nil)
 	end,
 
 	--- analyticsDebug <true|false>: really send from Studio, and print each

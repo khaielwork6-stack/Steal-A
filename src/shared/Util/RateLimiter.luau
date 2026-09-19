@@ -20,6 +20,10 @@ export type RateLimiter = typeof(setmetatable(
 	RateLimiter
 ))
 
+--- [analytics-discord] Called (perSecond, burst, player) on every refusal
+--- when set. Set by the server's PerfFeed only; nil on clients.
+RateLimiter.onReject = nil :: ((number, number, Player) -> ())?
+
 --- `perSecond` sustained requests, allowing a short burst of `burst` (default 2x).
 function RateLimiter.new(perSecond: number, burst: number?): RateLimiter
 	return setmetatable({
@@ -43,6 +47,12 @@ function RateLimiter.consume(self: RateLimiter, player: Player): boolean
 	bucket.updated = now
 
 	if bucket.tokens < 1 then
+		-- [analytics-discord] Server-only observer (PerfFeed's "remote-flood"
+		-- row). Guarded: a refusal must stay a refusal whatever it does.
+		local observer = RateLimiter.onReject
+		if observer then
+			pcall(observer, self.perSecond, self.burst, player)
+		end
 		return false
 	end
 

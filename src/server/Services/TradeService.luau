@@ -563,6 +563,7 @@ local function finalize(session: Session)
 	for _, player in { a, b } do
 		StateService.pushNow(player)
 		StateService.notify(player, "success", "Trade complete!", "levelup")
+		require(script.Parent.ProgressEvents).fire(player, "tradeCompleted", 1, { items = #result.aGave + #result.bGave }) -- [analytics-discord]
 	end
 
 	local record = {

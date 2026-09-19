@@ -253,6 +253,7 @@ function QuestService.claim(player: Player, kindArg: any, indexArg: any): (boole
 		EconomyService.award(player, cash, "quest")
 		if speed > 0 then
 			profile.SpeedPower += speed
+			ProgressEvents.fire(player, "speedGain", speed, { source = "quest" }) -- [analytics-discord]
 			hooks.refreshMovement(player)
 		end
 		-- An explicit result so the pcall type-checks as (ok, value).

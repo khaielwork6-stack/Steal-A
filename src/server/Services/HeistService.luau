@@ -356,6 +356,7 @@ function HeistService.begin(player: Player, slot: BasePart)
 		return
 	end
 	if BaseService.isFull(player) then
+		require(script.Parent.ProgressEvents).fire(player, "storageFull", 1, { where = "heist" }) -- [analytics-discord]
 		notify(player, "error", "BASE FULL - store or sell something before you steal!")
 		return
 	end
@@ -954,6 +955,7 @@ function HeistService.deposit(player: Player, loot: LootService.LootInstance, sl
 		EconomyService.recalculate(victim)
 		StateService.pushNow(victim)
 		notify(victim, "error", `{player.DisplayName} STOLE YOUR {string.upper(pending.itemName)}!`)
+		require(script.Parent.ProgressEvents).fire(victim, "robbed", 1, { rarity = moved.Rarity }) -- [analytics-discord]
 	end
 
 	notify(

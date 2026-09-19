@@ -495,6 +495,7 @@ local function validatePickup(player: Player, loot: LootService.LootInstance, ex
 	end
 
 	if BaseService.isFull(player) then
+		require(script.Parent.ProgressEvents).fire(player, "storageFull", 1, { where = "steal", zone = loot.zoneIndex }) -- [analytics-discord]
 		return "BASE FULL - sell something or upgrade your base."
 	end
 

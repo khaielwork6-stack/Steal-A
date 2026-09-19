@@ -310,6 +310,7 @@ local function grant(player: Player, profile: DataService.Profile, entry: any): 
 		end
 		-- The same direct grant the group gift and Speed products make.
 		profile.SpeedPower += amount
+		require(script.Parent.ProgressEvents).fire(player, "speedGain", amount, { source = tostring(entry.source or "mail") }) -- [analytics-discord]
 		SpeedService.applyMovement(player)
 		StateService.notify(player, "success", withNote(`You received +{NumberFormat.short(amount)} Speed!`, entry.note), "levelup")
 		return true

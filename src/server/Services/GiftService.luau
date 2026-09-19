@@ -177,6 +177,7 @@ function GiftService.deliver(buyer: Player, profile: DataService.Profile, produc
 			)
 		else
 			profile.SpeedPower += pack.amount
+			require(script.Parent.ProgressEvents).fire(buyer, "speedGain", pack.amount, { source = "product" }) -- [analytics-discord]
 			SpeedService.applyMovement(buyer)
 			StateService.notify(
 				buyer,

@@ -73,6 +73,9 @@ type Guardian = {
 	target: Player?,
 	lootId: string?,
 	alarm: boolean?, -- a laser may start a chase without inventing a loot item
+	--- [analytics-discord] What started the current chase: "laser",
+	--- "doorway", "patrol" or "guard" (a steal it woke for). Analytics only.
+	chaseCause: string?,
 	--- os.clock the current LASER chase began; nil for a loot chase. A laser
 	--- chase gives up after SecurityConfig.LASER_CHASE_TIMEOUT (pass B8a).
 	alarmStartedAt: number?,
@@ -1518,6 +1521,8 @@ local function beginChase(guardian: Guardian, carrier: Carrier, fromSleep: boole
 	clearSmokeMemory(guardian)
 	guardian.target = carrier.player
 	guardian.lootId = if carrier.loot then carrier.loot.id else nil
+	-- [analytics-discord] Read before the state changes below.
+	guardian.chaseCause = if carrier.alarm then "laser" elseif grace then "doorway" elseif guardian.state == "Patrolling" or guardian.state == "Searching" then "patrol" else "guard"
 	guardian.alarm = carrier.alarm == true
 	-- The laser chase's clock starts with the laser chase, and only then.
 	guardian.alarmStartedAt = if carrier.alarm then os.clock() else nil
@@ -2084,6 +2089,7 @@ local function stepChase(guardian: Guardian, humanoid: Humanoid, root: BasePart,
 		Audio.playAt(AudioConfig.guardianHitCue(guardian.zoneIndex), root)
 
 		ragdollAndLaunch(target, root.Position)
+		ProgressEvents.fire(target, "caught", 1, { zone = guardian.zoneIndex, cause = if guardian.profile then "vault" else guardian.chaseCause, carrying = loot ~= nil }) -- [analytics-discord]
 		-- The catch handler takes the item off the thief AND sends it back to
 		-- its socket. The guardian's only remaining job is to decide what to do
 		-- next - it never carries anything. See "THE ESCORT IS RETIRED".

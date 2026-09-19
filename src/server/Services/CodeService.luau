@@ -168,6 +168,7 @@ function CodeService.redeem(player: Player, raw: any, skipLimits: boolean?): (Ou
 		end
 	end
 	busy[player] = nil
+	require(script.Parent.ProgressEvents).fire(player, "codeRedeemed", 1, { code = key }) -- [analytics-discord]
 	print(`[CodeService] {player.Name} redeemed {key}: {RetentionRewards.describe(paid)}`)
 	return "ok", `Code {key} redeemed: {RetentionRewards.describe(paid)}!`
 end

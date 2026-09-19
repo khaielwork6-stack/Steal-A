@@ -136,6 +136,7 @@ function GroupGiftService.tryClaim(player: Player): (boolean, string?)
 
 	fresh.GroupGiftClaimed = true
 	fresh.SpeedPower += GroupGiftService.REWARD_SPEED
+	require(script.Parent.ProgressEvents).fire(player, "speedGain", GroupGiftService.REWARD_SPEED, { source = "group" }) -- [analytics-discord]
 	GroupGiftService.refreshMovement(player)
 
 	-- Durable BEFORE it is celebrated, for the same reason a receipt is: a

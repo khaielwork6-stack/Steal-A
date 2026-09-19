@@ -278,6 +278,7 @@ function FusionService.start()
 			end
 			return
 		end
+		require(script.Parent.ProgressEvents).fire(player, "fused", 1, { rarity = result.Rarity }) -- [analytics-discord]
 		Remotes.get("FusionResult"):FireClient(player, {
 			consumed = consumed,
 			result = summary(result),

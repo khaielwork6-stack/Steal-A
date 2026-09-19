@@ -246,6 +246,14 @@ Remotes.NAMES = {
 	-- opens the WELCOME BACK popup on a fake amount. Display only; a claim
 	-- pressed in a preview plays locally and sends nothing. No server handler.
 	"RewardsUIPreview",
+
+	-- ==== ANALYTICS-DISCORD ====
+	-- client -> server. PerfReport(kind, payload): "spike" with numbers and
+	-- fixed words only (fps, ping, counts, device class, effects setting),
+	-- or "error" with a client script error's first line and script path.
+	-- Clamped, whitelisted and rate-limited in PerfFeed; grants nothing.
+	-- (The open-panel report rides the existing AnalyticsClientEvent.)
+	"PerfReport",
 }
 
 local folder: Folder

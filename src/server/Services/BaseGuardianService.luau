@@ -950,6 +950,7 @@ local function hit(g: Guardian, target: Player, now: number)
 		immunity = BaseGuardianConfig.IMMUNITY,
 	})
 	BaseGuardianService.onIntruderCaught(target, g.ownerUserId)
+	require(script.Parent.ProgressEvents).fire(target, "caught", 1, { zone = "Base", cause = "base" }) -- [analytics-discord]
 	if g.huntTarget == target then
 		g.huntTarget = nil
 		g.huntUntil = 0

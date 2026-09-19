@@ -305,6 +305,7 @@ local function grant(player: Player, profile: DataService.Profile, prize: Prize,
 		-- multiplies TRAINING GAIN and nothing else (see SpeedService), so the
 		-- prize is exactly the figure the wedge showed.
 		profile.SpeedPower += prize.amount
+		ProgressEvents.fire(player, "speedGain", prize.amount, { source = "spin" }) -- [analytics-discord]
 		if announce then
 			SpeedService.applyMovement(player)
 		end
@@ -319,6 +320,7 @@ local function grant(player: Player, profile: DataService.Profile, prize: Prize,
 			tell(`FREE SPIN: THE {string.upper(key)} GUARDIAN IS YOURS!`)
 		else
 			profile.SpeedPower += SpinWheelConfig.DUPLICATE_GUARDIAN_SPEED
+			ProgressEvents.fire(player, "speedGain", SpinWheelConfig.DUPLICATE_GUARDIAN_SPEED, { source = "spin" }) -- [analytics-discord]
 			if announce then
 				SpeedService.applyMovement(player)
 			end

@@ -125,7 +125,8 @@ GuardianService.alarmLootFor = CarryService.getCarried
 CarryService.setStolenHandler(function(player, loot)
 	StarterTaskService.complete(player, "steal")
 	-- [social pass] Progress bus (badges: first steal, milestones, zones).
-	ProgressEvents.fire(player, "steal", 1, { zone = loot.zoneIndex })
+	-- [analytics-discord] `vault`: the VaultSteal event.
+	ProgressEvents.fire(player, "steal", 1, { zone = loot.zoneIndex, vault = LootService.isVaultLoot(loot) })
 end)
 SpeedService.onTrained = function(player)
 	StarterTaskService.complete(player, "train")
@@ -463,6 +464,19 @@ do
 
 	AnalyticsEvents.wrapReceipts(MonetizationService)
 	AnalyticsEvents.start()
+
+	-- [analytics-discord] Sessions / quit context / core-loop events, the
+	-- Discord reporter (purchases, big reveals, errors, summaries, the daily
+	-- digest, the analytics mirror) and the errors-and-spikes feed. Live
+	-- prices and the catch offer are injected so no service requires these.
+	-- See docs/handoff-parts/analytics-discord.md.
+	AnalyticsEvents.livePrice = function(id, isPass)
+		return if isPass then MonetizationService.livePassPrice(id) else MonetizationService.liveProductPrice(id)
+	end
+	MonetizationService.onBossOfferShown = AnalyticsEvents.bossOfferShown
+	require(Services.AnalyticsSession).start()
+	require(Services.DiscordReporter).start()
+	require(Services.PerfFeed).start()
 
 	-- The first-join flyover: the `firstSession` push field and FlyoverDone.
 	require(Services.FlyoverService).start()

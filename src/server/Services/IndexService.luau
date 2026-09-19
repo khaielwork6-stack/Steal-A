@@ -219,6 +219,7 @@ local function payOut(player: Player, reward: IndexConfig.Reward, label: string)
 		EconomyService.earn(player, reward.cash, "index")
 	end
 	profile.SpeedPower += reward.speed
+	ProgressEvents.fire(player, "speedGain", reward.speed, { source = "index" }) -- [analytics-discord]
 
 	StateService.pushNow(player)
 	IndexService.push(player)

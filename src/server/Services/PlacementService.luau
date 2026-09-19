@@ -232,6 +232,7 @@ function PlacementService.store(player: Player, slotIndex: number): (boolean, st
 	end
 
 	if #profile.Inventory >= PlacementService.storageCapacity(player) then
+		ProgressEvents.fire(player, "storageFull", 1, { where = "store" }) -- [analytics-discord]
 		return false, "Storage full - sell something first."
 	end
 

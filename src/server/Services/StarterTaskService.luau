@@ -79,6 +79,7 @@ function StarterTaskService.complete(player: Player, key: string)
 		EconomyService.award(player, task_.amount, "task")
 	else
 		profile.SpeedPower += task_.amount
+		require(script.Parent.ProgressEvents).fire(player, "speedGain", task_.amount, { source = "task" }) -- [analytics-discord]
 		SpeedService.applyMovement(player)
 	end
 
