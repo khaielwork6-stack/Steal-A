@@ -262,7 +262,16 @@ MapConfig.PLAZA_FRONT_Z = -MapConfig.SAFE_ZONE_DEPTH
 MapConfig.HUB = {
 	spawn = Vector3.new(0, 0, -34),
 	spawnPlazaDiameter = 24,
-	trailBooth = CFrame.new(-146, 0, -12) * CFrame.Angles(0, math.rad(180), 0),
+	-- THE LEFT WING, IN FRONT OF THE ENTRANCE (owner, 2026-09-18). The trail
+	-- booth, both Guardian pedestals and the Slap cage used to be split across
+	-- the two wings; they stand together now on the player's LEFT as they face
+	-- the lane (+X), between the entrance's pylon at X = 80 and the Speed
+	-- board at X = 178, so a player walking up to the museum passes the whole
+	-- row. Against the wall: the Slap cage (a Studio-placed model, Workspace.
+	-- Slap, at X = 92), the Next Update board (128) and the booth (156). In
+	-- front of them, on the Z = -28 line, the two pedestals (104 and 138),
+	-- each ring nine studs across and clear of its neighbours.
+	trailBooth = CFrame.new(156, 0, -12) * CFrame.Angles(0, math.rad(180), 0),
 	-- Four studs off the shoulder wall's lobby face (Z = 0): EventStandService
 	-- raycasts back from here and seats the board flat against that wall.
 	eventStand = Vector3.new(128, 0, -4),
@@ -276,12 +285,11 @@ MapConfig.HUB = {
 	giftChest = Vector3.new(-119, 0, -16),
 	-- The rotating Guardian shop: the pedestal in the +X wing between the lane
 	-- mouth and the Next Update board, turned to face the spawn circle.
-	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -24), Vector3.new(0, 0, -34)),
-	-- The SECOND sale pedestal, the first reflected in X so the pair frames
-	-- the spawn circle. Clear of the Slap cage (near X = -94, Z = -8) by
-	-- eighteen studs and of the gift chest (X = -119) by fifteen, which the
-	-- ring's nine-stud radius needs at both ends.
-	guardianShopB = CFrame.lookAt(Vector3.new(-104, 0, -24), Vector3.new(0, 0, -34)),
+	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -28), Vector3.new(0, 0, -34)),
+	-- The SECOND sale pedestal, beside the first on the same line: thirty-four
+	-- studs along, so the two nine-stud rings and the Next Update board between
+	-- them (X = 128, on the wall) never touch.
+	guardianShopB = CFrame.lookAt(Vector3.new(138, 0, -28), Vector3.new(0, 0, -34)),
 	-- The GADGETS stall, BACK TO THE SHOULDER WALL AND FRONT TO THE BASES.
 	--
 	-- It used to have no home at all: with no marker the service fell through to
