@@ -96,32 +96,14 @@ local cached: { [Player]: TutorialState } = {}
 -- HELPERS
 -- ==========================================================
 
-local function isCarryingTutorialItem(player: Player): boolean
-	local loot = CarryService.getCarried(player)
-	return loot ~= nil and loot.itemId == GameConfig.TUTORIAL_ITEM_ID
-end
-
---- The current tutorial item, or one of its predecessors: a player part-way
---- through when the item changed placed the OLD one and must not be sent
---- back to steal the new one.
-local function isTutorialItemId(itemId: string): boolean
-	if itemId == GameConfig.TUTORIAL_ITEM_ID then
-		return true
-	end
-	for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
-		if itemId == legacyId then
-			return true
-		end
-	end
-	return false
-end
-
---- A tutorial item sitting SEALED on one of the player's pads: placed, not
---- yet revealed. This is the state the derivation used to fall through - see
---- THE SEALED WINDOW in deriveStage.
+--- ANY item sitting SEALED on one of the player's pads: placed, not yet
+--- revealed. This is the state the derivation used to fall through - see
+--- THE SEALED WINDOW in deriveStage. Any item, not just the tutorial's
+--- (owner, 2026-09-19): whatever the new player carried home is the one
+--- they are about to open.
 local function sealedTutorialItem(profile: DataService.Profile): DataService.DisplayItem?
 	for _, item in profile.DisplayItems do
-		if item.Hatched ~= true and isTutorialItemId(item.ItemId) then
+		if item.Hatched ~= true then
 			return item
 		end
 	end
@@ -194,20 +176,18 @@ local function deriveStage(player: Player): number
 		return STAGE.COMPLETE
 	end
 
-	-- Index discovery is the durable marker: it survives selling the first item,
-	-- so a player cannot be knocked back to "place it" by cashing it in. An
-	-- earlier tutorial item counts too - a player who placed the Vase before the
-	-- tutorial switched to the Mask has done this step, and must not be sent
-	-- back to steal a Mask they were never asked for.
-	local placedFirstItem = profile.Index[GameConfig.TUTORIAL_ITEM_ID] == true
-	if not placedFirstItem then
-		for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
-			if profile.Index[legacyId] == true then
-				placedFirstItem = true
-				break
-			end
-		end
-	end
+	-- ANY ITEM COUNTS (owner, 2026-09-19). The derivation used to look for
+	-- THE tutorial item - the pinned Mask, or the Vase before it - and only
+	-- that: a new player who stole the crate next to it was still told
+	-- "Steal your first treasure!" while carrying one. Every check below
+	-- reads the player's real state instead: anything carried, anything
+	-- sealed on a pad, anything ever revealed. The pinned item stays as a
+	-- guarantee that SOMETHING is there to steal, not as the only thing that
+	-- counts.
+	--
+	-- Index discovery is the durable marker: it survives selling the first
+	-- item, so a player cannot be knocked back to "place it" by cashing it in.
+	local placedFirstItem = next(profile.Index) ~= nil
 	local trained = profile.SpeedPower > GameConfig.STARTING_SPEED_POWER
 
 	-- The base is always active, so placing the first item leads straight to the
@@ -220,8 +200,8 @@ local function deriveStage(player: Player): number
 		return STAGE.INCOME
 	end
 
-	-- Not yet placed: the carry itself tells us where we are.
-	if isCarryingTutorialItem(player) then
+	-- Not yet placed: the carry itself tells us where we are - ANY carry.
+	if CarryService.getCarried(player) ~= nil then
 		return if BaseService.isInOwnSafeZone(player) then STAGE.PLACE else STAGE.ESCAPE
 	end
 
@@ -320,7 +300,7 @@ local function buildState(player: Player, stage: number): TutorialState
 	elseif stage == STAGE.ESCAPE then
 		return present(player, "escape", stage)
 	elseif stage == STAGE.PLACE then
-		return present(player, if isCarryingTutorialItem(player) then "place" else "reveal", stage)
+		return present(player, if CarryService.getCarried(player) ~= nil then "place" else "reveal", stage)
 	elseif stage == STAGE.INCOME then
 		return present(player, "income", stage)
 	elseif stage == STAGE.TRAIN then

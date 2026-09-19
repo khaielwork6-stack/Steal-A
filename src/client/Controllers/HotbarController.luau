@@ -326,6 +326,25 @@ end
 local function render()
 	assignment = gatherTools()
 	local held = equippedTool()
+	-- NOTHING TO SHOW, NOTHING SHOWN (owner, 2026-09-19). A carry keeps only
+	-- the gadget slots, and a player with no gadgets was left holding three
+	-- empty squares in the middle of the screen. A gadget's Tool exists only
+	-- while its count is above zero, so "no Tool in any gadget slot" IS
+	-- "owns no gadgets": the whole bar goes.
+	local bar = barFrame
+	if bar then
+		local anyGadget = false
+		for index in GADGET_SLOTS do
+			if assignment[index] then
+				anyGadget = true
+				break
+			end
+		end
+		local show = not carrying or anyGadget
+		if bar.Visible ~= show then
+			bar.Visible = show
+		end
+	end
 	for index, slot in slots do
 		local tool = assignment[index]
 		-- A carry shows only the gadget slots (see the header).

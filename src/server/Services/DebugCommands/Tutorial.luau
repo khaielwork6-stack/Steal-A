@@ -100,18 +100,6 @@ local function guarded(player: Player, fn: (DataService.Profile) -> any): any
 	return result
 end
 
-local function isTutorialItemId(itemId: string): boolean
-	if itemId == GameConfig.TUTORIAL_ITEM_ID then
-		return true
-	end
-	for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
-		if itemId == legacyId then
-			return true
-		end
-	end
-	return false
-end
-
 local commands = {}
 
 commands.tutorialState = function(player: Player)
@@ -120,7 +108,7 @@ commands.tutorialState = function(player: Player)
 	local sealed = nil
 	if profile then
 		for _, item in profile.DisplayItems do
-			if isTutorialItemId(item.ItemId) then
+			if item.Hatched ~= true then
 				sealed = { itemId = item.ItemId, slot = item.SlotIndex, hatched = item.Hatched, endsIn = (tonumber(item.HatchEndsAt) or 0) - os.time() }
 			end
 		end
@@ -133,7 +121,7 @@ commands.tutorialState = function(player: Player)
 		savedStage = profile and profile.TutorialStage,
 		introSeen = profile and profile.TutorialIntroSeen,
 		indexHasItem = profile and profile.Index[GameConfig.TUTORIAL_ITEM_ID] == true,
-		tutorialItemOnBase = sealed,
+		sealedOnBase = sealed,
 		steps = TutorialService.debugSteps(),
 		snapshotHeld = snapshots[player] ~= nil,
 	}
@@ -152,38 +140,35 @@ end
 
 commands.tutorialReset = function(player: Player)
 	return guarded(player, function(profile)
+		-- The derivation counts ANY discovery, so a reset clears the whole
+		-- Index (snapshotted; tutorialRestore puts it back). Items still on
+		-- the pads keep deriving to the reveal step - clear the base first
+		-- (clearDisplays) for a true fresh start.
 		profile.TutorialStage = TutorialService.STAGE.STEAL
-		profile.Index[GameConfig.TUTORIAL_ITEM_ID] = nil
-		for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
-			profile.Index[legacyId] = nil
-		end
+		profile.Index = {}
 		TutorialService.debugForceStep(player, nil)
 		StateService.pushNow(player)
 		return {
 			derivedStage = TutorialService.deriveStage(player),
-			note = "the derivation now reads from the carry and the pads; tutorialRestore undoes this",
+			note = "any carry, any sealed pad and any discovery count; tutorialRestore undoes this",
 		}
 	end)
 end
 
 commands.tutorialSealed = function(player: Player)
 	return guarded(player, function(profile)
+		-- Any item on the base: the derivation no longer cares which.
 		local newest: DataService.DisplayItem? = nil
 		for _, item in profile.DisplayItems do
-			if isTutorialItemId(item.ItemId) then
-				newest = item
-			end
+			newest = item
 		end
 		if not newest then
-			return { error = "no tutorial item on the base - steal one and place it first (steal / place)" }
+			return { error = "nothing on the base - steal something and place it first (steal / place)" }
 		end
 		local item = newest :: DataService.DisplayItem
 		item.Hatched = false
 		item.HatchEndsAt = os.time() + GameConfig.TUTORIAL_HATCH_SECONDS
-		profile.Index[GameConfig.TUTORIAL_ITEM_ID] = nil
-		for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
-			profile.Index[legacyId] = nil
-		end
+		profile.Index[item.ItemId] = nil
 		if profile.TutorialStage > TutorialService.STAGE.PLACE then
 			profile.TutorialStage = TutorialService.STAGE.PLACE
 		end

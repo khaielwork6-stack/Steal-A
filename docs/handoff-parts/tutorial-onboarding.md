@@ -62,6 +62,18 @@ billboard is gone)
 - `src/server/Services/DebugCommands/Tutorial.luau` - see the test plan.
 - `docs/codex-prompts/tutorial.md` - the hand icon brief.
 
+## Any crate counts (2026-09-19)
+
+The derivation used to look for THE tutorial item - the pinned Mask, or the
+Vase before it - and only that, so a new player who stole the crate next to
+it was still told "Steal your first treasure!" while carrying one. Every
+check reads the player's real state now: any carry is `escape` / `place`,
+any sealed item on a pad is `reveal`, any entry in the Index is "has
+revealed". The pinned item stays only as a guarantee that something is
+there to steal. The chevron trail also retires for good after the first
+theft of anything (`trail` on the state, from `Lifetime.Steals`); the line
+and the ring stay.
+
 ## The `deriveStage` bug, and the fix
 
 Confirmed against the code before changing anything: `Profile.Index[itemId]`
