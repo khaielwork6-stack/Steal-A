@@ -652,7 +652,9 @@ end
 --- rewrites every property it owns.
 local function fitTouchRail(ui: ScreenGui, buttons: GuiObject, left: GuiObject)
 	local camera = workspace.CurrentCamera
-	if camera and camera.ViewportSize.Y < 500 then return end -- MobileHudLayout owns the landscape rail.
+	-- MobileHudLayout owns a PHONE's rail, judged by the short edge like it is
+	-- there, so the two layouts can never both run on one device.
+	if camera and Device.isPhone() then return end
 	local hudHeight = ui.AbsoluteSize.Y
 	if hudHeight <= 0 then
 		return

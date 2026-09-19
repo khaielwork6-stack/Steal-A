@@ -93,13 +93,28 @@ end
 -- START
 -- ==========================================================
 
+local Device = require(ReplicatedStorage.Shared.Util.Device)
+
 --- Phones get a slightly smaller UI so the side menu and the currency stack do
---- not eat the play area. Driven off viewport width rather than TouchEnabled,
---- because a small window on desktop has the same problem.
+--- not eat the play area.
+---
+--- ON TOUCH THE RULE IS THE SHORT EDGE, NOT THE WIDTH (owner, 2026-09-18).
+--- Phones do not agree on how many logical pixels they are: an iPhone 15 Pro
+--- reports ~852 x 393 in landscape and a Galaxy S24 well over 1000 wide, so
+--- a width rule gave the iPhone the 0.72 phone scale and the S24 the full
+--- desktop 1.0 - the economy pill on the S24 was the size of the hotbar. Every
+--- phone has a short edge under 620 (Device.isPhone) whatever its width, so
+--- the short edge is what decides, and tablets land on 0.85. Desktop keeps
+--- the width rule: a small window there has the same problem a phone does.
 local function applyScale()
 	local camera = workspace.CurrentCamera
 	local scale = ui:FindFirstChildWhichIsA("UIScale")
 	if not camera or not scale then
+		return
+	end
+	if Device.isTouch() then
+		local short = Device.shortEdge()
+		scale.Scale = if short < 620 then 0.72 elseif short < 900 then 0.85 else 1
 		return
 	end
 	local width = camera.ViewportSize.X

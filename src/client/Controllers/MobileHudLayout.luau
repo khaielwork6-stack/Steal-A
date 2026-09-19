@@ -8,7 +8,10 @@ local MobileHudLayout = {}
 function MobileHudLayout.start(ui: ScreenGui)
 	local function fit()
 		local camera = workspace.CurrentCamera
-		if not camera or not Device.isTouch() or camera.ViewportSize.Y >= 500 then return end
+		-- A PHONE by its short edge, not by a 500 px height: a Galaxy S24
+		-- reports a taller logical viewport than an iPhone and was skipping
+		-- this compact layout entirely (owner, 2026-09-18).
+		if not camera or not Device.isPhone() then return end
 		local factor = ClipSafe.scaleChain(ui)
 		local function place(object: GuiObject, x: number, y: number, w: number, h: number, right: boolean?)
 			object.AnchorPoint = Vector2.new(if right then 1 else 0, 0)

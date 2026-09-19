@@ -282,7 +282,9 @@ MapConfig.HUB = {
 	avenueWidth = 20, -- RETIRED: the kit's lobby has no avenue
 	-- Clear of the Slap cage (centred near X = -94, 11 wide) on the player's
 	-- right, with room for the chest's 13-stud glow disc between them.
-	giftChest = Vector3.new(-119, 0, -16),
+	-- Fifteen studs further along the wall than it was (owner, 2026-09-18):
+	-- its glow disc was touching the second pedestal's ring at X = -119.
+	giftChest = Vector3.new(-134, 0, -16),
 	-- The rotating Guardian shop: the pedestal in the +X wing between the lane
 	-- mouth and the Next Update board, turned to face the spawn circle.
 	guardianShop = CFrame.lookAt(Vector3.new(104, 0, -28), Vector3.new(0, 0, -34)),

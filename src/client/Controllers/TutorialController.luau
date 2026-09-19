@@ -32,6 +32,7 @@
 ]]
 
 local GuiService = game:GetService("GuiService")
+local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -160,6 +161,80 @@ rayParams.IgnoreWater = true
 -- is skipped, or a chevron would perch on a rail twelve studs up.
 rayParams.RespectCanCollide = true
 local rayFilter: { Instance } = {}
+
+--- THE PATH THE TRAIL FOLLOWS (owner, 2026-09-18). A straight line from the
+--- feet to the objective ran through the museum's walls - chevrons across a
+--- gallery pointing into brick, which reads as "walk through here" and is
+--- exactly wrong. The trail is laid along a PathfindingService route now,
+--- so it turns where the doorways are. The route is a polyline sampled by
+--- arc length; it is recomputed off the frame loop when the player has
+--- moved a few studs, the target changed or it has simply aged, and the
+--- straight line is only the fallback while there is no route yet.
+local pathPoints: { Vector3 } = {}
+local pathCumulative: { number } = {}
+local pathLength = 0
+local pathFrom: Vector3? = nil
+local pathTo: Vector3? = nil
+local pathAt = 0
+local pathBusy = false
+--- Recompute when the player has moved this far from where the route was
+--- computed, or the route is older than this.
+local PATH_REFRESH_STUDS = 4
+local PATH_REFRESH_SECONDS = 1.2
+local pathAgent = { AgentRadius = 2, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 4 }
+
+--- Computes a fresh route in its own thread; never yields the frame loop.
+local function refreshPath(from: Vector3, to: Vector3)
+	if pathBusy then
+		return
+	end
+	pathBusy = true
+	pathFrom, pathTo, pathAt = from, to, os.clock()
+	task.spawn(function()
+		local path = PathfindingService:CreatePath(pathAgent)
+		local ok = pcall(path.ComputeAsync, path, from, to)
+		if ok and path.Status == Enum.PathStatus.Success then
+			local waypoints = path:GetWaypoints()
+			table.clear(pathPoints)
+			table.clear(pathCumulative)
+			local total = 0
+			for index, waypoint in waypoints do
+				table.insert(pathPoints, waypoint.Position)
+				if index > 1 then
+					total += (waypoint.Position - waypoints[index - 1].Position).Magnitude
+				end
+				table.insert(pathCumulative, total)
+			end
+			pathLength = total
+		else
+			table.clear(pathPoints)
+			table.clear(pathCumulative)
+			pathLength = 0
+		end
+		pathBusy = false
+	end)
+end
+
+--- The point `along` studs down the route, and the flat direction there.
+local function pointOnPath(along: number): (Vector3, Vector3)
+	local count = #pathPoints
+	if count < 2 then
+		return pathPoints[1] or Vector3.zero, Vector3.zAxis
+	end
+	along = math.clamp(along, 0, pathLength)
+	for index = 2, count do
+		if pathCumulative[index] >= along then
+			local a, b = pathPoints[index - 1], pathPoints[index]
+			local segment = pathCumulative[index] - pathCumulative[index - 1]
+			local t = if segment > 0 then (along - pathCumulative[index - 1]) / segment else 0
+			local flat = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+			return a:Lerp(b, t), if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
+		end
+	end
+	local a, b = pathPoints[count - 1], pathPoints[count]
+	local flat = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	return b, if flat.Magnitude > 0.01 then flat.Unit else Vector3.zAxis
+end
 
 local lineLabels: { TextLabel } = {}
 local lineStrokes: { UIStroke } = {}
@@ -501,22 +576,36 @@ local function updateTrail(root: BasePart, target: Vector3, dt: number)
 	local direction = flat.Unit
 	local origin = Vector3.new(root.Position.X, root.Position.Y, root.Position.Z) + direction * ORIGIN_PUSH
 
+	-- The route: refreshed when the player has walked off the one it was
+	-- computed from, the target moved, or it has aged. Off the frame loop.
+	local stale = pathTo == nil
+		or (pathTo :: Vector3 - target).Magnitude > 1
+		or pathFrom == nil
+		or (root.Position - (pathFrom :: Vector3)).Magnitude > PATH_REFRESH_STUDS
+		or os.clock() - pathAt > PATH_REFRESH_SECONDS
+	if stale then
+		refreshPath(root.Position, target)
+	end
+	local onPath = #pathPoints >= 2 and pathLength > ORIGIN_PUSH + 1
+
 	-- The fill colour slides between calm and chased, never snaps.
 	local wantRed = player:GetAttribute("Chased") == true
 	local step = dt / CHASE_BLEND_SECONDS
 	chaseBlend = if wantRed then math.min(1, chaseBlend + step) else math.max(0, chaseBlend - step)
 	local fill = FILL_CALM:Lerp(FILL_CHASED, chaseBlend)
 
-	-- How many chevrons, and over what length. A far target gets a fixed
-	-- runway; a near one only the chevrons that fit before it.
+	-- How many chevrons, and over what length. Along the route when there
+	-- is one, else the straight line. A far target gets a fixed runway; a
+	-- near one only the chevrons that fit before it.
 	local poolCount = if lowGraphics then LOW_CHEVRONS else MAX_CHEVRONS
+	local reach = if onPath then pathLength else distance
 	local span: number
 	local count: number
-	if distance > RUNWAY_BEYOND then
+	if reach > RUNWAY_BEYOND then
 		count = poolCount
 		span = SPACING * count
 	else
-		local usable = distance - ORIGIN_PUSH
+		local usable = reach - ORIGIN_PUSH
 		count = math.clamp(math.floor(usable / SPACING), 1, poolCount)
 		span = SPACING * count
 	end
@@ -541,10 +630,16 @@ local function updateTrail(root: BasePart, target: Vector3, dt: number)
 				alpha = (span - along) / FADE_STUDS
 			end
 		end
-		local at = origin + direction * along
+		local at: Vector3
+		local facing: Vector3
+		if onPath then
+			at, facing = pointOnPath(ORIGIN_PUSH + along)
+		else
+			at, facing = origin + direction * along, direction
+		end
 		local hit = workspace:Raycast(at + Vector3.new(0, RAY_UP, 0), Vector3.new(0, -RAY_LENGTH, 0), rayParams)
 		if hit then
-			placeChevron(chevron, hit.Position, direction, alpha, fill)
+			placeChevron(chevron, hit.Position, facing, alpha, fill)
 		else
 			-- A miss is hidden, never dropped at Y = 0.
 			hideChevron(chevron)

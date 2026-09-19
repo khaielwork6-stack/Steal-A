@@ -84,6 +84,13 @@ local LootService = {}
 --- Above this height an item is too tall to hang its prompt over: the anchor
 --- stops climbing and steps out of the silhouette instead.
 local TALL_ITEM_PROMPT_HEIGHT = 9
+--- The most a prompt anchor ever sits above the case surface. It used to
+--- climb with the item up to TALL_ITEM_PROMPT_HEIGHT, and on a phone -
+--- narrow field of view, camera close and looking slightly down - a tall
+--- container's "Steal" ended up at the top edge of the screen, over the
+--- HUD buttons (owner, 2026-09-18). Head height is as high as it needs to
+--- be: the prompt is screen-space and needs no line of sight.
+local STEAL_PROMPT_MAX_LIFT = 4.5
 
 export type LootState = "Spawned" | "Reserved" | "Carried" | "Dropped" | "Escorted" | "Returning" | "Placed" | "Retired"
 
@@ -467,7 +474,7 @@ local function materialise(socket: Socket, loot: LootInstance): boolean
 	-- The anchor is welded to the art so a drop carries it along, and the
 	-- interaction range is widened by the height it gained so the reach from
 	-- the floor is exactly what it was.
-	local anchorY = surface + math.min(height + 1.5, TALL_ITEM_PROMPT_HEIGHT)
+	local anchorY = surface + math.min(height + 1.5, TALL_ITEM_PROMPT_HEIGHT, STEAL_PROMPT_MAX_LIFT)
 	local anchorX, anchorZ = socket.part.Position.X, socket.part.Position.Z
 	if height > TALL_ITEM_PROMPT_HEIGHT then
 		local towardLane = if anchorX >= 0 then -1 else 1

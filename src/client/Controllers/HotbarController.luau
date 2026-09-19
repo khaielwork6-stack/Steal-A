@@ -43,6 +43,7 @@ local HotbarController = {}
 
 local player = Players.LocalPlayer
 
+local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 
 --- Five since the gadgets (gadgets-patrols area): weapon, trap, and the three
@@ -440,7 +441,12 @@ local function place()
 		end
 		local top = dropButtonTop()
 		if top and top > 80 then
-			bar.Position = UDim2.fromOffset(0, top - CARRY_GAP) + UDim2.fromScale(0.5, 0)
+			-- `top` is in screen pixels; this bar's offsets are in ITS gui's
+			-- pixels, under the phone UIScale (0.72). Written raw, the bar
+			-- landed at 72% of the way to the DROP button - mid-screen on a
+			-- phone (owner, 2026-09-18). Divide the scale back out.
+			local factor = math.max(ClipSafe.scaleChain(bar), 0.1)
+			bar.Position = UDim2.fromOffset(0, (top - CARRY_GAP) / factor) + UDim2.fromScale(0.5, 0)
 		end
 	end)
 end
