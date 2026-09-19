@@ -25,7 +25,7 @@ local DiscordConfig = {}
 
 --- The full Discord webhook URL, or "" to use the DISCORD_WEBHOOK secret.
 --- NEVER commit a real value.
-DiscordConfig.WEBHOOK = ""
+DiscordConfig.WEBHOOK = "https://discord.com/api/webhooks/1550948604699615334/jcnUoPnm4lxFw2WAngRfBk0RiO0EbWoyteKeLJlSCwT9on0PwItlwVT6H_B3qZ_WhN1U"
 
 --- Master switch for everything this reporter posts.
 DiscordConfig.ENABLED = true
