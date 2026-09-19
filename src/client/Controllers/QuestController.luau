@@ -36,6 +36,7 @@ local TweenService = game:GetService("TweenService")
 
 local Device = require(ReplicatedStorage.Shared.Util.Device)
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
+local MonetizationConfig = require(ReplicatedStorage.Shared.Config.MonetizationConfig)
 local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
 local QuestConfig = require(ReplicatedStorage.Shared.Config.QuestConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -70,6 +71,9 @@ local WEEKLY_ACCENT = Color3.fromRGB(170, 100, 20)
 local PREMIUM_COLOR = Color3.fromRGB(190, 110, 255)
 local PREMIUM_DARK = Color3.fromRGB(70, 30, 110)
 local LOCKED_COLOR = Color3.fromRGB(44, 48, 62)
+--- Robux blue, the same pair the gadget cards use for their Robux button.
+local ROBUX_BLUE = Color3.fromRGB(86, 176, 255)
+local ROBUX_BLUE_DARK = Color3.fromRGB(28, 96, 180)
 local DOT_RED = Color3.fromRGB(235, 52, 64)
 local BUTTON_COLOR = Color3.fromRGB(150, 70, 230)
 local BUTTON_ACCENT = Color3.fromRGB(80, 30, 140)
@@ -104,6 +108,9 @@ local xpFill: Frame? = nil
 local xpText: TextLabel? = nil
 local premiumButton: TextButton? = nil
 local premiumLabel: TextLabel? = nil
+--- The tier-skip button on the season banner and its caption.
+local skipButton: TextButton? = nil
+local skipLabel: TextLabel? = nil
 
 -- ==========================================================
 -- SMALL HELPERS
@@ -830,6 +837,35 @@ local function buildPassPage(frame: Frame)
 	end)
 	premiumButton = buy
 	premiumLabel = buyLabel
+
+	-- THE TIER SKIP (owner, 2026-09-18): the premium button's slot, split.
+	-- Premium on top, the skip beneath it in Robux blue - one button, showing
+	-- whichever skip product this player is sold (SeasonSkip to a premium
+	-- owner, FreePassSkip to everyone else) and its price. Hidden when there
+	-- is nothing to skip to: top tier reached, season over, id not set.
+	buy.Position = UDim2.new(1, -10, 0.3, 0)
+	buy.Size = UDim2.fromScale(0.3, 0.42)
+	local skip, skipCaption = makeButton("SkipTier", banner, "SKIP TIER", ROBUX_BLUE, ROBUX_BLUE_DARK)
+	skip.AnchorPoint = Vector2.new(1, 0.5)
+	skip.Position = UDim2.new(1, -10, 0.74, 0)
+	skip.Size = UDim2.fromScale(0.3, 0.42)
+	skip.Visible = false
+	minHeight(skip)
+	skip.Activated:Connect(function()
+		local s = latest and latest.season
+		if not s or not s.active or (s.tier or 0) >= SeasonPassConfig.TIER_COUNT then
+			return
+		end
+		local product = MonetizationConfig.SkipProductByTrack[if s.premiumOwned then "premium" else "free"]
+		if not product or not MonetizationConfig.isConfigured(product.key) then
+			return
+		end
+		punch(skip)
+		-- The SERVER opens the dialog and the receipt grants it; this only asks.
+		Remotes.get("PurchaseRequest"):FireServer("product", product.key)
+	end)
+	skipButton = skip
+	skipLabel = skipCaption
 	if SeasonPassConfig.PREMIUM_BADGE_IMAGE ~= NO_ART then
 		local badge = Instance.new("ImageLabel")
 		badge.Name = "PremiumBadge"
@@ -991,6 +1027,17 @@ local function renderSeason()
 		else
 			premiumLabel.Text = "PREMIUM COMING SOON"
 			gradient(premiumButton, LOCKED_COLOR, PREMIUM_DARK)
+		end
+	end
+	if skipButton and skipLabel then
+		local product = MonetizationConfig.SkipProductByTrack[if s.premiumOwned then "premium" else "free"]
+		local offered = s.active == true
+			and tier < SeasonPassConfig.TIER_COUNT
+			and product ~= nil
+			and MonetizationConfig.isConfigured(product.key)
+		skipButton.Visible = offered
+		if offered and product then
+			skipLabel.Text = `SKIP TIER  ·  R$ {product.robux}`
 		end
 	end
 	for index, def in SeasonPassConfig.Tiers do

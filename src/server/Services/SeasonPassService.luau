@@ -236,6 +236,39 @@ function SeasonPassService.addXp(player: Player, amount: number, source: XpSourc
 	return value
 end
 
+
+--- A PAID TIER SKIP (owner, 2026-09-18). Sets the season XP to the next
+--- tier's threshold, so the reward on that tier is claimable at once. Called
+--- only from a delivered receipt (MonetizationService, kind "Skip"); refuses
+--- with a reason when there is nothing to deliver, and the receipt then
+--- converts to Cash rather than being swallowed.
+---
+--- Both tracks share the ONE tier ladder, so the two products advance the
+--- same number; the premium skip additionally requires premium, because the
+--- reward it is advertising is on the premium track.
+function SeasonPassService.skipTier(player: Player, track: string): (boolean, string?)
+	if not SeasonPassConfig.ENABLED or not isActive() then
+		return false, "the season is not running"
+	end
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "no profile"
+	end
+	if track == "premium" and not ownsPremium(player) then
+		return false, "premium skip without premium"
+	end
+	local season = current(profile)
+	local tier = SeasonPassConfig.tierFor(season.xp)
+	if tier >= SeasonPassConfig.TIER_COUNT then
+		return false, "already at the top tier"
+	end
+	season.xp = math.max(season.xp, SeasonPassConfig.Thresholds[tier + 1])
+	hooks.notify(player, "success", `TIER {tier + 1} UNLOCKED! Claim it in the Season Pass.`, "levelup")
+	hooks.markStateDirty(player)
+	SeasonPassService.onChanged(player)
+	return true
+end
+
 -- ==========================================================
 -- CLAIMS
 -- ==========================================================

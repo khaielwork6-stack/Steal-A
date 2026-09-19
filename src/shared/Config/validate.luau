@@ -887,6 +887,26 @@ return function(): Report
 		-- purchases up by id, and a 0 that matched would grant the wrong thing.
 		check(MonetizationConfig.ProductById[0] == nil, "product id 0 must never resolve to a product")
 
+		-- TIER SKIPS (owner, 2026-09-18): one per track, the owner's ids and
+		-- prices, each a Skip product that names its track, and the premium one
+		-- never sellable to a non-owner (MonetizationService.promptProduct).
+		local skips = MonetizationConfig.SkipProducts
+		check(#skips == 2, `there must be two tier skips, found {#skips}`)
+		local expectedSkips = {
+			{ key = "SeasonSkip", id = 3713493471, robux = 49, track = "premium" },
+			{ key = "FreePassSkip", id = 3713493455, robux = 59, track = "free" },
+		}
+		for index, row in expectedSkips do
+			local skip = skips[index]
+			check(
+				skip ~= nil and skip.key == row.key and skip.productId == row.id and skip.robux == row.robux,
+				`tier skip {index} must keep key {row.key}, id {row.id} and price {row.robux}`
+			)
+			check(skip ~= nil and skip.kind == "Skip" and skip.skipTrack == row.track, `{row.key} must be a Skip product on the {row.track} track`)
+			check(MonetizationConfig.SkipProductByTrack[row.track] == skip, `the {row.track} track must resolve to {row.key}`)
+			check(MonetizationConfig.ProductById[row.id] == skip, `{row.key}'s id must resolve to it`)
+		end
+
 		-- The 2x pass and the boosts are divided OUT of the income basis.
 		check(MonetizationConfig.baseIncome(200, 2) * 2 == MonetizationConfig.baseIncome(200, 1), "the 2x Cash pass must not scale purchased packs")
 		check(MonetizationConfig.baseIncome(0 / 0, 1) == 0, "a NaN income must read as zero")

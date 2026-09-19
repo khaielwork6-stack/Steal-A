@@ -303,6 +303,8 @@ local giftHandler: DeliveryHandler? = nil
 --- Injected from init like the three above, so this service never requires
 --- GadgetService.
 local gadgetHandler: ((Player, string) -> (boolean, string?))? = nil
+--- Installed by init: a season-pass tier skip, by track ("free" | "premium").
+local skipHandler: ((Player, string) -> (boolean, string?))? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -745,6 +747,24 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			rememberGrant(profile, purchaseId)
 		end
 
+	elseif product.kind == "Skip" then
+		-- A season-pass tier skip: the handler moves the player's season XP
+		-- to the next threshold. Direct, like a gadget refill, so there is no
+		-- "retry" case - either a tier was there to give, or (top tier
+		-- already, season over, premium skip without premium) the receipt
+		-- converts to Cash rather than being swallowed.
+		if not skipHandler then
+			warn(`[MonetizationService] Skip receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		local skipped, why = skipHandler(player, product.skipTrack or "free")
+		if not skipped then
+			convertedTo = MonetizationService.grantFallback(player, profile, product, purchaseId, receiptInfo, why or "nothing to skip")
+		else
+			rememberGrant(profile, purchaseId)
+			grantedWhat = `{product.key} ({product.skipTrack} tier)`
+		end
+
 	elseif product.kind == "Gift" then
 		-- [trading-gifting-boards] A pack bought FOR someone else. The
 		-- handler grants it to the remembered recipient (durably, through the
@@ -813,10 +833,18 @@ function MonetizationService.promptProduct(player: Player, key: string): (boolea
 	if not product or product.productId <= 0 then
 		return false, "That item is not available yet."
 	end
-	if product.kind ~= "Cash" and product.kind ~= "Speed" and product.kind ~= "Gadget" then
+	if product.kind ~= "Cash" and product.kind ~= "Speed" and product.kind ~= "Gadget" and product.kind ~= "Skip" then
 		-- Silent to the player: no legitimate UI sends this.
 		warn(`[MonetizationService] {player.Name} asked to prompt {product.kind} product "{key}" directly - refused`)
 		return false
+	end
+	-- The PREMIUM skip is only for premium owners: the reward it advertises is
+	-- on the premium track. Refused at the prompt, before any Robux move; the
+	-- receipt path refuses it again (SeasonPassService.skipTier) and converts
+	-- to Cash, for a pass that lapsed between the two.
+	if product.kind == "Skip" and product.skipTrack == "premium"
+		and not MonetizationService.ownsPassCached(player, MonetizationConfig.SeasonPremiumPass.gamePassId) then
+		return false, "Skips on the premium track need Season Pass Premium."
 	end
 	local ok, err = pcall(function()
 		MarketplaceService:PromptProductPurchase(player, product.productId)
@@ -982,6 +1010,11 @@ end
 --- GadgetService owns the stock, so it is injected rather than required.
 function MonetizationService.setGadgetHandler(fn: (Player, string) -> (boolean, string?))
 	gadgetHandler = fn
+end
+--- A season-pass tier skip (kind "Skip"). SeasonPassService owns the ladder;
+--- MonetizationService never requires it.
+function MonetizationService.setSkipHandler(fn: (Player, string) -> (boolean, string?))
+	skipHandler = fn
 end
 
 --- [trading-gifting-boards] Opens the Robux dialog for a GIFT product. Only

@@ -253,6 +253,10 @@ MonetizationService.setRevealHandler(HatchService.fulfil)
 MonetizationService.setGadgetHandler(function(player, key)
 	return require(Services.GadgetService).grantFill(player, key)
 end)
+-- A paid season-pass tier skip moves the buyer to the next threshold.
+MonetizationService.setSkipHandler(function(player, track)
+	return require(Services.SeasonPassService).skipTier(player, track)
+end)
 -- [monetization pass] Instant Reveal is a paid random item: withheld from
 -- players whose PolicyService answer restricts those (unknown = restricted).
 HatchService.canOfferInstantReveal = function(player)

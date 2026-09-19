@@ -211,7 +211,7 @@ export type ProductDef = {
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
 	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
 	--- item in the matching INCOME band (HeistService) and carries no amount.
-	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift",
+	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift" | "Gadget" | "Skip",
 	amount: number,
 	label: string,
 	--- Steal products only: the highest per-second income this tier covers.
@@ -230,6 +230,10 @@ export type ProductDef = {
 	--- Gadget products only: the GadgetConfig key this refills, or "All" for
 	--- the bundle. See GADGET REFILLS.
 	gadgetKey: string?,
+	--- Skip products only: which season-pass track this skip is sold for.
+	--- Both advance the ONE shared tier ladder; the premium skip is only
+	--- sold to premium owners. See TIER SKIPS.
+	skipTrack: ("free" | "premium")?,
 }
 
 -- ==========================================================
@@ -262,6 +266,29 @@ MonetizationConfig.GadgetProducts = {
 
 --- The refill product for one gadget key, or nil when there is none.
 MonetizationConfig.GadgetProductByKey = {} :: { [string]: ProductDef }
+
+-- ==========================================================
+-- TIER SKIPS (owner, 2026-09-18)
+-- ==========================================================
+--
+-- One purchase, one tier: the player's season XP is set to the next tier's
+-- threshold, so the reward on that tier becomes claimable at once. The pass
+-- has ONE ladder of thirty tiers with a free and a premium reward on each,
+-- so both products do the same thing to the ladder; they differ in who they
+-- are sold to. A premium owner is offered the Season Skip; everyone else
+-- the Free Pass Skip. Prices are the owner's, as given.
+--
+-- NOTHING IS SKIPPED PAST. A skip at tier 29 lands on 30 and the button is
+-- gone; a skip bought in the last frames of a season that has since ended,
+-- or with nothing left to reach, converts to Cash (UNDELIVERABLE RECEIPTS)
+-- rather than being swallowed.
+MonetizationConfig.SkipProducts = {
+	{ key = "SeasonSkip", productId = 3713493471, robux = 49, kind = "Skip", amount = 0, label = "Skip Tier", skipTrack = "premium" },
+	{ key = "FreePassSkip", productId = 3713493455, robux = 59, kind = "Skip", amount = 0, label = "Skip Tier", skipTrack = "free" },
+} :: { ProductDef }
+
+--- The skip product sold for each track.
+MonetizationConfig.SkipProductByTrack = {} :: { [string]: ProductDef }
 
 --- INSTANT REVEAL, priced by how long is LEFT on the container - never by the
 --- original wait. The server recomputes the remaining time at the moment of
@@ -540,7 +567,7 @@ MonetizationConfig.BOSS_OFFER_COOLDOWN = 90
 MonetizationConfig.ProductByKey = {} :: { [string]: ProductDef }
 MonetizationConfig.ProductById = {} :: { [number]: ProductDef }
 
-for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts } do
+for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts, MonetizationConfig.SkipProducts } do
 	for _, product in list do
 		MonetizationConfig.ProductByKey[product.key] = product
 		-- An unconfigured product is id 0; registering it would make id 0
@@ -553,6 +580,11 @@ end
 for _, product in MonetizationConfig.GadgetProducts do
 	if product.gadgetKey then
 		MonetizationConfig.GadgetProductByKey[product.gadgetKey] = product
+	end
+end
+for _, product in MonetizationConfig.SkipProducts do
+	if product.skipTrack then
+		MonetizationConfig.SkipProductByTrack[product.skipTrack] = product
 	end
 end
 
