@@ -35,9 +35,8 @@
 	Cash has the same split: `CashPass` (2x) multiplies GAMEPLAY EARNINGS only,
 	while `CashProducts` grant their advertised amount untouched - doubling a
 	purchased currency pack would be selling the player something they did not
-	buy. (Since the 2026-09-17 monetization pass the advertised amount SCALES
-	with the buyer's income - see CASH PACKS - but the shop shows that exact
-	figure before the purchase, and the pass still never touches it.)
+	buy. Since 2026-09-18 a pack also pays exactly the figure printed on its
+	card, the same to every buyer - see CASH PACKS.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -573,7 +572,7 @@ end
 -- receipt can never carry it anyway. The Gift section of the shop stays
 -- hidden until at least one id is set.
 MonetizationConfig.GiftProducts = {
-	{ key = "GiftCash24K", productId = 3713252836, robux = 45, kind = "Gift", amount = 75e3, label = "75K", giftOf = "Cash24K" },
+	{ key = "GiftCash24K", productId = 3713252836, robux = 45, kind = "Gift", amount = 24e3, label = "24K", giftOf = "Cash24K" },
 	{ key = "GiftCash200K", productId = 3713252845, robux = 85, kind = "Gift", amount = 200e3, label = "200K", giftOf = "Cash200K" },
 	{ key = "GiftCash800K", productId = 3713252847, robux = 215, kind = "Gift", amount = 800e3, label = "800K", giftOf = "Cash800K" },
 	{ key = "GiftCash4M", productId = 3713252854, robux = 425, kind = "Gift", amount = 4e6, label = "4M", giftOf = "Cash4M" },

@@ -721,18 +721,12 @@ return function(): Report
 			"the prize must be paid before the wheel unlocks for another spin"
 		)
 
-		-- [monetization pass] THE RARE WEDGES STAY RARE. The jackpot and the
-		-- two guardians (the Tiger is a 399 R$ pass) at their reduced odds,
-		-- and never creeping back up unnoticed.
-		for _, segment in segments do
-			if segment.tier == "jackpot" then
-				check(segment.weight <= 8, `the jackpot wedge must weigh at most 8/10000, weighs {segment.weight}`)
-			elseif segment.guardianKey == "Tiger" then
-				check(segment.weight <= 15, `the Tiger wedge must weigh at most 15/10000, weighs {segment.weight}`)
-			elseif segment.guardianKey == "Panda" then
-				check(segment.weight <= 50, `the Panda wedge must weigh at most 50/10000, weighs {segment.weight}`)
-			end
-		end
+		-- THE RARE WEDGES STAY RARE, at exactly the odds the art prints. The
+		-- 2026-09-17 pass pinned ceilings here instead (jackpot 8/10000, Tiger
+		-- 15, Panda 50) - below what the picture claims, which is what let the
+		-- two drift apart. THE PICTURE IS THE PROMISE below is the stronger
+		-- check: a rare must EQUAL its printed percentage, so it can neither
+		-- creep up nor be quietly cut again.
 
 		-- THE AFK PAUSE. Pings must arrive well inside the idle window, and the
 		-- server's own rate limit must not swallow an honest cadence.
