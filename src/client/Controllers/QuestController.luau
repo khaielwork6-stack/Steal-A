@@ -440,6 +440,139 @@ local function buildQuestCard(period: string, row: any): QuestRow?
 	return { card = card, fill = fill, signature = "" }
 end
 
+--- THE REWARD, AS ICONS AND FIGURES (owner, 2026-09-18).
+---
+--- It used to be a sentence: "Reward: $23.4M" on one line and "+ 500K Speed"
+--- on the next, in the same grey as the progress count above it. Three lines
+--- of text of equal weight, and the one thing the player is reading the card
+--- FOR - what do I get - looked like a footnote.
+---
+--- Each reward is now its own row: the game's OWN cash and speed icons (the
+--- same two the HUD shows a balance beside, so the icon needs no learning)
+--- against the figure, in the colour that currency is everywhere else.
+---
+--- CASH IS EXACT, with thousands separators, because "$23.4M" is a rounding
+--- of the number about to land in a balance the player watches to the dollar.
+--- Speed keeps its short form: its figures are already round.
+---
+--- The strip lives INSIDE the Description label and is sized as a fraction of
+--- it, so it needs no measurement of the card and moves with it if the pack's
+--- layout ever changes. The label keeps the progress line, top-aligned.
+local REWARD_CASH = Color3.fromRGB(126, 240, 146)
+local REWARD_SPEED = Color3.fromRGB(122, 208, 255)
+local PROGRESS_SHARE = 0.36
+
+local function rewardRow(strip: Frame, name: string, order: number, icon: string, text: string, color: Color3)
+	local row = strip:FindFirstChild(name)
+	if not row or not row:IsA("Frame") then
+		row = Instance.new("Frame")
+		local made = row :: Frame
+		made.Name = name
+		made.BackgroundTransparency = 1
+		made.Size = UDim2.fromScale(1, 0.5)
+		made.Parent = strip
+		local line = Instance.new("UIListLayout")
+		line.FillDirection = Enum.FillDirection.Horizontal
+		line.SortOrder = Enum.SortOrder.LayoutOrder
+		line.VerticalAlignment = Enum.VerticalAlignment.Center
+		line.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		line.Padding = UDim.new(0, 4)
+		line.Parent = made
+
+		local badge = Instance.new("ImageLabel")
+		badge.Name = "Icon"
+		badge.LayoutOrder = 1
+		badge.BackgroundTransparency = 1
+		badge.ScaleType = Enum.ScaleType.Fit
+		badge.Size = UDim2.fromScale(1, 1)
+		badge.Parent = made
+		local square = Instance.new("UIAspectRatioConstraint")
+		square.AspectRatio = 1
+		square.Parent = badge
+
+		local figure = Instance.new("TextLabel")
+		figure.Name = "Figure"
+		figure.LayoutOrder = 2
+		figure.BackgroundTransparency = 1
+		figure.Font = Enum.Font.FredokaOne
+		figure.TextScaled = true
+		figure.TextXAlignment = Enum.TextXAlignment.Left
+		figure.Size = UDim2.fromScale(0.86, 1)
+		figure.Parent = made
+		local edge = Instance.new("UIStroke")
+		edge.Thickness = 1.4
+		edge.Color = Color3.fromRGB(12, 16, 24)
+		edge.Parent = figure
+	end
+	local made = row :: Frame
+	made.LayoutOrder = order
+	made.Visible = true
+	local badge = made:FindFirstChild("Icon")
+	if badge and badge:IsA("ImageLabel") then
+		badge.Image = icon
+		badge.ImageColor3 = color
+	end
+	local figure = made:FindFirstChild("Figure")
+	if figure and figure:IsA("TextLabel") then
+		figure.Text = text
+		figure.TextColor3 = color
+	end
+end
+
+local function paintReward(card: Frame, cash: number, speed: number)
+	local body = card:FindFirstChild("Frame")
+	local description = if body then body:FindFirstChild("Description", true) else nil
+	if not description or not description:IsA("TextLabel") then
+		return
+	end
+	description.TextYAlignment = Enum.TextYAlignment.Top
+	-- THE LABEL IS TextScaled, so with only "0 / 3" left in it the progress
+	-- count ballooned to the full height of the box and swallowed the reward
+	-- rows underneath. Cap it so the text keeps to the top band the strip
+	-- leaves free.
+	local cap = description:FindFirstChildOfClass("UITextSizeConstraint")
+		or (function()
+			local made = Instance.new("UITextSizeConstraint")
+			made.Parent = description
+			return made
+		end)()
+	cap.MaxTextSize = math.max(10, math.floor(description.AbsoluteSize.Y * PROGRESS_SHARE))
+
+	local strip = description:FindFirstChild("RewardStrip")
+	if not strip or not strip:IsA("Frame") then
+		local made = Instance.new("Frame")
+		made.Name = "RewardStrip"
+		made.BackgroundTransparency = 1
+		made.Position = UDim2.fromScale(0, PROGRESS_SHARE)
+		made.Size = UDim2.fromScale(1, 1 - PROGRESS_SHARE)
+		made.ZIndex = description.ZIndex + 1
+		made.Parent = description
+		local stack = Instance.new("UIListLayout")
+		stack.FillDirection = Enum.FillDirection.Vertical
+		stack.SortOrder = Enum.SortOrder.LayoutOrder
+		stack.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		stack.VerticalAlignment = Enum.VerticalAlignment.Top
+		stack.Padding = UDim.new(0, 1)
+		stack.Parent = made
+		strip = made
+	end
+	local made = strip :: Frame
+
+	local rows = if speed > 0 then 2 else 1
+	for _, child in made:GetChildren() do
+		if child:IsA("Frame") then
+			child.Size = UDim2.fromScale(1, 1 / rows)
+		end
+	end
+	rewardRow(made, "Cash", 1, ShopKit.Icons.Cash, `${NumberFormat.comma(cash)}`, REWARD_CASH)
+	local speedRow = made:FindFirstChild("Speed")
+	if speed > 0 then
+		rewardRow(made, "Speed", 2, ShopKit.Icons.Speed, `+{NumberFormat.short(speed)}`, REWARD_SPEED)
+	elseif speedRow and speedRow:IsA("GuiObject") then
+		speedRow.Visible = false
+	end
+end
+
 local function paintQuest(period: string, row: any)
 	local key = `{period}:{row.index}`
 	local entry: QuestRow? = questRows[key]
@@ -476,35 +609,23 @@ local function paintQuest(period: string, row: any)
 			color, accent = WEEKLY_COLOR, WEEKLY_ACCENT
 		end
 	end
-	-- ONE FIGURE PER LINE, LABELLED.
+	-- THE PROGRESS LINE ONLY. The reward used to be two more lines of the same
+	-- grey text under it ("Reward: $23.4M" / "+ 500K Speed"), which put the
+	-- thing the card exists to advertise in the same voice as the counter
+	-- above it. paintReward draws it as icons and figures instead.
 	--
-	-- This block used to read "$2K / $2K" and then
-	-- "$141K  ·  +500K Speed  ·  +100 XP" underneath. Because
-	-- QuestConfig.rewardFor has a floor on BOTH cash and speed, every row showed
-	-- all of it: four unlabelled figures separated by middots, with nothing
-	-- saying which was progress and which was the prize. It also did not fit -
-	-- measured against the real card, the reward ran to 237px of a 237px box and
-	-- wrapped, orphaning the word "Speed" onto a line of its own.
-	--
-	-- Each figure now gets its own line and the reward lines say what they are.
-	-- Checked against the rendered card across the whole reward scale (from the
-	-- "$846K / 250 Speed" floor up to "$999.9T / 1.5B Speed"): every line fits
-	-- its width, so none of them wrap.
-	--
-	-- XP is gone. It is not a prize this quest pays - it is progress on the
-	-- season track, which has its own labelled bar at the top of this panel.
-	local reward = `Reward: {NumberFormat.cash(row.cash)}`
-	if (row.speed or 0) > 0 then
-		reward ..= `\n+ {NumberFormat.short(row.speed)} Speed`
-	end
+	-- XP is not here either. It is not a prize this quest pays - it is
+	-- progress on the season track, which has its own labelled bar at the top
+	-- of this panel.
 	ShopKit.fillCard(card, {
 		title = row.text,
-		description = `{row.progressText} / {row.targetText}\n{reward}`,
+		description = `{row.progressText} / {row.targetText}`,
 		price = price,
 		icon = iconFor(row.kind),
 		color = color,
 		accent = accent,
 	})
+	paintReward(card, row.cash or 0, row.speed or 0)
 
 	local alpha = if row.target > 0 then math.clamp(row.progress / row.target, 0, 1) else 0
 	local fill = (entry :: QuestRow).fill
