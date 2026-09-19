@@ -75,6 +75,17 @@ PolishConfig.ANALYTICS_PASSIVE_FLUSH_SECONDS = 300
 --- How many would-be events the debug dump keeps.
 PolishConfig.ANALYTICS_DUMP_SIZE = 200
 
+-- ==========================================================
+-- TUTORIAL ONBOARDING
+-- ==========================================================
+
+--- The pointing-hand icon drawn inside the tutorial's target ring
+--- (TutorialController). The reference build draws a cartoon hand there; no
+--- such art exists yet, so this is 0 and the ring shows its verb alone,
+--- which reads fine. Codex writes the image id here -
+--- see docs/codex-prompts/tutorial.md.
+PolishConfig.TUTORIAL_POINTER_ICON = "rbxassetid://0"
+
 --- The client funnel remote: sustained rate and burst per player.
 PolishConfig.ANALYTICS_CLIENT_PER_SECOND = 0.5
 PolishConfig.ANALYTICS_CLIENT_BURST = 3

@@ -49,12 +49,23 @@ local STAGE = {
 }
 
 export type TutorialState = {
+	--- Persisted, monotonic, drives derivation. Never renumbered.
 	stage: number,
-	--- The world arrow's target. There are no stage banners any more: the
-	--- pointer is the whole presentation of a stage.
+	--- What the CLIENT renders. Decoupled from `stage` on purpose: the reveal
+	--- step lives between PLACE (4) and INCOME (5) and there is no number
+	--- free between them, so copy must never be hostage to a number that
+	--- cannot be renumbered. One of "steal", "escape", "place", "reveal",
+	--- "income", "train", "nextZone", or nil at COMPLETE.
+	step: string?,
+	--- The one objective line at the top of the screen. Server-owned copy.
+	title: string?,
+	--- Where the chevron trail runs to.
 	target: Vector3?,
-	--- True on exactly one push in a player's life: the first-ever start. The
-	--- client shows the single opening popup and nothing else.
+	--- nil, or the verb for the world ring drawn at `target` - only for the
+	--- two steps that need a button press rather than a walk.
+	pointer: string?,
+	--- True on exactly one push in a player's life: the first-ever start.
+	--- Still sent; the client ignores it (see TutorialController).
 	showIntro: boolean?,
 }
 
@@ -83,6 +94,40 @@ local cached: { [Player]: TutorialState } = {}
 local function isCarryingTutorialItem(player: Player): boolean
 	local loot = CarryService.getCarried(player)
 	return loot ~= nil and loot.itemId == GameConfig.TUTORIAL_ITEM_ID
+end
+
+--- The current tutorial item, or one of its predecessors: a player part-way
+--- through when the item changed placed the OLD one and must not be sent
+--- back to steal the new one.
+local function isTutorialItemId(itemId: string): boolean
+	if itemId == GameConfig.TUTORIAL_ITEM_ID then
+		return true
+	end
+	for _, legacyId in GameConfig.TUTORIAL_LEGACY_ITEM_IDS do
+		if itemId == legacyId then
+			return true
+		end
+	end
+	return false
+end
+
+--- A tutorial item sitting SEALED on one of the player's pads: placed, not
+--- yet revealed. This is the state the derivation used to fall through - see
+--- THE SEALED WINDOW in deriveStage.
+local function sealedTutorialItem(profile: DataService.Profile): DataService.DisplayItem?
+	for _, item in profile.DisplayItems do
+		if item.Hatched ~= true and isTutorialItemId(item.ItemId) then
+			return item
+		end
+	end
+	return nil
+end
+
+--- Whether a sealed item's incubation has run out. Read straight off the
+--- profile rather than through HatchService.isReady, so this service keeps
+--- its place in the boot order and adds no require edge.
+local function isReadyToReveal(item: DataService.DisplayItem): boolean
+	return item.Hatched == false and (tonumber(item.HatchEndsAt) or 0) <= os.time()
 end
 
 local function tutorialSocketPosition(): Vector3?
@@ -175,6 +220,20 @@ local function deriveStage(player: Player): number
 		return if BaseService.isInOwnSafeZone(player) then STAGE.PLACE else STAGE.ESCAPE
 	end
 
+	-- THE SEALED WINDOW. Profile.Index[itemId] is written at the REVEAL
+	-- (HatchService.commit, "DISCOVERY HAPPENS HERE"), not at placement. So a
+	-- container placed on a pad but not yet opened is neither "carrying"
+	-- (PLACE) nor "discovered" (INCOME), and this used to fall through to
+	-- STEAL: a brand-new player who had just done the hardest part of the
+	-- loop was told to go back to the museum and steal another one, for at
+	-- least TUTORIAL_HATCH_SECONDS and in practice until they happened to find
+	-- the Reveal prompt on their own. The sealed item IS the progress; it is
+	-- emitted as PLACE (the persisted number is unchanged) and buildState
+	-- tells the client it is the reveal beat.
+	if sealedTutorialItem(profile) then
+		return STAGE.PLACE
+	end
+
 	-- Caught, died or dropped it: back to the steal without losing anything else.
 	return STAGE.STEAL
 end
@@ -183,29 +242,90 @@ end
 -- PRESENTATION
 -- ==========================================================
 
---- Where the world arrow points for a stage. That is ALL a stage presents:
---- the objective banners ("STEAL YOUR FIRST ITEM", "PLACE YOUR STOLEN ITEM",
---- "NEXT: Pirate Island") were removed as screen noise, and the one opening
---- popup replaces the lot.
+--- THE COPY, server-owned and final. One short line each, sentence case,
+--- one exclamation mark at most; the pointer is the verb on the world ring
+--- for the two steps that need a button press rather than a walk. `income`
+--- has no target and no pointer on purpose: it is a beat, not a task, and
+--- `evaluate` times it out.
+local COPY: { [string]: { title: string, pointer: string? } } = {
+	steal = { title = "Steal your first treasure!" },
+	escape = { title = "Run it home!" },
+	place = { title = "Put it on a pedestal!", pointer = "PLACE IT HERE" },
+	reveal = { title = "Open it!", pointer = "OPEN IT" },
+	income = { title = "It's earning you cash!" },
+	train = { title = "Train your Speed!", pointer = "STEP ON" },
+	nextZone = { title = "Zone 2 is open — go deeper!" },
+}
+
+--- The pad a sealed tutorial item is sitting on, so the reveal step can
+--- point at THAT pad rather than the first free one.
+local function slotOfItem(player: Player, item: DataService.DisplayItem): BasePart?
+	return plotPart(player, string.format("DisplaySlot%02d", item.SlotIndex))
+end
+
+--- The presentation of one STEP: its target, its line and its pointer. Split
+--- from buildState so the debug bridge can show any step's presentation
+--- without touching the derivation or the profile.
+local function present(player: Player, step: string?, stage: number): TutorialState
+	local state: TutorialState = { stage = stage, step = step }
+	local copy = if step then COPY[step] else nil
+	if copy then
+		state.title = copy.title
+		state.pointer = copy.pointer
+	end
+	if step == "steal" then
+		state.target = tutorialSocketPosition()
+	elseif step == "escape" then
+		local home = plotPart(player, "Spawn") or plotPart(player, "Slab")
+		state.target = if home then home.Position else nil
+	elseif step == "place" then
+		local slot = firstEmptySlot(player)
+		state.target = if slot then slot.Position else nil
+	elseif step == "reveal" then
+		local profile = DataService.get(player)
+		local sealed = if profile then sealedTutorialItem(profile) else nil
+		local slot = if sealed then slotOfItem(player, sealed) else nil
+		state.target = if slot then slot.Position else nil
+		-- Still incubating (TUTORIAL_HATCH_SECONDS, a brief beat): one line,
+		-- no verb. The ring and "OPEN IT" appear the moment it is ready.
+		if sealed and not isReadyToReveal(sealed) then
+			state.title = "It's opening…"
+			state.pointer = nil
+		end
+	elseif step == "train" then
+		local frame = plotPart(player, "Frame")
+		state.target = if frame then frame.Position else nil
+	elseif step == "nextZone" then
+		state.target = zoneTwoSignPosition()
+	end
+	return state
+end
+
+--- What a stage presents. PLACE is the one stage with two faces: the walk
+--- to a pad while still carrying, and the reveal once the container is
+--- sitting sealed on one - same persisted number, different step.
 local function buildState(player: Player, stage: number): TutorialState
 	if stage == STAGE.STEAL then
-		return { stage = stage, target = tutorialSocketPosition() }
+		return present(player, "steal", stage)
 	elseif stage == STAGE.ESCAPE then
-		local home = plotPart(player, "Spawn") or plotPart(player, "Slab")
-		return { stage = stage, target = if home then home.Position else nil }
+		return present(player, "escape", stage)
 	elseif stage == STAGE.PLACE then
-		local slot = firstEmptySlot(player)
-		return { stage = stage, target = if slot then slot.Position else nil }
+		return present(player, if isCarryingTutorialItem(player) then "place" else "reveal", stage)
 	elseif stage == STAGE.INCOME then
-		return { stage = stage }
+		return present(player, "income", stage)
 	elseif stage == STAGE.TRAIN then
-		local frame = plotPart(player, "Frame")
-		return { stage = stage, target = if frame then frame.Position else nil }
+		return present(player, "train", stage)
 	elseif stage == STAGE.NEXT_ZONE then
-		return { stage = stage, target = zoneTwoSignPosition() }
+		return present(player, "nextZone", stage)
 	end
 	return { stage = STAGE.COMPLETE }
 end
+
+--- Debug only (DebugCommands.Tutorial): a step whose presentation is shown
+--- in place of the derived one. The derivation, the persisted stage and the
+--- profile are untouched; clearing it puts the real step back on the next
+--- tick.
+local forcedStep: { [Player]: string } = {}
 
 --- Read by StateService each push.
 --- A player who has not yet stolen anything. BaseService starts them on the
@@ -261,6 +381,10 @@ local function evaluate(player: Player)
 
 	local previous = cached[player]
 	local state = buildState(player, stage)
+	local forced = forcedStep[player]
+	if forced then
+		state = present(player, forced, stage)
+	end
 
 	-- THE ONE OPENING POPUP, on a first-ever start and never again. The flag
 	-- is flipped and saved before the push goes out, so a respawn, a rejoin or
@@ -284,7 +408,13 @@ local function evaluate(player: Player)
 	-- One push when the window closes, so the client sees the flag stop and
 	-- disarms; without it an idle profile would carry the armed state forever.
 	local introClosed = previous ~= nil and previous.showIntro == true and state.showIntro ~= true
-	if not previous or previous.stage ~= state.stage or introDue or introClosed then
+	-- A STEP CHANGE PUSHES TOO. The stage number no longer says everything:
+	-- PLACE turns into the reveal beat without changing number, and the
+	-- reveal's own line changes when the container is ready. Anything the
+	-- client renders that differs from the last push goes out.
+	local stepChanged = previous ~= nil
+		and (previous.step ~= state.step or previous.title ~= state.title or previous.pointer ~= state.pointer)
+	if not previous or previous.stage ~= state.stage or stepChanged or introDue or introClosed then
 		if state.showIntro then
 			lastIntroPushAt[player] = os.clock()
 		end
@@ -391,6 +521,7 @@ function TutorialService.start()
 		incomeShownAt[player] = nil
 		introUntil[player] = nil
 		lastIntroPushAt[player] = nil
+		forcedStep[player] = nil
 	end)
 
 	task.spawn(function()
@@ -421,6 +552,31 @@ end
 --- Exposed for the debug bridge.
 TutorialService.STAGE = STAGE
 TutorialService.deriveStage = deriveStage
+
+--- Debug only: show one step's presentation regardless of the derived one.
+--- nil clears it. Nothing persisted changes; the next tick pushes it.
+function TutorialService.debugForceStep(player: Player, step: string?)
+	if step ~= nil and COPY[step] == nil then
+		return false
+	end
+	if step then
+		forcedStep[player] = step
+	else
+		forcedStep[player] = nil
+	end
+	cached[player] = nil
+	return true
+end
+
+--- Debug only: the step names the presentation knows, for the bridge.
+function TutorialService.debugSteps(): { string }
+	local names = {}
+	for name in COPY do
+		table.insert(names, name)
+	end
+	table.sort(names)
+	return names
+end
 
 --- Debug only: lets the opening popup be shown again for a test.
 function TutorialService.resetIntro(player: Player)

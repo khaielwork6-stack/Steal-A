@@ -1097,6 +1097,9 @@ return function(): Report
 		check(flyoverSeconds >= 5 and flyoverSeconds <= 9, `the flyover shots should total 5-9 s (6-8 s with the fades), got {flyoverSeconds}`)
 		check(PolishConfig.ANALYTICS_BUDGET_SAFETY > 0 and PolishConfig.ANALYTICS_BUDGET_SAFETY <= 1, "analytics safety must be (0, 1]")
 		check(PolishConfig.ANALYTICS_PASSIVE_FLUSH_SECONDS >= 60, "passive income must be batched at least a minute")
+		-- TUTORIAL ONBOARDING: the ring's hand icon is an asset id or the 0
+		-- placeholder the client skips; never anything else.
+		check(assetOk(PolishConfig.TUTORIAL_POINTER_ICON), "PolishConfig.TUTORIAL_POINTER_ICON must be an rbxassetid")
 		-- The branded loading screen was removed (owner, 2026-09-18); Roblox
 		-- draws its own, so there is no LoadingConfig left to check.
 	end
