@@ -64,6 +64,11 @@ export type TutorialState = {
 	--- nil, or the verb for the world ring drawn at `target` - only for the
 	--- two steps that need a button press rather than a walk.
 	pointer: string?,
+	--- Whether the chevron trail is drawn at all. False for good once the
+	--- player has stolen ANYTHING (owner, 2026-09-19): the trail is for a
+	--- player who has never done it; after the first theft the line and the
+	--- ring are enough, and a trail on the floor of every later run is noise.
+	trail: boolean?,
 	--- True on exactly one push in a player's life: the first-ever start.
 	--- Still sent; the client ignores it (see TutorialController).
 	showIntro: boolean?,
@@ -268,6 +273,11 @@ end
 --- without touching the derivation or the profile.
 local function present(player: Player, step: string?, stage: number): TutorialState
 	local state: TutorialState = { stage = stage, step = step }
+	-- The trail is for a player who has never stolen. Lifetime.Steals counts
+	-- every theft (CarryService.trySteal), not just the tutorial's, so one
+	-- steal of anything anywhere retires it for good - across rejoins too.
+	local profileForTrail = DataService.get(player)
+	state.trail = profileForTrail == nil or (profileForTrail.Lifetime.Steals or 0) <= 0
 	local copy = if step then COPY[step] else nil
 	if copy then
 		state.title = copy.title
@@ -413,7 +423,8 @@ local function evaluate(player: Player)
 	-- reveal's own line changes when the container is ready. Anything the
 	-- client renders that differs from the last push goes out.
 	local stepChanged = previous ~= nil
-		and (previous.step ~= state.step or previous.title ~= state.title or previous.pointer ~= state.pointer)
+		and (previous.step ~= state.step or previous.title ~= state.title or previous.pointer ~= state.pointer
+			or previous.trail ~= state.trail)
 	if not previous or previous.stage ~= state.stage or stepChanged or introDue or introClosed then
 		if state.showIntro then
 			lastIntroPushAt[player] = os.clock()

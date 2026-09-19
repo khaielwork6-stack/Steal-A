@@ -1044,6 +1044,13 @@ end
 -- ==========================================================
 
 function StarterTaskController.start()
+	-- THE CARD IS OFF (StarterTaskConfig.SHOW_HUD, owner 2026-09-19). This
+	-- file only draws - it fires no remote and decides nothing - so not
+	-- subscribing is the whole of hiding it. StarterTaskService still tracks
+	-- every task, pays it and toasts its completion.
+	if not StarterTaskConfig.SHOW_HUD then
+		return
+	end
 	-- Decided once: a device does not stop being a phone mid-session, and a
 	-- checklist that swapped presentations under the player would lose its
 	-- place in the animation.

@@ -33,6 +33,12 @@ local StarterTaskConfig = {}
 --- minute. Desktop keeps its original bottom-right block; touch shows one task
 --- at a time in the top strip (StarterTaskController).
 StarterTaskConfig.ENABLED = true
+--- The on-screen checklist (StarterTaskController). OFF (owner, 2026-09-19):
+--- with the objective line, the pills, the rail and the hotbar there is no
+--- corner of a phone left for it, and it was cramping the lot. The tasks
+--- themselves still run - StarterTaskService tracks them, pays them and
+--- toasts each completion - only the card is not drawn.
+StarterTaskConfig.SHOW_HUD = false
 
 export type Kind = "cash" | "speed"
 

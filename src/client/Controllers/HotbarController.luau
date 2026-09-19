@@ -30,7 +30,6 @@
 	its Tool, so nothing about the carry or the hand changes.
 ]]
 
-local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
@@ -406,17 +405,16 @@ local function applySize()
 	end
 end
 
---- The DROP button's top edge in this ScreenGui's space (IgnoreGuiInset),
---- or nil while it is not on screen.
-local function dropButtonTop(): number?
+--- The DROP button while it is on screen, or nil. Its AbsolutePosition is
+--- compared with the bar's own, never converted into either gui's space.
+local function dropButton(): GuiObject?
 	local playerGui = player:FindFirstChild("PlayerGui")
 	local ui = playerGui and playerGui:FindFirstChild("MainUI")
 	local drop = ui and ui:FindFirstChild("DROP BUTTON NEW", true)
-	if not ui or not ui:IsA("ScreenGui") or not drop or not drop:IsA("GuiObject") or not drop.Visible then
+	if not drop or not drop:IsA("GuiObject") or not drop.Visible or drop.AbsoluteSize.Y <= 0 then
 		return nil
 	end
-	local inset = if ui.IgnoreGuiInset then 0 else GuiService:GetGuiInset().Y
-	return drop.AbsolutePosition.Y + inset
+	return drop
 end
 
 --- Where the bar sits: the bottom centre normally; during a carry, just above
@@ -434,21 +432,35 @@ local function place()
 	end
 	local token = placeToken
 	bar.Position = UDim2.fromScale(0.5, CARRY_FALLBACK_Y)
-	-- DropController slides the button in over ~0.3 s: measure once it rests.
-	task.delay(0.5, function()
+
+	-- SETTLE ONTO THE DROP BUTTON BY MEASUREMENT, NOT ARITHMETIC. Two earlier
+	-- versions computed the bar's offset from the button's position and both
+	-- put it mid-screen on a phone: the two ScreenGuis disagree about the
+	-- top-bar inset, and the phone's UIScale sits between gui pixels and
+	-- screen pixels. AbsolutePosition and AbsoluteSize are the one space the
+	-- two share, so the bar is nudged by the difference between where its
+	-- bottom edge IS and where it should be - the button's top, less a gap -
+	-- with only that nudge converted through the bar's own scale. Measured
+	-- twice, because DropController slides the button in over ~0.3 s.
+	local function settle()
 		if token ~= placeToken or not carrying then
 			return
 		end
-		local top = dropButtonTop()
-		if top and top > 80 then
-			-- `top` is in screen pixels; this bar's offsets are in ITS gui's
-			-- pixels, under the phone UIScale (0.72). Written raw, the bar
-			-- landed at 72% of the way to the DROP button - mid-screen on a
-			-- phone (owner, 2026-09-18). Divide the scale back out.
-			local factor = math.max(ClipSafe.scaleChain(bar), 0.1)
-			bar.Position = UDim2.fromOffset(0, (top - CARRY_GAP) / factor) + UDim2.fromScale(0.5, 0)
+		local drop = dropButton()
+		if not drop then
+			return
 		end
-	end)
+		local wantBottom = drop.AbsolutePosition.Y - CARRY_GAP
+		local haveBottom = bar.AbsolutePosition.Y + bar.AbsoluteSize.Y
+		local nudge = wantBottom - haveBottom
+		if math.abs(nudge) < 1 then
+			return
+		end
+		local factor = math.max(ClipSafe.scaleChain(bar), 0.1)
+		bar.Position = bar.Position + UDim2.fromOffset(0, nudge / factor)
+	end
+	task.delay(0.5, settle)
+	task.delay(1.4, settle)
 end
 
 local function setCarrying(now: boolean)

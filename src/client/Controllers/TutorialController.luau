@@ -141,6 +141,9 @@ local lowGraphics = false
 local currentTitle: string? = nil
 local currentTarget: Vector3? = nil
 local currentPointer: string? = nil
+--- Server-owned: false once the player has stolen anything, ever. The line
+--- and the ring still show; the trail on the floor does not.
+local currentTrail = true
 
 local fxFolder: Folder? = nil
 local chevrons: { Chevron } = {}
@@ -785,7 +788,11 @@ local function tick(dt: number)
 		hideRing()
 		return
 	end
-	updateTrail(root, target, dt)
+	if currentTrail then
+		updateTrail(root, target, dt)
+	else
+		hideTrail()
+	end
 	local pointer = currentPointer
 	if pointer then
 		updateRing(target, pointer)
@@ -832,6 +839,7 @@ function TutorialController.start()
 		end
 		currentTarget = tutorial.target
 		currentPointer = tutorial.pointer
+		currentTrail = tutorial.trail ~= false
 		showTitle(if type(tutorial.title) == "string" then tutorial.title else nil)
 	end)
 
