@@ -8,7 +8,9 @@ Layout.CORRIDOR_HALF = 22
 Layout.DEPTH = Map.LANE_HALF - Layout.CORRIDOR_HALF
 Layout.HEIGHT = 64
 Layout.DOOR_WIDTH = 40
-Layout.BEAMS = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14 }
+-- (lasers-rework) `Layout.BEAMS`, the per-zone beam COUNT, is gone: a room's
+-- beams now come from shared/LaserPatterns, scaled by Config/LaserConfig.
+-- `Layout.laserRoom` below is the room description that generator takes.
 
 function Layout.doorHeight(index: number): number
 	return ({ 24, 24, 26, 26, 28, 30, 32, 34, 38, 40, 44, 46 })[index]
@@ -47,6 +49,23 @@ function Layout.socketFrame(index: number, socket: number): CFrame
 	local column = (socket - 1) % Layout.ITEMS_PER_ROOM + 1
 	local x = ({ -0.36, -0.18, 0.18, 0.36 })[column] * Layout.width(index)
 	return Layout.frame(index, room) * CFrame.new(x, 5.1, Layout.DEPTH - 13)
+end
+
+--- What shared/LaserPatterns needs to know about one of zone `index`'s two
+--- rooms (they are mirror images, so one description serves both): its size,
+--- its doorway and where its sockets are, all in the room's own frame.
+function Layout.laserRoom(index: number): { width: number, depth: number, doorWidth: number, socketXs: { number }, socketZ: number }
+	local frame = Layout.frame(index, 1)
+	local xs: { number } = {}
+	local z = Layout.DEPTH - 13
+	for socket = 1, Layout.ITEMS_PER_ROOM do
+		local at = frame:PointToObjectSpace(Layout.socketFrame(index, socket).Position)
+		-- Rounded: the frame's rotation leaves float dust, and the layout
+		-- must be the same table on every machine.
+		xs[socket] = math.round(at.X * 1000) / 1000
+		z = math.round(at.Z * 1000) / 1000
+	end
+	return { width = Layout.width(index), depth = Layout.DEPTH, doorWidth = Layout.DOOR_WIDTH, socketXs = xs, socketZ = z }
 end
 
 function Layout.locate(position: Vector3): (number?, number?)

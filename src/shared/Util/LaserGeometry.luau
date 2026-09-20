@@ -104,4 +104,97 @@ function LaserGeometry.sweptArmHit(arm: SweepArm, t0: number, t1: number, from: 
 	return false
 end
 
+-- ==========================================================
+-- MOVING SEGMENTS (lasers-rework)
+-- ==========================================================
+--
+-- The generic mover the museum ROOMS use: a beam whose two end points slide
+-- together along `travel` and back (left-right, up-down, toward the door),
+-- and/or blinks. Like the vault's arm above it is a pure function of the
+-- SERVER clock, so LaserService tests it, LaserFxController draws it and the
+-- fairness validator (shared/LaserPatterns) times it, all from the same
+-- numbers and with nothing replicated but the part's attributes.
+--
+-- The scalar functions take plain numbers on purpose: LaserPatterns works in
+-- room-local numbers and calls them without building a Vector3.
+
+export type MovingSegment = {
+	a: Vector3, -- rest end points (world)
+	b: Vector3,
+	travel: Vector3, -- both end points are offset by travel * moveFraction(t)
+	period: number, -- seconds for there AND back; 0 = does not move
+	phase: number, -- fraction of the period already elapsed at t = 0
+	onSeconds: number?, -- lit for this long...
+	offSeconds: number?, -- ...then dark for this long, repeating
+	blinkPhase: number?, -- seconds into the blink cycle at t = 0
+}
+
+--- The share of each half-swing spent resting at an end. It is what gives a
+--- timing window a flat "now" instead of a single instant.
+LaserGeometry.MOVE_DWELL = 0.12
+
+--- 0..1: how far along `travel` a mover is at server time `t`. An eased
+--- there-and-back (a cosine, clipped to dwell at both ends).
+function LaserGeometry.moveFraction(period: number, phase: number, t: number): number
+	if period < 1e-3 then
+		return 0
+	end
+	-- Reduced modulo the period first: a ~1.7e9 s clock keeps full precision.
+	local u = ((t % period) / period + phase) % 1
+	local raw = (1 - math.cos(2 * math.pi * u)) / 2
+	local dwell = LaserGeometry.MOVE_DWELL
+	return math.clamp((raw - dwell) / (1 - 2 * dwell), 0, 1)
+end
+
+--- The fastest moveFraction ever changes, per second.
+function LaserGeometry.moveRate(period: number): number
+	if period < 1e-3 then
+		return 0
+	end
+	return math.pi / period / (1 - 2 * LaserGeometry.MOVE_DWELL)
+end
+
+--- Whether a blinking beam is lit at server time `t`.
+function LaserGeometry.blinkLit(onSeconds: number?, offSeconds: number?, blinkPhase: number?, t: number): boolean
+	if not onSeconds or not offSeconds or offSeconds <= 0 then
+		return true
+	end
+	return ((t + (blinkPhase or 0)) % (onSeconds + offSeconds)) < onSeconds
+end
+
+function LaserGeometry.segmentLit(segment: MovingSegment, t: number): boolean
+	return LaserGeometry.blinkLit(segment.onSeconds, segment.offSeconds, segment.blinkPhase, t)
+end
+
+--- The segment's end points at server time `t`.
+function LaserGeometry.segmentAt(segment: MovingSegment, t: number): (Vector3, Vector3)
+	local offset = segment.travel * LaserGeometry.moveFraction(segment.period, segment.phase, t)
+	return segment.a + offset, segment.b + offset
+end
+
+--- Does a body moving from `from` to `to` between server times `t0` and `t1`
+--- touch the moving segment? Same construction as sweptArmHit: sub-steps,
+--- the beam frozen at each sub-step's midpoint, and the body's box grown by
+--- how far the beam travels in half a sub-step (per axis), so a fast beam
+--- cannot slip between two samples.
+function LaserGeometry.sweptSegmentHit(segment: MovingSegment, t0: number, t1: number, from: Vector3, to: Vector3, half: Vector3): boolean
+	local span = math.max(t1 - t0, 0)
+	local reach = segment.travel * (LaserGeometry.moveRate(segment.period) * span)
+	local distance = reach.Magnitude
+	local steps = math.clamp(math.ceil(distance), 1, 8)
+	local grown = half + Vector3.new(math.abs(reach.X), math.abs(reach.Y), math.abs(reach.Z)) / (steps * 2)
+	for step = 1, steps do
+		local mid = t0 + span * (step - 0.5) / steps
+		if LaserGeometry.segmentLit(segment, mid) then
+			local a, b = LaserGeometry.segmentAt(segment, mid)
+			local p0 = from:Lerp(to, (step - 1) / steps)
+			local p1 = from:Lerp(to, step / steps)
+			if LaserGeometry.sweptBoxHit(a, b, p0, p1, grown) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 return LaserGeometry

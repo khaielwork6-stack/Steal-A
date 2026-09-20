@@ -46,7 +46,7 @@ export type FlyoverShot = {
 --- Zones 1 -> 3 along the museum corridor. Total about 7.4 s plus the fades.
 PolishConfig.FLYOVER_SHOTS = {
 	{ zone = 1, kind = "room", room = 2, travel = 0, hold = 2.0, caption = "Steal sealed treasures" },
-	{ zone = 2, kind = "room", room = 1, travel = 1.6, hold = 1.6, caption = "Dodge lasers - guards wake when you touch them" },
+	{ zone = 2, kind = "room", room = 1, travel = 1.6, hold = 1.6, caption = "Dodge the lasers - touch one and you're thrown out" },
 	{ zone = 3, kind = "lane", travel = 1.4, hold = 0.8, caption = "Carry it home to reveal it" },
 } :: { FlyoverShot }
 

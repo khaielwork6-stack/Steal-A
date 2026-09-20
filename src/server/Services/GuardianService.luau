@@ -1698,9 +1698,17 @@ end
 --- Kept under its old name for callers and tests.
 GuardianService.wake = GuardianService.engage
 
--- Server-only entry from LaserService. An existing chase keeps its target;
--- frozen guardians and immune players cannot be woken by an alarm. The wake,
--- steering, speed formula, catch and return below are the ordinary chase.
+-- DORMANT IN PLAY (lasers-rework, 2026-09-20). This was LaserService's entry:
+-- a touched beam woke the room's guard. A touch now throws the player out of
+-- the room instead and wakes nobody, so nothing in the live game calls this.
+-- It is KEPT, with the laser leash (SecurityConfig.LASER_CHASE_TIMEOUT, the
+-- vault profile's laserLeash), the `alarm` chase flag, the smoke resume and
+-- the `LaserChased` attribute ChaseWarningController reads, because the
+-- Studio runners use it as "wake this guard and chase a player who carries
+-- nothing" (MuseumTests.scenarios / paths) and because re-enabling an alarm
+-- is then one call. An existing chase keeps its target; frozen guardians and
+-- immune players cannot be woken by an alarm. The wake, steering, speed
+-- formula, catch and return below are the ordinary chase.
 function GuardianService.alarm(zoneIndex: number, player: Player, roomIndex: number?): boolean
 	local guardian = guardians[Layout.key(zoneIndex, roomIndex or 1)]
 	local character = player.Character
@@ -2280,9 +2288,12 @@ end
 -- too fast to be sampled in the doorway, a teleport and a wall clip all count
 -- the same. Out is out.
 --
--- The other trigger is a laser: LaserService calls `alarm`, which wakes the
--- room guard at once and chases the player who touched it, carrying or not.
--- A player who touches no laser and never leaves the room is never chased.
+-- It is the ONLY trigger now (lasers-rework, 2026-09-20): a touched laser
+-- throws the player out of the room (LaserService) and no longer calls
+-- `alarm`. A thief thrown by a beam drops the loot where they touched it, so
+-- they leave the room empty-handed and this rule has nothing to see; the
+-- guard fetches the drop through noticeDrop like any other.
+-- A player who never leaves the room with its loot is never chased.
 
 --- True once this loot's carrier has taken it out of its room.
 function GuardianService.hasLeftRoom(loot: LootService.LootInstance): boolean

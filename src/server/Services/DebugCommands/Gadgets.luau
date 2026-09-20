@@ -501,13 +501,19 @@ return {
 			GuardianService.resetAll()
 			local zone = workspace.Map.Zones[ZoneConfig.Zones[3].id]
 			local beam: BasePart? = nil
+			-- [lasers-rework] A STATIC beam a standing body touches at its middle
+			-- (the generated layouts also hold uprights, ceiling diagonals and
+			-- moving beams, whose midpoints can be out of reach or elsewhere).
 			for _, candidate in zone.Lasers:GetChildren() do
-				if candidate:IsA("BasePart") and candidate:GetAttribute("RoomIndex") == 2 then
+				local a0, b0 = candidate:GetAttribute("A"), candidate:GetAttribute("B")
+				if candidate:IsA("BasePart") and candidate:GetAttribute("RoomIndex") == 2
+					and typeof(a0) == "Vector3" and typeof(b0) == "Vector3" and a0.Y < 5 and b0.Y < 5
+					and (candidate:GetAttribute("Kind") == "Low" or candidate:GetAttribute("Kind") == "High") then
 					beam = candidate
 					break
 				end
 			end
-			assert(beam, "no beam in zone 3 room 2")
+			assert(beam, "no low or high beam in zone 3 room 2")
 			local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
 			local at = ((a :: Vector3) + (b :: Vector3)) / 2
 			move(player, CFrame.new(at.X - 8, 3.2, at.Z))
@@ -523,8 +529,8 @@ return {
 			LaserService.clearJam(player)
 			move(player, CFrame.new(at.X - 8, 3.2, at.Z))
 			task.wait(0.3)
-			-- This trip wakes the guard for real (catch immunity would also stop
-			-- the detector, so none is held): read it and leave at once.
+			-- [lasers-rework] This touch really throws the runner at the doorway
+			-- (it used to wake the guard): read it; the pivot below takes over.
 			move(player, CFrame.new(at.X, 3.2, at.Z))
 			task.wait(0.35)
 			report.tripAfterJam = player:GetAttribute("LastLaserTrip") ~= nil
