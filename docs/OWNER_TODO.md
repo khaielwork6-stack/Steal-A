@@ -21,6 +21,23 @@ missing id/asset falls back to a placeholder or hides the feature.
 - [ ] Studio Play tests use YOUR real save. If you are in the live game at the same time, Studio now plays
       a borrowed copy and saves nothing (console: "borrowed copy") instead of kicking you.
 
+## 0b. What changed on 2026-09-20 (second batch) - look at these in a real session
+
+- [ ] **Relic Roll**: buy a 3x with Studio's test path or a real 52 R$ 1x. Expect: the shop closes, a ~4 s roulette
+      (fast, then slowing, a tick per card that follows the speed), a win sound, the name and rarity, then the next
+      roll separately ("Roll 2 / 3"); each item lands in the hotbar as its roll finishes. "Skip all" ends it.
+      No "Successful Purchase" box any more (Roblox's own purchase popup is Roblox's and cannot be removed).
+- [ ] **Hotbar**: held items fill the next numbers straight after Slap / Trap / your gadgets (no gaps, same look as 1-4).
+      Past 10 they go to the bag: press the backtick key (`), or the "Bag +N" button on a phone. The small
+      "Store it" button on the right appears only while you hold an item.
+- [ ] **Lasers**: run into a beam at full speed: you should be thrown the instant you touch it, smoothly, out of the
+      door, with no guard woken. (Vault beams still use the older server-driven throw and may look less smooth.)
+- [ ] **Lobby**: every shop, stand, pad and treadmill rail is walk-through; only floors and boundary walls are solid.
+- [ ] **Storage > SELL ALL**: a red bar under the item list, "Are you sure?" first. It keeps items in your hands and
+      unrevealed containers. (Test it with a few cheap items first.)
+- [ ] The pack script (StarterGui.MainUI.LocalScript) hides every other ScreenGui while a panel is open; new full-screen
+      UI must live inside MainUI (like the confirmation dialog) or be opened after `_G.CloseAllUIFrames`.
+
 ## 1. Right after syncing
 
 - [ ] In Studio, accept/sync Rojo, then **File > Save** and **Publish**. New

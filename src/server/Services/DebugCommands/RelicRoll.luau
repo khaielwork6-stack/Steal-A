@@ -386,4 +386,76 @@ commands.relicRollDist = function(_player: Player, countArg: any)
 	}
 end
 
+--- THE ACK -> HOLD LINK, end to end on the server: a 3-roll purchase is
+--- granted, NOTHING is held before an ack, acking roll 1 holds exactly that
+--- roll's item (as the equipped one), acking it again holds nothing more, and
+--- Skip all holds the rest. Restored (Inventory, PendingRelicReveal,
+--- StorageTier) even on error.
+commands.relicRollHoldCheck = function(player: Player)
+	return withRestore(player, function(profile)
+		local HoldService = require(Services.HoldService)
+		local purchaseId = `debug-relicroll-holdcheck-{HttpService:GenerateGUID(false)}`
+		local granted, why = RelicRollService.grant(player, 3, purchaseId)
+		if not granted then
+			return { pass = false, why = why }
+		end
+		local pending = profile.PendingRelicReveal :: any
+		local items = pending.items :: { any }
+		local function held(): { string }
+			local out = {}
+			for _, item in profile.Inventory do
+				if item.Held then
+					table.insert(out, item.InstanceId)
+				end
+			end
+			return out
+		end
+		local function isHeld(instanceId: string): boolean
+			for _, id in held() do
+				if id == instanceId then
+					return true
+				end
+			end
+			return false
+		end
+		local function stored(instanceId: string): boolean
+			for _, item in profile.Inventory do
+				if item.InstanceId == instanceId then
+					return true
+				end
+			end
+			return false
+		end
+		local baseline = #held()
+		local report: { [string]: any } = { rolls = #items, baselineHeld = baseline }
+		local storedAll = true
+		for _, rolled in items do
+			if not rolled.overflow and not stored(rolled.instanceId) then
+				storedAll = false
+			end
+		end
+		report.allInStorageAtPurchase = storedAll
+		report.heldBeforeAck = #held() - baseline
+		RelicRollService.acknowledgeReveal(player, purchaseId, 1)
+		report.heldAfterAck1 = #held() - baseline
+		report.roll1Held = isHeld(items[1].instanceId)
+		RelicRollService.acknowledgeReveal(player, purchaseId, 1)
+		report.heldAfterRepeatAck = #held() - baseline
+		RelicRollService.acknowledgeReveal(player, purchaseId, 0)
+		report.heldAfterSkipAll = #held() - baseline
+		report.pendingCleared = profile.PendingRelicReveal == nil
+		local heldFlag = type((HoldService :: any).hold) == "function"
+		report.holdServiceHasHold = heldFlag
+		report.pass = heldFlag
+			and storedAll
+			and report.heldBeforeAck == 0
+			and report.heldAfterAck1 == 1
+			and report.roll1Held == true
+			and report.heldAfterRepeatAck == 1
+			and report.heldAfterSkipAll == #items
+			and report.pendingCleared == true
+		return report
+	end)
+end
+
 return commands
