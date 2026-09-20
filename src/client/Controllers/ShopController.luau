@@ -179,13 +179,15 @@ local PACK_CARD_ASPECT = 2
 
 --- Every section grid with its row count and aspect, re-fitted whenever the
 --- scroller changes size so the pixel cells keep tracking the panel.
-local fitted: { { grid: Frame, count: number, aspect: number? } } = {}
+local fitted: { { grid: Frame, count: number, aspect: number?, header: Frame? } } = {}
 --- The pack's own header is 0.02 tall, which is legible only because its text
 --- scales. A little more room lets a section title actually read as one.
 local HEADER_HEIGHT = 0.075
 
---- A section header + a grid to hang its cards on.
-local function section(parent: ScrollingFrame, title: string, order: number): Frame?
+--- A section header + a grid to hang its cards on. Returns the header too
+--- (see `fitGrid`): a section whose every card is owned must hide its
+--- header along with its grid, or the header is left floating over nothing.
+local function section(parent: ScrollingFrame, title: string, order: number): (Frame?, Frame?)
 	local header = ShopKit.header()
 	if header then
 		header.Name = `Section_{title}`
@@ -211,14 +213,26 @@ local function section(parent: ScrollingFrame, title: string, order: number): Fr
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	layout.Parent = grid
 
-	return grid
+	return grid, header
 end
 
 --- Sizes a grid's cells in PIXELS from the scroller's real width - two
 --- columns at the section's card aspect - and the grid to exactly its rows,
 --- so sections neither overlap nor leave holes, and every painted card in a
 --- section comes out the same shape at any resolution. Re-run on resize.
-local function fitGrid(grid: Frame, count: number, aspect: number?)
+---
+--- BUG FIX (2026-09-20, owner report: "the Shop's PASSES section is a header
+--- then a blank area"). A card the player already owns is hidden
+--- (ShopController.refreshOwnership / AutoRevealPassCard), and the section
+--- was sized from its ORIGINAL card count whenever `visible` came back 0 -
+--- exactly what happens once EVERY pass in the section is owned (an owner's
+--- own Studio account, which typically owns every Game Pass it sells,
+--- reproduces this on literally every load). The grid kept a full row's
+--- height with nothing inside it: a blank rectangle under a header that had
+--- nothing left to head. Now a section with zero visible cards collapses to
+--- 0 height and its header hides with it, exactly like GiftShopSection
+--- already does when it has nothing to offer.
+local function fitGrid(grid: Frame, count: number, aspect: number?, header: Frame?)
 	local list = grid.Parent
 	local layout = grid:FindFirstChildOfClass("UIGridLayout")
 	if not list or not list:IsA("GuiObject") or not layout then
@@ -228,6 +242,27 @@ local function fitGrid(grid: Frame, count: number, aspect: number?)
 	if width <= 0 then
 		return
 	end
+
+	-- Hidden cards (an owned pass) take no cell: the grid packs the rest and
+	-- must be sized for the cards that are actually showing - and when NONE
+	-- are, the section itself has nothing to show.
+	local visible = 0
+	for _, child in grid:GetChildren() do
+		if child:IsA("GuiObject") and child.Visible then
+			visible += 1
+		end
+	end
+	if header then
+		header.Visible = visible > 0
+	end
+	if visible == 0 then
+		grid.Visible = false
+		grid.Size = UDim2.fromScale(1, 0)
+		return
+	end
+	grid.Visible = true
+	count = visible
+
 	local factor = ClipSafe.scaleChain(list)
 	local columns = if width < 540 then 1 else 2
 	local cellWidth = width * (if columns == 1 then 0.94 else CELL_WIDTH) / factor
@@ -237,25 +272,14 @@ local function fitGrid(grid: Frame, count: number, aspect: number?)
 	-- (seen in the owner's phone capture of the Cash section). Pack cards,
 	-- whose height the art does not dictate, keep the floor.
 	local cellHeight = if aspect then cellWidth / aspect else math.max(190 / factor, cellWidth / PACK_CARD_ASPECT)
-	-- Hidden cards (an owned pass) take no cell: the grid packs the rest and
-	-- must be sized for the cards that are actually showing.
-	local visible = 0
-	for _, child in grid:GetChildren() do
-		if child:IsA("GuiObject") and child.Visible then
-			visible += 1
-		end
-	end
-	if visible > 0 then
-		count = visible
-	end
 	local rows = math.max(1, math.ceil(count / columns))
 	layout.CellSize = UDim2.fromOffset(cellWidth, cellHeight)
 	grid.Size = UDim2.new(1, 0, 0, rows * cellHeight + (rows - 1) * ROW_GAP)
 end
 
-local function trackGrid(grid: Frame, count: number, aspect: number?)
-	table.insert(fitted, { grid = grid, count = count, aspect = aspect })
-	fitGrid(grid, count, aspect)
+local function trackGrid(grid: Frame, count: number, aspect: number?, header: Frame?)
+	table.insert(fitted, { grid = grid, count = count, aspect = aspect, header = header })
+	fitGrid(grid, count, aspect, header)
 end
 
 --- A painted product card: the whole card buys (there is one price on it),
@@ -299,12 +323,19 @@ local function buildShop()
 
 	local cards: { GuiObject } = {}
 
+	-- [relic-roll] MUSEUM RELICS banner, above everything else - order 5, one
+	-- below the Passes section's header (order 10). Its own module: the
+	-- figures, tooltip, mouse-follow and buttons are all its business.
+	for _, card in require(script.Parent.RelicRollSection).build(list, 5) do
+		table.insert(cards, card)
+	end
+
 	-- PAINTED OR PACK. A product whose art is in PngUiConfig gets the painted
 	-- card (whole card buys); anything without art keeps the pack card. Both
 	-- send the same PurchaseRequest with the same key.
 
 	-- PASSES ------------------------------------------------------------
-	local passGrid = section(list, "Passes", 10)
+	local passGrid, passHeader = section(list, "Passes", 10)
 	if passGrid then
 		-- [fusion-autoreveal-bases] The Auto Reveal pass: its own module, one
 		-- more card in this grid (0 while the pass id is unset outside Studio).
@@ -318,7 +349,7 @@ local function buildShop()
 			cashPassOwnedBadge = buildOwnedBadge(png.artwork)
 			cashPassCard = png.frame
 			table.insert(cards, png.frame)
-			trackGrid(passGrid, passCount, PngUiConfig.aspectFor(passLayout))
+			trackGrid(passGrid, passCount, PngUiConfig.aspectFor(passLayout), passHeader)
 		else
 			local card = ShopKit.card()
 			if card then
@@ -340,14 +371,14 @@ local function buildShop()
 				cashPassCard = card
 				table.insert(cards, card)
 			end
-			trackGrid(passGrid, passCount, nil)
+			trackGrid(passGrid, passCount, nil, passHeader)
 		end
 	end
 
 	--- One developer-product section: painted where there is art, pack where
 	--- there is not. The section's cell aspect is the family of its art.
 	local function productSection(title: string, order: number, products: { MonetizationConfig.ProductDef }, color: Color3, accent: Color3, icon: string, titleOf: (MonetizationConfig.ProductDef) -> string)
-		local grid = section(list, title, order)
+		local grid, header = section(list, title, order)
 		if not grid then
 			return
 		end
@@ -388,7 +419,7 @@ local function buildShop()
 				end
 			end
 		end
-		trackGrid(grid, #products, aspect)
+		trackGrid(grid, #products, aspect, header)
 	end
 
 	-- CASH --------------------------------------------------------------
@@ -415,8 +446,9 @@ local function buildShop()
 	-- after a build while the panel was hidden, re-fits every section.
 	list:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		for _, entry in fitted do
-			fitGrid(entry.grid, entry.count, entry.aspect)
+			fitGrid(entry.grid, entry.count, entry.aspect, entry.header)
 		end
+		require(script.Parent.RelicRollSection).fit() -- [relic-roll]
 	end)
 
 	built = true
@@ -465,7 +497,7 @@ end
 --- Re-sizes every section for the cards it is showing now.
 local function refitAll()
 	for _, entry in fitted do
-		fitGrid(entry.grid, entry.count, entry.aspect)
+		fitGrid(entry.grid, entry.count, entry.aspect, entry.header)
 	end
 end
 
@@ -480,6 +512,7 @@ function ShopController.start()
 		if built then
 			paintCashAmounts(state.shop)
 			require(script.Parent.GiftShopSection).update(state) -- [trading-gifting-boards]
+			require(script.Parent.RelicRollSection).update(state) -- [relic-roll]
 			-- After every owner (this file, AutoRevealPassCard) has shown or
 			-- hidden its card for this push.
 			task.defer(refitAll)

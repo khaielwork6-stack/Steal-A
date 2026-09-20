@@ -61,6 +61,8 @@ local MysterySpawnService = require(Services.MysterySpawnService)
 local OfflineService = require(Services.OfflineService)
 local SpinWheelService = require(Services.SpinWheelService)
 local StarterTaskService = require(Services.StarterTaskService)
+-- [relic-roll] The Museum Relics gacha banner (Shop panel, top section).
+local RelicRollService = require(Services.RelicRollService)
 -- DATA AREA: durable delivery to offline / other-server players.
 local MailboxService = require(Services.MailboxService)
 -- SOCIAL PASS: invites/referrals, friend & Premium boost, badges,
@@ -258,6 +260,9 @@ end)
 MonetizationService.setSkipHandler(function(player, track)
 	return require(Services.SeasonPassService).skipTier(player, track)
 end)
+-- [relic-roll] A RelicRoll product rolls and grants a Museum Relics pull -
+-- a direct grant, like the Gadget/Skip handlers above.
+MonetizationService.setRelicRollHandler(RelicRollService.grant)
 -- [monetization pass] Instant Reveal is a paid random item: withheld from
 -- players whose PolicyService answer restricts those (unknown = restricted).
 HatchService.canOfferInstantReveal = function(player)
@@ -517,6 +522,9 @@ require(Services.LobbyGhostService).start()
 HatchService.start()
 -- Must follow SpeedService: a receipt grants its tier through it.
 MonetizationService.start()
+-- [relic-roll] After MonetizationService: its StatePush provider and grant
+-- handler both call back into it (policy, live prices).
+RelicRollService.start()
 TrailService.start()
 ZoneSignService.start()
 EventStandService.start()

@@ -348,6 +348,15 @@ export type Profile = {
 	--   D1Counted   this player's "came back the day after joining" is counted.
 	--   Purchases   Robux purchases seen since tracking (first-purchase flag).
 	AnalyticsLife: AnalyticsLife,
+	-- [relic-roll] Additive, no schema bump; written only by RelicRollService.
+	-- The items a RECENT Relic Roll purchase granted, kept ONLY so the client
+	-- can replay the reveal animation if it missed the live push (a rejoin, a
+	-- disconnect between the grant and the reveal landing). The grant itself
+	-- - the rolled items in Storage/Mailbox - already happened and is never
+	-- gated on this: { purchaseId, rollCount, items: { {itemId, rarity,
+	-- mutation, scale, income, overflow} } }. Cleared once the client acks
+	-- (RelicRollAck) or replays it on join.
+	PendingRelicReveal: any?,
 	-- STORED DOCUMENT ONLY - always nil on an in-memory profile. See the
 	-- SESSION LOCKING section in the header.
 	SessionLock: SessionLock?,
@@ -468,6 +477,8 @@ local function defaultProfile(): Profile
 		WeeklyEarned = { Week = "", Amount = 0 },
 		-- [analytics-discord] Only a brand-new profile knows its first join.
 		AnalyticsLife = { Sessions = 0, FirstJoin = os.time(), FirstReveal = false, FirstEpic = false, D1Counted = false, Purchases = 0 },
+		-- [relic-roll] Nothing pending on a brand-new profile.
+		PendingRelicReveal = nil,
 		-- Never set in memory; see SessionLock above.
 		SessionLock = nil,
 	}
@@ -1046,6 +1057,12 @@ local function reconcile(profile: Profile): Profile
 	-- contents are re-validated by SpinWheelService before anything is paid.
 	if type(profile.PendingSpinPrize) ~= "table" then
 		profile.PendingSpinPrize = nil
+	end
+	-- [relic-roll] Only a table can be a pending reveal; RelicRollService
+	-- re-validates its contents before replaying it. The items it names were
+	-- already granted (Storage/Mailbox) regardless of this field's health.
+	if type(profile.PendingRelicReveal) ~= "table" then
+		profile.PendingRelicReveal = nil
 	end
 	if type(profile.TutorialIntroSeen) ~= "boolean" then
 		profile.TutorialIntroSeen = false

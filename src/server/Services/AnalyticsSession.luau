@@ -519,6 +519,10 @@ function AnalyticsSession.start()
 	ProgressEvents.on("codeRedeemed", function(player, _amount, info)
 		AnalyticsEvents.custom(player, "CodeRedeemed", 1, { tostring(info.code or "unknown") })
 	end)
+	-- [relic-roll] amount = roll count; info { bestRarity, bestItemId }.
+	ProgressEvents.on("relicRoll", function(player, amount, info)
+		AnalyticsEvents.custom(player, "RelicRoll", amount, { tostring(info.bestRarity or "Common"), tostring(info.bestItemId or "unknown"), `x{math.floor(amount)}` })
+	end)
 
 	local function onPlayer(player: Player)
 		player:GetAttributeChangedSignal("LastLaserTrip"):Connect(function()

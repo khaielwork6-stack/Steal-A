@@ -282,6 +282,13 @@ startLater("PerfController", function()
 	require(script.Controllers.PerfController).start()
 end)
 
+-- [relic-roll] The full-screen reveal after a Museum Relics purchase. The
+-- banner itself lives inside ShopController/RelicRollSection; this is only
+-- the reveal overlay, reacting to `state.relicRoll.pendingReveal`.
+startLater("RelicRollRevealController", function()
+	require(script.Controllers.RelicRollRevealController).start()
+end)
+
 print("[Client] controllers started")
 -- THE LOADING SCREEN IS GONE (owner, 2026-09-18). Roblox's own default one
 -- is left in place, and `LoadingScreenDone` is set here with `ClientReady`:

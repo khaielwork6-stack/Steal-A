@@ -286,7 +286,7 @@ AnalyticsEvents.CUSTOM_EVENTS = {
 	"QuitInTutorial", "QuitAfterCatch", "QuitAfterRobbed", "QuitWhileCarrying", "QuitInPanel", "QuitIdle", "QuitActive",
 	-- feature use
 	"DailyClaim", "QuestClaim", "SeasonTier", "TradeCompleted", "Fusion", "GadgetUsed", "VaultSteal",
-	"CrewAssist", "SpinUsed", "CodeRedeemed",
+	"CrewAssist", "SpinUsed", "CodeRedeemed", "RelicRoll",
 	-- purchases and performance
 	"PurchaseCancelled", "PerfSpike",
 } :: { string }
@@ -542,11 +542,12 @@ AnalyticsEvents.KIND_FUNNELS = {
 	TreadmillTier = "Buy_Pack",
 	Gift = "Buy_Gift",
 	Skip = "Buy_SeasonSkip",
+	RelicRoll = "Buy_RelicRoll", -- [relic-roll]
 } :: { [string]: string }
 
 --- Which funnels a panel's opening counts as "shown" for.
 local PANEL_SHOWS: { [string]: { string } } = {
-	Shop = { "Buy_Pack", "Buy_Pass", "Buy_Gift" },
+	Shop = { "Buy_Pack", "Buy_Pass", "Buy_Gift", "Buy_RelicRoll" }, -- [relic-roll] appended
 	Upgrades = { "Buy_Pack" },
 	TrailShop = { "Buy_Pass" },
 	GadgetStore = { "Buy_Gadget" },
@@ -574,6 +575,7 @@ local function getCatalogue()
 		MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts,
 		MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts,
 		MonetizationConfig.SkipProducts, MonetizationConfig.GiftProducts,
+		MonetizationConfig.RelicRollProducts, -- [relic-roll]
 	}
 	for _, list in lists do
 		for _, product in (list or {}) :: { any } do

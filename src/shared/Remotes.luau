@@ -254,6 +254,16 @@ Remotes.NAMES = {
 	-- Clamped, whitelisted and rate-limited in PerfFeed; grants nothing.
 	-- (The open-panel report rides the existing AnalyticsClientEvent.)
 	"PerfReport",
+
+	-- ==== RELIC-ROLL ====
+	-- The "MUSEUM RELICS [LIMITED]" gacha banner. Buying a roll is the
+	-- existing PurchaseRequest("product", "RelicRoll<n>x"); this is the one
+	-- new remote: client -> server. RelicRollAck(purchaseId): the reveal for
+	-- that purchase has been played (or skipped), so RelicRollService may
+	-- clear the durable "replay this on join" record. Grants nothing;
+	-- validated (a string, length-capped) and rate-limited in
+	-- RelicRollService.
+	"RelicRollAck",
 }
 
 local folder: Folder

@@ -435,6 +435,8 @@ GameConfig.RATE_LIMITS = {
 	GuardianRequest = 3,
 	WeaponRequest = 3,
 	OfflineClaimRequest = 2,
+	-- [relic-roll] The client acking a played (or skipped) reveal.
+	RelicRollAck = 2,
 }
 
 -- ==========================================================
