@@ -293,8 +293,15 @@ type Hero = {
 local function buildHero(): Hero
 	local source = player.Character
 	if source and source:FindFirstChildOfClass("Humanoid") then
+		-- A character is Archivable = false, and Clone() of one returns NIL
+		-- (no error), which sent every run to the block-rig fallback. Opened
+		-- for the length of the clone only.
 		local ok, clone = pcall(function()
-			return source:Clone()
+			local was = source.Archivable
+			source.Archivable = true
+			local copy = source:Clone()
+			source.Archivable = was
+			return copy
 		end)
 		if ok and clone then
 			local runId = findAnimationId(clone, "run", "RunAnim") or findAnimationId(clone, "walk", "WalkAnim")
@@ -1088,6 +1095,13 @@ local function play(replay: boolean)
 	end
 
 	report(if replay then "replay" else "start", nil)
+	-- Whatever panel is open goes first. The Settings replay is pressed FROM a
+	-- panel, and the HUD claim below hides the HUD, not the pack's Frames: the
+	-- first Studio run played the whole film behind the Settings panel.
+	local closeAll = (_G :: any).CloseAllUIFrames
+	if type(closeAll) == "function" then
+		pcall(closeAll)
+	end
 	UIStateController.claim(CLAIM)
 	freeze(true)
 

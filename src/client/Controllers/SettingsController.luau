@@ -686,7 +686,7 @@ function SettingsController.start()
 		watchTutorialRow = copy
 	end
 	if watchTutorialRow then
-		bindAction(watchTutorialRow, "Tutorial", { "WATCH", "AGAIN" }, function()
+		bindAction(watchTutorialRow, "Tutorial", { "WATCH", "REPLAY" }, function()
 			local TutorialFilmController = require(script.Parent.TutorialFilmController)
 			TutorialFilmController.replay()
 		end)
