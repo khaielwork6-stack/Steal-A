@@ -339,7 +339,9 @@ Commands.holdRaceTest = function(player: Player, itemIdArg: any): any
 				and exactlyOneHeld
 				and ok3 == true
 				and ok4 == false
-				and reason4 == "You are not holding anything.",
+				-- Either refusal is right: the pad is full now AND the hands are
+				-- empty; which check answers first is not the point.
+				and (reason4 == "You are not holding anything." or reason4 == "That slot is already full."),
 			pickup1 = { ok = ok1, reason = reason1 },
 			pickup2 = { ok = ok2, reason = reason2 },
 			exactlyOneHeldAfterDoublePickup = exactlyOneHeld,

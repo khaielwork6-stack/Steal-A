@@ -227,7 +227,15 @@ function HoldService.refreshHeldVisual(player: Player)
 	highlight.Adornee = model
 	highlight.Parent = model
 
-	primary.CFrame = root.CFrame * HoldConfig.HELD_OFFSET
+	-- THE WHOLE MODEL, not its primary part. `primary.CFrame = ...` moved one
+	-- part and left the rest of the item at the build position (the Studio
+	-- test measured a "2 stud" trinket 89 studs across). Orient with the
+	-- player, then translate so the model's CENTRE lands on the hand point -
+	-- an import's pivot is wherever the artist left it (CarryService's rule).
+	local target = root.CFrame * HoldConfig.HELD_OFFSET
+	model:PivotTo(target)
+	local boxCFrame = model:GetBoundingBox()
+	model:PivotTo(model:GetPivot() + (target.Position - boxCFrame.Position))
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = false

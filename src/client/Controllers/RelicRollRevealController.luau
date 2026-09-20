@@ -271,7 +271,7 @@ local function buildResultsGrid(parent: Instance, items: { RolledItem })
 	scroller.Name = "Results"
 	scroller.BackgroundTransparency = 1
 	scroller.BorderSizePixel = 0
-	scroller.Size = UDim2.new(1, -24, 0, 190)
+	scroller.Size = UDim2.fromScale(1, 1)
 	scroller.CanvasSize = UDim2.new(0, 0, 0, 0)
 	scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroller.ScrollBarThickness = 6
@@ -423,7 +423,8 @@ local function showSuccessDialog(screen: ScreenGui, payload: { rollCount: number
 		grid.Name = "GridHolder"
 		grid.BackgroundTransparency = 1
 		grid.Position = UDim2.fromOffset(12, 114)
-		grid.Size = UDim2.new(1, -24, 0, 190)
+		-- From under the headline down to just above the Ok button.
+		grid.Size = UDim2.new(1, -24, 1, -(114 + 78))
 		grid.ZIndex = 11
 		grid.Parent = dialog
 		buildResultsGrid(grid, payload.items)
@@ -479,6 +480,10 @@ local function playReveal(payload: { purchaseId: string, rollCount: number, item
 	local screen = Instance.new("ScreenGui")
 	screen.Name = "RelicRollReveal"
 	screen.ResetOnSpawn = false
+	-- Sibling, not the Instance.new default (Global): under Global every cell
+	-- of the results grid (ZIndex 1) drew UNDER the dialog plate (ZIndex 11),
+	-- so a 3x/10x/50x roll showed an empty box.
+	screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screen.IgnoreGuiInset = true
 	screen.DisplayOrder = 55
 	screen.Parent = gui

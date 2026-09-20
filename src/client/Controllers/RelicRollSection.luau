@@ -291,22 +291,30 @@ local function addShine(button: GuiObject): Frame?
 	local shine = Instance.new("Frame")
 	shine.Name = "Shine"
 	shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	shine.BackgroundTransparency = 0.55
+	shine.BackgroundTransparency = 0
 	shine.BorderSizePixel = 0
-	shine.Rotation = 18
-	shine.Size = UDim2.fromScale(0.22, 1.6)
-	shine.Position = UDim2.fromScale(-0.3, -0.3)
+	-- NOT ROTATED. Roblox does not clip a rotated GuiObject (ClipSafe's whole
+	-- reason to exist), so the old 18-degree bar swept out of the button and
+	-- across the shop. An upright band with a soft-edged gradient reads the
+	-- same and is clipped like anything else.
+	shine.Size = UDim2.fromScale(0.28, 1)
+	shine.Position = UDim2.fromScale(-0.3, 0)
 	shine.ZIndex = button.ZIndex + 2
 	shine.Parent = button
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = shine
+	button.ClipsDescendants = true
+	local fade = Instance.new("UIGradient")
+	fade.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.5, 0.5),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	fade.Parent = shine
 
 	task.spawn(function()
 		while shine.Parent do
-			shine.Position = UDim2.fromScale(-0.3, -0.3)
+			shine.Position = UDim2.fromScale(-0.3, 0)
 			local tween = TweenService:Create(shine, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				Position = UDim2.fromScale(1.3, -0.3),
+				Position = UDim2.fromScale(1.3, 0),
 			})
 			tween:Play()
 			tween.Completed:Wait()
@@ -411,13 +419,9 @@ local function buildButton(parent: Frame, key: string, order: number, isBulk: bo
 	gradient.Rotation = 90
 	gradient.Parent = button
 
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 4)
-	pad.Parent = button
-	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.Parent = button
+	-- The text is PLACED, not listed. A UIListLayout here also laid out the
+	-- 50x button's shine sweep as a row of its own, which pushed the price and
+	-- the label clean out of the button (Studio, 2026-09-20).
 
 	if ROBUX_ICON ~= "rbxassetid://0" then
 		local icon = Instance.new("ImageLabel")
@@ -432,7 +436,10 @@ local function buildButton(parent: Frame, key: string, order: number, isBulk: bo
 	local price = Instance.new("TextLabel")
 	price.Name = "Price"
 	price.BackgroundTransparency = 1
-	price.Size = UDim2.new(1, 0, 0, 20)
+	price.AnchorPoint = Vector2.new(0.5, 0)
+	price.Position = UDim2.fromScale(0.5, 0.08)
+	price.Size = UDim2.fromScale(0.9, 0.52)
+	price.ZIndex = 3
 	price.Font = Enum.Font.FredokaOne
 	price.TextScaled = true
 	price.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -444,12 +451,15 @@ local function buildButton(parent: Frame, key: string, order: number, isBulk: bo
 	local label = Instance.new("TextLabel")
 	label.Name = "RollLabel"
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, 0, 0, 16)
-	label.Font = Enum.Font.GothamBold
+	label.AnchorPoint = Vector2.new(0.5, 1)
+	label.Position = UDim2.fromScale(0.5, 0.94)
+	label.Size = UDim2.fromScale(0.9, 0.3)
+	label.ZIndex = 3
+	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextStrokeTransparency = 0.5
-	label.Text = key
+	label.Text = string.match(key, "(%d+x)$") or key -- "RelicRoll10x" -> "10x"
 	label.LayoutOrder = 3
 	label.Parent = button
 
@@ -604,9 +614,11 @@ function RelicRollSection.build(list: ScrollingFrame, order: number): { GuiObjec
 		local oddsLabel = Instance.new("TextLabel")
 		oddsLabel.Name = "Odds"
 		oddsLabel.BackgroundTransparency = 1
-		oddsLabel.AnchorPoint = Vector2.new(0.5, 1)
-		oddsLabel.Position = UDim2.fromScale(0.5, 1.14)
-		oddsLabel.Size = UDim2.new(1, 0, 0, 18)
+		-- Hung UNDER the figure (anchored by its top), so a taller number never
+		-- climbs into the figure above it.
+		oddsLabel.AnchorPoint = Vector2.new(0.5, 0)
+		oddsLabel.Position = UDim2.fromScale(0.5, 1.02)
+		oddsLabel.Size = UDim2.new(1, 0, 0, 20 + index * 3)
 		oddsLabel.Font = Enum.Font.FredokaOne
 		oddsLabel.TextScaled = true
 		oddsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
