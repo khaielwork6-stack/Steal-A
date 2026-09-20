@@ -71,6 +71,10 @@ AudioConfig.Cues = {
 	--- alarm. Looped and positioned in the room that was tripped, so it tells
 	--- everyone nearby WHERE it happened; GuardianService stops and destroys it
 	--- after AudioConfig.ALARM_SECONDS.
+	--- (lasers-rework) A touch now throws the player out instead of raising an
+	--- alarm; the same cue is the ZAP at the touch, cut after
+	--- LaserConfig.KNOCKBACK.ZAP_SECONDS by LaserService. ALARM_SECONDS below is
+	--- no longer read.
 	LaserAlarm = { id = asset(7084812679), volume = 0.7, category = "world", looped = true, rollOff = 180 },
 
 	-- ---------- event: personal gameplay moments ----------

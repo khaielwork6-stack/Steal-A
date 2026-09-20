@@ -182,8 +182,9 @@ end
 GameConfig.GUARDIAN_WAKE_DELAY = 0.55
 --- Museum rooms: a steal is quiet. The room guard is alerted the moment the
 --- thief carries its loot out through the doorway, then holds this long before
---- chasing, so the thief can get lined up and running. Touching a laser wakes
---- the guard straight away instead, with the ordinary GUARDIAN_WAKE_DELAY.
+--- chasing, so the thief can get lined up and running. (Touching a laser used
+--- to wake the guard straight away; since lasers-rework it throws the player
+--- out of the room instead - Config/LaserConfig - and wakes nobody.)
 GameConfig.GUARDIAN_DOOR_GRACE = 1
 --- The least a guardian may trail an at-gate player by, in studs/s.
 GameConfig.GUARDIAN_MIN_GATE_MARGIN = 0.5

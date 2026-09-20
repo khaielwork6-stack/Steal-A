@@ -7,6 +7,8 @@ local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
+local LaserConfig = require(ReplicatedStorage.Shared.Config.LaserConfig)
+local LaserPatterns = require(ReplicatedStorage.Shared.LaserPatterns)
 local LootService = require(script.Parent.LootService)
 local MuseumTests = {}
 
@@ -27,6 +29,40 @@ function MuseumTests.run(): any
 	check(not crossing(2.5, 5.2, 0, 13), "walk around beam endpoint")
 	check(Geometry.sweptBoxHit(Vector3.new(-8, 4, -8), Vector3.new(8, 0, 8), Vector3.new(0, 2, 0), Vector3.new(0, 2, 0), Vector3.one), "stationary diagonal overlap")
 	check(not Geometry.sweptBoxHit(Vector3.new(-8, 4, -8), Vector3.new(8, 0, 8), Vector3.new(6, 2, -6), Vector3.new(6, 2, -6), Vector3.one), "diagonal broad-phase false positive rejected")
+	-- MOVING SEGMENTS (lasers-rework): pure functions of the clock.
+	do
+		local slide: Geometry.MovingSegment = { a = Vector3.new(0, 0.3, 0), b = Vector3.new(0, 14, 0), travel = Vector3.new(20, 0, 0), period = 4, phase = 0 }
+		local inRange, periodic = true, true
+		for n = 0, 40 do
+			local f = Geometry.moveFraction(4, 0.25, n * 0.1)
+			inRange = inRange and f >= 0 and f <= 1
+			periodic = periodic and math.abs(f - Geometry.moveFraction(4, 0.25, n * 0.1 + 4 * 1e6)) < 1e-6
+		end
+		check(inRange and periodic, "mover fraction stays in 0..1 and repeats every period")
+		check(Geometry.moveFraction(4, 0, 0) == 0 and Geometry.moveFraction(4, 0, 2) == 1, "mover rests at both ends of its travel")
+		local body, half = Vector3.new(10, 2.6, 0), Vector3.new(1.1, 2.6, 1.1)
+		local swept = false
+		for n = 0, 39 do
+			swept = swept or Geometry.sweptSegmentHit(slide, n * 0.1, (n + 1) * 0.1, body, body, half)
+		end
+		check(swept, "a sliding upright sweeps a body standing in its path")
+		check(not Geometry.sweptSegmentHit(slide, 0, 0.1, body, body, half), "...and not while it rests at the far end")
+		local blink: Geometry.MovingSegment = { a = Vector3.new(-5, 2.5, 0), b = Vector3.new(5, 2.5, 0), travel = Vector3.zero, period = 0, phase = 0, onSeconds = 2, offSeconds = 2, blinkPhase = 0 }
+		local still = Vector3.new(0, 2.6, 0)
+		check(Geometry.sweptSegmentHit(blink, 0.5, 0.6, still, still, half), "a lit blinker hits")
+		check(not Geometry.sweptSegmentHit(blink, 2.5, 2.6, still, still, half), "a dark blinker does not")
+		-- The validator itself: a wall fails, a crouchable row passes without a jump.
+		local room = Layout.laserRoom(5)
+		local reach = room.width / 2 - LaserConfig.FIELD.WALL_INSET
+		local function row(kind: string, y: number, z: number): LaserPatterns.Segment
+			return { kind = kind, ax = -reach, ay = y, az = z, bx = reach, by = y, bz = z }
+		end
+		check(not LaserPatterns.validate(room, { row("Mid", 2.5, 20) }, true).ok, "validator rejects a wall-to-wall waist beam")
+		check(LaserPatterns.validate(room, { row("Low", 0.8, 20) }, true).ok and not LaserPatterns.validate(room, { row("Low", 0.8, 20) }, false).ok, "validator: a low row needs a jump")
+		check(LaserPatterns.validate(room, { row("High", 4.5, 20) }, false).ok, "validator: a high row is crouched under")
+		check(LaserPatterns.validate(room, { row("Low", 0.8, 20), row("High", 4.5, 25) }, true).ok and not LaserPatterns.validate(room, { row("Low", 0.8, 20), row("High", 4.5, 23) }, true).ok, "validator: a jump-then-crouch gate needs 5 studs")
+		check(not LaserPatterns.validate(room, { row("Low", 0.8, 5) }, true).ok, "validator rejects a beam in the doorway apron")
+	end
 	check(Layout.DOOR_WIDTH >= 40, "museum doorways are at least 40 studs wide")
 	check(GameConfig.GUARDIAN_DOOR_GRACE >= 1 and GameConfig.GUARDIAN_DOOR_GRACE <= 2.5, "doorway grace is 1-2.5 seconds")
 	local floors = RaycastParams.new()
@@ -125,18 +161,56 @@ function MuseumTests.run(): any
 				check(math.abs(localAt.X) + plinth.Size.Z / 2 < width / 2 - 2 and localAt.Z + plinth.Size.X / 2 < depth - 2, `{def.id} case {n} fits room`)
 				check(case:FindFirstChild("Glass") ~= nil and case:FindFirstChild("GoldUpright") ~= nil, `{def.id} case {n} glass and gold frame`)
 			end
-			local count = 0
+			-- LASERS (lasers-rework). The layout is generated (shared/LaserPatterns)
+			-- from a seed of (zone, room) and must pass the fairness validator:
+			-- re-derive it here, check it is fair, and check the parts in the
+			-- world are exactly that layout. A wall-to-wall beam now ends ON the
+			-- side wall (width / 2 - FIELD.WALL_INSET), and a moving beam is
+			-- checked at both ends of its travel.
+			local layout = LaserPatterns.forRoom(index, roomIndex, Layout.laserRoom(index))
+			check(layout.report.ok, `{def.id} {name} laser layout is fair ({table.concat(layout.report.reasons, "; ")})`)
+			check(layout.thinned == 0, `{def.id} {name} laser layout needed no thinning ({layout.thinned})`)
+			check(#layout.segments >= 2 and #layout.segments <= LaserConfig.zone(index).maxSegments, `{def.id} {name} laser escalation ({#layout.segments} beams)`)
+			check(layout.report.tightestWindow == nil or layout.report.tightestWindow >= LaserConfig.VALIDATOR.MIN_WINDOW, `{def.id} {name} mover timing windows`)
+			-- The route must also survive the other question: with jumping allowed
+			-- it can only get easier, and zones 3+ must not NEED a jump.
+			check(LaserPatterns.validate(Layout.laserRoom(index), layout.segments, true).ok, `{def.id} {name} laser route with jumps`)
+			local count, moving = 0, 0
+			local field = LaserConfig.FIELD
 			for _, beam in zone.Lasers:GetChildren() do
 				if beam:GetAttribute("RoomIndex") ~= roomIndex then continue end
 				count += 1
 				local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
-				for _, point in { a, b } do
-					local at = frame:PointToObjectSpace(point)
-					check(math.abs(at.X) < width / 2 - 3 and at.Z > 5 and at.Z < depth - 15, `{def.id} {name} laser {count} inside room`)
+				local travel = Vector3.zero
+				if typeof(a) ~= "Vector3" then
+					moving += 1
+					a, b, travel = beam:GetAttribute("RestA"), beam:GetAttribute("RestB"), beam:GetAttribute("Travel")
+					check(beam:IsA("BasePart") and not beam.CanQuery, `{def.id} {name} moving laser {count} is tested from the clock, not queried`)
 				end
-				check(not Geometry.sweptBoxHit(a, b, Vector3.new(0, 2.6, MapConfig.zoneStartZ(index)), Vector3.new(0, 2.6, MapConfig.zoneEndZ(index)), Vector3.new(8, 2.6, 2)), `{def.id} laser leaves corridor clear`)
+				if typeof(a) ~= "Vector3" or typeof(b) ~= "Vector3" or typeof(travel) ~= "Vector3" then
+					check(false, `{def.id} {name} laser {count} has end points`)
+					continue
+				end
+				for _, swing in { 0, 1 } do
+					local a1, b1 = a + travel * swing, b + travel * swing
+					for _, point in { a1, b1 } do
+						local at = frame:PointToObjectSpace(point)
+						check(math.abs(at.X) <= width / 2 - field.WALL_INSET + 0.05 and at.Z >= field.Z_MIN - 0.05 and at.Z <= field.Z_MAX + 0.05 and at.Z < depth - 15,
+							`{def.id} {name} laser {count} inside the laser field`)
+					end
+					check(not Geometry.sweptBoxHit(a1, b1, Vector3.new(0, 2.6, MapConfig.zoneStartZ(index)), Vector3.new(0, 2.6, MapConfig.zoneEndZ(index)), Vector3.new(8, 2.6, 2)), `{def.id} laser leaves corridor clear`)
+				end
 			end
-			check(count == Layout.BEAMS[index], `{def.id} {name} laser escalation`)
+			local expectedMoving = 0
+			for _, segment in layout.segments do
+				if LaserPatterns.isMover(segment) then expectedMoving += 1 end
+			end
+			check(count == #layout.segments and moving == expectedMoving, `{def.id} {name} built lasers match the generated layout ({count}/{#layout.segments}, {moving}/{expectedMoving} moving)`)
+			-- Nobody is hit walking in, or standing at a display case, or at the
+			-- guard's post: the doorway apron and each socket's standing spot are
+			-- part of the validator's verdict above; the post is in the corridor.
+			local post = zone.GuardianSpawns:FindFirstChild(if roomIndex == 1 then "GuardianPost" else "GuardianPost02") :: BasePart?
+			check(post ~= nil and frame:PointToObjectSpace(post.Position).Z < 0, `{def.id} {name} guard post is outside the laser field`)
 			for _, x in { 0, -width * 0.25, width * 0.25 } do
 				local at = frame:PointToWorldSpace(Vector3.new(x, 6, depth / 2))
 				local hit = workspace:Raycast(at, Vector3.new(0, -10, 0), floors)
@@ -542,14 +616,15 @@ function MuseumTests.paths(player: Player): any
 		end
 		Guardian.resetAll()
 		while Ragdoll.isImmune(player) do task.wait(0.1) end
-		local zone = workspace.Map.Zones[ZoneConfig.Zones[3].id]
-		local beam: BasePart? = nil
-		for _, candidate in zone.Lasers:GetChildren() do
-			if candidate:IsA("BasePart") and candidate:GetAttribute("RoomIndex") == 2 and candidate:GetAttribute("A").Y > 4 then beam = candidate; break end
-		end
-		assert(beam, "high beam missing")
-		local at = (beam:GetAttribute("A") + beam:GetAttribute("B")) / 2
-		move(Vector3.new(at.X - 6, 3.2, at.Z))
+		-- A high beam of the generated zone 3 / room 2 layout with nothing else
+		-- near it (lasers-rework: the layout is shared/LaserPatterns').
+		local layout = LaserPatterns.forRoom(3, 2, Layout.laserRoom(3))
+		local localX, localZ = LaserPatterns.isolatedPoint(layout.segments, "High", 7)
+		assert(localX and localZ, "no isolated high beam in zone 3 room 2")
+		local roomFrame = Layout.frame(3, 2)
+		local at = roomFrame:PointToWorldSpace(Vector3.new(localX, 0, localZ))
+		local before = roomFrame:PointToWorldSpace(Vector3.new(localX, 0, localZ - 5))
+		move(Vector3.new(before.X, 3.2, before.Z))
 		Laser.setCrouched(player, true)
 		task.wait(0.2)
 		player:SetAttribute("LastLaserTrip", nil)
@@ -557,12 +632,17 @@ function MuseumTests.paths(player: Player): any
 		task.wait(0.3)
 		report.crouchClearedHighBeam = player:GetAttribute("LastLaserTrip") == nil
 		Laser.setCrouched(player, false)
-		task.wait(0.2)
+		task.wait(0.25)
 		local info = Guardian.inspect(3, 2)
-		-- Touching a beam wakes that room's guard at once, carrying or not.
+		-- (lasers-rework) Touching a beam THROWS the player at the doorway and
+		-- wakes nobody: it used to wake that room's guard at once.
 		report.standingTrippedMatchingRoom = player:GetAttribute("LastLaserRoom") == 2 and player:GetAttribute("LastLaserZone") == 3
-			and info ~= nil and (info.state == "Waking" or info.state == "Chasing")
+		report.touchLaunchedPlayer = Ragdoll.isRagdolled(player)
+		report.touchLeftGuardSleeping = info ~= nil and info.state == "Sleeping" and player:GetAttribute("Chased") ~= true
 		report.laserLeftOppositeSleeping = Guardian.inspect(3, 1).state == "Sleeping"
+		-- Let the throw finish before the runner is pivoted back.
+		local landed = os.clock() + 8
+		while Ragdoll.isRagdolled(player) and os.clock() < landed do task.wait(0.1) end
 	end)
 	local leftover = Carry.getCarried(player)
 	if leftover then Carry.reclaim(leftover) end

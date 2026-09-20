@@ -18,6 +18,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapConfig = require(ReplicatedStorage.Shared.MapConfig)
 local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 local MysteryModel = require(ReplicatedStorage.Shared.Util.MysteryModel)
+local LaserConfig = require(ReplicatedStorage.Shared.Config.LaserConfig)
+local LaserPatterns = require(ReplicatedStorage.Shared.LaserPatterns)
 local PartKit = require(script.Parent.PartKit)
 
 local MuseumGallery = {}
@@ -32,7 +34,7 @@ local HEIGHT = Layout.HEIGHT
 
 --- Bumped whenever the generated museum geometry changes, so a Studio session
 --- can tell which build it is looking at. Set once, by build(), below.
-MuseumGallery.REVISION = 4
+MuseumGallery.REVISION = 5 -- 5: generated laser patterns (lasers-rework)
 
 -- Stone and wall are a deliberate pair, not a pale blend of the HUD colour.
 -- These are appearance values only; the purchased floor part is retained.
@@ -169,6 +171,141 @@ local function marker(parent: Instance, name: string, cf: CFrame, roomIndex: num
 	return p
 end
 
+-- ==========================================================
+-- THE ROOM'S LASERS (lasers-rework)
+-- ==========================================================
+--
+-- The layout is NOT decided here: shared/LaserPatterns generates it from a
+-- seed of (zone, room) and only returns one its fairness validator passed
+-- (every socket reachable from the doorway by walking, jumping and
+-- crouching, with margins). It is a pure function, so MuseumTests and the
+-- `laserRoutes` debug command re-derive exactly what was built.
+--
+-- What is built for LaserService / LaserFxController to read:
+--   a STATIC beam   `Beam` in zone.Lasers, CanQuery on, attributes A, B
+--                   (world end points), ZoneIndex, RoomIndex, Kind.
+--   a MOVING beam   `MovingBeam` in zone.Lasers, CanQuery OFF (the server
+--                   tests it from the clock, never from the part), attributes
+--                   RestA, RestB, Travel, Period, Phase, OnSeconds,
+--                   OffSeconds, BlinkPhase (LaserGeometry.MovingSegment) and
+--                   the same ZoneIndex / RoomIndex / Kind. The server never
+--                   moves it; every client poses it from the server clock.
+-- Emitters are decor: one post per floor position however many beams meet
+-- there, a box on the wall for a wall-to-wall beam, a hanging box for the
+-- "upside-down" ceiling emitters, and a floor rail under a sliding upright.
+local LASER_RED = Color3.fromRGB(255, 35, 49)
+local LASER_WIDTH = 0.16
+
+local function laserFrame(a: Vector3, b: Vector3): CFrame
+	-- CFrame.lookAt has no answer for a beam pointing straight up with the
+	-- default up vector; an upright beam takes X as its "up" instead.
+	local direction = b - a
+	local up = if direction.Magnitude > 0 and math.abs(direction.Unit.Y) > 0.99 then Vector3.xAxis else Vector3.yAxis
+	return CFrame.lookAt((a + b) / 2, b, up)
+end
+
+local function buildLasers(zone: Instance, decor: Instance, frame: CFrame, index: number, roomIndex: number, width: number)
+	local layout = LaserPatterns.forRoom(index, roomIndex, Layout.laserRoom(index))
+	if not layout.report.ok then
+		warn(`[MuseumGallery] zone {index} room {roomIndex}: no fair laser layout ({table.concat(layout.report.reasons, "; ")})`)
+	elseif layout.thinned > 0 then
+		warn(`[MuseumGallery] zone {index} room {roomIndex}: laser layout thinned by {layout.thinned} beams to stay fair - LaserConfig is tuned too hard`)
+	end
+	local field = LaserConfig.FIELD
+	local wallX = width / 2 - field.WALL_INSET
+	-- A vertical beam is modelled up to VERTICAL_TOP_Y (nothing above a jump
+	-- matters) and DRAWN to the ceiling, where its second emitter sits.
+	local ceilingY = HEIGHT - 1.8
+	--- One post per floor position: the heights of the emitters on it.
+	local posts: { [string]: { x: number, z: number, heights: { [number]: boolean }, top: number } } = {}
+	local mounts: { [string]: boolean } = {}
+
+	local function once(kind: string, x: number, y: number, z: number): boolean
+		local key = string.format("%s:%.1f:%.1f:%.1f", kind, x, y, z)
+		if mounts[key] then
+			return false
+		end
+		mounts[key] = true
+		return true
+	end
+	local function emitterAt(x: number, y: number, z: number, reach: number?)
+		if math.abs(x) >= wallX - 0.05 then
+			-- SIDEWAYS: a box on the side wall.
+			if once("wall", x, y, z) then
+				part(decor, "EmitterWallMount", Vector3.new(1.2, 1.2, 1.2), frame * CFrame.new(math.sign(x) * (wallX + 0.5), y, z), DARK, Enum.Material.Metal)
+			end
+		elseif y >= field.CEILING_MOUNT_Y - 0.01 then
+			-- UPSIDE DOWN: a box hanging from the ceiling on a rod.
+			if once("ceiling", x, y, z) then
+				part(decor, "EmitterCeilingMount", Vector3.new(1.4, 1, 1.4), frame * CFrame.new(x, y + 0.5, z), DARK, Enum.Material.Metal)
+				part(decor, "EmitterCeilingRod", Vector3.new(0.25, HEIGHT - 2 - y, 0.25), frame * CFrame.new(x, (HEIGHT - 1 + y + 1) / 2, z), DARK, Enum.Material.Metal)
+			end
+		else
+			local key = string.format("%.1f:%.1f", x, z)
+			local post = posts[key]
+			if not post then
+				post = { x = x, z = z, heights = {}, top = 0 }
+				posts[key] = post
+			end
+			post.heights[math.floor(y * 10 + 0.5) / 10] = true
+			post.top = math.max(post.top, reach or y)
+		end
+	end
+
+	for _, segment in layout.segments do
+		local mover = LaserPatterns.isMover(segment)
+		local upright = segment.kind == "Vertical" or segment.kind == "Slide"
+		local topY = if upright then ceilingY else segment.by
+		local a = frame:PointToWorldSpace(Vector3.new(segment.ax, segment.ay, segment.az))
+		local b = frame:PointToWorldSpace(Vector3.new(segment.bx, topY, segment.bz))
+		local beam = part(zone.Lasers, if mover then "MovingBeam" else "Beam", Vector3.new(LASER_WIDTH, LASER_WIDTH, (b - a).Magnitude), laserFrame(a, b), LASER_RED, Enum.Material.Neon)
+		beam:SetAttribute("ZoneIndex", index)
+		beam:SetAttribute("RoomIndex", roomIndex)
+		beam:SetAttribute("Kind", segment.kind)
+		if mover then
+			beam:SetAttribute("RestA", a)
+			beam:SetAttribute("RestB", b)
+			beam:SetAttribute("Travel", frame:VectorToWorldSpace(Vector3.new(segment.tx or 0, segment.ty or 0, segment.tz or 0)))
+			beam:SetAttribute("Period", segment.period or 0)
+			beam:SetAttribute("Phase", segment.phase or 0)
+			beam:SetAttribute("OnSeconds", segment.onSeconds)
+			beam:SetAttribute("OffSeconds", segment.offSeconds)
+			beam:SetAttribute("BlinkPhase", segment.blinkPhase)
+		else
+			beam.CanQuery = true
+			beam:SetAttribute("A", a)
+			beam:SetAttribute("B", b)
+		end
+
+		if segment.kind == "Slide" then
+			-- No emitter can ride along; a dark rail on the floor shows its run.
+			local from = Vector3.new(segment.ax - 0.7, 0.06, segment.az)
+			local to = Vector3.new(segment.ax + (segment.tx or 0) + 0.7, 0.06, segment.az)
+			part(decor, "LaserRail", Vector3.new((to - from).Magnitude, 0.12, 0.7), frame * CFrame.new((from + to) / 2), DARK, Enum.Material.Metal)
+		elseif upright then
+			emitterAt(segment.ax, segment.ay, segment.az)
+			if once("top", segment.ax, 0, segment.az) then
+				part(decor, "EmitterCeilingMount", Vector3.new(1.2, 0.8, 1.2), frame * CFrame.new(segment.ax, ceilingY + 0.4, segment.az), DARK, Enum.Material.Metal)
+			end
+		else
+			-- A bobbing beam's posts reach its highest point and act as its rail.
+			local reach = if segment.ty and segment.ty > 0 then segment.ay + segment.ty else nil
+			emitterAt(segment.ax, segment.ay, segment.az, reach)
+			emitterAt(segment.bx, segment.by, segment.bz, if reach then segment.by + (segment.ty or 0) else nil)
+		end
+	end
+
+	for _, post in posts do
+		for y in post.heights do
+			part(decor, "LaserEmitter", Vector3.new(1, 1, 1), frame * CFrame.new(post.x, math.max(y, 0.5), post.z), DARK, Enum.Material.Metal)
+		end
+		-- The stand only where it shows: up to 0.8 it is inside the emitter cube.
+		if post.top > 0.8 + 0.01 then
+			part(decor, "EmitterStand", Vector3.new(0.25, post.top, 0.25), frame * CFrame.new(post.x, post.top / 2, post.z), DARK, Enum.Material.Metal)
+		end
+	end
+end
+
 local function buildRoom(zone: Instance, index: number, roomIndex: number, caseSpan: number, caseHeight: number)
 	local palette = ROOM_PALETTES[index]
 	local width, depth = Layout.width(index), Layout.DEPTH
@@ -293,36 +430,7 @@ local function buildRoom(zone: Instance, index: number, roomIndex: number, caseS
 		roomIndex
 	)
 	require(script.Parent.MuseumExhibits).build(decor, frame, width, depth, index, palette.accent)
-	-- Separate low jump beams and high crouch beams in depth. Later rooms add
-	-- alternating half-width diagonals. Every pattern retains endpoint routes.
-	local count = Layout.BEAMS[index]
-	local rows = math.ceil(count / 2)
-	for n = 1, count do
-		local row = math.ceil(n / 2)
-		local z = 11 + (row - 1) * 24 / math.max(rows - 1, 1)
-		local left = n % 2 == 1
-		local gap = if index >= 3 then (if row % 2 == 0 then -1 else 1) * math.min(10, index) else 0
-		local y = if row % 2 == 1 then 0.8 else 4.5
-		local a = frame:PointToWorldSpace(Vector3.new(if left then -width / 2 + 10 else gap + 3, y, z))
-		local b = frame:PointToWorldSpace(Vector3.new(if left then gap - 3 else width / 2 - 10, if index >= 6 and row % 3 == 0 then 2.5 else y, z + (if index >= 6 then 3 else 0)))
-		local beam = bar(zone.Lasers, "Beam", a, b, 0.16, Color3.fromRGB(255, 35, 49), Enum.Material.Neon)
-		beam.CanQuery = true
-		beam:SetAttribute("A", a)
-		beam:SetAttribute("B", b)
-		beam:SetAttribute("ZoneIndex", index)
-		beam:SetAttribute("RoomIndex", roomIndex)
-		for _, at in { a, b } do
-			part(decor, "LaserEmitter", Vector3.new(1, 1, 1), CFrame.new(at), DARK, Enum.Material.Metal)
-			part(decor, "EmitterFoot", Vector3.new(1.8, 0.3, 1.8), CFrame.new(at.X, 0.15, at.Z), DARK, Enum.Material.Metal)
-			-- The stand runs from the foot (0.3) up to the emitter's centre. For
-			-- an emitter at 0.8 or lower that whole run is inside the 1-stud
-			-- emitter cube, so the stand is only built where it shows. (Vector3
-			-- is float32: 0.8 reads back as 0.80000001, hence the margin.)
-			if at.Y > 0.8 + 0.01 then
-				bar(decor, "EmitterStand", Vector3.new(at.X, 0.3, at.Z), at, 0.25, DARK, Enum.Material.Metal)
-			end
-		end
-	end
+	buildLasers(zone, decor, frame, index, roomIndex, width)
 	if index == 12 then
 		local plane = folder("SuspendedAirliner", decor)
 		p(plane, "Fuselage", Vector3.new(5, 5, 32), Vector3.new(0, 39, 27), IVORY)

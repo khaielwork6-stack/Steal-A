@@ -12,8 +12,10 @@ system; don't treat old sections as current.
    zones. Each zone has two side rooms; each room has 4 display cases (sealed
    mystery containers), lasers and one sleeping guard.
 2. **Escape.** Taking a container is quiet; leaving the room with it wakes that
-   room's guard (short doorway grace). Touching a laser wakes it at once
-   (crouch under high beams, jump low ones). Cross the red safe line at Z = 0.
+   room's guard (short doorway grace). Touching a laser throws you back out
+   of the doorway and drops what you carry - it wakes nobody, and there is no
+   cooldown (crouch under high beams, jump low ones, time the moving ones;
+   `docs/handoff-parts/lasers-rework.md`). Cross the red safe line at Z = 0.
 3. **Place.** Put the container on a free display pad on your base. It is
    still sealed and incubates (`HatchConfig`).
 4. **Reveal.** When ready, the reveal roulette shows which of the 96 items it
@@ -53,7 +55,7 @@ Rojo maps `src/shared` -> `ReplicatedStorage.Shared`, `src/server` ->
 | MysterySpawnService | Container model validation; socket layout checks. |
 | CarryService | Steal reservation, carrying, movement penalty, delivery. |
 | GuardianService | The 24 room guards: sleep, wake, chase, catch, return. |
-| LaserService | Static beams, crouch posture, trips (10 Hz). |
+| LaserService | Static and moving beams, crouch posture, the knock-back on a touch (10 Hz). Layouts: `shared/LaserPatterns` + `Config/LaserConfig`. |
 | RagdollService | Knock-back and catch immunity. |
 | PlacementService | Placing, storing, equipping, selling; capacity upgrades. |
 | BaseService | Plot assignment, display pads, trophies (`rebuildDisplays` / `rebuildSlot`). |

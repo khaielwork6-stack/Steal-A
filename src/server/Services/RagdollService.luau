@@ -171,6 +171,11 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 	local probeParams = RaycastParams.new()
 	probeParams.FilterType = Enum.RaycastFilterType.Exclude
 	probeParams.FilterDescendantsInstances = { character :: Instance }
+	-- [lasers-rework] Only what can actually stop a body is a wall. Without
+	-- this the probe also "hit" anything merely queryable - a laser beam
+	-- (CanQuery on, CanCollide off) a few studs toward the door - and a touch
+	-- that should throw the player out of the room was cut to a quarter.
+	probeParams.RespectCanCollide = true
 	local knockback = options.knockback
 	if workspace:Raycast(root.Position, direction * WALL_PROBE, probeParams) then
 		knockback *= WALL_KNOCKBACK_SCALE

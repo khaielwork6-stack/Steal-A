@@ -237,6 +237,11 @@ end)
 startLater("GadgetShopController", function()
 	require(script.Controllers.GadgetShopController).start()
 end)
+-- [lasers-rework] The rooms' moving / blinking beams (posed from the server
+-- clock), the flash on a touched beam and the thrown player's camera shake.
+startLater("LaserFxController", function()
+	require(script.Controllers.LaserFxController).start()
+end)
 -- [fusion-autoreveal-bases] The fusion animation (the FUSE page itself is
 -- drawn inside Storage by InventoryController; the BASE page is attached to
 -- the Upgrades panel by UpgradesController; the Auto Reveal shop card is

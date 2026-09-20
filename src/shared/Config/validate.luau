@@ -1609,6 +1609,37 @@ return function(): Report
 		end
 	end
 
+	-- ==========================================================
+	-- LASERS (LaserConfig; docs/handoff-parts/lasers-rework.md). Shapes and
+	-- ranges only - the generated ROOMS are checked by museumTests / laserRoutes.
+	-- ==========================================================
+	do
+		local LaserConfig = require(script.Parent.LaserConfig)
+		local knock, field, walker, body = LaserConfig.KNOCKBACK, LaserConfig.FIELD, LaserConfig.VALIDATOR, LaserConfig.BODY
+		check(knock.LIFT > 0 and knock.LIFT <= 60 and knock.FLIGHT_SECONDS > 0.2 and knock.MIN_SPEED > 0 and knock.MAX_SPEED >= knock.MIN_SPEED and knock.MAX_SPEED <= 220, "LaserConfig.KNOCKBACK launch numbers out of range")
+		check(knock.OVERSHOOT >= 4 and knock.OVERSHOOT <= 20 and knock.OVERSHOOT_MAX >= knock.OVERSHOOT and knock.OVERSHOOT_MAX <= 45, "LaserConfig.KNOCKBACK.OVERSHOOT must land in the corridor (4-20, max <= 45)")
+		check(knock.GROUND_STUN >= 0.5 and knock.GROUND_STUN <= 2 and knock.IMMUNITY > 0 and knock.IMMUNITY <= 1 and knock.RETRIGGER_GUARD <= 0.5, "LaserConfig.KNOCKBACK: short stun, no cooldown (owner)")
+		check(knock.ZAP_SECONDS > 0 and knock.ZAP_SECONDS <= 3, "LaserConfig.KNOCKBACK.ZAP_SECONDS must be a short zap")
+		check(field.Z_MIN >= walker.SIDE_CLEARANCE + 6 and field.Z_MAX > field.Z_MIN + 10, "LaserConfig.FIELD must leave the doorway apron clear")
+		check(field.LOW_Y <= walker.LOW_MAX_Y and field.SLANT_LOW_Y <= walker.LOW_MAX_Y and field.HIGH_Y >= walker.HIGH_MIN_Y and field.HIGH_Y <= walker.STAND_CLEAR_Y
+			and field.MID_Y > walker.LOW_MAX_Y and field.MID_Y < walker.HIGH_MIN_Y, "LaserConfig.FIELD beam heights must match the validator's low / mid / high classes")
+		check(walker.HIGH_MIN_Y > body.CROUCH_HEIGHT + 0.5 and walker.STAND_CLEAR_Y > body.STAND_HEIGHT + 0.3 and walker.SIDE_CLEARANCE >= body.HALF_WIDTH + 1.5 and walker.CROSS_CLEARANCE > body.HALF_WIDTH,
+			"LaserConfig.VALIDATOR clearances must exceed the body LaserService tests")
+		check(field.VERTICAL_SPACING >= walker.SIDE_CLEARANCE * 2 + 1 and field.CROSS_SIDE_GAP >= walker.SIDE_CLEARANCE + 3, "LaserConfig.FIELD gaps must fit the validator's body")
+		check(walker.MIN_WINDOW >= 1.2 and walker.TIME_SAMPLES >= 16 and walker.MAX_ATTEMPTS >= 4 and walker.CELL == 1, "LaserConfig.VALIDATOR windows / sampling")
+		local lastCap = 0
+		for zone = 1, 12 do
+			local row = LaserConfig.zone(zone)
+			check(row.rows >= 1 and row.rowSpacing[1] >= 5 and row.rowSpacing[2] >= row.rowSpacing[1], `LaserConfig.zone({zone}) rows need 5+ studs between them`)
+			check(row.maxSegments >= lastCap and row.maxSegments <= 48, `LaserConfig.zone({zone}).maxSegments must escalate and stay under 48 (part budget)`)
+			lastCap = row.maxSegments
+			check(row.sectionWidth >= 16 and row.dividerChance >= 0 and row.dividerChance <= 0.6, `LaserConfig.zone({zone}) section / divider numbers`)
+			check(row.movers >= 0 and row.movers <= 6 and row.moverPeriod[1] >= 3.5 and row.moverPeriod[2] >= row.moverPeriod[1], `LaserConfig.zone({zone}) movers`)
+			check(row.blinkOff >= walker.MIN_WINDOW + 0.3 and row.blinkOn[1] > 0 and row.blinkOn[2] >= row.blinkOn[1], `LaserConfig.zone({zone}) blink timing leaves a window`)
+			check(zone > 1 or (row.movers == 0 and row.maxSegments <= 3), "LaserConfig.zone(1) must stay gentle (it is the tutorial room)")
+		end
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
