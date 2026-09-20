@@ -59,6 +59,7 @@ Rojo maps `src/shared` -> `ReplicatedStorage.Shared`, `src/server` ->
 | RagdollService | Knock-back and catch immunity. |
 | PlacementService | Placing, storing, equipping, selling; capacity upgrades. |
 | BaseService | Plot assignment, display pads, trophies (`rebuildDisplays` / `rebuildSlot`). |
+| HoldService | Held items = Inventory entries flagged `Held` (no cap but Storage). Hotbar is positional and compact (`[Slap][Trap][gadgets][held]`, max 10, keys 1-9/0); the rest go to the backtick overflow (`shared/Util/HeldLayout` is the one ordering). `HoldService.hold` / `holdMany` (Storage -> hands) and the `HoldRequest` "store" action. See `handoff-parts/hold-items.md`. |
 | HatchService | Incubation timers and the reveal moment. |
 | HeistService | Player-to-player base stealing. |
 | BaseGuardianService | Animal guardians defending a player's own base. |

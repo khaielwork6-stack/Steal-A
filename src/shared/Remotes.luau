@@ -268,8 +268,15 @@ Remotes.NAMES = {
 	--                                     item down on that (empty) slot.
 	--   ("equip", handSlotRank)          make the held item at that rank
 	--                                     (1..HoldConfig.MAX_HELD_ITEMS, by
-	--                                     pickup order) the one shown small
-	--                                     in your hands.
+	--                                     pickup order - the hotbar shows the
+	--                                     first few, the rest are the
+	--                                     backtick overflow) the one shown
+	--                                     small in your hands. A rank past
+	--                                     the hotbar swaps it in for the
+	--                                     least recently used hotbar item.
+	--   ("store")                        put your EQUIPPED held item back
+	--                                     into Storage (clears the Held
+	--                                     flags). No argument at all.
 	-- No amounts, no item ids, no instance ids: every argument is an index
 	-- the server re-resolves against DataService.get(player) itself, so a
 	-- lie here can only name an index that fails, never move someone else's

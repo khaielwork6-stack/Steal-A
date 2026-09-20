@@ -295,14 +295,8 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 				HatchService.beginIncubation(player, item)
 				return true
 			end
-			local def = LootConfig.ById[item.ItemId]
-			-- Name AND the income it just started earning: placing a trophy is
-			-- the payoff beat of the loop, so it should read as a gain.
-			notify(
-				player,
-				"success",
-				`PLACED  {if def then def.name else item.ItemId}  +{NumberFormat.income(item.FinalIncome)}`
-			)
+			-- No "PLACED ..." toast (owner, 2026-09-20): the trophy standing on
+			-- its pad is the feedback.
 			return true
 		end
 	end

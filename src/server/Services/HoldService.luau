@@ -17,14 +17,18 @@
 	docs/handoff-parts/hold-items.md for exactly how each of those was made to
 	either skip a held item or work with it safely.
 
-	HAND-SLOT NUMBERING. Nothing renumbers on a pickup or a place. Each held
-	item keeps a HeldOrder stamped once, when it was (most recently) picked
-	up; the hand-slot number shown in the hotbar (1..HoldConfig.MAX_HELD_ITEMS)
-	is just the RANK of a held item's HeldOrder among the currently held set,
-	recomputed live by both this service (equip) and the client
-	(HotbarController) from the same sorted list. That is what makes "pick up
-	a second item and your hand becomes 1, 2" and "place slot 1 and slot 2
-	slides down to 1" both true without ever rewriting a slot number by hand.
+	POSITIONS. Nothing renumbers on a pickup or a place. Each held item keeps
+	a HeldOrder stamped once, when it was (most recently) picked up; its RANK
+	among the currently held set (HeldLayout.rank, shared with the client) is
+	its position. The hotbar is [tools + owned gadgets][held items] with no
+	gaps, so the first HeldLayout.capacity(toolCount) ranks are on the hotbar
+	and the rest live in the overflow inventory (backtick). Equipping a rank
+	past the hotbar (or picking up / holding when the hotbar is full) swaps
+	that item into the LAST hotbar position and pushes the least recently
+	used hotbar item to the overflow (HeldOrder values re-dealt in order).
+	There is no hand cap: only Storage capacity bounds the held set.
+	HoldService.hold / holdMany take items already in Storage into the hands
+	(Relic Roll's entry point).
 
 	ATOMICITY / IDEMPOTENCY. pickup/place/equip each read the profile fresh,
 	decide, and mutate - with no yield in between - so two requests for the
@@ -54,7 +58,7 @@ local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local StorageConfig = require(ReplicatedStorage.Shared.Config.StorageConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
 local MutationVfx = require(ReplicatedStorage.Shared.Util.MutationVfx)
-local NumberFormat = require(ReplicatedStorage.Shared.Util.NumberFormat)
+local HeldLayout = require(ReplicatedStorage.Shared.Util.HeldLayout)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Validate = require(ReplicatedStorage.Shared.Util.Validate)
@@ -102,20 +106,118 @@ local function findActiveHeld(profile: DataService.Profile): (DataService.Displa
 	return fallback, fallbackAt
 end
 
---- Every held item, oldest pickup first - index N+1 in this list IS hand-slot
---- N+1. Shared by `equip` (server) and, in spirit, HotbarController (client,
---- which sorts the same field out of the ordinary InventoryPush payload).
+--- Every held item, oldest pickup first - rank N in this list IS held
+--- position N. The order comes from HeldLayout, shared with the client
+--- (HotbarController / HeldOverflowController) so both sides agree.
 local function heldInOrder(profile: DataService.Profile): { DataService.DisplayItem }
-	local held: { DataService.DisplayItem } = {}
-	for _, item in profile.Inventory do
-		if item.Held then
-			table.insert(held, item)
+	return HeldLayout.rank(profile.Inventory) :: any
+end
+
+--- How many hotbar positions tools and owned gadgets take right now: the
+--- Tools the player has (Backpack plus the one in hand), the same set the
+--- client's HotbarController lays out first. Read from the Tools themselves
+--- so the server never has to know which gadgets a player owns.
+local function toolCount(player: Player): number
+	local count = 0
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if backpack then
+		for _, child in backpack:GetChildren() do
+			if child:IsA("Tool") then
+				count += 1
+			end
 		end
 	end
-	table.sort(held, function(a, b)
-		return (tonumber(a.HeldOrder) or 0) < (tonumber(b.HeldOrder) or 0)
-	end)
-	return held
+	local character = player.Character
+	if character then
+		for _, child in character:GetChildren() do
+			if child:IsA("Tool") then
+				count += 1
+			end
+		end
+	end
+	return math.min(count, HoldConfig.HOTBAR_SLOTS)
+end
+
+-- "Least recently used" for the overflow swap. In memory only (a rejoin
+-- starts every item at 0 = oldest, ties resolved by the lowest position),
+-- so nothing new is saved and nothing here can outlive the player.
+local lastUsed: { [Player]: { [string]: number } } = {}
+local useClock = 0
+
+--- Makes `item` (which must be a held Inventory entry) THE active held item.
+--- If its rank is past the hotbar it takes the LAST hotbar position and the
+--- least recently used hotbar item is pushed into the overflow (HeldOrder
+--- values are re-dealt in the new sequence), so the equipped item is always
+--- on the hotbar.
+--- No yields, so it is atomic with whatever called it.
+local function activate(player: Player, profile: DataService.Profile, item: DataService.DisplayItem)
+	local held = heldInOrder(profile)
+	for _, other in held do
+		other.HeldActive = nil
+	end
+	item.HeldActive = true
+
+	local usage = lastUsed[player]
+	if not usage then
+		usage = {}
+		lastUsed[player] = usage
+	end
+	useClock += 1
+	usage[item.InstanceId] = useClock
+
+	local capacity = HeldLayout.capacity(toolCount(player))
+	local rank = table.find(held, item)
+	if capacity > 0 and rank and rank > capacity then
+		local victim: DataService.DisplayItem? = nil
+		local oldest = math.huge
+		for position = 1, capacity do
+			local candidate = held[position]
+			local used = usage[candidate.InstanceId] or 0
+			if used < oldest then
+				victim, oldest = candidate, used
+			end
+		end
+		if victim then
+			-- New sequence: the hotbar without the victim, the item appended
+			-- as the LAST hotbar position; the overflow with the victim
+			-- standing where the item was. Then the existing HeldOrder values
+			-- are dealt out again in that sequence (the same multiset, so
+			-- every order stays unique and nothing else in the game reads it).
+			local orders: { number } = {}
+			local sequence: { DataService.DisplayItem } = {}
+			for position, candidate in held do
+				table.insert(orders, tonumber(candidate.HeldOrder) or 0)
+				if position <= capacity then
+					if candidate ~= victim then
+						table.insert(sequence, candidate)
+					end
+				end
+			end
+			table.insert(sequence, item)
+			for position = capacity + 1, #held do
+				local candidate = held[position]
+				table.insert(sequence, if candidate == item then victim else candidate)
+			end
+			for position, candidate in sequence do
+				candidate.HeldOrder = orders[position]
+			end
+		end
+	end
+end
+
+--- The one internal path a pickup and hold() both take a Storage entry into
+--- the hands: flag it, stamp the next HeldOrder, make it the active item. No
+--- yields (see the header), so racing callers cannot double-hold.
+local function markHeld(player: Player, profile: DataService.Profile, item: DataService.DisplayItem)
+	local highestOrder = 0
+	for _, other in profile.Inventory do
+		if other.Held then
+			highestOrder = math.max(highestOrder, tonumber(other.HeldOrder) or 0)
+		end
+	end
+	item.Held = true
+	item.HeldOrder = highestOrder + 1
+	activate(player, profile, item)
 end
 
 --- How many items this player is currently holding.
@@ -145,6 +247,12 @@ function HoldService.activeHeld(player: Player): DataService.DisplayItem?
 	end
 	local item = findActiveHeld(profile)
 	return item
+end
+
+--- How many hotbar positions this player has for held items right now (10
+--- minus their tools and gadgets); ranks past it are in the overflow.
+function HoldService.hotbarCapacity(player: Player): number
+	return HeldLayout.capacity(toolCount(player))
 end
 
 -- ==========================================================
@@ -305,33 +413,18 @@ function HoldService.pickup(player: Player, slotIndex: number): (boolean, string
 		return false, "Reveal it first!"
 	end
 
-	local heldCount, highestOrder = 0, 0
-	for _, item in profile.Inventory do
-		if item.Held then
-			heldCount += 1
-			highestOrder = math.max(highestOrder, tonumber(item.HeldOrder) or 0)
-		end
-	end
-	if heldCount >= HoldConfig.MAX_HELD_ITEMS then
-		return false, "Hands full - place something first."
-	end
+	-- No hand limit: a held item is a Storage entry, so only Storage capacity
+	-- bounds it.
 	if #profile.Inventory >= StorageConfig.capacityForTier(profile.StorageTier) then
 		return false, "Storage full - sell something first."
 	end
 
 	table.remove(profile.DisplayItems, foundAt)
 	found.SlotIndex = 0
-	found.Held = true
-	found.HeldOrder = highestOrder + 1
-	-- "You begin showing the newest item you picked up": every other held
-	-- item loses the active flag, this one gets it.
-	for _, item in profile.Inventory do
-		if item.Held then
-			item.HeldActive = nil
-		end
-	end
-	found.HeldActive = true
 	table.insert(profile.Inventory, found)
+	-- "You begin showing the newest item you picked up": HeldOrder next in
+	-- line, every other held item loses the active flag, this one gets it.
+	markHeld(player, profile, found)
 
 	-- Redraws the now-empty pad, refreshes every prompt on the base (that pad
 	-- can now show "Place"; nothing else on the base changed) and, through
@@ -340,13 +433,79 @@ function HoldService.pickup(player: Player, slotIndex: number): (boolean, string
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
-	local def = LootConfig.ById[found.ItemId]
-	notify(player, "success", `Picked up {if def then def.name else found.ItemId}`)
+	-- No "Picked up ..." toast (owner, 2026-09-20): the item appearing on the
+	-- hotbar is the feedback. Errors above still notify.
 	StateService.sound(player, "StoredItem")
 
-	AnalyticsEvents.custom(player, "ItemPickedUp", 1, { found.Rarity, `n{heldCount + 1}` })
+	AnalyticsEvents.custom(player, "ItemPickedUp", 1, { found.Rarity, `n{HoldService.heldCount(player)}` })
 
 	return true
+end
+
+--- PUBLIC API (Relic Roll and any other service that hands a player an item
+--- straight into their hands). Takes an item that is in profile.Inventory
+--- (Storage) and NOT already held, holds it with the next HeldOrder and makes
+--- it the active item, then refreshes the hand visual and the inventory push
+--- exactly like a pickup. Never refuses for "hands full". Returns false plus a
+--- short reason only for: no profile, item missing from Storage, already held.
+--- Not rate-limited (a server-side call, not a client request).
+function HoldService.hold(player: Player, instanceId: string): (boolean, string?)
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+	local found: DataService.DisplayItem? = nil
+	for _, item in profile.Inventory do
+		if item.InstanceId == instanceId then
+			found = item
+			break
+		end
+	end
+	if not found then
+		return false, "That item is not in storage."
+	end
+	if found.Held then
+		return false, "Already in your hands."
+	end
+	markHeld(player, profile, found)
+	HoldService.refreshHeldVisual(player)
+	StateService.pushNow(player)
+	return true
+end
+
+--- Holds each id in the given order, leaving the LAST one that succeeded as
+--- the active item, with one refresh at the end. An id that cannot be held
+--- (missing, already held, repeated) is skipped; the first such reason is
+--- returned with `false` after every holdable one was held.
+function HoldService.holdMany(player: Player, instanceIds: { string }): (boolean, string?)
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+	local firstReason: string? = nil
+	local heldAny = false
+	for _, instanceId in instanceIds do
+		local found: DataService.DisplayItem? = nil
+		for _, item in profile.Inventory do
+			if item.InstanceId == instanceId then
+				found = item
+				break
+			end
+		end
+		if not found then
+			firstReason = firstReason or "That item is not in storage."
+		elseif found.Held then
+			firstReason = firstReason or "Already in your hands."
+		else
+			markHeld(player, profile, found)
+			heldAny = true
+		end
+	end
+	if heldAny then
+		HoldService.refreshHeldVisual(player)
+		StateService.pushNow(player)
+	end
+	return firstReason == nil, firstReason
 end
 
 -- ==========================================================
@@ -407,19 +566,15 @@ function HoldService.place(player: Player, slotIndex: number): (boolean, string?
 		end
 	end
 	if newest then
-		newest.HeldActive = true
+		activate(player, profile, newest)
 	end
 
 	BaseService.rebuildSlot(player, slotIndex)
 	EconomyService.recalculate(player)
 	StateService.pushNow(player)
 
-	local def = LootConfig.ById[active.ItemId]
-	notify(
-		player,
-		"success",
-		`PLACED  {if def then def.name else active.ItemId}  +{NumberFormat.income(active.FinalIncome)}`
-	)
+	-- No "PLACED ..." toast (owner, 2026-09-20): the trophy standing on the
+	-- pad, earning, is the feedback.
 	StateService.sound(player, "PlaceItem")
 
 	AnalyticsEvents.custom(player, "ItemPlaced", 1, { active.Rarity })
@@ -431,7 +586,7 @@ end
 -- EQUIP (switch which held item is shown)
 -- ==========================================================
 
---- Makes the held item at hand-slot `rank` (1..HoldConfig.MAX_HELD_ITEMS, by
+--- Makes the held item at position `rank` (1..HoldConfig.MAX_HELD_ITEMS, by
 --- pickup order - see heldInOrder) the one shown small in the player's hands.
 function HoldService.equip(player: Player, rank: number): (boolean, string?)
 	if not holdLimiter:consume(player) then
@@ -452,13 +607,61 @@ function HoldService.equip(player: Player, rank: number): (boolean, string?)
 		-- Already the one shown - idempotent, not an error.
 		return true
 	end
-	for _, item in held do
-		item.HeldActive = nil
-	end
-	target.HeldActive = true
+	-- A rank on the hotbar just becomes the active item; a rank in the
+	-- overflow swaps in for the least recently used hotbar item (activate).
+	activate(player, profile, target)
 
 	HoldService.refreshHeldVisual(player)
 	StateService.pushNow(player)
+	return true
+end
+
+-- ==========================================================
+-- STORE (the hands go back into plain Storage)
+-- ==========================================================
+
+--- Stores the EQUIPPED held item: clears its Held flags, the entry itself
+--- stays in Inventory (nothing is created or destroyed). The newest remaining
+--- held item, if any, becomes the active one - the same rule `place` uses.
+--- The client sends no item id; the server resolves the active item itself.
+function HoldService.store(player: Player): (boolean, string?)
+	if not holdLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+
+	local active = findActiveHeld(profile)
+	if not active then
+		return false, "You are not holding anything."
+	end
+	active.Held = nil
+	active.HeldOrder = nil
+	active.HeldActive = nil
+	local usage = lastUsed[player]
+	if usage then
+		usage[active.InstanceId] = nil
+	end
+
+	local newest, newestOrder = nil, -1
+	for _, item in profile.Inventory do
+		if item.Held then
+			local order = tonumber(item.HeldOrder) or 0
+			if order > newestOrder then
+				newest, newestOrder = item, order
+			end
+		end
+	end
+	if newest then
+		activate(player, profile, newest)
+	end
+
+	HoldService.refreshHeldVisual(player)
+	StateService.pushNow(player)
+	StateService.sound(player, "StoredItem")
 	return true
 end
 
@@ -493,6 +696,9 @@ function HoldService.start()
 				return
 			end
 			ok, reason = HoldService.place(player, slot)
+		elseif action == "store" then
+			-- No argument: the server stores whatever IS equipped.
+			ok, reason = HoldService.store(player)
 		elseif action == "equip" then
 			local rank = Validate.integer(argument, 1, HoldConfig.MAX_HELD_ITEMS)
 			if not rank then
@@ -534,6 +740,7 @@ function HoldService.start()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		lastUsed[player] = nil
 		holdLimiter:release(player)
 	end)
 end
