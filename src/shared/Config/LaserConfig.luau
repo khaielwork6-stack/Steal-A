@@ -58,6 +58,14 @@ LaserConfig.KNOCKBACK = {
 	OVERSHOOT_MAX = 30,
 	--- The arc crosses the doorway line at least this far inside the jambs.
 	DOOR_MARGIN = 5,
+	--- THE GUIDED FLIGHT (2026-09-20; RagdollService LaunchOptions.path). The
+	--- body is carried to the landing point at this speed (studs/s), never
+	--- quicker than MIN nor slower than MAX seconds end to end, ARC_HEIGHT
+	--- studs high at the middle of the flight (door headers are 24+).
+	GUIDED_SPEED = 95,
+	GUIDED_MIN_SECONDS = 0.45,
+	GUIDED_MAX_SECONDS = 1.15,
+	ARC_HEIGHT = 8,
 	--- Minimum airborne time before a landing is looked for.
 	STUN = 0.35,
 	--- Seconds on the floor after landing, then they stand up.

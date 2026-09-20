@@ -12,6 +12,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 -- A leaf (config only), so no cycle.
 local MovementService = require(script.Parent.MovementService)
@@ -32,6 +33,16 @@ export type LaunchOptions = {
 	--- the floor (a minimum airborne time) rather than the whole timer.
 	groundStun: number?,
 	immunity: number,
+	--- A GUIDED FLIGHT (lasers-rework, 2026-09-20). World points the body is
+	--- carried through, in order, ending where it lands; `knockback` is
+	--- ignored. A free physics throw cannot be aimed through a doorway from
+	--- the far corner of a 140-stud room full of exhibits: the first Studio
+	--- run landed the body INSIDE the room it was being thrown out of. The
+	--- server owns the body for the flight anyway, so it simply flies it:
+	--- along the polyline at constant speed, `lift` studs high at the middle,
+	--- tumbling, for `pathSeconds`. Nothing on the way can stop it.
+	path: { Vector3 }?,
+	pathSeconds: number?,
 }
 
 local immuneUntil: { [Player]: number } = {}
@@ -194,24 +205,82 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 	-- A plain velocity assignment gets overwritten by the Humanoid on the next
 	-- physics step; a short-lived constraint wins. Fixed velocity rather than an
 	-- impulse keeps the launch identical regardless of what the avatar wears.
-	local attachment = Instance.new("Attachment")
-	attachment.Name = "LaunchAttachment"
-	attachment.Parent = root
+	local path = options.path
+	if path and #path > 0 then
+		-- THE GUIDED FLIGHT (see LaunchOptions.path).
+		local points: { Vector3 } = { root.Position }
+		for _, point in path do
+			table.insert(points, point)
+		end
+		local lengths: { number } = {}
+		local total = 0
+		for index = 2, #points do
+			local length = (points[index] - points[index - 1]).Magnitude
+			lengths[index - 1] = length
+			total += length
+		end
+		local seconds = math.clamp(options.pathSeconds or 0.7, 0.2, 3)
+		local startY, endY = points[1].Y, points[#points].Y
+		local spin = CFrame.Angles(math.rad(math.random(-14, 14)), math.rad(math.random(-10, 10)), math.rad(math.random(-14, 14)))
+		local rotation = root.CFrame.Rotation
+		local began = os.clock()
+		local connection: RBXScriptConnection? = nil
+		connection = RunService.Heartbeat:Connect(function()
+			local t = math.clamp((os.clock() - began) / seconds, 0, 1)
+			if not root.Parent or humanoid.Health <= 0 then
+				if connection then
+					connection:Disconnect()
+				end
+				return
+			end
+			-- Where along the polyline, at constant speed.
+			local along = total * t
+			local position = points[#points]
+			for index = 1, #lengths do
+				if along <= lengths[index] or index == #lengths then
+					local fraction = if lengths[index] > 0 then math.clamp(along / lengths[index], 0, 1) else 1
+					position = points[index]:Lerp(points[index + 1], fraction)
+					break
+				end
+				along -= lengths[index]
+			end
+			local height = startY + (endY - startY) * t + 4 * options.lift * t * (1 - t)
+			rotation = rotation * spin
+			root.CFrame = CFrame.new(position.X, height, position.Z) * rotation
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			if t >= 1 then
+				if connection then
+					connection:Disconnect()
+				end
+				-- Handed back to physics with a little of the travel left in
+				-- it, so the body slides to a stop instead of freezing.
+				local last = points[#points] - points[#points - 1]
+				if last.Magnitude > 0.1 then
+					root.AssemblyLinearVelocity = last.Unit * 12
+				end
+			end
+		end)
+	else
+		local attachment = Instance.new("Attachment")
+		attachment.Name = "LaunchAttachment"
+		attachment.Parent = root
 
-	local push = Instance.new("LinearVelocity")
-	push.Attachment0 = attachment
-	push.RelativeTo = Enum.ActuatorRelativeTo.World
-	push.MaxForce = LAUNCH_MAX_FORCE
-	push.VectorVelocity = direction * knockback + Vector3.new(0, options.lift, 0)
-	push.Parent = root
+		local push = Instance.new("LinearVelocity")
+		push.Attachment0 = attachment
+		push.RelativeTo = Enum.ActuatorRelativeTo.World
+		push.MaxForce = LAUNCH_MAX_FORCE
+		push.VectorVelocity = direction * knockback + Vector3.new(0, options.lift, 0)
+		push.Parent = root
 
-	root.AssemblyAngularVelocity = Vector3.new(math.random(-9, 9), math.random(-6, 6), math.random(-9, 9))
+		root.AssemblyAngularVelocity = Vector3.new(math.random(-9, 9), math.random(-6, 6), math.random(-9, 9))
 
-	-- Cut the push almost immediately: it sets the launch, gravity does the arc.
-	task.delay(0.2, function()
-		push:Destroy()
-		attachment:Destroy()
-	end)
+		-- Cut the push almost immediately: it sets the launch, gravity does the arc.
+		task.delay(0.2, function()
+			push:Destroy()
+			attachment:Destroy()
+		end)
+	end
 
 	--- THE RECOVERY NET. A launch that ends with the player somewhere the map
 	--- cannot hold them - under the world, or hanging over nothing after

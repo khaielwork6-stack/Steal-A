@@ -193,6 +193,36 @@ function LaserService.exitAim(zoneIndex: number, roomIndex: number, position: Ve
 	return frame:VectorToWorldSpace(direction), speed
 end
 
+--- THE FLIGHT PATH for a touch at `position`: world points to fly through
+--- (the doorway, when the body is not already lined up with it, then the
+--- landing spot KNOCKBACK.OVERSHOOT studs out in the corridor) and how long
+--- the flight takes at KNOCKBACK.GUIDED_SPEED.
+function LaserService.exitPath(zoneIndex: number, roomIndex: number, position: Vector3): ({ Vector3 }, number)
+	local frame: CFrame, halfDoor: number
+	if roomIndex == Layout.VAULT_ROOM then
+		frame, halfDoor = Layout.vaultFrame(zoneIndex), Layout.VAULT_DOOR_WIDTH / 2
+	else
+		frame, halfDoor = Layout.frame(zoneIndex, roomIndex), Layout.DOOR_WIDTH / 2
+	end
+	local at = frame:PointToObjectSpace(position)
+	local reach = math.max(halfDoor - KNOCKBACK.DOOR_MARGIN, math.min(halfDoor, 2))
+	local doorX = math.clamp(at.X, -reach, reach)
+	local points: { Vector3 } = {}
+	local length = 0
+	local from = at
+	-- Off to one side of the opening: fly to the doorway first, then out.
+	if at.Z > 0.5 and math.abs(at.X - doorX) > 1 then
+		local door = Vector3.new(doorX, at.Y, 0)
+		table.insert(points, frame:PointToWorldSpace(door))
+		length += (door - from).Magnitude
+		from = door
+	end
+	local landing = Vector3.new(doorX, at.Y, math.min(from.Z, 0) - KNOCKBACK.OVERSHOOT)
+	table.insert(points, frame:PointToWorldSpace(landing))
+	length += (landing - from).Magnitude
+	return points, math.clamp(length / KNOCKBACK.GUIDED_SPEED, KNOCKBACK.GUIDED_MIN_SECONDS, KNOCKBACK.GUIDED_MAX_SECONDS)
+end
+
 --- One touch. `beam` is the part that gets the red flash on every client
 --- (its `HitAt` attribute, server time; LaserFxController) - nil for a vault
 --- arm, which has no part of its own on the server's side of the test.
@@ -228,12 +258,17 @@ local function hit(player: Player, root: BasePart, zoneIndex: number, roomIndex:
 	-- ownership, calls MovementService.allowTeleport either side of the
 	-- flight, damps a point-blank wall and nets a body that leaves the map.
 	local direction, speed = LaserService.exitAim(zoneIndex, roomIndex, root.Position)
+	-- GUIDED, not thrown (2026-09-20): through the doorway and out into the
+	-- corridor from ANYWHERE in the room. See RagdollService LaunchOptions.path.
+	local path, seconds = LaserService.exitPath(zoneIndex, roomIndex, root.Position)
 	local launched = RagdollService.launch(player, root.Position - direction * 10, {
 		knockback = speed,
-		lift = KNOCKBACK.LIFT,
-		stun = KNOCKBACK.STUN,
+		lift = KNOCKBACK.ARC_HEIGHT,
+		stun = seconds + 0.05,
 		groundStun = KNOCKBACK.GROUND_STUN,
-		immunity = KNOCKBACK.IMMUNITY,
+		immunity = KNOCKBACK.IMMUNITY + seconds,
+		path = path,
+		pathSeconds = seconds,
 	})
 	if launched then
 		metrics.launches += 1
