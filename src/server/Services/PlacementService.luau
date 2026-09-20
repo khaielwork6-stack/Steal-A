@@ -309,6 +309,58 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 	return false, "That item is not in storage."
 end
 
+--- What a STORED item sells for (before the 2x Cash pass, which `earn` applies
+--- once). Server calculates the payout; the client never supplies a value.
+--- Priced from the item WITH ITS MUTATION STRIPPED (the reference game's
+--- verified rule) at moneyPass 1, for SELL_REFUND_SECONDS of that rate. The
+--- seconds figure is provisional - see GameConfig.SELL_STATUS. ONE rule for
+--- "sell" and "sell all" so they can never disagree.
+local function sellPayoutOf(item: DataService.DisplayItem): number
+	local def = LootConfig.ById[item.ItemId]
+	local base = if def then def.income else item.BaseIncome
+	local mutationForPrice = if GameConfig.SELL_STRIPS_MUTATION then "Normal" else item.Mutation
+	local rate = RarityConfig.preBoostRate(base, ScaleConfig.clampScale(item.Scale), mutationForPrice, 1)
+	return math.floor(rate * GameConfig.SELL_REFUND_SECONDS)
+end
+--- Public for the Studio tests (DebugCommands/SellAll).
+PlacementService.sellPayoutOf = sellPayoutOf
+
+--- SELL ALL (2026-09-20, owner request; the client asks "Are you sure?" first).
+--- Sells every item in Storage that CAN be sold: revealed, and not in the
+--- player's hands. Sealed containers and held items stay exactly where they
+--- are. One pass, one payout, one toast, one sound; the whole thing happens
+--- with no yield between reading the list and removing from it, so it cannot
+--- race a second request or a pickup.
+function PlacementService.sellAllStored(player: Player): (boolean, string?)
+	if not sellLimiter:consume(player) then
+		return false, "Slow down!"
+	end
+	local profile = DataService.get(player)
+	if not profile then
+		return false, "Your data is still loading."
+	end
+
+	local total, sold = 0, 0
+	local kept: { DataService.DisplayItem } = {}
+	for _, item in profile.Inventory do
+		if item.Hatched == false or item.Held then
+			table.insert(kept, item)
+		else
+			total += sellPayoutOf(item)
+			sold += 1
+		end
+	end
+	if sold == 0 then
+		return false, "Nothing to sell."
+	end
+	profile.Inventory = kept
+	EconomyService.earn(player, total, "sell")
+	StateService.pushNow(player)
+	notify(player, "success", `Sold {sold} item{if sold == 1 then "" else "s"} for {NumberFormat.cash(total)}`)
+	StateService.sound(player, "Sell")
+	return true
+end
+
 --- Sells a STORED item for SELL_REFUND_SECONDS of its income.
 function PlacementService.sellStored(player: Player, instanceId: string): (boolean, string?)
 	if not sellLimiter:consume(player) then
@@ -332,16 +384,8 @@ function PlacementService.sellStored(player: Player, instanceId: string): (boole
 			if item.Held then
 				return false, "Place it first!"
 			end
-			-- Server calculates the payout; the client never supplies a value.
-			-- Priced from the item WITH ITS MUTATION STRIPPED (the reference
-			-- game's verified rule) at moneyPass 1, for SELL_REFUND_SECONDS of
-			-- that rate; `earn` applies the 2x Cash pass exactly once. The
-			-- seconds figure is provisional - see GameConfig.SELL_STATUS.
 			local def = LootConfig.ById[item.ItemId]
-			local base = if def then def.income else item.BaseIncome
-			local mutationForPrice = if GameConfig.SELL_STRIPS_MUTATION then "Normal" else item.Mutation
-			local rate = RarityConfig.preBoostRate(base, ScaleConfig.clampScale(item.Scale), mutationForPrice, 1)
-			local payout = math.floor(rate * GameConfig.SELL_REFUND_SECONDS)
+			local payout = sellPayoutOf(item)
 			table.remove(profile.Inventory, index)
 
 			-- Index discovery survives a sale (GDD section 13).
@@ -925,6 +969,8 @@ function PlacementService.start()
 		local ok, reason
 		if action == "sell" and type(argument) == "string" then
 			ok, reason = PlacementService.sellStored(player, argument)
+		elseif action == "sellAll" then
+			ok, reason = PlacementService.sellAllStored(player)
 		elseif action == "equip" and type(argument) == "string" then
 			ok, reason = PlacementService.equip(player, argument)
 		elseif action == "store" and Validate.integer(argument, 1, GameConfig.MAX_DISPLAY_SLOTS) then

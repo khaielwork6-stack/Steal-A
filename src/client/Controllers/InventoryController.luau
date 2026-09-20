@@ -48,6 +48,9 @@ local FusionController = require(script.Parent.FusionController)
 local InventoryPresentation = require(script.Parent.InventoryPresentation)
 local PanelStyle = require(ReplicatedStorage.Shared.Util.PanelStyle)
 local ClipSafe = require(ReplicatedStorage.Shared.Util.ClipSafe)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local ScaleConfig = require(ReplicatedStorage.Shared.Config.ScaleConfig)
+local ConfirmDialog = require(script.Parent.ConfirmDialog)
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
 local UiArtConfig = require(ReplicatedStorage.Shared.Config.UiArtConfig)
 local FusionConfig = require(ReplicatedStorage.Shared.Config.FusionConfig)
@@ -102,6 +105,15 @@ local cardTemplate: Frame? = nil
 local titleLabel: TextLabel? = nil
 local countLabel: TextLabel? = nil
 local upgradeButton: TextButton? = nil
+--- SELL ALL: a bar along the bottom of the Items page, its label and the
+--- fit function that re-lays the list when the bar appears or goes.
+local sellBar: Frame? = nil
+local sellLabel: TextLabel? = nil
+local refitList: (() -> ())? = nil
+--- What SELL ALL would sell right now: how many items and their price.
+local sellableCount = 0
+local sellableTotal = 0
+local keptCount = 0
 local upgradePrice: TextLabel? = nil
 local openerBadge: TextLabel? = nil
 local emptyState: Frame? = nil
@@ -744,12 +756,53 @@ end
 --- below `refresh`, which it needs.
 local fusionKit: () -> FusionController.Kit
 
+--- What one stored item sells for: the SERVER's rule (PlacementService.
+--- sellPayoutOf) worked out here from the same shared config, only to say a
+--- price in the confirmation. The server decides the real payout; the 2x Cash
+--- pass, which it applies once, is why the dialog says "about".
+local function sellPriceOf(item: any): number
+	local def = LootConfig.ById[item.ItemId]
+	local base = if def then def.income else (tonumber(item.BaseIncome) or 0)
+	local mutation = if GameConfig.SELL_STRIPS_MUTATION then "Normal" else item.Mutation
+	local rate = RarityConfig.preBoostRate(base, ScaleConfig.clampScale(item.Scale), mutation, 1)
+	return math.floor(rate * GameConfig.SELL_REFUND_SECONDS)
+end
+
+--- Counts what SELL ALL would sell (revealed, not in the hands) and what it
+--- would leave, and shows or hides the bar (ITEMS page, something to sell).
+local function updateSellBar(state: any)
+	sellableCount, sellableTotal, keptCount = 0, 0, 0
+	for _, item in (state.inventory or {}) do
+		if item.Hatched == false or item.Held then
+			keptCount += 1
+		else
+			sellableCount += 1
+			sellableTotal += sellPriceOf(item)
+		end
+	end
+	local bar = sellBar
+	if not bar then
+		return
+	end
+	local show = activeTab == "Items" and sellableCount > 0
+	if sellLabel then
+		sellLabel.Text = `SELL ALL  ({sellableCount})`
+	end
+	if bar.Visible ~= show then
+		bar.Visible = show
+		if refitList then
+			refitList()
+		end
+	end
+end
+
 local function refresh(state: any)
 	latestState = state
 	local frame = panel
 	if not frame or not state then
 		return
 	end
+	updateSellBar(state)
 
 	local used = state.storageUsed or 0
 	local capacity = state.storageCapacity or 10
@@ -1121,6 +1174,65 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		end
 	end)
 	bar.Parent = built
+
+	-- SELL ALL (2026-09-20). A red bar along the bottom of the ITEMS page. It
+	-- asks "Are you sure?" first; the server does the selling.
+	local sell = Instance.new("Frame")
+	sell.Name = "SellAllBar"
+	sell.AnchorPoint = Vector2.new(0.5, 1)
+	sell.BackgroundTransparency = 1
+	sell.Visible = false
+	sell.ZIndex = list.ZIndex + 2
+	sell.Parent = built
+	local sellButton = Instance.new("TextButton")
+	sellButton.Name = "SellAll"
+	sellButton.AutoButtonColor = false
+	sellButton.Size = UDim2.fromScale(1, 1)
+	sellButton.BackgroundColor3 = Color3.fromRGB(196, 44, 52)
+	sellButton.Text = ""
+	sellButton.ZIndex = sell.ZIndex
+	sellButton.Parent = sell
+	PanelStyle.corner(sellButton, 12)
+	local sellStroke = Instance.new("UIStroke")
+	sellStroke.Thickness = 2
+	sellStroke.Color = Color3.fromRGB(70, 10, 16)
+	sellStroke.Parent = sellButton
+	local sellGradient = Instance.new("UIGradient")
+	sellGradient.Color = ColorSequence.new(Color3.fromRGB(255, 108, 112), Color3.fromRGB(170, 24, 32))
+	sellGradient.Rotation = 90
+	sellGradient.Parent = sellButton
+	local sellText = Instance.new("TextLabel")
+	sellText.Name = "Text"
+	sellText.BackgroundTransparency = 1
+	sellText.AnchorPoint = Vector2.new(0.5, 0.5)
+	sellText.Position = UDim2.fromScale(0.5, 0.5)
+	sellText.Size = UDim2.fromScale(0.94, 0.72)
+	sellText.Font = Enum.Font.FredokaOne
+	sellText.TextScaled = true
+	sellText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	sellText.TextStrokeTransparency = 0.35
+	sellText.Text = "SELL ALL"
+	sellText.ZIndex = sell.ZIndex + 1
+	sellText.Parent = sellButton
+	UIAnim.bindButton(sellButton)
+	sellBar, sellLabel = sell, sellText
+	sellButton.Activated:Connect(function()
+		if sellableCount <= 0 then
+			return
+		end
+		local count, total, kept = sellableCount, sellableTotal, keptCount
+		ConfirmDialog.ask({
+			title = "Are you sure?",
+			message = `Sell all {count} item{if count == 1 then "" else "s"} for about {NumberFormat.cash(total)}?`,
+			detail = if kept > 0 then "Items in your hands and unrevealed containers are kept." else "This cannot be undone.",
+			confirmText = "YES, SELL",
+			cancelText = "CANCEL",
+			onConfirm = function()
+				Remotes.get("InventoryRequest"):FireServer("sellAll")
+			end,
+		})
+	end)
+
 	local function fitControls()
 		local factor = ClipSafe.scaleChain(built)
 		local header = built:FindFirstChild("Top")
@@ -1135,7 +1247,17 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		bar.Size = UDim2.new(0.96, 0, 0, barHeight / factor)
 		layout.CellPadding = UDim2.fromOffset(8 / factor, 8 / factor)
 		layout.CellSize = UDim2.new(1 / columns, -8 / factor, 0, tabHeight / factor)
-		list.Size = UDim2.new(0.98, 0, 1, -(topHeight + (barHeight + 24) / factor))
+		-- The SELL ALL bar, when it is showing, takes its strip off the list.
+		local sellHeight = if sellBar and sellBar.Visible then 56 else 0
+		if sellBar then
+			sellBar.Position = UDim2.new(0.5, 0, 1, -8 / factor)
+			-- Narrower than the panel: the button grows 10% under the cursor.
+			sellBar.Size = UDim2.new(0.86, 0, 0, 48 / factor)
+		end
+		list.Size = UDim2.new(0.98, 0, 1, -(topHeight + (barHeight + 24 + sellHeight) / factor))
+		-- The list is anchored to the BOTTOM: lift it by the bar's strip so it
+		-- shrinks from below and its top stays right under the tabs.
+		list.Position = UDim2.new(0.5, 0, 0.99, -sellHeight / factor)
 		local headerBody = header and header:FindFirstChild("Frame")
 		if headerBody and headerBody:IsA("GuiObject") then
 			local portrait = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.X < 500
@@ -1168,6 +1290,7 @@ local function buildTabs(built: Frame, list: ScrollingFrame, source: TextButton?
 		end
 	end
 	built:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitControls)
+	refitList = fitControls
 	task.defer(fitControls)
 	styleTabs()
 end
