@@ -116,10 +116,102 @@ local function fileTreadmillProps()
 	end
 end
 
+-- ==========================================================
+-- EVERYTHING IN THE LOBBY IS WALK-THROUGH (2026-09-20)
+-- ==========================================================
+--
+-- The owner: "make everything in the safe zone lobby something I can walk
+-- through, except my own treadmill". A player already walks through other
+-- players and the treadmill belts; this files every other SOLID PROP behind
+-- the red line into the same LOBBY_PROP group - the gadget store, the trail
+-- shop, the guardian-shop pedestals, the update stand, the spin wheels, the
+-- leaderboards, the base pads and guardian bays, and the treadmill rails. A
+-- ghost (a player in the safe zone) passes through all of it; step out into
+-- the zones and the group is solid again, exactly like the belts.
+--
+-- WHAT STAYS SOLID: the floors (they hold the player up), the boundary walls
+-- (they keep the player in the map), the zones, and anything tagged with the
+-- attribute KeepSolid. The owner's OWN treadmill is not made special here:
+-- its belt and trigger were already walk-through and the auto-mount below is
+-- what puts the player on it, so it keeps working exactly as before - the
+-- rails around it just no longer stop the walk up to it.
+local KEEP_SOLID_MAP_ROOTS: { [string]: boolean } = {
+	Walls = true, Zones = true, LaneFloors = true, Paving = true, SpawnLocations = true,
+}
+local KEEP_SOLID_NAMES: { [string]: boolean } = { Slab = true, LobbyFloor = true, PlotFloor = true }
+--- Workspace-level lobby models (built outside `Map`), by name prefix.
+local LOBBY_MODEL_PREFIXES = { "Spin Wheel System", "Leaderboard " }
+
+local function isLobbyProp(part: BasePart): boolean
+	if not part.Anchored or not part.CanCollide or part.CollisionGroup == GuardianService.LOBBY_PROP_GROUP then
+		return false
+	end
+	if part:GetAttribute("KeepSolid") == true or KEEP_SOLID_NAMES[part.Name] then
+		return false
+	end
+	if part.Position.Z >= 0 or part.Position.Z < -260 then
+		return false
+	end
+	if part.Parent and part.Parent:FindFirstChildOfClass("Humanoid") then
+		return false
+	end
+	return true
+end
+
+local function fileLobbyProps()
+	local map = workspace:FindFirstChild("Map")
+	local filed = 0
+	if map then
+		for _, child in map:GetChildren() do
+			if KEEP_SOLID_MAP_ROOTS[child.Name] then
+				continue
+			end
+			local function consider(part: Instance)
+				if part:IsA("BasePart") and isLobbyProp(part) then
+					part.CollisionGroup = GuardianService.LOBBY_PROP_GROUP
+					filed += 1
+				end
+			end
+			consider(child)
+			for _, descendant in child:GetDescendants() do
+				consider(descendant)
+			end
+		end
+	end
+	for _, child in workspace:GetChildren() do
+		for _, prefix in LOBBY_MODEL_PREFIXES do
+			if string.sub(child.Name, 1, #prefix) == prefix then
+				for _, descendant in child:GetDescendants() do
+					if descendant:IsA("BasePart") and isLobbyProp(descendant) then
+						descendant.CollisionGroup = GuardianService.LOBBY_PROP_GROUP
+						filed += 1
+					end
+				end
+				break
+			end
+		end
+	end
+	return filed
+end
+
 function LobbyGhostService.start()
 	fileTreadmillProps()
+	fileLobbyProps()
 	BaseService.onRebuilt(function(_player: Player)
 		fileTreadmillProps()
+		fileLobbyProps()
+	end)
+	-- Stands and shops other services build after this one starts (the event
+	-- stand, the guardian shop, the gift chest) are caught by a slow rescan.
+	task.spawn(function()
+		for _ = 1, 6 do
+			task.wait(10)
+			fileLobbyProps()
+		end
+		while true do
+			task.wait(60)
+			fileLobbyProps()
+		end
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
@@ -140,7 +232,7 @@ function LobbyGhostService.start()
 		end
 	end)
 
-	print("[LobbyGhostService] walk-through lobby and treadmill auto-mount online")
+	print("[LobbyGhostService] walk-through lobby (players, props, rails) and treadmill auto-mount online")
 end
 
 return LobbyGhostService
