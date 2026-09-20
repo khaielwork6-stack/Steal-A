@@ -100,6 +100,33 @@ return {
 		return MovementService.snapshot(player)
 	end,
 
+	--- A REAL RAGDOLL IS NEVER A VIOLATION (2026-09-20). MovementService no
+	--- longer trusts Humanoid.PlatformStand (a client can set it), so this
+	--- proves the server's own launch is still covered without it: a hard
+	--- launch with the movement check ON, watched until well after stand-up.
+	--- Expect: no new violation, isRagdolled true in flight and false after.
+	secRagdollLegit = function(player: Player)
+		assert(RunService:IsStudio(), "Studio only")
+		local RagdollService = require(Services.RagdollService)
+		local character = assert(player.Character, "no character")
+		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart
+		MovementService.setExempt(player, false)
+		task.wait(1.5)
+		local before = violations(player)
+		local launched = RagdollService.launch(player, root.Position - root.CFrame.LookVector * 3,
+			{ knockback = 110, lift = 55, stun = 1.2, groundStun = 1, immunity = 1 })
+		task.wait(0.3)
+		local inFlight = RagdollService.isRagdolled(player)
+		task.wait(7)
+		return {
+			launched = launched,
+			ragdolledInFlight = inFlight,
+			ragdolledAfter = RagdollService.isRagdolled(player),
+			newViolations = violations(player) - before,
+			pass = launched and inFlight and not RagdollService.isRagdolled(player) and violations(player) == before,
+		}
+	end,
+
 	--- Studio only: switch the movement check off / on for this player.
 	secExempt = function(player: Player, on: boolean?)
 		MovementService.setExempt(player, on ~= false)

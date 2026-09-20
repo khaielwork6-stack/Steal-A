@@ -319,6 +319,61 @@ return {
 		return report
 	end,
 
+	--- THE SMOKE IS A HEAD START, NEVER A FREE PASS (2026-09-20 exploit fix).
+	--- The live exploit: steal quietly (guard asleep), smoke INSIDE the room,
+	--- walk out of the door under it. No guard was chasing, so no guard ever
+	--- "resumed", and the loot stayed shaken - unchaseable - all the way home:
+	--- Zone 12 loot at any Speed. Expect now: asleep and quiet during the
+	--- smoke, then the ordinary doorway alert the moment it clears.
+	gadgetSmokeQuietExitTest = function(player: Player, zoneIndex: number?)
+		assert(RunService:IsStudio(), "Studio only")
+		assert(not CarryService.getCarried(player), "finish the current carry first")
+		assert(not NightService.isNight(), "run during Day")
+		local profile = assert(DataService.get(player), "no profile")
+		local zone = zoneIndex or 2
+		local steals = profile.Lifetime.Steals
+		local report: { [string]: any } = { zone = zone }
+		LaserService.setExempt(player, true)
+		MovementService.setExempt(player, true)
+		local ok, err = pcall(function()
+			NightService.setDayRemaining(260)
+			GuardianService.resetAll()
+			local loot, why = stealAt(player, zone, 2) -- room 1
+			assert(loot, why)
+			RagdollService.grantImmunity(player, 25)
+			local inside = assert(GuardianService.inspect(zone, 1))
+			report.quietSteal = inside.state ~= "Chasing" and inside.state ~= "Waking"
+			-- Smoke INSIDE the room, nobody chasing, then out under it.
+			local applied, reason = GadgetService.debugApply(player, "Smoke")
+			report.applied, report.applyReason = applied, reason
+			local smokedAt = os.clock()
+			task.wait(0.2)
+			move(player, CFrame.new(-8, 4, MapConfig.zoneCenterZ(zone)))
+			task.wait(0.6)
+			local during = assert(GuardianService.inspect(zone, 1))
+			report.quietUnderSmoke = during.target ~= player.Name and not GuardianService.hasLeftRoom(loot)
+			-- The smoke clears with the thief still out in the corridor.
+			task.wait(math.max(0, GadgetConfig.SMOKE_CONFUSE_SECONDS - (os.clock() - smokedAt))
+				+ GameConfig.GUARDIAN_DOOR_GRACE + 1)
+			local after = assert(GuardianService.inspect(zone, 1))
+			report.stateAfter, report.targetAfter = after.state, after.target
+			report.alertedAfterSmoke = after.target == player.Name and (after.state == "Chasing" or after.state == "Waking")
+			report.lootChaseable = GuardianService.hasLeftRoom(loot)
+			report.pass = report.quietSteal and applied and report.quietUnderSmoke
+				and report.alertedAfterSmoke and report.lootChaseable
+		end)
+		cleanUpCarry(player)
+		GuardianService.resetAll()
+		move(player, CFrame.new(0, 4, -16))
+		LaserService.setExempt(player, false)
+		task.delay(0.5, MovementService.setExempt, player, false)
+		profile.Lifetime.Steals = steals
+		if not ok then
+			report.error = tostring(err)
+		end
+		return report
+	end,
+
 	--- GADGETS WHILE CARRYING (round3-gameplay). With loot in hand and NO
 	--- gadget Tool equipped, the remote path (GadgetService.use with
 	--- requireHeld) accepts all three gadgets - the hotbar's quick use. The

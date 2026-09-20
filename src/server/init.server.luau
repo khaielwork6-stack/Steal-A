@@ -340,6 +340,18 @@ CarryService.setDeliveredHandler(function(player, loot)
 		return
 	end
 	GuardianService.stopChaseFor(loot)
+	-- FAR UNDER THE ZONE'S SPEED (2026-09-20): REPORTED, NEVER BLOCKED. Any
+	-- player may steal anywhere (ZoneConfig: the gate is soft), so this takes
+	-- nothing away - it is one Discord row, so that the next way around a
+	-- guard is seen the day it is found rather than a week later.
+	pcall(function()
+		local zone = ZoneConfig.Zones[loot.zoneIndex]
+		local profile = DataService.get(player)
+		if zone and profile and zone.recommendedSpeed > 0 and profile.SpeedPower * 50 < zone.recommendedSpeed then
+			require(Services.PerfFeed).addRow("underspeed-delivery", player.Name,
+				`uid={player.UserId} zone={loot.zoneIndex} item={loot.name} speed={math.floor(profile.SpeedPower)} recommended={zone.recommendedSpeed}`)
+		end
+	end)
 	-- [polish-events-analytics] Progress bus (analytics: first delivery).
 	ProgressEvents.fire(player, "deliver", 1, { zone = loot.zoneIndex })
 
@@ -427,6 +439,14 @@ do
 		if loot then
 			CarryService.forceDrop(loot)
 		end
+		-- A RECORD THE OWNER CAN SEE (2026-09-20). A snap-back used to leave
+		-- nothing behind but a server-console warn. One row in the Discord
+		-- "errors and spikes" feed; nobody is ever kicked or blocked by this.
+		pcall(function()
+			local snapshot = MovementService.snapshot(player)
+			require(Services.PerfFeed).addRow("anticheat", player.Name,
+				`uid={player.UserId} carrying={loot ~= nil} {tostring(snapshot.lastViolation)}`)
+		end)
 	end)
 	MovementService.start()
 

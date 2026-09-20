@@ -2335,7 +2335,28 @@ local function checkDoorways()
 		end
 		-- SMOKE (gadgets-patrols): lost in the smoke, or slipping out under it.
 		if shakenLoot[loot.id] == player then
-			continue
+			-- A HEAD START, NEVER A FREE PASS (2026-09-20 exploit fix). This
+			-- used to `continue` for as long as the loot stayed shaken - and
+			-- only a guard that had LOST a chase ever un-shook it
+			-- (resumeAfterSmoke). Smoke a quiet exit past a sleeping guard and
+			-- nobody ever did: the loot was unchaseable all the way home, from
+			-- any zone at any Speed. Now the shake lasts as long as the smoke,
+			-- or as long as a guard is still searching for this player (that
+			-- guard's own resume takes the loot back); after that, out is out.
+			if GuardianService.isConfused(player) then
+				continue
+			end
+			local searching = false
+			for _, guardian in guardians do
+				if guardian.smokeTarget == player and guardian.state == "Searching" then
+					searching = true
+					break
+				end
+			end
+			if searching then
+				continue
+			end
+			shakenLoot[loot.id] = nil
 		end
 		if GuardianService.isConfused(player) then
 			shakenLoot[loot.id] = player

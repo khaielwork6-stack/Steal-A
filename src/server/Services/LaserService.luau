@@ -16,6 +16,8 @@ local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
+-- The SERVER's record of a ragdoll, never Humanoid.PlatformStand (client-settable).
+local RagdollService = require(script.Parent.RagdollService)
 
 local LaserService = {}
 
@@ -125,7 +127,7 @@ local function step()
 	for _, player in Players:GetPlayers() do
 		local character, root, humanoid = validBody(player)
 		if not character or not root or not humanoid or closed or root.Position.Z < 0
-			or math.abs(root.Position.X) > MapConfig.LANE_HALF or humanoid.PlatformStand or GuardianService.isStunned(player) then
+			or math.abs(root.Position.X) > MapConfig.LANE_HALF or RagdollService.isRagdolled(player) or GuardianService.isStunned(player) then
 			previous[player] = nil
 			if crouched[player] then LaserService.setCrouched(player, false) end
 			continue

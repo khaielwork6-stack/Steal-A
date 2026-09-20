@@ -45,6 +45,18 @@ function RagdollService.setMovementRefresher(fn: (Player) -> ())
 end
 
 --- True while the player is mid-launch or in their recovery window.
+--- THE SERVER'S OWN RECORD OF WHO IT RAGDOLLED (2026-09-20 anti-cheat).
+--- Humanoid.PlatformStand is a property a cheating client can set on its own
+--- character, so "is this player ragdolled?" is never answered from it:
+--- LaserService asks this instead. Stamped by launch, cleared by stand-up,
+--- and it expires on its own so no bug can leave a player marked for good.
+local ragdolledUntil: { [Player]: number } = {}
+
+function RagdollService.isRagdolled(player: Player): boolean
+	local untilTime = ragdolledUntil[player]
+	return untilTime ~= nil and os.clock() < untilTime
+end
+
 function RagdollService.isImmune(player: Player): boolean
 	return (immuneUntil[player] or 0) > os.clock()
 end
@@ -141,6 +153,7 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 	end
 
 	RagdollService.grantImmunity(player, options.immunity)
+	ragdolledUntil[player] = os.clock() + LANDING_TIMEOUT + options.stun + (options.groundStun or 0) + STAND_UP_GRACE
 	-- The launch itself is a server move; MovementService also re-bases while
 	-- the server owns the body, this covers the frames either side of that.
 	MovementService.allowTeleport(player, options.stun + STAND_UP_GRACE)
@@ -213,6 +226,7 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 	end
 
 	local function standUp()
+		ragdolledUntil[player] = nil
 		if not humanoid.Parent or humanoid.Health <= 0 then
 			return
 		end
@@ -282,6 +296,7 @@ end
 function RagdollService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		immuneUntil[player] = nil
+		ragdolledUntil[player] = nil
 	end)
 end
 

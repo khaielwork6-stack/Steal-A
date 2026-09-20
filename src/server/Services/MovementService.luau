@@ -29,7 +29,7 @@
 	`allowTeleport` first (BaseService.teleportHome and assign, the respawn
 	placement in init.server, NightService's return to the lobby). A character
 	whose physics the SERVER is simulating (a ragdoll launch hands network
-	ownership to the server), a PlatformStanding or seated humanoid, and a
+	ownership to the server), a seated humanoid, and a
 	freshly spawned character are re-based rather than measured: the server's
 	own physics is not something a client can fake.
 
@@ -293,7 +293,11 @@ end
 --- True when the server itself is simulating this body, or the humanoid is in
 --- a state the client does not steer: its position is not the client's claim.
 local function serverDriven(root: BasePart, humanoid: Humanoid): boolean
-	if humanoid.PlatformStand or humanoid.SeatPart ~= nil then
+	-- NOT Humanoid.PlatformStand (2026-09-20). A client can set that on its
+	-- own character, and doing so used to switch this whole check off. A real
+	-- ragdoll does not need it: RagdollService.launch hands the body to the
+	-- server (owner == nil below) and calls allowTeleport either side of it.
+	if humanoid.SeatPart ~= nil then
 		return true
 	end
 	local ok, owner = pcall(function()
