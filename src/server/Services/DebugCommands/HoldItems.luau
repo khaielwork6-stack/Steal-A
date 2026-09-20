@@ -102,6 +102,14 @@ local function withRestore(player: Player, body: (DataService.Profile) -> any): 
 	for _, field in FIELDS do
 		snap[field] = copy((profile :: any)[field])
 	end
+	-- START FROM EMPTY HANDS. Every test counts held items from zero, but a
+	-- tester's real profile can already be holding some (the owner's was, from
+	-- a live session: the suite failed on counts that were off by exactly
+	-- those). The flags come off for the length of the test; the snapshot
+	-- above puts them back.
+	for _, item in profile.Inventory do
+		item.Held, item.HeldOrder, item.HeldActive = nil, nil, nil
+	end
 	local ok, result = pcall(body, profile)
 	for _, field in FIELDS do
 		(profile :: any)[field] = copy(snap[field])
