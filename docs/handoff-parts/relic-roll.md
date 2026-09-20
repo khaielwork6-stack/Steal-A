@@ -250,3 +250,75 @@ goes.
   Consumable (not "limited quantity") - I cannot check this myself.
 - **Everything else** (grant logic, odds, policy, analytics, the PASSES fix)
   is code-complete and covered by the debug commands above.
+
+---
+
+# Reveal rework (2026-09-20, from the owner's Studio feedback)
+
+Supersedes the "Client" paragraph about the reveal above: the **"Successful
+Purchase!" dialog and its results grid are DELETED** (only that dialog had the
+text; the phrase in the older section is history). Nothing else in the repo
+used it. NOTE: Roblox's own native purchase-confirmation popup (CoreGui) is not
+ours and cannot be removed from code.
+
+## What the reveal does now
+- **Trigger, unchanged in spirit**: `state.relicRoll.pendingReveal` only (never
+  a one-shot remote). Now ONE queue: payloads play strictly one at a time, each
+  purchaseId is remembered so repeated pushes never restart it, the whole run
+  is pcall'd, and every exit path destroys the ScreenGui, the tick Sounds and
+  releases the HUD claim. A rejoin replays only the rolls not yet acked.
+- **Panels close first**: `_G.CloseAllUIFrames()` (slide-down, blur off, HUD
+  restored by the MainUI script) then a `UIStateController` claim `relicroll`
+  hides the HUD for the duration. The ScreenGui is DisplayOrder 600 (above
+  MainUI/panels, below the flyover 900 and tutorial film 950), Sibling ZIndex.
+  Why the owner saw a bare box could not be reproduced without Studio; the
+  old flow left the Shop open under the reveal, an early `return` when
+  PlayerGui was missing left the id marked seen forever, and a second push
+  destroyed a running reveal. The queue / `seen` / pcall / close-first design
+  removes every path found.
+- **One roulette per roll**, ROLL_SECONDS 4.0 (config, validated 3-5). The belt
+  is driven by hand every RenderStepped from the clock:
+  `pos = TRAVEL * (1 - (1-u)^EASE_POWER)`, TRAVEL 30 cards, power 3. Peak speed
+  22.5 cards/s, ~1.4 cards/s at t=3 s, the last 0.5 card over the final second
+  (Quint froze for the last second). Lands exactly on the server's item.
+  Card width scales with the viewport (min(track/5.5, 27% of height), 52-128px).
+- After each landing: name + [Rarity] for 1.2 s (tap = advance), "Roll k / N"
+  counter, "Tap to skip" (jump to this roll's result), "Skip all" button.
+  The belt is persistent; per roll only the winner + 10 fillers are rebuilt.
+- Reduced Effects: 0.6 s roll, 12-card travel, no confetti/punch.
+
+## Sound (AudioConfig)
+- `RelicTick` 139719503904449 (event, vol 0.7), `RelicWin` 111289716155568
+  (event, vol 0.95, played on the landing).
+- One tick per card boundary crossing the selector, decided from the real belt
+  position each frame (`floor(pos + 0.5)` increases). Pool of 8 pre-created
+  Sounds, round-robin, destroyed on every exit.
+- PlaybackSpeed = 0.8 + (1.5 - 0.8) * (v / vPeak)^0.6, v = smoothed cards/s
+  from the real position delta, vPeak = 3*30/4 = 22.5 cards/s. A tick within
+  0.03 s of the previous is skipped, except inside the last 8 cards (all
+  heard). A tap-skip plays no tick burst. All numbers are `RelicRollConfig`
+  `TICK_*` constants.
+
+## Remote and server flow
+`RelicRollAck(purchaseId: string, rollIndex: number)`: 1..N = "that roll has
+landed"; **0 = Skip all** (every not-yet-acked roll). Validated: string <=100,
+integer 0..50, each index honoured once (`PendingRelicReveal.acked = {int}`),
+limiter 6/s burst 60. The server still grants all items into Storage at
+purchase time; on an ack it calls `HoldService.hold(player, instanceId)` for
+that roll's item (lazy require, `type == "function"` check, pcall: missing or
+failing = the item stays in Storage). Overflow (Mailbox) rolls are never held.
+The record clears after the last roll is acked; a newer purchase overwrites
+it, and the older one's remaining items simply stay in Storage. The summary now
+carries `instanceId`. Analytics: `RelicRollReveal` custom event
+("watched"/"skipped", "xN") fires when the record clears.
+
+## Debug / Studio test plan additions
+- `relicRollReveal [count]`: real N-roll reveal on your client, no Robux;
+  profile restored after the acks (or a timeout, or on leave). Play tests take
+  the real save lock: use only on a guest/safe profile.
+- `relicRollAckCheck`: expect afterOneAck 1, afterRepeatAck 1,
+  afterOutOfRange 1, recordSurvivedPartialAcks true, clearedBySkipAll true.
+- Shop open -> `relicRollReveal 1`: shop and blur close, only the roulette is
+  visible; 10 rolls play back to back with "Roll k / 10"; each item appears in
+  the hotbar only after its roll lands; Skip all holds the rest; tick pitch
+  falls as the belt slows; phone portrait and landscape; Reduced Effects.

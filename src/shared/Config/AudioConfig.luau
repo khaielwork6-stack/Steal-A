@@ -100,6 +100,13 @@ AudioConfig.Cues = {
 	--- picture and sound cannot drift apart. Its PlaybackSpeed is set per
 	--- shot by HatchController: bright and fast early, heavy on the last.
 	RevealCycle = { id = asset(107511012621133), volume = 0.75, category = "event" },
+	--- [relic-roll] THE RELIC ROULETTE TICK. One shot each time a card
+	--- boundary crosses the fixed selector, driven from the belt's real
+	--- position by RelicRollRevealController (a pool of these, PlaybackSpeed
+	--- set per shot from the belt's speed: ~1.5x while fast, ~0.8x at the end).
+	RelicTick = { id = asset(139719503904449), volume = 0.7, category = "event" },
+	--- [relic-roll] The landing on the winner of a Relic roulette.
+	RelicWin = { id = asset(111289716155568), volume = 0.95, category = "event" },
 	--- THE SPIN WHEEL'S TICKING, for the length of one spin and no longer.
 	--- The asset is only 0.7s, so it is LOOPED rather than re-triggered: one
 	--- Sound instance, no timer to drift and nothing to leave a second copy

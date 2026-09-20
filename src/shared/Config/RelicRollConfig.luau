@@ -77,6 +77,38 @@ RelicRollConfig.SINGLE_ROLL_KEY = "RelicRoll1x"
 RelicRollConfig.WAS_PRICE_KEY = "RelicRoll50x"
 RelicRollConfig.WAS_PRICE_MULTIPLIER = 50
 
+-- ==========================================================
+-- THE ROULETTE (client, RelicRollRevealController)
+-- ==========================================================
+
+--- Seconds ONE roll's belt runs. The owner asked for 3-5 s (validate.luau
+--- enforces the range). Reduced Effects uses REDUCED_ROLL_SECONDS instead.
+RelicRollConfig.ROLL_SECONDS = 4.0
+RelicRollConfig.REDUCED_ROLL_SECONDS = 0.6
+--- Ease-out exponent: progress(u) = 1 - (1-u)^EASE_POWER. 3 (cubic) starts at
+--- EASE_POWER*TRAVEL_CARDS/ROLL_SECONDS = 22.5 cards/s, is ~1.4 cards/s at
+--- t = 3 s and creeps the last half card in the final second: fast first,
+--- genuinely slow and readable at the end (Quint left the last second frozen).
+RelicRollConfig.EASE_POWER = 3
+--- How many cards the belt travels from its first centred card to the winner.
+RelicRollConfig.TRAVEL_CARDS = 30
+--- Seconds the item name + [Rarity] stays under the strip before the next roll
+--- (tap to advance sooner).
+RelicRollConfig.LANDING_HOLD_SECONDS = 1.2
+
+--- Tick sound: a round-robin pool so ticks overlap instead of cutting off.
+RelicRollConfig.TICK_POOL_SIZE = 8
+--- PlaybackSpeed range. rate = MIN + (MAX-MIN) * (v / vPeak)^TICK_RATE_CURVE,
+--- v = the belt's instantaneous cards/s, vPeak = its speed at t = 0.
+RelicRollConfig.TICK_RATE_MIN = 0.8
+RelicRollConfig.TICK_RATE_MAX = 1.5
+RelicRollConfig.TICK_RATE_CURVE = 0.6
+--- A tick within this many seconds of the previous one is skipped (only ever
+--- possible near peak speed) - EXCEPT during the final TICK_PROTECT_CARDS
+--- cards of travel, whose ticks must each be heard.
+RelicRollConfig.TICK_MIN_GAP = 0.03
+RelicRollConfig.TICK_PROTECT_CARDS = 8
+
 RelicRollConfig.limited = true
 --- Unix seconds; nil = always on. The banner's countdown is hidden while nil.
 RelicRollConfig.endsAt = nil :: number?

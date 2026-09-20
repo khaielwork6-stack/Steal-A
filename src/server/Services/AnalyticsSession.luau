@@ -524,6 +524,12 @@ function AnalyticsSession.start()
 		AnalyticsEvents.custom(player, "RelicRoll", amount, { tostring(info.bestRarity or "Common"), tostring(info.bestItemId or "unknown"), `x{math.floor(amount)}` })
 	end)
 
+	-- [relic-roll] The whole reveal is over: amount = roll count; info.skipped
+	-- true when the player used "Skip all". Two labels only (low cardinality).
+	ProgressEvents.on("relicRollReveal", function(player, amount, info)
+		AnalyticsEvents.custom(player, "RelicRollReveal", amount, { if info.skipped then "skipped" else "watched", `x{math.floor(amount)}` })
+	end)
+
 	local function onPlayer(player: Player)
 		player:GetAttributeChangedSignal("LastLaserTrip"):Connect(function()
 			local ok: boolean, err: any = (pcall :: any)(onLaser, player)

@@ -53,9 +53,14 @@ local StateService = require(script.Parent.StateService)
 
 local RelicRollService = {}
 
-local ackLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.RelicRollAck or 2)
+-- Burst 60: a 50x reveal acks once per roll, and taps can advance quickly.
+local ackLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.RelicRollAck or 6, 60)
 
 export type RolledSummary = {
+	--- The Inventory entry's InstanceId: what the per-roll ack holds. (For an
+	--- overflow roll this id is in the Mailbox, not Inventory, so a hold of it
+	--- simply finds nothing.)
+	instanceId: string,
 	itemId: string,
 	rarity: string,
 	mutation: string,
@@ -141,6 +146,7 @@ local function performGrant(player: Player, profile: DataService.Profile, count:
 		end
 
 		table.insert(summary, {
+			instanceId = item.InstanceId,
 			itemId = item.ItemId,
 			rarity = item.Rarity,
 			mutation = RarityConfig.normaliseMutation(item.Mutation),
@@ -180,6 +186,10 @@ local function performGrant(player: Player, profile: DataService.Profile, count:
 		purchaseId = purchaseId,
 		rollCount = count,
 		items = summary,
+		-- Roll indexes (1..N) the client has already shown and acked, so a
+		-- rejoin replays only the rolls it never saw. A plain array of
+		-- integers (DataStore-safe).
+		acked = {},
 		at = os.time(),
 	}
 	StateService.pushNow(player)
@@ -228,11 +238,34 @@ end
 -- THE REPLAY ACK
 -- ==========================================================
 
---- The client finished (or skipped) the reveal for `purchaseId`. Clears the
---- replay record so a later join does not show it again. A stale or
---- mismatched id is a no-op: the record it would have cleared already isn't
---- the one on the profile (a newer purchase landed, or it was already acked).
-function RelicRollService.acknowledgeReveal(player: Player, purchaseId: string)
+--- Marks one rolled item HELD (the player's hands/hotbar) through HoldService,
+--- which is written by another pass: looked up lazily, type-checked and
+--- pcall'd, so a missing or failing function just leaves the item in Storage.
+local function holdRolled(player: Player, instanceId: any)
+	if type(instanceId) ~= "string" or instanceId == "" then
+		return
+	end
+	local okRequire, holdService = pcall(function()
+		return require(script.Parent.HoldService) :: any
+	end)
+	if not okRequire or type(holdService) ~= "table" or type(holdService.hold) ~= "function" then
+		return
+	end
+	local ok, err = pcall(holdService.hold, player, instanceId)
+	if not ok then
+		warn(`[RelicRollService] HoldService.hold failed for {player.Name}: {err}`)
+	end
+end
+
+--- The client has SHOWN roll `rollIndex` of `purchaseId`'s reveal: that roll's
+--- item is now held. `rollIndex` 0 (or nil) is "Skip all": every roll not yet
+--- acked is held, in roll order, and the record is cleared. Each index is
+--- honoured once (recorded in `pending.acked`); the record is cleared after the
+--- last one. A stale or mismatched id is a no-op: the record it would have
+--- touched isn't the one on the profile (a newer purchase landed, or it was
+--- already acked). Nothing is ever held BEFORE its ack, so the hotbar cannot
+--- spoil a result.
+function RelicRollService.acknowledgeReveal(player: Player, purchaseId: string, rollIndex: number?)
 	local profile = DataService.get(player)
 	if not profile then
 		return
@@ -241,7 +274,46 @@ function RelicRollService.acknowledgeReveal(player: Player, purchaseId: string)
 	if type(pending) ~= "table" or pending.purchaseId ~= purchaseId then
 		return
 	end
+	local items = pending.items
+	if type(items) ~= "table" then
+		profile.PendingRelicReveal = nil
+		StateService.pushNow(player)
+		return
+	end
+	if type(pending.acked) ~= "table" then
+		pending.acked = {}
+	end
+	local acked: { number } = pending.acked
+	local total = #items
+	local index = rollIndex or 0
+
+	local function ackOne(at: number)
+		if table.find(acked, at) then
+			return
+		end
+		table.insert(acked, at)
+		local rolled = items[at]
+		if type(rolled) == "table" and not rolled.overflow then
+			holdRolled(player, rolled.instanceId)
+		end
+	end
+
+	local skippedAll = index == 0
+	if skippedAll then
+		for at = 1, total do
+			ackOne(at)
+		end
+	else
+		ackOne(index)
+	end
+
+	if #acked < total then
+		-- Progress only: the record stays for a rejoin to replay the rest.
+		StateService.pushNow(player)
+		return
+	end
 	profile.PendingRelicReveal = nil
+	require(script.Parent.ProgressEvents).fire(player, "relicRollReveal", total, { skipped = skippedAll })
 	StateService.pushNow(player)
 	if DataService.isPersistent() then
 		task.spawn(DataService.save, player)
@@ -303,14 +375,19 @@ end
 function RelicRollService.start()
 	StateService.addProvider("relicRoll", RelicRollService.summarise)
 
-	Remotes.get("RelicRollAck").OnServerEvent:Connect(function(player, purchaseId)
+	Remotes.get("RelicRollAck").OnServerEvent:Connect(function(player, purchaseId, rollIndex)
 		if not ackLimiter:consume(player) then
 			return
 		end
 		if type(purchaseId) ~= "string" or #purchaseId == 0 or #purchaseId > 100 then
 			return
 		end
-		RelicRollService.acknowledgeReveal(player, purchaseId)
+		-- 0 = Skip all; otherwise an integer roll index (the service checks it
+		-- is within this purchase's roll count and unacked).
+		if type(rollIndex) ~= "number" or rollIndex ~= rollIndex or rollIndex < 0 or rollIndex > 50 or rollIndex % 1 ~= 0 then
+			return
+		end
+		RelicRollService.acknowledgeReveal(player, purchaseId, rollIndex)
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)

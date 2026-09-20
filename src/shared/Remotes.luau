@@ -280,11 +280,13 @@ Remotes.NAMES = {
 	-- ==== RELIC-ROLL ====
 	-- The "MUSEUM RELICS [LIMITED]" gacha banner. Buying a roll is the
 	-- existing PurchaseRequest("product", "RelicRoll<n>x"); this is the one
-	-- new remote: client -> server. RelicRollAck(purchaseId): the reveal for
-	-- that purchase has been played (or skipped), so RelicRollService may
-	-- clear the durable "replay this on join" record. Grants nothing;
-	-- validated (a string, length-capped) and rate-limited in
-	-- RelicRollService.
+	-- new remote: client -> server. RelicRollAck(purchaseId, rollIndex):
+	-- roll #rollIndex (integer 1..N) of that purchase's reveal has LANDED, so
+	-- RelicRollService marks that one item held (HoldService) and, once every
+	-- roll is acked, clears the durable "replay this on join" record.
+	-- rollIndex 0 = "Skip all": hold every not-yet-acked roll and clear the
+	-- record. Grants nothing; validated (string length-capped, integer index,
+	-- each index honoured once) and rate-limited in RelicRollService.
 	"RelicRollAck",
 	-- TUTORIAL FILM (tutorial-film pass)
 	-- ==========================================================
