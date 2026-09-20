@@ -85,25 +85,44 @@ end
 -- READING THE HELD SET
 -- ==========================================================
 
---- The active held item and its Inventory index, or nil, nil while holding
---- nothing. Prefers the item flagged HeldActive; falls back to the most
---- recently picked-up held item if none is flagged (a hand-edited save, or a
---- profile saved between HoldService versions) so the feature degrades to
---- "show something sensible" rather than "show nothing".
+--- The item EQUIPPED right now (in the hands) and its Inventory index, or
+--- nil, nil. ONE THING IN THE HANDS AT A TIME (owner, 2026-09-20): a held item
+--- is only "in hand" while the player has pressed its key; a Tool (Slap, Trap,
+--- a gadget) being equipped puts it away, and equipping it puts the Tool away.
+--- Items that are held but not equipped just sit on the hotbar. There is no
+--- "newest one is always shown" fallback any more.
 local function findActiveHeld(profile: DataService.Profile): (DataService.DisplayItem?, number?)
-	local fallback, fallbackAt, fallbackOrder = nil, nil, -1
 	for index, item in profile.Inventory do
-		if item.Held then
-			if item.HeldActive then
-				return item, index
-			end
-			local order = tonumber(item.HeldOrder) or 0
-			if order > fallbackOrder then
-				fallback, fallbackAt, fallbackOrder = item, index, order
-			end
+		if item.Held and item.HeldActive then
+			return item, index
 		end
 	end
-	return fallback, fallbackAt
+	return nil, nil
+end
+
+--- Puts whatever Tool the player has equipped back in the Backpack. Used when
+--- a held item is taken into the hands: the hands hold one thing.
+local function unequipTools(player: Player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		pcall(function()
+			humanoid:UnequipTools()
+		end)
+	end
+end
+
+--- Puts the held item away (still held, still on the hotbar, just not in the
+--- hands). True when something changed.
+local function clearActive(profile: DataService.Profile): boolean
+	local changed = false
+	for _, item in profile.Inventory do
+		if item.HeldActive then
+			item.HeldActive = nil
+			changed = true
+		end
+	end
+	return changed
 end
 
 --- Every held item, oldest pickup first - rank N in this list IS held
@@ -156,6 +175,8 @@ local function activate(player: Player, profile: DataService.Profile, item: Data
 		other.HeldActive = nil
 	end
 	item.HeldActive = true
+	-- One thing in the hands: the item comes out, so the Tool goes away.
+	unequipTools(player)
 
 	local usage = lastUsed[player]
 	if not usage then
@@ -538,7 +559,9 @@ function HoldService.place(player: Player, slotIndex: number): (boolean, string?
 
 	local active, activeAt = findActiveHeld(profile)
 	if not active or not activeAt then
-		return false, "You are not holding anything."
+		return false, if HoldService.heldCount(player) > 0
+			then "Press an item's number to take it out first."
+			else "You are not holding anything."
 	end
 	if active.Hatched == false then
 		-- Defensive only: pickup() refuses a sealed container, so a held item
@@ -554,20 +577,8 @@ function HoldService.place(player: Player, slotIndex: number): (boolean, string?
 	active.SlotIndex = slotIndex
 	table.insert(profile.DisplayItems, active)
 
-	-- Whichever remaining held item was picked up most recently becomes the
-	-- new active one - same "newest" rule a fresh pickup uses.
-	local newest, newestOrder = nil, -1
-	for _, item in profile.Inventory do
-		if item.Held then
-			local order = tonumber(item.HeldOrder) or 0
-			if order > newestOrder then
-				newest, newestOrder = item, order
-			end
-		end
-	end
-	if newest then
-		activate(player, profile, newest)
-	end
+	-- The hands are EMPTY afterwards: the next held item is not pulled out on
+	-- its own (owner, 2026-09-20) - its key does that.
 
 	BaseService.rebuildSlot(player, slotIndex)
 	EconomyService.recalculate(player)
@@ -604,7 +615,11 @@ function HoldService.equip(player: Player, rank: number): (boolean, string?)
 		return false, "Nothing in that hand slot."
 	end
 	if target.HeldActive then
-		-- Already the one shown - idempotent, not an error.
+		-- Its key again PUTS IT AWAY (a toggle, like a Tool's key): still held,
+		-- still on the hotbar, just not in the hands.
+		target.HeldActive = nil
+		HoldService.refreshHeldVisual(player)
+		StateService.pushNow(player)
 		return true
 	end
 	-- A rank on the hotbar just becomes the active item; a rank in the
@@ -646,18 +661,7 @@ function HoldService.store(player: Player): (boolean, string?)
 		usage[active.InstanceId] = nil
 	end
 
-	local newest, newestOrder = nil, -1
-	for _, item in profile.Inventory do
-		if item.Held then
-			local order = tonumber(item.HeldOrder) or 0
-			if order > newestOrder then
-				newest, newestOrder = item, order
-			end
-		end
-	end
-	if newest then
-		activate(player, profile, newest)
-	end
+	-- Hands empty afterwards, as with place: the next item is not auto-equipped.
 
 	HoldService.refreshHeldVisual(player)
 	StateService.pushNow(player)
@@ -674,7 +678,17 @@ function HoldService.start()
 	-- base (capacity upgrades, heists, debug commands) - the one hook that
 	-- keeps the held-item model in step without HoldService needing its own
 	-- copy of "when did the base change".
+	--- Each session starts with EMPTY hands: the first rebuild after a join
+	--- clears whatever was equipped when the last session ended.
+	local handsChecked: { [Player]: boolean } = {}
 	BaseService.onRebuilt(function(player)
+		if not handsChecked[player] then
+			handsChecked[player] = true
+			local profile = DataService.get(player)
+			if profile and clearActive(profile) then
+				StateService.pushNow(player)
+			end
+		end
 		HoldService.refreshHeldVisual(player)
 	end)
 
@@ -716,12 +730,31 @@ function HoldService.start()
 
 	-- RESPAWN: the model lives on the character, so it is gone the instant
 	-- the old one is; wait for the new rig's root part, then rebuild it.
+	--
+	-- ONE THING IN THE HANDS: a Tool arriving on the character (its key was
+	-- pressed) puts the held item away. Watched on the SERVER, so it holds
+	-- however the Tool was equipped. A new life starts with empty hands.
 	local function onCharacter(player: Player, character: Model)
+		character.ChildAdded:Connect(function(child)
+			if not child:IsA("Tool") then
+				return
+			end
+			local profile = DataService.get(player)
+			if profile and clearActive(profile) then
+				HoldService.refreshHeldVisual(player)
+				StateService.pushNow(player)
+			end
+		end)
 		task.defer(function()
 			character:WaitForChild("HumanoidRootPart", 5)
-			if character.Parent then
-				HoldService.refreshHeldVisual(player)
+			if not character.Parent then
+				return
 			end
+			local profile = DataService.get(player)
+			if profile and clearActive(profile) then
+				StateService.pushNow(player)
+			end
+			HoldService.refreshHeldVisual(player)
 		end)
 	end
 
@@ -741,6 +774,7 @@ function HoldService.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastUsed[player] = nil
+		handsChecked[player] = nil
 		holdLimiter:release(player)
 	end)
 end

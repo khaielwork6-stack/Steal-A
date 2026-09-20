@@ -376,8 +376,17 @@ function HotbarController.equipHeld(rank: number)
 		return
 	end
 	local item = heldItems[rank]
-	if not item or item.HeldActive then
+	if not item then
 		return
+	end
+	-- A TOGGLE: the active item's key puts it away. Taking an item out puts
+	-- the Tool away first, at once, without waiting for the server.
+	if not item.HeldActive then
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+		if humanoid then
+			humanoid:UnequipTools()
+		end
 	end
 	Remotes.get("HoldRequest"):FireServer("equip", rank)
 end

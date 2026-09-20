@@ -520,11 +520,17 @@ Commands.holdStoreTest = function(player: Player): any
 				stillInInventory = item.Held == nil and item.HeldOrder == nil and item.HeldActive == nil
 			end
 		end
+		-- ONE THING IN THE HANDS (2026-09-20): after a store the hands are
+		-- EMPTY - the other held item is NOT pulled out on its own.
 		local other = findHeld(profile, ids[1])
 		local otherNowActive = other ~= nil and other.HeldActive == true
 		local inventoryCount = #profile.Inventory
 		-- The remote limiter is one shared bucket (4/s), so wait it out
 		-- between the two store presses instead of tripping "Slow down!".
+		task.wait(1.1)
+		local storeWithEmptyHands = HoldService.store(player)
+		task.wait(1.1)
+		HoldService.equip(player, 1) -- its key takes it out
 		task.wait(1.1)
 		local okSecond = HoldService.store(player)
 		task.wait(1.1)
@@ -532,7 +538,8 @@ Commands.holdStoreTest = function(player: Player): any
 		return {
 			pass = okStore
 				and stillInInventory
-				and otherNowActive
+				and not otherNowActive
+				and storeWithEmptyHands == false
 				and okSecond
 				and not okThird
 				and reasonThird == "You are not holding anything."
@@ -540,11 +547,61 @@ Commands.holdStoreTest = function(player: Player): any
 				and #profile.Inventory == inventoryCount,
 			store = { ok = okStore, reason = reasonStore },
 			itemStayedInStorageUnheld = stillInInventory,
-			otherBecameActive = otherNowActive,
+			otherStayedInTheBag = not otherNowActive,
 			secondStoreOk = okSecond,
 			thirdStore = { ok = okThird, reason = reasonThird },
 			inventoryUnchanged = #profile.Inventory == inventoryCount,
 		}
+	end)
+end
+
+-- ==========================================================
+-- ONE THING IN THE HANDS
+-- ==========================================================
+
+Commands.holdOneHandTest = function(player: Player): any
+	local itemId = defaultItemId()
+	return withRestore(player, function(profile)
+		local ids = injectStored(profile, itemId, 2)
+		HoldService.holdMany(player, ids)
+		local report: { [string]: any } = {}
+		local function activeId(): string?
+			local active = HoldService.activeHeld(player)
+			return if active then active.InstanceId else nil
+		end
+		report.newestInHandAfterPickup = activeId() == ids[2]
+		-- Its own key again puts it away: still held, hands empty.
+		task.wait(1.1)
+		HoldService.equip(player, 2)
+		report.keyAgainPutsItAway = activeId() == nil and HoldService.heldCount(player) == 2
+		-- Place with items held but none in the hands: told what to do.
+		local free = BaseService.freeSlots(player)
+		local okEmpty, reasonEmpty = HoldService.place(player, free[1] or 1)
+		report.placeWithEmptyHands = okEmpty == false and reasonEmpty == "Press an item's number to take it out first."
+		-- The other one's key takes THAT out (never both).
+		task.wait(1.1)
+		HoldService.equip(player, 1)
+		report.otherKeyTakesOtherOut = activeId() == ids[1]
+		-- A Tool arriving on the character (Slap / Trap / a gadget) puts the
+		-- held item away.
+		local character = player.Character
+		local tool = Instance.new("Tool")
+		tool.Name = "OneHandProbe"
+		tool.RequiresHandle = false
+		tool.Parent = character
+		task.wait(0.3)
+		report.toolPutsItemAway = activeId() == nil and HoldService.heldCount(player) == 2
+		tool:Destroy()
+		-- Placing the one in hand leaves the hands EMPTY, the rest still held.
+		task.wait(1.1)
+		HoldService.equip(player, 1)
+		task.wait(1.1)
+		local okPlace = HoldService.place(player, free[1] or 1)
+		report.placedOk = okPlace == true
+		report.handsEmptyAfterPlace = activeId() == nil and HoldService.heldCount(player) == 1
+		report.pass = report.newestInHandAfterPickup and report.keyAgainPutsItAway and report.placeWithEmptyHands
+			and report.otherKeyTakesOtherOut and report.toolPutsItemAway and report.placedOk and report.handsEmptyAfterPlace
+		return report
 	end)
 end
 
@@ -757,6 +814,7 @@ Commands.holdSuite = function(player: Player, itemIdArg: any): any
 		"holdOverflowTest",
 		"holdFromStorageTest",
 		"holdStoreTest",
+		"holdOneHandTest",
 		"holdNoToastTest",
 		"holdRaceTest",
 		"holdPersistTest",
