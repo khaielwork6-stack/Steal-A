@@ -406,6 +406,13 @@ local function buildCard(item: any, index: number): Frame?
 	if variantRow then
 		-- Only worth a row when the item actually rolled something unusual.
 		local tags = {}
+		-- [hold-items] Shown first, so it is the thing a glance catches: this
+		-- copy is not idle Storage, it is the one currently in the player's
+		-- hands (still real Storage underneath - Display/Sell just refuse it
+		-- with a clear reason until it is placed back on a pad).
+		if item.Held then
+			table.insert(tags, "IN HANDS")
+		end
 		if item.Size and item.Size ~= "Normal" then
 			table.insert(tags, string.upper(item.Size))
 		end

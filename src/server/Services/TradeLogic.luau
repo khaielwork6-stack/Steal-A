@@ -83,6 +83,11 @@ function TradeLogic.itemTradable(item: any): (boolean, string?)
 	if item.RobbedBy ~= nil then
 		return false, "That item is being stolen."
 	end
+	-- [hold-items] Safest option, same reasoning as FusionService/selling: an
+	-- item in your hands must be placed before it changes hands in a trade.
+	if item.Held == true then
+		return false, "Place it before trading it."
+	end
 	if type(item.ItemId) ~= "string" or not LootConfig.ById[item.ItemId] then
 		return false, "That item can't be traded."
 	end

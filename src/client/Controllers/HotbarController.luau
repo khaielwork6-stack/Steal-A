@@ -28,6 +28,17 @@
 	(3-5) are shown, lifted above the DROP button, and pressing or tapping one
 	USES the gadget directly (GadgetController.quickUse) instead of equipping
 	its Tool, so nothing about the carry or the hand changes.
+
+	HELD ITEMS [hold-items]. After the tool slots (1..SLOT_COUNT) come up to
+	HoldConfig.MAX_HELD_ITEMS more slots, one per item currently held in the
+	hands (server: HoldService). They ride the ordinary `inventory` field
+	already pushed for the Storage panel - filtered to Held items, ranked by
+	HeldOrder ascending, so "pick up a second item and the hand becomes 1, 2"
+	needs no renumbering here or on the server: rank IS the slot number.
+	Keys 6-9 and 0 equip hand slots 1-4; the (rare) 5th and 6th are tap-only.
+	Tapping a hand slot does not equip a Tool - it fires HoldRequest("equip",
+	rank), the same as pressing its key. These slots are hidden while
+	carrying stolen loot, same rule as the gadget slots.
 ]]
 
 local Players = game:GetService("Players")
@@ -36,7 +47,11 @@ local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local HoldConfig = require(ReplicatedStorage.Shared.Config.HoldConfig)
+local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
+local ItemThumb = require(ReplicatedStorage.Shared.Util.ItemThumb)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local HotbarController = {}
 
@@ -86,6 +101,15 @@ local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.Three] = 3,
 	[Enum.KeyCode.Four] = 4,
 	[Enum.KeyCode.Five] = 5,
+	-- [hold-items] Hand slots continue the numbering (SLOT_COUNT + rank).
+	-- Five number-row keys are left (6, 7, 8, 9, 0): hand ranks 1-5 get a
+	-- key each; if HoldConfig.MAX_HELD_ITEMS's 6th slot is ever filled it is
+	-- still shown, numbered 11, but is tap/click-only (no key left to bind).
+	[Enum.KeyCode.Six] = SLOT_COUNT + 1,
+	[Enum.KeyCode.Seven] = SLOT_COUNT + 2,
+	[Enum.KeyCode.Eight] = SLOT_COUNT + 3,
+	[Enum.KeyCode.Nine] = SLOT_COUNT + 4,
+	[Enum.KeyCode.Zero] = SLOT_COUNT + 5,
 }
 
 local STROKE_IDLE = Color3.fromRGB(0, 0, 0)
@@ -99,6 +123,9 @@ local VIEW_DIRECTION = Vector3.new(1, 0.6, 1.2).Unit
 
 --- `lifted` / `lift`: the equipped state the slot's scale was last sent to,
 --- and the tween doing it, so a render that changes nothing creates nothing.
+--- `heldId`: [hold-items] the InstanceId a HAND slot last painted, so a
+--- render that shows the same held item repaints nothing (tool: field is
+--- always nil for a hand slot; heldId is always nil for a tool slot).
 type Slot = {
 	button: TextButton,
 	count: TextLabel?,
@@ -107,6 +134,7 @@ type Slot = {
 	viewport: ViewportFrame?,
 	scale: UIScale,
 	tool: Tool?,
+	heldId: string?,
 	lifted: boolean?,
 	lift: Tween?,
 }
@@ -116,6 +144,27 @@ local barFrame: Frame? = nil
 local slots: { Slot } = {}
 --- Which tool each slot shows this frame, by slot index.
 local assignment: { [number]: Tool } = {}
+--- [hold-items] How many of `slots` are real tool slots (<= SLOT_COUNT); the
+--- rest are hand slots. Set once in build() - never `#slots`, which after
+--- the hand slots are appended would let gatherTools() spill a Backpack tool
+--- into a hand slot's index.
+local builtToolSlots = 0
+--- [hold-items] The player's currently HELD items (profile.Inventory
+--- entries with Held == true), ranked by HeldOrder ascending - rank N is
+--- hand slot N. Rebuilt from StateStore's `inventory` field whenever its
+--- held subset actually changes.
+local heldItems: { any } = {}
+local heldSignature = ""
+
+--- True if slot `index` refers to a HAND slot rather than a tool slot.
+local function isHeldSlot(index: number): boolean
+	return index > SLOT_COUNT
+end
+
+--- The 1-based hand rank a hand slot's index maps to.
+local function heldRankOf(index: number): number
+	return index - SLOT_COUNT
+end
 
 -- ==========================================================
 -- TEMPLATE
@@ -227,6 +276,45 @@ local function paintIcon(slot: Slot, tool: Tool?)
 end
 
 -- ==========================================================
+-- HELD ITEMS [hold-items]
+-- ==========================================================
+
+--- Paints (or clears) a HAND slot's icon with the real item's model, the
+--- same ViewportFrame-on-a-rarity-plate the Storage panel uses (ItemThumb) -
+--- so a held trophy looks the same in the hotbar as it does in Storage.
+local function paintHeldIcon(slot: Slot, item: any?)
+	local icon = slot.icon
+	if not icon then
+		return
+	end
+	if not item then
+		local preview = icon:FindFirstChild("Preview")
+		if preview and preview:IsA("GuiObject") then
+			preview.Visible = false
+		end
+		return
+	end
+	ItemThumb.apply(icon, item.Rarity, item.ItemId)
+end
+
+--- A signature of just the Held subset of `inventory`, so a StatePush that
+--- changed something else (income, an unrelated stored item) never triggers
+--- a hand-slot repaint.
+local function heldSignatureOf(inventory: any): string
+	if type(inventory) ~= "table" then
+		return ""
+	end
+	local parts: { string } = {}
+	for _, item in inventory do
+		if type(item) == "table" and item.Held then
+			table.insert(parts, `{item.InstanceId}:{tostring(item.HeldOrder)}:{if item.HeldActive then 1 else 0}`)
+		end
+	end
+	table.sort(parts)
+	return table.concat(parts, "|")
+end
+
+-- ==========================================================
 -- TOOLS
 -- ==========================================================
 
@@ -255,8 +343,10 @@ local function gatherTools(): { [number]: Tool }
 		return a.Name < b.Name
 	end)
 
-	-- The slots actually built (a template may ship fewer than SLOT_COUNT).
-	local limit = if #slots > 0 then #slots else SLOT_COUNT
+	-- The TOOL slots actually built (a template may ship fewer than
+	-- SLOT_COUNT). NOT #slots - [hold-items] appends more entries to `slots`
+	-- for the hand slots, and a Backpack tool must never spill into one.
+	local limit = if builtToolSlots > 0 then builtToolSlots else SLOT_COUNT
 	local placed: { [number]: Tool } = {}
 	local rest: { Tool } = {}
 	for _, tool in tools do
@@ -288,7 +378,35 @@ local function labelOf(tool: Tool): string
 end
 
 --- `fromSlot`: the press was a tap/click on the slot rather than a key.
+--- [hold-items] A key press or a tap on a HAND slot: pulse it and ask the
+--- server to make that held item the one shown small in the hands. Never an
+--- equip of anything Tool-shaped, and refused outright while carrying stolen
+--- loot (the slot is hidden then anyway - this is the belt-and-braces check
+--- for a key pressed a frame before the hide took effect).
+local function toggleHeld(index: number)
+	if carrying then
+		return
+	end
+	local item = heldItems[heldRankOf(index)]
+	if not item or item.HeldActive then
+		return
+	end
+	local slot = slots[index]
+	if slot then
+		local pulse = TweenService:Create(slot.scale, LIFT, { Scale = 0.92 })
+		pulse:Play()
+		pulse.Completed:Once(function()
+			slot.scale.Scale = if slot.lifted then 1.08 else 1
+		end)
+	end
+	Remotes.get("HoldRequest"):FireServer("equip", heldRankOf(index))
+end
+
 local function toggle(index: number, fromSlot: boolean?)
+	if isHeldSlot(index) then
+		toggleHeld(index)
+		return
+	end
 	local tool = assignment[index]
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
@@ -346,26 +464,47 @@ local function render()
 		end
 	end
 	for index, slot in slots do
-		local tool = assignment[index]
-		-- A carry shows only the gadget slots (see the header).
-		local visible = not carrying or GADGET_SLOTS[index] == true
+		local isHeld = isHeldSlot(index)
+		local tool = if isHeld then nil else assignment[index]
+		local heldItem = if isHeld then heldItems[heldRankOf(index)] else nil
+		-- A carry shows only the gadget slots; a hand slot with nothing in
+		-- it is left invisible too (see the header - "nothing to show").
+		local visible = if isHeld then (not carrying and heldItem ~= nil) else (not carrying or GADGET_SLOTS[index] == true)
 		if slot.button.Visible ~= visible then
 			slot.button.Visible = visible
 		end
-		local changed = slot.tool ~= tool
-		slot.tool = tool
-		if changed then
-			paintIcon(slot, tool)
+		if isHeld then
+			local heldId = heldItem and heldItem.InstanceId
+			if slot.heldId ~= heldId then
+				slot.heldId = heldId
+				paintHeldIcon(slot, heldItem)
+			end
+		else
+			local changed = slot.tool ~= tool
+			slot.tool = tool
+			if changed then
+				paintIcon(slot, tool)
+			end
 		end
 		-- Every render, not only on a change of tool: a gadget's count lives
 		-- in its label and changes while the same Tool stays in the slot.
 		if slot.name then
-			local text = if tool then labelOf(tool) else ""
+			local text
+			if isHeld then
+				if heldItem then
+					local def = LootConfig.ById[heldItem.ItemId]
+					text = if def then def.name else heldItem.ItemId
+				else
+					text = ""
+				end
+			else
+				text = if tool then labelOf(tool) else ""
+			end
 			if slot.name.Text ~= text then
 				slot.name.Text = text
 			end
 		end
-		local equipped = tool ~= nil and tool == held
+		local equipped = if isHeld then (heldItem ~= nil and heldItem.HeldActive == true) else (tool ~= nil and tool == held)
 		-- COLOUR ONLY, never the thickness: the pack authors its strokes at a
 		-- fraction of a pixel and a plain pixel value makes the engine draw the
 		-- border as a filled slab the size of the screen (see ShopKit).
@@ -374,7 +513,7 @@ local function render()
 			stroke.Color = if equipped then STROKE_EQUIPPED else STROKE_IDLE
 		end
 		slot.button.BackgroundColor3 = if equipped then FACE_EQUIPPED else FACE_IDLE
-		slot.button.BackgroundTransparency = if tool then 0.25 else 0.6
+		slot.button.BackgroundTransparency = if (tool or heldItem) then 0.25 else 0.6
 		-- Only when the lift actually changes: every render used to start a
 		-- fresh tween on all four slots, equipped or not.
 		if slot.lifted ~= equipped then
@@ -413,7 +552,13 @@ local function applySize()
 	local pixels = slotPixels()
 	local shown = 0
 	for index in slots do
-		if not carrying or GADGET_SLOTS[index] then
+		-- [hold-items] A hand slot only counts toward the bar's width while
+		-- it actually holds something; an empty one is never shown (see
+		-- render()'s visibility rule, mirrored here).
+		local counts = if isHeldSlot(index)
+			then (not carrying and heldItems[heldRankOf(index)] ~= nil)
+			else (not carrying or GADGET_SLOTS[index] == true)
+		if counts then
 			shown += 1
 		end
 	end
@@ -422,6 +567,32 @@ local function applySize()
 	for _, slot in slots do
 		slot.button.Size = UDim2.fromOffset(pixels, pixels)
 	end
+end
+
+--- [hold-items] Rebuilds `heldItems` (ranked, HeldOrder ascending) from the
+--- latest `inventory` field and re-renders, but only when the held subset
+--- actually changed - `inventory` rides every StatePush merge regardless of
+--- whether IT changed (see StateStore), so this is the cheap-diff gate.
+local function setHeldItems(inventory: any)
+	local signature = heldSignatureOf(inventory)
+	if signature == heldSignature then
+		return
+	end
+	heldSignature = signature
+	local list: { any } = {}
+	if type(inventory) == "table" then
+		for _, item in inventory do
+			if type(item) == "table" and item.Held then
+				table.insert(list, item)
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		return (tonumber(a.HeldOrder) or 0) < (tonumber(b.HeldOrder) or 0)
+	end)
+	heldItems = list
+	applySize()
+	queueRender()
 end
 
 --- The DROP button while it is on screen, or nil. Its AbsolutePosition is
@@ -532,6 +703,11 @@ local function build(): boolean
 			table.insert(buttons, child)
 		end
 	end
+	-- [hold-items] A pristine copy of one slot, taken BEFORE the loop below
+	-- paints or renames anything, so the hand slots appended after it start
+	-- from the same clean template rather than a tool-icon-primed leftover.
+	local heldTemplateButton = if buttons[1] then buttons[1]:Clone() else nil
+	builtToolSlots = math.min(#buttons, SLOT_COUNT)
 	for index, button in buttons do
 		if index > SLOT_COUNT then
 			button:Destroy()
@@ -564,7 +740,7 @@ local function build(): boolean
 		local found = button:FindFirstChild("Icon", true)
 		local icon = if found and found:IsA("ImageLabel") then found else nil
 
-		local slot: Slot = { button = button, count = count, name = name, icon = icon, viewport = nil, scale = scale, tool = nil }
+		local slot: Slot = { button = button, count = count, name = name, icon = icon, viewport = nil, scale = scale, tool = nil, heldId = nil }
 		slots[index] = slot
 		if icon then
 			paintIcon(slot, nil)
@@ -573,6 +749,50 @@ local function build(): boolean
 		button.Activated:Connect(function()
 			toggle(index, true)
 		end)
+	end
+
+	-- [hold-items] Up to HoldConfig.MAX_HELD_ITEMS more slots, appended after
+	-- the tool slots (same LayoutOrder scheme, so the UIListLayout just
+	-- keeps going along the bar) - one per possible held item. Empty ones
+	-- are built but left invisible; render() shows only the ones in use.
+	if heldTemplateButton then
+		for rank = 1, HoldConfig.MAX_HELD_ITEMS do
+			local index = SLOT_COUNT + rank
+			local button = heldTemplateButton:Clone()
+			button.Name = `Slot{index}`
+			button.LayoutOrder = index
+			button.Text = ""
+			button.AutoButtonColor = false
+			button.Active = true
+			button.Selectable = true
+			button.Visible = false
+			local scale = button:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+			scale.Parent = button
+
+			local count = labelIn(button, "Count")
+			if count then
+				count.Text = tostring(index)
+			end
+			local name = labelIn(button, "Earns")
+			if name then
+				name.Text = ""
+				local gradient = name:FindFirstChildOfClass("UIGradient")
+				if gradient then
+					gradient:Destroy()
+				end
+				name.TextColor3 = Color3.fromRGB(240, 244, 252)
+			end
+			local found = button:FindFirstChild("Icon", true)
+			local icon = if found and found:IsA("ImageLabel") then found else nil
+
+			local slot: Slot = { button = button, count = count, name = name, icon = icon, viewport = nil, scale = scale, tool = nil, heldId = nil }
+			slots[index] = slot
+
+			button.Activated:Connect(function()
+				toggle(index, true)
+			end)
+			button.Parent = bar
+		end
 	end
 
 	applySize()
@@ -656,9 +876,12 @@ function HotbarController.start()
 	end)
 
 	-- The carry layout (round3-gameplay): gadget slots only, above DROP.
+	-- [hold-items] Same push carries `inventory`, which is where the held
+	-- set lives (Storage entries flagged Held) - no separate remote needed.
 	require(script.Parent.Parent.StateStore).subscribe(function(state)
 		if type(state) == "table" then
 			setCarrying(state.carrying ~= nil)
+			setHeldItems(state.inventory)
 		end
 	end)
 	player.CharacterAdded:Connect(function()

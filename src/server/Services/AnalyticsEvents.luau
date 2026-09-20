@@ -289,6 +289,9 @@ AnalyticsEvents.CUSTOM_EVENTS = {
 	"CrewAssist", "SpinUsed", "CodeRedeemed",
 	-- purchases and performance
 	"PurchaseCancelled", "PerfSpike",
+	-- [hold-items] fields kept low-cardinality: rarity name + a small "nN"
+	-- hand-count bucket, never an item id or name.
+	"ItemPickedUp", "ItemPlaced",
 } :: { string }
 
 local customAllowed: { [string]: true } = {}

@@ -204,11 +204,11 @@ export type CommitOptions = {
 --- so this service can be tested without a client.
 function HatchService.onHatched(_player: Player, _item: DataService.DisplayItem, _options: CommitOptions?) end
 
---- Fired when a reveal lock lifts, so the slot prompt comes back as "Store".
---- The swap rebuild runs while the lock is still held, so without this the
---- prompt would stay dark until the next unrelated rebuild. Overridden by
---- init.server (PlacementService.refreshPrompts); injected to keep the two
---- services acyclic.
+--- Fired when a reveal lock lifts, so the slot prompt comes back as
+--- "Pick up <name>" [hold-items]. The swap rebuild runs while the lock is
+--- still held, so without this the prompt would stay dark until the next
+--- unrelated rebuild. Overridden by init.server (PlacementService.refreshPrompts);
+--- injected to keep the two services acyclic.
 function HatchService.onLockLifted(_player: Player) end
 
 --- THE ONE PLACE a container becomes an item. Returns false plus a

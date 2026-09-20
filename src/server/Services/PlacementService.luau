@@ -35,6 +35,7 @@ local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
 local HatchService = require(script.Parent.HatchService)
 local HeistService = require(script.Parent.HeistService)
+local HoldService = require(script.Parent.HoldService) -- [hold-items]
 local IndexService = require(script.Parent.IndexService)
 local LootService = require(script.Parent.LootService)
 local StateService = require(script.Parent.StateService)
@@ -269,6 +270,15 @@ function PlacementService.equip(player: Player, instanceId: string): (boolean, s
 
 	for index, item in profile.Inventory do
 		if item.InstanceId == instanceId then
+			-- [hold-items] A held item already has its own placement path
+			-- (HoldService.place, from the pad you are standing at) that
+			-- clears Held/HeldOrder/HeldActive and rebuilds the hand visual;
+			-- going through here instead would leave it flagged Held while
+			-- also standing on a pad and earning. Refused, not silently
+			-- fixed - the safest of the two.
+			if item.Held then
+				return false, "Place it from your hands instead."
+			end
 			table.remove(profile.Inventory, index)
 			item.SlotIndex = free[1]
 			table.insert(profile.DisplayItems, item)
@@ -316,6 +326,11 @@ function PlacementService.sellStored(player: Player, instanceId: string): (boole
 			-- and pricing it would say. Reveal it first.
 			if item.Hatched == false then
 				return false, "Reveal it first!"
+			end
+			-- [hold-items] Safest option, same reasoning as FusionService: an
+			-- item in your hands must be placed before it can be sold.
+			if item.Held then
+				return false, "Place it first!"
 			end
 			-- Server calculates the payout; the client never supplies a value.
 			-- Priced from the item WITH ITS MUTATION STRIPPED (the reference
@@ -739,11 +754,15 @@ function PlacementService.refreshPrompts(player: Player)
 		-- Only the prompt is owned here.
 		--
 		-- ONE PROMPT, ONE ACTION PER STATE:
-		--   empty slot            -> Place
+		--   empty slot            -> Place (carried stolen loot if you have
+		--                            any, otherwise your held item if you are
+		--                            holding one - the trigger below decides
+		--                            which; either way the pad just says
+		--                            "Place")
 		--   sealed, counting      -> Instant Reveal
 		--   sealed, ready         -> Reveal
 		--   revealing (animation) -> nothing at all
-		--   revealed item         -> Store
+		--   revealed item         -> Pick up <name>  [hold-items]
 		-- The client flips Instant Reveal to Reveal itself the second its own
 		-- clock hits zero (RevealEndsAt), and the server re-derives the real
 		-- state on every trigger, so the label is never the authority.
@@ -759,17 +778,21 @@ function PlacementService.refreshPrompts(player: Player)
 			p.ActionText = if HatchService.remaining(item) > 0 then "Instant Reveal" else "Reveal"
 			p.HoldDuration = 0.4
 		else
-			-- Taking an item off display STORES it. Selling is a deliberate
-			-- action taken later from the inventory panel, so a mis-click
-			-- cannot destroy a rare trophy.
-			p.ActionText = "Store"
+			-- [hold-items] Taking a revealed trophy off display now picks it
+			-- UP into the hands rather than plain-storing it (the reference
+			-- game's own behaviour: E on a pedestal item hotbars it). Named,
+			-- like the reference's own prompt. PlacementService.store still
+			-- exists and is still reachable from the Storage/Debug paths for
+			-- anything that wants a held-less store; nothing else calls it.
+			local def = LootConfig.ById[item.ItemId]
+			p.ActionText = `Pick up {if def then def.name else item.ItemId}`
 			p.HoldDuration = 0.4
 		end
 		-- NO OBJECT LINE. It used to read "Display Slot 3", which told the
 		-- player nothing they could not see - they are standing on the pad, and
 		-- the number is bookkeeping. The card falls back to showing the ACTION
 		-- alone when this is empty (InteractController), which is the whole
-		-- message: HOLD Store.
+		-- message: HOLD Pick up <name>.
 		p.ObjectText = ""
 	end
 end
@@ -850,7 +873,16 @@ function PlacementService.start()
 
 		local ok, reason
 		if not item then
-			ok, reason = PlacementService.place(player, index)
+			-- [hold-items] An empty pad's "Place" means whichever the player
+			-- actually has in hand. Carried STOLEN loot always wins the
+			-- ambiguity: that is the core loop's payoff beat and a player
+			-- mid-delivery must never have the press silently swallowed by an
+			-- unrelated base item instead.
+			if CarryService.getCarried(player) then
+				ok, reason = PlacementService.place(player, index)
+			else
+				ok, reason = HoldService.place(player, index)
+			end
 		elseif item.Hatched == false then
 			if HatchService.remaining(item) > 0 then
 				ok, reason = HatchService.promptInstantReveal(player, item.InstanceId)
@@ -858,7 +890,9 @@ function PlacementService.start()
 				ok, reason = HatchService.commit(player, item.InstanceId)
 			end
 		else
-			ok, reason = PlacementService.store(player, index)
+			-- [hold-items] Was PlacementService.store; a revealed trophy now
+			-- goes into the hands instead (see refreshPrompts above).
+			ok, reason = HoldService.pickup(player, index)
 		end
 
 		if not ok and reason then

@@ -36,6 +36,7 @@ local CarryService = require(Services.CarryService)
 local GuardianService = require(Services.GuardianService)
 local IndexService = require(Services.IndexService)
 local PlacementService = require(Services.PlacementService)
+local HoldService = require(Services.HoldService) -- [hold-items]
 local SpeedService = require(Services.SpeedService)
 local ZoneSignService = require(Services.ZoneSignService)
 local EventStandService = require(Services.EventStandService)
@@ -528,6 +529,7 @@ do
 	CrewService.start()
 end
 PlacementService.start()
+HoldService.start() -- [hold-items] after PlacementService: shares its ProximityPrompt/remote patterns, not its state
 SpeedService.start()
 -- The walk-through lobby and the treadmill auto-mount; needs SpeedService's
 -- trigger test and GuardianService's collision groups, so it starts after both.
