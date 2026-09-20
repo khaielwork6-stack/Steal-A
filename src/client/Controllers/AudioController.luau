@@ -41,7 +41,6 @@ local AudioController = {}
 local player = Players.LocalPlayer
 
 local lastHoverAt = 0
-local musicSound: Sound? = nil
 --- True behind the red line (lobby bed), false out in the zones (zone bed).
 local musicWanted = false
 --- Lets an event-specific cue cancel the generic notification beep queued for
@@ -181,14 +180,158 @@ local function fadeTo(sound: Sound?, cueName: string, target: number)
 	TweenService:Create(sound, TweenInfo.new(cue.fade or 1, Enum.EasingStyle.Sine), { Volume = target }):Play()
 end
 
+-- ==========================================================
+-- THE LOBBY PLAYLIST
+-- ==========================================================
+--
+-- The lobby bed is AudioConfig.LobbyPlaylist: six tracks in the owner's order,
+-- then round to the first again. Two levels of volume keep the two fades from
+-- fighting each other:
+--   * the BED fade (crossing the red line, a chase) tweens ONE nested
+--     SoundGroup, "LobbyBed", between 0 and 1;
+--   * the TRACK crossfade tweens each Sound's own Volume.
+-- The next track starts `crossfade` seconds before the current one ends, so
+-- there is never silence and never a cut. While the bed is silent the
+-- playlist is PAUSED, so walking back into the lobby resumes the same bar.
+
+type PlaylistTrack = { sound: Sound, index: number, startedAt: number, fadingOut: boolean }
+
+local lobbyGroup: SoundGroup? = nil
+local lobbyTracks: { PlaylistTrack } = {}
+local lobbyIndex = 0
+local lobbyPaused = false
+local lobbySilentAt: number? = nil
+--- A track that has not loaded after this long is skipped (moderated, offline).
+local PLAYLIST_LOAD_TIMEOUT = 20
+
+local function ensureLobbyGroup(): SoundGroup?
+	if lobbyGroup and lobbyGroup.Parent then
+		return lobbyGroup
+	end
+	local music = Audio.groupFor("music")
+	if not music then
+		return nil
+	end
+	local group = Instance.new("SoundGroup")
+	group.Name = "LobbyBed"
+	group.Volume = 0
+	group.Parent = music
+	lobbyGroup = group
+	return group
+end
+
+local function trackVolume(index: number): number
+	local cue = AudioConfig.get("LobbyMusic")
+	local gain = AudioConfig.LobbyPlaylist.gains[index] or 1
+	return (if cue then cue.volume else 0.28) * gain
+end
+
+local function startLobbyTrack(index: number, fadeIn: number)
+	local group = ensureLobbyGroup()
+	local id = AudioConfig.LobbyPlaylist.ids[index]
+	if not group or not id then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.Name = `LobbyTrack{index}`
+	sound.SoundId = `rbxassetid://{id}`
+	sound.Looped = false
+	sound.Volume = if fadeIn > 0 then 0 else trackVolume(index)
+	sound.SoundGroup = group
+	sound.Parent = SoundService
+	sound:Play()
+	if fadeIn > 0 then
+		TweenService:Create(sound, TweenInfo.new(fadeIn, Enum.EasingStyle.Sine), { Volume = trackVolume(index) }):Play()
+	end
+	lobbyIndex = index
+	table.insert(lobbyTracks, { sound = sound, index = index, startedAt = os.clock(), fadingOut = false })
+end
+
+local function retireLobbyTrack(track: PlaylistTrack, fadeOut: number)
+	track.fadingOut = true
+	local sound = track.sound
+	if fadeOut > 0 then
+		TweenService:Create(sound, TweenInfo.new(fadeOut, Enum.EasingStyle.Sine), { Volume = 0 }):Play()
+	end
+	task.delay(fadeOut + 0.1, function()
+		local at = table.find(lobbyTracks, track)
+		if at then
+			table.remove(lobbyTracks, at)
+		end
+		sound:Destroy()
+	end)
+end
+
+local function nextLobbyIndex(): number
+	return lobbyIndex % #AudioConfig.LobbyPlaylist.ids + 1
+end
+
+--- The playlist's clock: hands over to the next track near the end of the
+--- current one, skips one that never loads, and pauses while silent.
+local function stepLobbyPlaylist()
+	local group = ensureLobbyGroup()
+	if not group then
+		return
+	end
+	local now = os.clock()
+	local wanted = musicWanted and not ducked
+
+	-- Paused while nobody can hear it, once the fade out has finished.
+	if not wanted and group.Volume <= 0.001 then
+		lobbySilentAt = lobbySilentAt or now
+		if not lobbyPaused and now - (lobbySilentAt :: number) > 0.5 then
+			lobbyPaused = true
+			for _, track in lobbyTracks do
+				track.sound:Pause()
+			end
+		end
+		return
+	end
+	lobbySilentAt = nil
+	if lobbyPaused then
+		lobbyPaused = false
+		for _, track in lobbyTracks do
+			track.sound:Resume()
+		end
+	end
+
+	local current: PlaylistTrack? = nil
+	for _, track in lobbyTracks do
+		if not track.fadingOut then
+			current = track
+		end
+	end
+	if not current then
+		startLobbyTrack(if lobbyIndex == 0 then 1 else nextLobbyIndex(), 0)
+		return
+	end
+
+	local sound = current.sound
+	local crossfade = AudioConfig.LobbyPlaylist.crossfade
+	if sound.IsLoaded and sound.TimeLength > 0 then
+		-- A track shorter than two crossfades just plays to its end.
+		local overlap = math.min(crossfade, sound.TimeLength / 4)
+		if sound.TimePosition >= sound.TimeLength - overlap or not sound.IsPlaying then
+			retireLobbyTrack(current, overlap)
+			startLobbyTrack(nextLobbyIndex(), overlap)
+		end
+	elseif now - current.startedAt > PLAYLIST_LOAD_TIMEOUT then
+		warn(`[AudioController] lobby track {current.index} never loaded; skipping`)
+		retireLobbyTrack(current, 0)
+		startLobbyTrack(nextLobbyIndex(), 0)
+	end
+end
+
 local function applyMusicVolume()
-	musicSound = ensureBed("LobbyMusic", musicSound)
 	zoneSound = ensureBed("ZoneMusic", zoneSound)
 	local lobbyCue = AudioConfig.get("LobbyMusic")
 	local zoneCue = AudioConfig.get("ZoneMusic")
-	local lobbyTarget = if musicWanted and not ducked and lobbyCue then lobbyCue.volume else 0
 	local zoneTarget = if not musicWanted and not ducked and zoneCue then zoneCue.volume else 0
-	fadeTo(musicSound, "LobbyMusic", lobbyTarget)
+	local group = ensureLobbyGroup()
+	if group then
+		local on = musicWanted and not ducked
+		TweenService:Create(group, TweenInfo.new(if lobbyCue then lobbyCue.fade or 1 else 1, Enum.EasingStyle.Sine), { Volume = if on then 1 else 0 }):Play()
+	end
 	fadeTo(zoneSound, "ZoneMusic", zoneTarget)
 end
 
@@ -346,6 +489,13 @@ function AudioController.start()
 	end)
 
 	RunService.Heartbeat:Connect(updateMusic)
+	-- The playlist clock. Four times a second is plenty for a 3 s crossfade.
+	task.spawn(function()
+		while true do
+			stepLobbyPlaylist()
+			task.wait(0.25)
+		end
+	end)
 end
 
 return AudioController

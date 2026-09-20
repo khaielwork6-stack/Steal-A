@@ -150,7 +150,9 @@ AudioConfig.Cues = {
 
 	-- ---------- music ----------
 	--- Plays only while the player is behind the red line. Faded, never cut.
-	LobbyMusic = { id = asset(1848354536), volume = 0.28, category = "music", looped = true, fade = 1.6 },
+	--- The id is the playlist's FIRST track; the bed itself is
+	--- AudioConfig.LobbyPlaylist below (volume/fade still come from here).
+	LobbyMusic = { id = asset(1841647093), volume = 0.28, category = "music", looped = true, fade = 1.6 },
 	--- Plays while the player is out in the zones and NOT being chased: the
 	--- chase loop replaces it the moment a guardian wakes, and the lobby bed
 	--- replaces it the moment they are back behind the line. Looped.
@@ -210,6 +212,19 @@ AudioConfig.ALARM_SECONDS = 4
 --- How close to the red line the music crossfade triggers, and the hysteresis
 --- band that stops it flapping when a player stands exactly on the boundary.
 AudioConfig.MUSIC_BOUNDARY_MARGIN = 12
+
+--- THE LOBBY PLAYLIST, in the owner's order, then round to the first again.
+--- `gains` trim each track to the same perceived loudness (measured with
+--- PlaybackLoudness in Studio; 1 = untouched) and multiply the cue's volume.
+--- `crossfade` seconds: the next track starts this long before the current
+--- one ends, so there is never a gap and never a hard cut.
+AudioConfig.LobbyPlaylist = {
+	ids = { 1841647093, 1840684529, 1845756489, 1845341094, 1840384233, 9045832226 },
+	-- Measured 2026-09-20 (average PlaybackLoudness at one volume):
+	-- 221, 127, 120, 91, 80, 126. Trimmed toward ~125.
+	gains = { 0.6, 1, 1.05, 1.3, 1.45, 1 },
+	crossfade = 3,
+} :: { ids: { number }, gains: { number }, crossfade: number }
 
 function AudioConfig.get(name: string): Cue?
 	return AudioConfig.Cues[name]
