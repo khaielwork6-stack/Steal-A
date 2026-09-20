@@ -1323,8 +1323,57 @@ function BaseService.teleportHome(player: Player): (boolean, string?)
 	return true
 end
 
+--- A SAFE ZONE THAT IS NOT OVER ITS OWN BASE (2026-09-20). The volume is a
+--- huge invisible box baked into the place, and "is this player home?" - every
+--- delivery and every placement - is answered from it. Dragged by accident in
+--- Studio (Base03 sat 53 studs to one side, Base04 had sunk), it made placing a
+--- stolen item impossible on that plot: "Get back to your base first!" while
+--- standing on it. So each one is checked at start against the two things it
+--- must cover - its plot's Spawn and its floor slab - and a stray one is put
+--- back where a healthy sibling's sits relative to its own slab.
+local function repairSafeZones(bases: Instance)
+	local function parts(plot: Instance): (BasePart?, BasePart?, BasePart?)
+		local safe = plot:FindFirstChild("SafeZone")
+		local spawn = plot:FindFirstChild("Spawn")
+		local floor = plot:FindFirstChild("PlotFloor")
+		local slab = floor and floor:FindFirstChild("Slab")
+		return if safe and safe:IsA("BasePart") then safe else nil,
+			if spawn and spawn:IsA("BasePart") then spawn else nil,
+			if slab and slab:IsA("BasePart") then slab else nil
+	end
+	local function covers(safe: BasePart, point: Vector3): boolean
+		local offset = safe.CFrame:PointToObjectSpace(point)
+		return math.abs(offset.X) <= safe.Size.X / 2 and math.abs(offset.Z) <= safe.Size.Z / 2
+	end
+	local function healthy(safe: BasePart, spawn: BasePart, slab: BasePart): boolean
+		return covers(safe, spawn.Position) and covers(safe, slab.Position)
+	end
+
+	local reference: CFrame? = nil
+	for _, plot in bases:GetChildren() do
+		local safe, spawn, slab = parts(plot)
+		if safe and spawn and slab and healthy(safe, spawn, slab) then
+			reference = slab.CFrame:ToObjectSpace(safe.CFrame)
+			break
+		end
+	end
+	for _, plot in bases:GetChildren() do
+		local safe, spawn, slab = parts(plot)
+		if not safe or not spawn or not slab or healthy(safe, spawn, slab) then
+			continue
+		end
+		if reference then
+			warn(`[BaseService] {plot.Name}.SafeZone was not over its own base ({safe.Position}); put back. Fix it in the place file.`)
+			safe.CFrame = slab.CFrame * reference
+		else
+			warn(`[BaseService] {plot.Name}.SafeZone is not over its own base and no healthy plot exists to copy from`)
+		end
+	end
+end
+
 function BaseService.start()
 	local bases = getBases()
+	repairSafeZones(bases)
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastTeleport[player] = nil
