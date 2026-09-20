@@ -9,6 +9,7 @@ local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
 local LaserConfig = require(ReplicatedStorage.Shared.Config.LaserConfig)
 local LaserPatterns = require(ReplicatedStorage.Shared.LaserPatterns)
+local LaserBeams = require(ReplicatedStorage.Shared.LaserBeams)
 local LootService = require(script.Parent.LootService)
 local MuseumTests = {}
 
@@ -206,6 +207,15 @@ function MuseumTests.run(): any
 				if LaserPatterns.isMover(segment) then expectedMoving += 1 end
 			end
 			check(count == #layout.segments and moving == expectedMoving, `{def.id} {name} built lasers match the generated layout ({count}/{#layout.segments}, {moving}/{expectedMoving} moving)`)
+			-- Client-side hits: every beam is findable by the id the client names it
+			-- by (LaserHit), and the shared reader agrees with the layout.
+			local readable = LaserBeams.room(index, roomIndex)
+			local idsOk = #readable == #layout.segments
+			for segmentIndex, segment in layout.segments do
+				local found = LaserBeams.find(index, roomIndex, segmentIndex)
+				idsOk = idsOk and found ~= nil and (found.moving ~= nil) == LaserPatterns.isMover(segment)
+			end
+			check(idsOk, `{def.id} {name} every beam is readable by its BeamId (LaserBeams)`)
 			-- Nobody is hit walking in, or standing at a display case, or at the
 			-- guard's post: the doorway apron and each socket's standing spot are
 			-- part of the validator's verdict above; the post is in the corridor.
@@ -577,6 +587,9 @@ function MuseumTests.paths(player: Player): any
 	local report: any = { rooms = rows }
 	local Movement = require(script.Parent.MovementService)
 	Movement.setExempt(player, true)
+	-- The player's own client would detect (and claim) these touches itself
+	-- (LaserHitController) from ITS posture; this test drives the server's half.
+	player:SetAttribute("LaserClientOff", true)
 	-- Zone 12 is a patrol zone; this measures the sleeping guard's walk
 	-- through the doorway and back to its post (see loops).
 	Guardian.suspendPatrols(true)
@@ -632,7 +645,9 @@ function MuseumTests.paths(player: Player): any
 		task.wait(0.3)
 		report.crouchClearedHighBeam = player:GetAttribute("LastLaserTrip") == nil
 		Laser.setCrouched(player, false)
-		task.wait(0.25)
+		-- The server detector holds a touch for CLIENT.CLAIM_GRACE before it
+		-- applies it (no client claimed): wait past that.
+		task.wait(LaserConfig.CLIENT.CLAIM_GRACE + 0.45)
 		local info = Guardian.inspect(3, 2)
 		-- (lasers-rework) Touching a beam THROWS the player at the doorway and
 		-- wakes nobody: it used to wake that room's guard at once.
@@ -649,6 +664,7 @@ function MuseumTests.paths(player: Player): any
 	Guardian.resetAll()
 	Guardian.suspendPatrols(false)
 	Laser.setCrouched(player, false)
+	player:SetAttribute("LaserClientOff", nil)
 	profile.Lifetime.Steals = steals
 	character:PivotTo(saved)
 	root.AssemblyLinearVelocity = Vector3.zero

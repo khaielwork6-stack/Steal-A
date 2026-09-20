@@ -819,7 +819,7 @@ end
 --- runs across the room (constant z and height), with no other beam of the
 --- layout within `clear` studs of it on the floor plan - somewhere a test can
 --- walk a character into exactly one known beam. Nil when there is none.
-function LaserPatterns.isolatedPoint(segments: { Segment }, kind: string, clear: number): (number?, number?)
+function LaserPatterns.isolatedPoint(segments: { Segment }, kind: string, clear: number): (number?, number?, number?)
 	for index, segment in segments do
 		if segment.kind ~= kind or LaserPatterns.isMover(segment) or segment.az ~= segment.bz or segment.ay ~= segment.by then
 			continue
@@ -844,11 +844,11 @@ function LaserPatterns.isolatedPoint(segments: { Segment }, kind: string, clear:
 				end
 			end
 			if alone then
-				return x, z
+				return x, z, index
 			end
 		end
 	end
-	return nil, nil
+	return nil, nil, nil
 end
 
 --- Beam counts by kind, for reports.

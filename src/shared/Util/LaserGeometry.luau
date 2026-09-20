@@ -197,4 +197,73 @@ function LaserGeometry.sweptSegmentHit(segment: MovingSegment, t0: number, t1: n
 	return false
 end
 
+-- ==========================================================
+-- ONE BODY, ONE BEAM TEST - SHARED BY THE SERVER AND THE CLIENT
+-- ==========================================================
+--
+-- (lasers-rework, client-side hits) The player's OWN client now detects a
+-- touch the frame it happens and starts the flight at once; the server keeps
+-- its own detector as the authority for clients that never report. Both must
+-- mean the same thing by "touched", so the silhouette and the beam test live
+-- here and nowhere else.
+
+--- The laser silhouette of a character: (centre, half extents). `position` is
+--- the HumanoidRootPart's. Feet follow the actual rig, so a jump clears a low
+--- beam; `crouched` swaps the height (BODY.STAND_HEIGHT / CROUCH_HEIGHT are
+--- passed in by the caller so this module stays free of the config).
+function LaserGeometry.bodyBox(
+	position: Vector3,
+	hipHeight: number,
+	rootSizeY: number,
+	r6: boolean,
+	height: number,
+	halfWidth: number
+): (Vector3, Vector3)
+	local leg = if r6 then 2 else 0
+	local feet = position.Y - hipHeight - rootSizeY / 2 - leg
+	return Vector3.new(position.X, feet + height / 2, position.Z), Vector3.new(halfWidth, height / 2, halfWidth)
+end
+
+--- A room beam as data: static (a, b) or moving (`moving` set; a, b are its
+--- rest end points). `min` / `max` bound everything it can ever occupy.
+export type Beam = {
+	id: number,
+	zone: number,
+	room: number,
+	a: Vector3,
+	b: Vector3,
+	moving: MovingSegment?,
+	min: Vector3,
+	max: Vector3,
+}
+
+--- Bounds of a beam over its whole travel. Fills min / max.
+function LaserGeometry.beamBounds(a: Vector3, b: Vector3, travel: Vector3?): (Vector3, Vector3)
+	local lo = Vector3.new(math.min(a.X, b.X), math.min(a.Y, b.Y), math.min(a.Z, b.Z))
+	local hi = Vector3.new(math.max(a.X, b.X), math.max(a.Y, b.Y), math.max(a.Z, b.Z))
+	if travel then
+		lo = Vector3.new(math.min(lo.X, lo.X + travel.X), math.min(lo.Y, lo.Y + travel.Y), math.min(lo.Z, lo.Z + travel.Z))
+		hi = Vector3.new(math.max(hi.X, hi.X + travel.X), math.max(hi.Y, hi.Y + travel.Y), math.max(hi.Z, hi.Z + travel.Z))
+	end
+	return lo, hi
+end
+
+--- Does the body, moving from `from` to `to` over server times t0..t1, touch
+--- `beam`? A cheap bounding-box rejection first (a room holds up to 40 beams
+--- and the client asks every frame), then the exact swept test.
+function LaserGeometry.beamHit(beam: Beam, t0: number, t1: number, from: Vector3, to: Vector3, half: Vector3): boolean
+	local pad = half + Vector3.new(0.3, 0.3, 0.3)
+	local bodyLo = Vector3.new(math.min(from.X, to.X), math.min(from.Y, to.Y), math.min(from.Z, to.Z)) - pad
+	local bodyHi = Vector3.new(math.max(from.X, to.X), math.max(from.Y, to.Y), math.max(from.Z, to.Z)) + pad
+	if bodyHi.X < beam.min.X or bodyLo.X > beam.max.X or bodyHi.Y < beam.min.Y or bodyLo.Y > beam.max.Y
+		or bodyHi.Z < beam.min.Z or bodyLo.Z > beam.max.Z then
+		return false
+	end
+	local moving = beam.moving
+	if moving then
+		return LaserGeometry.sweptSegmentHit(moving, t0, t1, from, to, half)
+	end
+	return LaserGeometry.sweptBoxHit(beam.a, beam.b, from, to, half)
+end
+
 return LaserGeometry

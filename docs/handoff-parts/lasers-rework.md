@@ -25,6 +25,7 @@ or loot-weight change).
 | `src/server/Services/LaserService.luau` | the throw (`exitAim`, `hit`), room movers, no cooldown, no alarm |
 | `src/server/Services/RagdollService.luau` | the wall probe now sets `RespectCanCollide = true` (see Decisions 6) |
 | `src/client/Controllers/LaserFxController.luau` (new) | poses movers, beam flash, camera shake; started in `init.client.luau` |
+| `LaserHitController`, `shared/LaserFlight`, `shared/LaserBeams`, `tools/lasertest/` (second pass) | client-side hits: see "Client-side hits" below |
 | `src/server/Services/DebugCommands/Lasers.luau` (new) | `laserRoutes`, `laserLayout`, `laserTouchTest`, `laserMoverSync` |
 | `src/server/Services/MuseumTests.luau` | laser expectations rewritten (below) |
 | `src/shared/Config/validate.luau` | one LASERS block |
@@ -221,6 +222,155 @@ ceiling. The Jammer flicker works unchanged (it writes
   Any change reshuffles that zone's rooms; rerun `laserRoutes`.
 - Strictness: `VALIDATOR` (clearances, `MIN_WINDOW`, slow speeds).
 - A different room for the same numbers: change `LaserPatterns.seedFor`.
+
+## Client-side hits (second pass, from the owner's first playtest)
+
+Feedback: "once I touch them and they send me backwards ... it seems like my
+FPS is dropping ... Also it seems like I always PASS it before it hits me."
+Both were real, and both are fixed by moving detection and flight onto the
+player's own client. **Not run in Studio: the lead must test the client (plan
+below).** The pure pieces ran offline (`bash tools/lasertest/run.sh`).
+
+**Diagnosis (verified in the code).**
+(a) `LaserService` tested at 10 Hz from replicated positions. At WalkSpeed 260
+the body moves 26 studs per sample, plus a network trip, so the touch was found
+after the body was past the beam and the throw started late.
+(b) `RagdollService.launch` takes network ownership and writes `root.CFrame`
+every Heartbeat: the owning client then sees its own character as ~20 Hz
+snapshots, which reads as lag.
+
+**New design.**
+
+| Piece | Where | Does |
+| --- | --- | --- |
+| `LaserHitController` (new client) | `src/client/Controllers` | every frame (bound before the camera): swept body vs the room's beams; on a touch: starts the flight, flashes / shakes, fires `LaserHit` |
+| `LaserFlight` (shared, pure) | `src/shared/LaserFlight.luau` | `planLocal` / `plan` (the path: doorway then landing) and `sampler` (position at fraction t: polyline + arc). The client flies it; `RagdollService.launch` `path` uses the same sampler; `LaserService.exitPath` delegates to it |
+| `LaserGeometry.bodyBox` / `beamHit` | shared | THE silhouette and THE beam test (static or moving, bounding-box rejection first) for both sides |
+| `LaserBeams` (shared) | `src/shared/LaserBeams.luau` | reads beam parts into data by room and `BeamId`; server and client both use it |
+| `LaserService.claim` | server | the `LaserHit` validation entry point |
+| `LaserService` fallback detector | server | now `SERVER_HZ = 30`; holds a touch `CLAIM_GRACE = 0.25 s`; applies it itself if no claim came |
+| `RagdollService.stampFlight` | server | stamp-only: `isRagdolled` + immunity + `allowTeleport`, no launch, no PlatformStand |
+
+**Client detection** (`LaserHitController.detect`). Previous frame's position to
+this frame's, exactly like the server's sweep, so a fast body cannot tunnel;
+crouch = the posture the player asked for (`CrouchController.isCrouched`, new),
+so pressing C just before a beam counts at once. Stands down for: Jammer
+(`GadgetJamUntil`), Night, outside the lane, humanoid PlatformStand / Sit, the
+server having the body immune (new character attribute `RagdollImmuneUntil`,
+written by `RagdollService.grantImmunity`: a guard's catch, a bat hit, the tail
+of a flight), Studio `setExempt` (now also published as player attribute
+`LaserExempt`), and the debug attribute `LaserClientOff`.
+
+**Client flight.** PlatformStand + Physics state, then each frame
+`root.CFrame = sampler(t) * tumble`, zero velocities; at t = 1 a 12 stud/s
+slide, `GROUND_STUN` (1 s) lying limp, then a recovery-net raycast (no floor
+below: back to where the flight began), `PlatformStand = false`, `GettingUp`.
+No ownership change, no server write to the character, no per-frame remote.
+Tumble is time-based (7 / 3 / 7 rad/s), gentler than the server version's
+per-frame spin. Camera: default camera follows; the light shake is
+`LaserFxController.onLocalHit` (skipped under Reduced Effects; the server's
+`LastLaserTrip` shake is de-duplicated against it), the beam flash is local and
+instant (the server's `HitAt` flash is de-duplicated per beam).
+
+**The claim.** One remote, `LaserHit(zoneIndex, roomIndex, beamId)` (appended
+block at the end of `Remotes.NAMES`; `GameConfig.RATE_LIMITS.LaserHit = 4` +
+`CLAIM_BURST 4`). `LaserService.claim` validates plausibility, not geometry:
+well-formed integers in range; rate limit; body alive; not Studio-exempt, not
+closed, not jammed, not `isRagdolled` / `isImmune`; the beam exists
+(`LaserBeams.find`); server-known position (`MovementService.verifiedPosition`)
+within `CLAIM_RADIUS 24 + peak speed x CLAIM_LATENCY 0.6` of the beam's whole
+possible space (at 260 studs/s that is ~180 studs: a fast body is well past the
+beam when its claim lands); inside the lane. Rejections are silent. On accept:
+`LastLaser*` (LaserTouched analytics unchanged), beam `HitAt`, carried museum
+loot dropped (`forceDrop`, at the server's view of the body), the zap, and
+`RagdollService.stampFlight(flight + GROUND_STUN - STAMP_TAIL)`.
+
+**Why the stamp is 0.4 s short (`STAMP_TAIL`).** The client stands up on its own
+clock one network trip before the server's, and at 260 studs/s a body can be back
+in a beam 0.1 s after standing (the first row is ~10 studs from the door). If the
+server's record outlasted the client's stand-up, that second, legitimate claim
+would be rejected as "already down" while the client flew anyway, unstamped.
+
+**Cheating.** A client that never reports is hit by the server detector: it holds
+the touch 0.25 s (`CLAIM_GRACE`), then applies it itself (drop, stamp, server-flown
+guided path). A client that reports falsely can only get thrown out of a room
+(and drop its loot): plausibility needs it near a real beam, and immunity stops
+re-claiming. A claim is also a movement-check window, so the server checks
+`LANDING_CHECK_AFTER` (0.5 s) after the flight should have landed that the body
+is within `LANDING_RADIUS` (60) of the landing point, else puts it on it (warn +
+`claimsSnapped`): a claim cannot be used to teleport. MovementService is not
+weakened; `allowTeleport` is granted by `stampFlight` exactly as `launch` did.
+
+**No double apply.** `applyByServer` and `claim` both refuse a player the server
+has on record as ragdolled / immune, and both stamp that record in the same Luau
+step (single-threaded: that is the lock). An accepted claim also clears any
+pending server touch and leaves a `handled` token (beam key + window) that drops
+a repeat detection of the same beam. Tested by `laserClientClaimTest`.
+
+**Vault arms** have no client detector (their parts carry no `BeamId`); the
+server detects them (now at 30 Hz) and applies at once with the server-flown
+path. They still look like the earlier laggy throw. Moving them onto the client
+means reading `VaultBeam` attributes in the controller and a beam key for arms;
+not done, say if you want it.
+
+### Tests
+
+- **Offline** (`bash tools/lasertest/run.sh client`): 80 631 checks - every static
+  beam kind of all 24 rooms crossed at 100 / 260 / 300 studs/s and 10-240 fps
+  always registers, a crouched body passes a high beam, moving beams by the clock
+  (lit registers, dark does not) across a full cycle, the flight leaves through
+  the door from a grid of positions in every room, the silhouette equals the old
+  server formula. `run.sh routes` re-runs the generator/validator.
+- `laserTouchTest [zone room]` - the SERVER-FALLBACK path (sets `LaserClientOff`
+  so a real client does not claim it): launched, guard asleep, landed at the door,
+  re-touch relaunches, carried loot dropped and returned, 0 movement violations.
+- `laserClientClaimTest [zone room]` - synthetic claims through `LaserService.claim`:
+  malformed / fractional / absent beam / far away rejected; a claim beside a real
+  beam accepted (stamped ragdolled + immune, `LastLaser*` set, guard asleep, no
+  server launch); a second claim while down rejected; a burst rate-limited; a
+  claim beating the server detector's grace leaves `serverApplied` unchanged.
+  Nothing flies the body (that is the client's), so the runner may be put on the
+  landing spot afterwards by the landing check.
+- validate: LASERS block extended (`CLIENT` bounds, `LaserHit` rate limit,
+  guided-flight numbers). museumTests: every beam readable by `BeamId`.
+- Updated for the 0.25 s grace: `museumPaths` (also sets `LaserClientOff`) and
+  `gadgetJamTest`.
+
+### Studio test plan for the client (cannot be run headless)
+
+Play with a real client (not a bot), Day.
+1. Run `laserRoutes`, `laserMoverSync`, `validate`, `museumTests`,
+   `laserTouchTest`, `laserClientClaimTest`: all `pass`.
+2. **The owner's two complaints.** At high WalkSpeed (the owner's ~260) run
+   straight into a low beam and a high beam in zones 1, 4, 7, 12: you must be hit
+   the moment you touch (no overshoot past the beam), and the flight must look
+   smooth at your normal frame rate (no 20 Hz stutter, camera follows, light
+   shake, beam flashes red-white). Repeat with the Studio Network Emulation at
+   150-250 ms: the hit is still instant on your screen.
+3. Server side of it: `Output` should show no `[MovementService]` violation, and
+   the guard stays asleep. Run `laserState` afterwards:
+   (`claimsAccepted` up, `serverApplied` 0, `claimsRejected` ~0, `claimsSnapped` 0).
+4. Stand up and run straight back into the beam within ~0.2 s: it must throw
+   again (no rejected-claim desync: you must not fly unrecorded; watch for a
+   `snap-back` warning or `claimsRejected` rising).
+5. Carry a container into a beam: it drops at/near the beam, guard fetches it,
+   does not chase you, no dupe.
+6. Jammer: no hit while jammed (client and server), hit after. Crouch (C) under a
+   high beam at speed: clean pass; press C just before it: counts.
+7. Fallback: in the console `game.Players.LocalPlayer:SetAttribute("LaserClientOff", true)`
+   then touch a beam: after ~0.25 s the SERVER throws you (the old server-flown
+   look); clear the attribute again.
+8. Reduced Effects on: no shake, plain colour blink. Team Test: the other client
+   sees you fly (normal replication) and the beam flash.
+9. Vault arm touch: still the server-flown path (known limitation above).
+
+### Constants (all in `LaserConfig`)
+
+`CLIENT.SERVER_HZ` 30, `CLAIM_GRACE` 0.25, `CLAIM_RADIUS` 24, `CLAIM_LATENCY` 0.6,
+`CLAIM_BURST` 4 (+ `GameConfig.RATE_LIMITS.LaserHit`), `STAMP_TAIL` 0.4,
+`LANDING_CHECK_AFTER` 0.5, `LANDING_RADIUS` 60, `SLIDE_SPEED` 12,
+`RESCUE_PROBE` 250; the flight itself is `KNOCKBACK.GUIDED_*`, `ARC_HEIGHT`,
+`GROUND_STUN`. The tumble rates are a local in `LaserHitController` (`TUMBLE`).
 
 ## Not done / to verify
 

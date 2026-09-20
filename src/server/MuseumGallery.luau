@@ -252,7 +252,7 @@ local function buildLasers(zone: Instance, decor: Instance, frame: CFrame, index
 		end
 	end
 
-	for _, segment in layout.segments do
+	for segmentIndex, segment in layout.segments do
 		local mover = LaserPatterns.isMover(segment)
 		local upright = segment.kind == "Vertical" or segment.kind == "Slide"
 		local topY = if upright then ceilingY else segment.by
@@ -262,6 +262,8 @@ local function buildLasers(zone: Instance, decor: Instance, frame: CFrame, index
 		beam:SetAttribute("ZoneIndex", index)
 		beam:SetAttribute("RoomIndex", roomIndex)
 		beam:SetAttribute("Kind", segment.kind)
+		-- The number a client names this beam by (LaserHit) and LaserBeams finds it by.
+		beam:SetAttribute("BeamId", segmentIndex)
 		if mover then
 			beam:SetAttribute("RestA", a)
 			beam:SetAttribute("RestB", b)

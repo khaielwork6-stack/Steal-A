@@ -309,6 +309,15 @@ Remotes.NAMES = {
 	--               stage; a "replay" session sets neither.
 	-- Rate-limited; grants nothing. See TutorialFilmService.
 	"TutorialFilmRequest",
+
+	-- ==========================================================
+	-- [lasers-rework] client -> server. LaserHit(zoneIndex, roomIndex, beamId):
+	-- the player's own client detected a touch of that room beam (it flies its
+	-- own character at once). The server validates PLAUSIBILITY (room and beam
+	-- exist, the player is near it, not jammed / immune / ragdolled / closed),
+	-- then applies the consequences (drop, stamp, analytics). Rate-limited;
+	-- a rejected claim is ignored silently. See LaserService.claim.
+	"LaserHit",
 }
 
 local folder: Folder

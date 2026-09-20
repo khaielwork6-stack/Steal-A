@@ -16,6 +16,7 @@ local RunService = game:GetService("RunService")
 
 -- A leaf (config only), so no cycle.
 local MovementService = require(script.Parent.MovementService)
+local LaserFlight = require(game:GetService("ReplicatedStorage").Shared.LaserFlight)
 
 local RagdollService = {}
 
@@ -68,12 +69,33 @@ function RagdollService.isRagdolled(player: Player): boolean
 	return untilTime ~= nil and os.clock() < untilTime
 end
 
+--- STAMP ONLY (lasers-rework, client-side hits). The player's own CLIENT is
+--- flying its own character (it owns the physics: nothing is launched here),
+--- and the server merely records it: `isRagdolled` and `isImmune` are true for
+--- `seconds`, and the movement check re-bases for `seconds` plus the
+--- stand-up grace - the flight is client-owned physics that a speed check
+--- would otherwise flag. Humanoid.PlatformStand is never read or written.
+function RagdollService.stampFlight(player: Player, seconds: number)
+	local untilTime = os.clock() + seconds
+	ragdolledUntil[player] = math.max(ragdolledUntil[player] or 0, untilTime)
+	RagdollService.grantImmunity(player, seconds)
+	MovementService.allowTeleport(player, seconds + STAND_UP_GRACE)
+end
+
 function RagdollService.isImmune(player: Player): boolean
 	return (immuneUntil[player] or 0) > os.clock()
 end
 
 function RagdollService.grantImmunity(player: Player, seconds: number)
 	immuneUntil[player] = math.max(immuneUntil[player] or 0, os.clock() + seconds)
+	-- PRESENTATION ONLY (lasers-rework): the player's own client reads this so
+	-- its laser hit test stands down while the server has them immune (a
+	-- guard's catch, a bat hit, the tail of a flight) - the server would
+	-- reject the claim anyway. Server time, like the other attribute stamps.
+	local character = player.Character
+	if character then
+		character:SetAttribute("RagdollImmuneUntil", workspace:GetServerTimeNow() + math.max(immuneUntil[player] - os.clock(), 0))
+	end
 end
 
 --- Seconds to keep polling for a landing before giving up and standing the
@@ -212,15 +234,11 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 		for _, point in path do
 			table.insert(points, point)
 		end
-		local lengths: { number } = {}
-		local total = 0
-		for index = 2, #points do
-			local length = (points[index] - points[index - 1]).Magnitude
-			lengths[index - 1] = length
-			total += length
-		end
+		-- The polyline and the arc are shared/LaserFlight.sampler - the SAME
+		-- function the player's own client flies when it reports the touch
+		-- itself (LaserHitController), so the two can never disagree.
+		local at = LaserFlight.sampler(root.Position, path, options.lift)
 		local seconds = math.clamp(options.pathSeconds or 0.7, 0.2, 3)
-		local startY, endY = points[1].Y, points[#points].Y
 		local spin = CFrame.Angles(math.rad(math.random(-14, 14)), math.rad(math.random(-10, 10)), math.rad(math.random(-14, 14)))
 		local rotation = root.CFrame.Rotation
 		local began = os.clock()
@@ -233,20 +251,8 @@ function RagdollService.launch(player: Player, fromPosition: Vector3, options: L
 				end
 				return
 			end
-			-- Where along the polyline, at constant speed.
-			local along = total * t
-			local position = points[#points]
-			for index = 1, #lengths do
-				if along <= lengths[index] or index == #lengths then
-					local fraction = if lengths[index] > 0 then math.clamp(along / lengths[index], 0, 1) else 1
-					position = points[index]:Lerp(points[index + 1], fraction)
-					break
-				end
-				along -= lengths[index]
-			end
-			local height = startY + (endY - startY) * t + 4 * options.lift * t * (1 - t)
 			rotation = rotation * spin
-			root.CFrame = CFrame.new(position.X, height, position.Z) * rotation
+			root.CFrame = CFrame.new(at(t)) * rotation
 			root.AssemblyLinearVelocity = Vector3.zero
 			root.AssemblyAngularVelocity = Vector3.zero
 			if t >= 1 then

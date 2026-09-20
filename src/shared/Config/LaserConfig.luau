@@ -86,6 +86,55 @@ LaserConfig.KNOCKBACK = {
 }
 
 -- ==========================================================
+-- WHO DETECTS THE TOUCH (client-side hits, 2026-09-20)
+-- ==========================================================
+--
+-- The owner's playtest: at 260 studs/s a 10 Hz server test noticed the beam
+-- 26 studs too late ("I always pass it before it hits me"), and a body flown
+-- by the server after taking its network ownership replicated at ~20 Hz
+-- ("my FPS is dropping"). So the player's OWN client detects the touch every
+-- frame and flies its own character (it owns the physics); it reports the
+-- touch with the LaserHit remote and the server VALIDATES PLAUSIBILITY. The
+-- server keeps its own detector - at SERVER_HZ - as the authority for a
+-- client that never reports: when IT sees a touch, it waits CLAIM_GRACE for
+-- the client's claim and applies the consequence itself only if none came.
+
+LaserConfig.CLIENT = {
+	--- The server's fallback detector runs at this rate (it was 10 Hz).
+	SERVER_HZ = 30,
+	--- A touch the server detects is applied by the server after this many
+	--- seconds unless the client claimed it in the meantime.
+	CLAIM_GRACE = 0.25,
+	--- A claim is plausible when the server-known position is within
+	--- CLAIM_RADIUS + peak speed x CLAIM_LATENCY of the claimed beam's space
+	--- (a fast body is already well past the beam by the time its claim, and
+	--- the server's view of it, arrive).
+	CLAIM_RADIUS = 24,
+	CLAIM_LATENCY = 0.6,
+	--- The LaserHit remote's limiter (GameConfig.RATE_LIMITS.LaserHit rates it;
+	--- this is the burst).
+	CLAIM_BURST = 4,
+	--- After an accepted claim the server checks, this long after it, that the
+	--- body is within LANDING_RADIUS of where the flight lands. A claim only
+	--- buys a movement-check window; a client that used it to teleport is put
+	--- on the landing spot instead of keeping the move.
+	LANDING_CHECK_AFTER = 0.5,
+	--- The server's record of a client-flown touch (ragdoll stamp, immunity)
+	--- lasts flight + GROUND_STUN minus this. The client stands up on ITS
+	--- clock, one network trip before the server's; a fast runner can walk
+	--- back into a beam within a tenth of a second of standing, and that
+	--- second claim must find the record already over.
+	STAMP_TAIL = 0.4,
+	LANDING_RADIUS = 60,
+	--- Client: the speed (studs/s) the body keeps at the end of a flight, so
+	--- it slides to a stop instead of freezing.
+	SLIDE_SPEED = 12,
+	--- Client: a body that lands with no floor within this far below it is put
+	--- back where the flight began (the recovery net RagdollService has).
+	RESCUE_PROBE = 250,
+}
+
+-- ==========================================================
 -- THE FIELD: WHERE BEAMS MAY BE (room-local studs)
 -- ==========================================================
 --

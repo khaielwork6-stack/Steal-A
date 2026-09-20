@@ -46,6 +46,14 @@ local function pose(character: Model, on: boolean)
 	end
 end
 
+--- The posture the player asked for, the instant they asked (the server's
+--- confirmation, `LaserCrouched`, arrives a network trip later). The client-side
+--- laser hit test (LaserHitController) uses it so pressing crouch just before a
+--- beam counts at once.
+function CrouchController.isCrouched(): boolean
+	return desired
+end
+
 function CrouchController.start()
 	-- NO BUTTON. The on-screen CROUCH / STAND button is gone on every device
 	-- (owner's call: it crowded the bottom-right with the jump button and the
