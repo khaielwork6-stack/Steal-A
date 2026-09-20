@@ -436,6 +436,8 @@ GameConfig.RATE_LIMITS = {
 	WeaponRequest = 3,
 	OfflineClaimRequest = 2,
 	HoldRequest = 4, -- [hold-items] pickup / place / equip, one bucket
+	-- [relic-roll] The client acking a played (or skipped) reveal.
+	RelicRollAck = 2,
 }
 
 -- ==========================================================

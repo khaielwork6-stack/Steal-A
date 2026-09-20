@@ -1576,6 +1576,67 @@ return function(): Report
 	end
 
 	-- ==========================================================
+	-- RELIC ROLL [relic-roll] - "MUSEUM RELICS [LIMITED]" gacha banner
+	-- ==========================================================
+	do
+		local RelicRollConfig = require(script.Parent.RelicRollConfig)
+		check(#RelicRollConfig.Tiers == 6, "the Relic Roll banner shows exactly six item figures")
+		local total = 0
+		local lastRank = 0
+		for _, tier in RelicRollConfig.Tiers do
+			total += tier.weight
+			local def = LootConfig.ById[tier.itemId]
+			check(def ~= nil, `RelicRollConfig: "{tier.itemId}" is not a real LootConfig item`)
+			if def then
+				-- OUT OF SCOPE says the Zone 8+ progression wall must never
+				-- move; the safest guarantee is that nothing sold here comes
+				-- from a zone anywhere near it, at any odds.
+				check(def.zoneIndex <= 8, `RelicRollConfig: "{tier.itemId}" is Zone {def.zoneIndex} - keep every tier at Zone 8 or earlier`)
+				local rank = RarityConfig.rank(def.rarity)
+				check(rank >= lastRank, `RelicRollConfig.Tiers must be ascending rarity ("{tier.itemId}" breaks the order)`)
+				lastRank = rank
+			end
+		end
+		check(total == RelicRollConfig.TOTAL_WEIGHT, `RelicRollConfig.Tiers must sum to {RelicRollConfig.TOTAL_WEIGHT}, sums to {total}`)
+		check(
+			RelicRollConfig.endsAt == nil or type(RelicRollConfig.endsAt) == "number",
+			"RelicRollConfig.endsAt must be nil or a unix second"
+		)
+
+		-- Every button the banner draws must resolve to a real, CONFIGURED
+		-- product (the brief supplied real ids, not the usual 0 placeholder).
+		check(#RelicRollConfig.ProductKeys == 4, "the banner sells exactly four buttons (1x/3x/10x/50x)")
+		local seenRollCounts: { [number]: boolean } = {}
+		for _, key in RelicRollConfig.ProductKeys do
+			local product = MonetizationConfig.ProductByKey[key]
+			check(product ~= nil and product.kind == "RelicRoll", `RelicRollConfig.ProductKeys: "{key}" is not a RelicRoll product`)
+			if product then
+				check(product.productId > 0, `MonetizationConfig: RelicRoll product "{key}" must have a real product id`)
+				check(type(product.rollCount) == "number" and product.rollCount > 0, `MonetizationConfig: RelicRoll product "{key}" needs a rollCount`)
+				if product.rollCount then
+					check(not seenRollCounts[product.rollCount], `MonetizationConfig: two RelicRoll products claim rollCount {product.rollCount}`)
+					seenRollCounts[product.rollCount] = true
+				end
+			end
+		end
+		-- The crossed-out "was" price the client prints above the 50x button
+		-- is WAS_PRICE_MULTIPLIER x the single roll's own real price (computed
+		-- client-side, never a typed-in number) - honest only if that is
+		-- actually MORE than what the bulk card charges, and the two keys
+		-- agree on how many rolls "50x" really is.
+		local single = MonetizationConfig.ProductByKey[RelicRollConfig.SINGLE_ROLL_KEY]
+		local bulk = MonetizationConfig.ProductByKey[RelicRollConfig.WAS_PRICE_KEY]
+		check(single ~= nil and bulk ~= nil, "RelicRollConfig.SINGLE_ROLL_KEY / WAS_PRICE_KEY must both be real RelicRoll products")
+		if single and bulk then
+			check(bulk.rollCount == RelicRollConfig.WAS_PRICE_MULTIPLIER * (single.rollCount or 1), "RelicRollConfig: WAS_PRICE_MULTIPLIER must match the bulk key's real rollCount")
+			check(
+				bulk.robux < single.robux * RelicRollConfig.WAS_PRICE_MULTIPLIER,
+				"RelicRollConfig: the bulk card must actually be cheaper than its own crossed-out \"was\" price"
+			)
+		end
+	end
+
+	-- ==========================================================
 	-- ANALYTICS-DISCORD (PolishConfig panels / perf sampler, and the
 	-- server-only DiscordConfig when this runs on the server)
 	-- ==========================================================

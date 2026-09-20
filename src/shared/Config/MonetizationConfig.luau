@@ -211,7 +211,7 @@ export type ProductDef = {
 	--- What the grant handler does with it. `amount` is Cash or Speed depending
 	--- on `kind`; a treadmill tier ignores it; a Steal delivers the reserved
 	--- item in the matching INCOME band (HeistService) and carries no amount.
-	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift" | "Gadget" | "Skip",
+	kind: "Cash" | "Speed" | "TreadmillTier" | "Steal" | "Reveal" | "Gift" | "Gadget" | "Skip" | "RelicRoll",
 	amount: number,
 	label: string,
 	--- Steal products only: the highest per-second income this tier covers.
@@ -234,6 +234,9 @@ export type ProductDef = {
 	--- Both advance the ONE shared tier ladder; the premium skip is only
 	--- sold to premium owners. See TIER SKIPS.
 	skipTrack: ("free" | "premium")?,
+	--- [relic-roll] RelicRoll products only: how many pulls this purchase
+	--- grants on the Museum Relics banner. See RELIC ROLL.
+	rollCount: number?,
 }
 
 -- ==========================================================
@@ -561,13 +564,39 @@ end
 MonetizationConfig.BOSS_OFFER_COOLDOWN = 90
 
 -- ==========================================================
+-- RELIC ROLL [relic-roll] - "MUSEUM RELICS [LIMITED]" gacha banner
+-- ==========================================================
+--
+-- Four consumable pulls on the Shop's top banner. `amount` is unused (0);
+-- `rollCount` is how many items RelicRollService rolls and grants. Delivered
+-- as a DIRECT grant - like a Gadget refill, there is nothing to reserve - by
+-- a handler RelicRollService installs on MonetizationService (setRelicRoll
+-- Handler), so this file never depends on that service.
+--
+-- These four ids were CREATED ALREADY via Open Cloud (owner-provided,
+-- 2026-09-20) - real ids from day one, not the usual 0 placeholder.
+MonetizationConfig.RelicRollProducts = {
+	{ key = "RelicRoll1x", productId = 3713786892, robux = 52, kind = "RelicRoll", amount = 0, label = "1x", rollCount = 1 },
+	{ key = "RelicRoll3x", productId = 3713786898, robux = 128, kind = "RelicRoll", amount = 0, label = "3x", rollCount = 3 },
+	{ key = "RelicRoll10x", productId = 3713786905, robux = 410, kind = "RelicRoll", amount = 0, label = "10x", rollCount = 10 },
+	{ key = "RelicRoll50x", productId = 3713786914, robux = 1792, kind = "RelicRoll", amount = 0, label = "50x", rollCount = 50 },
+} :: { ProductDef }
+
+MonetizationConfig.RelicRollProductByRollCount = {} :: { [number]: ProductDef }
+for _, product in MonetizationConfig.RelicRollProducts do
+	if product.rollCount then
+		MonetizationConfig.RelicRollProductByRollCount[product.rollCount] = product
+	end
+end
+
+-- ==========================================================
 -- LOOKUPS (built once at require time)
 -- ==========================================================
 
 MonetizationConfig.ProductByKey = {} :: { [string]: ProductDef }
 MonetizationConfig.ProductById = {} :: { [number]: ProductDef }
 
-for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts, MonetizationConfig.SkipProducts } do
+for _, list in { MonetizationConfig.SpeedProducts, MonetizationConfig.CashProducts, MonetizationConfig.TreadmillProducts, MonetizationConfig.StealProducts, MonetizationConfig.RevealProducts, MonetizationConfig.GadgetProducts, MonetizationConfig.SkipProducts, MonetizationConfig.RelicRollProducts } do
 	for _, product in list do
 		MonetizationConfig.ProductByKey[product.key] = product
 		-- An unconfigured product is id 0; registering it would make id 0

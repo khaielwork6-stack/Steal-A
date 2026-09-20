@@ -305,6 +305,11 @@ local giftHandler: DeliveryHandler? = nil
 local gadgetHandler: ((Player, string) -> (boolean, string?))? = nil
 --- Installed by init: a season-pass tier skip, by track ("free" | "premium").
 local skipHandler: ((Player, string) -> (boolean, string?))? = nil
+--- [relic-roll] Rolls and grants a Museum Relics pull: (player, rollCount,
+--- purchaseId) -> (granted, why). Injected from init so this service never
+--- requires RelicRollService. A DIRECT grant like Gadget/Skip - `false` is
+--- always converted to Cash, never left open (see the RelicRoll branch).
+local relicRollHandler: ((Player, number, string) -> (boolean, string?))? = nil
 
 -- ==========================================================
 -- WHAT OWNERSHIP BUYS
@@ -766,6 +771,23 @@ function MonetizationService.processReceipt(receiptInfo: any): Enum.ProductPurch
 			grantedWhat = `{product.key} ({product.skipTrack} tier)`
 		end
 
+	elseif product.kind == "RelicRoll" then
+		-- [relic-roll] A direct grant, like Gadget/Skip: rolled server-side
+		-- the instant the receipt lands, with nothing reserved beforehand -
+		-- so a `false` here is ALWAYS undeliverable (converted to Cash),
+		-- never "retry": waiting longer cannot make an invalid grant valid.
+		if not relicRollHandler then
+			warn(`[MonetizationService] RelicRoll receipt from {player.Name} with no handler installed - left open.`)
+			return pending
+		end
+		local granted, why = relicRollHandler(player, product.rollCount or 0, purchaseId)
+		if not granted then
+			convertedTo = MonetizationService.grantFallback(player, profile, product, purchaseId, receiptInfo, why or "relic roll could not be granted")
+		else
+			rememberGrant(profile, purchaseId)
+			grantedWhat = `{product.key} ({product.rollCount or 0}x Museum Relics)`
+		end
+
 	elseif product.kind == "Gift" then
 		-- [trading-gifting-boards] A pack bought FOR someone else. The
 		-- handler grants it to the remembered recipient (durably, through the
@@ -834,10 +856,17 @@ function MonetizationService.promptProduct(player: Player, key: string): (boolea
 	if not product or product.productId <= 0 then
 		return false, "That item is not available yet."
 	end
-	if product.kind ~= "Cash" and product.kind ~= "Speed" and product.kind ~= "Gadget" and product.kind ~= "Skip" then
+	if product.kind ~= "Cash" and product.kind ~= "Speed" and product.kind ~= "Gadget" and product.kind ~= "Skip" and product.kind ~= "RelicRoll" then
 		-- Silent to the player: no legitimate UI sends this.
 		warn(`[MonetizationService] {player.Name} asked to prompt {product.kind} product "{key}" directly - refused`)
 		return false
+	end
+	-- [relic-roll] A restricted account never gets this far in a legitimate
+	-- client (the banner is hidden), but a tampered one is refused here too,
+	-- before any Robux moves. A receipt that lands anyway (an external
+	-- purchase) is still caught server-side by the RelicRoll grant handler.
+	if product.kind == "RelicRoll" and MonetizationService.paidRandomRestricted(player) then
+		return false, "Museum Relics isn't available for your account."
 	end
 	-- The PREMIUM skip is only for premium owners: the reward it advertises is
 	-- on the premium track. Refused at the prompt, before any Robux move; the
@@ -1016,6 +1045,11 @@ end
 --- MonetizationService never requires it.
 function MonetizationService.setSkipHandler(fn: (Player, string) -> (boolean, string?))
 	skipHandler = fn
+end
+--- [relic-roll] A `RelicRoll` product rolls and grants a Museum Relics pull.
+--- RelicRollService owns the pool and the odds; injected like the four above.
+function MonetizationService.setRelicRollHandler(fn: (Player, number, string) -> (boolean, string?))
+	relicRollHandler = fn
 end
 
 --- [trading-gifting-boards] Opens the Robux dialog for a GIFT product. Only
