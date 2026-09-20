@@ -1600,6 +1600,14 @@ return function(): Report
 			"RelicRollConfig.endsAt must be nil or a unix second"
 		)
 
+		check(
+			type(RelicRollConfig.ROLL_SECONDS) == "number" and RelicRollConfig.ROLL_SECONDS >= 3 and RelicRollConfig.ROLL_SECONDS <= 5,
+			"RelicRollConfig.ROLL_SECONDS must be 3-5 seconds"
+		)
+		check(RelicRollConfig.EASE_POWER >= 2 and RelicRollConfig.EASE_POWER <= 4, "RelicRollConfig.EASE_POWER must be 2-4")
+		check(RelicRollConfig.TRAVEL_CARDS > RelicRollConfig.TICK_PROTECT_CARDS + 2, "RelicRollConfig.TRAVEL_CARDS too short")
+		check(RelicRollConfig.TICK_RATE_MIN > 0 and RelicRollConfig.TICK_RATE_MAX >= RelicRollConfig.TICK_RATE_MIN, "RelicRollConfig tick rate range invalid")
+
 		-- Every button the banner draws must resolve to a real, CONFIGURED
 		-- product (the brief supplied real ids, not the usual 0 placeholder).
 		check(#RelicRollConfig.ProductKeys == 4, "the banner sells exactly four buttons (1x/3x/10x/50x)")

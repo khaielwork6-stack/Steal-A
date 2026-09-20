@@ -438,7 +438,7 @@ GameConfig.RATE_LIMITS = {
 	OfflineClaimRequest = 2,
 	HoldRequest = 4, -- [hold-items] pickup / place / equip, one bucket
 	-- [relic-roll] The client acking a played (or skipped) reveal.
-	RelicRollAck = 2,
+	RelicRollAck = 6, -- one ack per roll of a 50x reveal; RelicRollService gives it a burst of 60
 }
 
 -- ==========================================================

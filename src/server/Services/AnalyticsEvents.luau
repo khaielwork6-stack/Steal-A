@@ -286,7 +286,7 @@ AnalyticsEvents.CUSTOM_EVENTS = {
 	"QuitInTutorial", "QuitAfterCatch", "QuitAfterRobbed", "QuitWhileCarrying", "QuitInPanel", "QuitIdle", "QuitActive",
 	-- feature use
 	"DailyClaim", "QuestClaim", "SeasonTier", "TradeCompleted", "Fusion", "GadgetUsed", "VaultSteal",
-	"CrewAssist", "SpinUsed", "CodeRedeemed", "RelicRoll",
+	"CrewAssist", "SpinUsed", "CodeRedeemed", "RelicRoll", "RelicRollReveal",
 	-- purchases and performance
 	"PurchaseCancelled", "PerfSpike",
 	-- [hold-items] fields kept low-cardinality: rarity name + a small "nN"

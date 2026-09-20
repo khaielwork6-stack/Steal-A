@@ -19,6 +19,15 @@
 	                                 record survives a wrong ack and a
 	                                 mismatched purchaseId, then confirms the
 	                                 real ack clears it - all restored after
+	  relicRollReveal [count]        plays a full N-roll reveal (default 3) on
+	                                 the caller's client WITHOUT Robux, through
+	                                 the real grant + state push + per-roll acks
+	                                 (+ holds); the profile is restored once
+	                                 the reveal has been acked / timed out
+	  relicRollAckCheck              server-side check of the per-roll ack:
+	                                 partial acks keep the record, an index is
+	                                 honoured once, out-of-range ignored, 0
+	                                 (Skip all) clears
 	  relicRollDist [count]          a PURE statistics check (default 10000):
 	                                 no player, no profile - simulates
 	                                 `count` rolls with the live RNG functions
@@ -34,6 +43,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local RarityConfig = require(ReplicatedStorage.Shared.Config.RarityConfig)
 local RelicRollConfig = require(ReplicatedStorage.Shared.Config.RelicRollConfig)
@@ -223,6 +233,104 @@ commands.relicRollReplay = function(player: Player)
 			clearedAfterRealAck = clearedAfterRealAck,
 		}
 	end)
+end
+
+-- ==========================================================
+-- PER-ROLL ACK (server-side only)
+-- ==========================================================
+
+commands.relicRollAckCheck = function(player: Player)
+	return withRestore(player, function(profile)
+		local purchaseId = `debug-relicroll-ack-{HttpService:GenerateGUID(false)}`
+		local granted, why = RelicRollService.grant(player, 3, purchaseId)
+		if not granted then
+			return { granted = false, why = why }
+		end
+		local function record(): any
+			return profile.PendingRelicReveal
+		end
+		local function ackedCount(): number
+			local pending = record()
+			return if type(pending) == "table" and type(pending.acked) == "table" then #pending.acked else -1
+		end
+		RelicRollService.acknowledgeReveal(player, purchaseId, 2)
+		local afterOne = ackedCount()
+		RelicRollService.acknowledgeReveal(player, purchaseId, 2) -- twice: honoured once
+		local afterRepeat = ackedCount()
+		RelicRollService.acknowledgeReveal(player, purchaseId, 99) -- out of range: ignored
+		local afterBad = ackedCount()
+		local survived = record() ~= nil
+		RelicRollService.acknowledgeReveal(player, purchaseId, 0) -- Skip all
+		return {
+			granted = true,
+			afterOneAck = afterOne, -- expect 1
+			afterRepeatAck = afterRepeat, -- expect 1
+			afterOutOfRange = afterBad, -- expect 1
+			recordSurvivedPartialAcks = survived, -- expect true
+			clearedBySkipAll = record() == nil, -- expect true
+			heldNote = "held only if HoldService.hold exists (else items stay in Storage)",
+		}
+	end)
+end
+
+-- ==========================================================
+-- FULL REVEAL ON THE CALLER'S CLIENT (no Robux)
+-- ==========================================================
+
+--- Plays a real N-roll reveal: the same grant path, state push, per-roll acks
+--- and holds as a purchase. The profile is restored only AFTER the reveal has
+--- been acked (the pending record clears) or a timeout, so the ack/hold flow
+--- really runs; a restore also runs if the player leaves first.
+commands.relicRollReveal = function(player: Player, countArg: any)
+	local count = math.clamp(math.floor(tonumber(countArg) or 3), 1, 50)
+	local profile = DataService.get(player)
+	if not profile then
+		return { error = "no profile" }
+	end
+	local snap = snapshot(profile)
+	local purchaseId = `debug-relicroll-reveal-{HttpService:GenerateGUID(false)}`
+	local restored = false
+	local function restoreOnce()
+		if restored then
+			return
+		end
+		restored = true
+		restore(player, profile, snap)
+	end
+
+	local okGrant, granted, why = pcall(RelicRollService.grant, player, count, purchaseId)
+	if not okGrant or not granted then
+		restoreOnce()
+		return { granted = false, why = if okGrant then why else granted }
+	end
+
+	local leaving = Players.PlayerRemoving:Connect(function(who: Player)
+		if who == player then
+			restoreOnce()
+		end
+	end)
+	task.spawn(function()
+		local limit = os.clock() + count * (RelicRollConfig.ROLL_SECONDS + RelicRollConfig.LANDING_HOLD_SECONDS + 1) + 30
+		local function stillPending(): boolean
+			local pending = profile.PendingRelicReveal
+			return type(pending) == "table" and pending.purchaseId == purchaseId
+		end
+		while stillPending() and os.clock() < limit and player.Parent do
+			task.wait(0.5)
+		end
+		task.wait(1) -- let the last ack's hold and save settle
+		leaving:Disconnect()
+		local ok: boolean, err: any = (pcall :: any)(restoreOnce)
+		if not ok then
+			warn(`[DebugCommands.RelicRoll] relicRollReveal restore failed: {err}`)
+		end
+	end)
+	return {
+		started = true,
+		purchaseId = purchaseId,
+		rolls = count,
+		note = "the reveal plays on your client now; the profile is restored when it finishes",
+	}
 end
 
 -- ==========================================================

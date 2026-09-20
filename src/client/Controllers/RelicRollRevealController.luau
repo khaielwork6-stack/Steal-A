@@ -1,28 +1,43 @@
 --!strict
 --[[
 	RelicRollRevealController
-	[relic-roll] The full-screen reveal after a Museum Relics purchase: a
-	fast-then-decelerating belt of item cards under a fixed selector, landing
-	on the best item won, then a "Successful Purchase!" dialog (with, for
-	3x/10x/50x, a results grid of everything the roll won).
+	[relic-roll] The full-screen reveal after a Museum Relics purchase: ONE
+	roulette PER ROLL (a 10x purchase plays ten, back to back), each a strip of
+	item cards scrolling right-to-left past a fixed centre selector - fast at
+	the start, decelerating smoothly, settling exactly on that roll's result -
+	then the item name + [Rarity] under the strip before the next roll starts.
 
 	IT CANNOT TRIGGER ITSELF. The only thing that starts this is
 	`state.relicRoll.pendingReveal` (RelicRollService's durable replay
 	record) - a live purchase pushes it the instant the receipt lands, and a
 	client that missed that (offline, mid-rejoin) gets the exact same payload
-	on its next join, because the record is durable until acked. Either way
-	this controller reacts to STATE, never to a one-shot remote, so a missed
-	push can never lose the reveal.
+	on its next join, because the record is durable until every roll is acked.
+	Either way this controller reacts to STATE, never to a one-shot remote, so
+	a missed push can never lose the reveal.
 
-	THE LOOT IS ALREADY GRANTED by the time this ever plays - the belt is
-	pure theatre over a result the server already committed. Skipping it
-	loses nothing; RelicRollAck only ever clears the "show this again" flag.
+	ONE QUEUE, ONE REVEAL. `queue` holds payloads; `pump` plays them strictly
+	one at a time (a second purchase mid-reveal waits its turn), every
+	purchaseId is remembered in `seen` so the repeated pushes that carry the
+	same record never restart it, and the whole thing runs in a pcall so a bug
+	can never leave the queue stuck, a Sound behind, or the HUD hidden.
+
+	THE LOOT IS ALREADY IN STORAGE by the time this plays - the belt is pure
+	theatre over a result the server committed. What the client adds is the
+	per-roll ack `RelicRollAck(purchaseId, rollIndex)`: the SERVER then marks
+	THAT roll's item held (so it appears in the hotbar only once its roll has
+	landed - the hotbar can never spoil a result). "Skip all" acks index 0
+	(hold everything not yet acked). Skipping loses nothing.
+
+	THE BELT IS DRIVEN BY HAND, not by a Tween: every RenderStepped frame the
+	position is computed from the clock (ease-out), applied to the belt, and
+	the tick sound is decided from that SAME real position - so picture and
+	sound cannot drift, and the tick pitch follows the belt's actual speed.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local Effects = require(ReplicatedStorage.Shared.Util.Effects)
@@ -34,59 +49,62 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local UIAnim = require(ReplicatedStorage.Shared.Util.UIAnim)
 
 local StateStore = require(script.Parent.Parent.StateStore)
+local UIStateController = require(script.Parent.UIStateController)
 
 local RelicRollRevealController = {}
 
 local player = Players.LocalPlayer
 
-local currentPurchaseId: string? = nil
-local playing: ScreenGui? = nil
+local CLAIM = "relicroll"
+-- Above MainUI and every panel, below the flyover / tutorial film.
+local DISPLAY_ORDER = 600
+-- The belt starts with this card (1-based) centred on the selector.
+local START_INDEX = 4
+-- Decoy cards after the winner so the strip never visibly ends.
+local BELT_TAIL = 5
 
-type RolledItem = { itemId: string, rarity: string, mutation: string?, scale: number?, income: number, overflow: boolean? }
+type RolledItem = { itemId: string, rarity: string, mutation: string?, scale: number?, income: number, overflow: boolean?, instanceId: string? }
+type Roll = { index: number, item: RolledItem }
+type Payload = { purchaseId: string, total: number, rolls: { Roll } }
+
+local seen: { [string]: boolean } = {}
+local queue: { Payload } = {}
+local pumping = false
 
 -- ==========================================================
 -- SMALL HELPERS
 -- ==========================================================
-
-local function rank(rarity: string): number
-	return RarityConfig.rank(rarity)
-end
-
-local function bestOf(items: { RolledItem }): RolledItem
-	local best = items[1]
-	for _, item in items do
-		if rank(item.rarity) > rank(best.rarity) then
-			best = item
-		end
-	end
-	return best
-end
 
 local function nameOf(itemId: string): string
 	local def = LootConfig.ById[itemId]
 	return if def then def.name else itemId
 end
 
---- ONE weighted filler pick from the same pool the server rolls from - purely
---- cosmetic (client-side, never authoritative): the belt's other ~40 cards
---- are dressing around the one real result.
-local function fillerTier(): RelicRollConfig.Tier
-	return RelicRollConfig.rollTier(nil)
+local function rarityColor(rarity: string): Color3
+	return RarityConfig.Colors[rarity] or Color3.fromRGB(255, 255, 255)
+end
+
+--- A cosmetic filler card: uniform over the six banner items (the server
+--- rolls the real weighted result; the belt's other cards are only dressing,
+--- and a uniform pick shows more variety than the 39%-common weighted one).
+local function fillerItem(): (string, string)
+	local tiers = RelicRollConfig.Tiers
+	local tier = tiers[math.random(1, #tiers)]
+	local def = LootConfig.ById[tier.itemId]
+	return tier.itemId, if def then def.rarity else "Common"
 end
 
 -- ==========================================================
 -- CARD WIDGET
 -- ==========================================================
 
-local CARD_W = 108
-local CARD_GAP = 10
-
-local function buildCard(parent: Instance, itemId: string, rarity: string, layoutX: number): Frame
+local function buildCard(parent: Instance, itemId: string, rarity: string, layoutX: number, cardW: number): Frame
 	local card = Instance.new("Frame")
 	card.Name = "Card"
+	card.AnchorPoint = Vector2.new(0, 0.5)
 	card.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-	card.Position = UDim2.fromOffset(layoutX, 0)
-	card.Size = UDim2.fromOffset(CARD_W, CARD_W * 1.25)
+	card.Position = UDim2.new(0, layoutX, 0.5, 0)
+	card.Size = UDim2.fromOffset(cardW, cardW * 1.25)
 	card.Parent = parent
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 10)
@@ -131,7 +149,7 @@ local CONFETTI_COLORS = {
 	Color3.fromRGB(150, 255, 150),
 }
 
-local function burstConfetti(parent: Instance)
+local function burstConfetti(parent: Instance, originY: number)
 	if Effects.isReduced() then
 		return
 	end
@@ -140,7 +158,7 @@ local function burstConfetti(parent: Instance)
 		piece.BackgroundColor3 = CONFETTI_COLORS[math.random(1, #CONFETTI_COLORS)]
 		piece.Size = UDim2.fromOffset(math.random(6, 10), math.random(10, 16))
 		piece.AnchorPoint = Vector2.new(0.5, 0.5)
-		piece.Position = UDim2.fromScale(0.5, 0.4)
+		piece.Position = UDim2.fromScale(0.5, originY)
 		piece.Rotation = math.random(0, 360)
 		piece.BorderSizePixel = 0
 		piece.ZIndex = 30
@@ -151,7 +169,7 @@ local function burstConfetti(parent: Instance)
 		local tween = TweenService:Create(
 			piece,
 			TweenInfo.new(math.random(9, 14) / 10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Position = UDim2.fromScale(0.5, 0.4) + UDim2.fromOffset(dx, dy), Rotation = piece.Rotation + spin, BackgroundTransparency = 1 }
+			{ Position = UDim2.fromScale(0.5, originY) + UDim2.fromOffset(dx, dy), Rotation = piece.Rotation + spin, BackgroundTransparency = 1 }
 		)
 		tween:Play()
 		tween.Completed:Once(function()
@@ -161,467 +179,450 @@ local function burstConfetti(parent: Instance)
 end
 
 -- ==========================================================
--- THE ROULETTE
+-- THE TICK POOL
 -- ==========================================================
 
-local BELT_CARD_COUNT = 44
-local BELT_TAIL = 4 -- decoy cards after the target, so the strip does not visibly end
-local ROLL_SECONDS = 4.6
-
---- Runs the belt for `winner`, calling `onLanded()` once it has stopped (or
---- been skipped) on the winning card.
-local function runRoulette(track: Frame, selectorX: number, winner: RolledItem, onLanded: () -> ())
-	local belt = Instance.new("Frame")
-	belt.Name = "Belt"
-	belt.BackgroundTransparency = 1
-	belt.Size = UDim2.fromOffset(BELT_CARD_COUNT * (CARD_W + CARD_GAP), CARD_W * 1.25)
-	belt.Position = UDim2.fromOffset(0, 0)
-	belt.Parent = track
-
-	local targetIndex = BELT_CARD_COUNT - BELT_TAIL
-	for index = 1, BELT_CARD_COUNT do
-		local x = (index - 1) * (CARD_W + CARD_GAP)
-		if index == targetIndex then
-			buildCard(belt, winner.itemId, winner.rarity, x)
-		else
-			local tier = fillerTier()
-			buildCard(belt, tier.itemId, (LootConfig.ById[tier.itemId] and LootConfig.ById[tier.itemId].rarity) or "Common", x)
+--- TICK_POOL_SIZE pre-created Sounds, played round-robin so a fast run of ticks
+--- overlaps instead of cutting itself off. Owned by the reveal that made it:
+--- `destroy` runs on every exit path.
+local function buildTickPool(parent: Instance): { play: (rate: number) -> (), destroy: () -> () }
+	local sounds: { Sound } = {}
+	for _ = 1, RelicRollConfig.TICK_POOL_SIZE do
+		local sound = Audio.create("RelicTick")
+		if sound then
+			sound.Parent = parent
+			table.insert(sounds, sound)
 		end
 	end
-
-	local targetCenter = (targetIndex - 0.5) * (CARD_W + CARD_GAP)
-	local finalOffset = selectorX - targetCenter
-
-	local reduced = Effects.isReduced()
-	local duration = if reduced then 0.6 else ROLL_SECONDS
-	local tween = TweenService:Create(belt, TweenInfo.new(duration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-		Position = UDim2.fromOffset(finalOffset, 0),
-	})
-
-	local lastTickIndex = 0
-	local ticking = true
-	local heartbeatConn: RBXScriptConnection? = nil
-	heartbeatConn = RunService.Heartbeat:Connect(function()
-		if not ticking then
+	local cursor = 0
+	local pool = {}
+	function pool.play(rate: number)
+		if #sounds == 0 then
 			return
 		end
-		local currentOffset = belt.Position.X.Offset
-		local nearestIndex = math.clamp(math.floor((selectorX - currentOffset) / (CARD_W + CARD_GAP)) + 1, 1, BELT_CARD_COUNT)
-		if nearestIndex ~= lastTickIndex then
-			lastTickIndex = nearestIndex
-			Audio.play("RevealCycle")
-		end
-	end)
-
-	local finished = false
-	local function finish()
-		if finished then
-			return
-		end
-		finished = true
-		ticking = false
-		if heartbeatConn then
-			heartbeatConn:Disconnect()
-		end
-		belt.Position = UDim2.fromOffset(finalOffset, 0)
-		local winnerCard = belt:FindFirstChildOfClass("Frame")
-		for _, child in belt:GetChildren() do
-			if child:IsA("Frame") and child.Position.X.Offset == (targetIndex - 1) * (CARD_W + CARD_GAP) then
-				winnerCard = child
-				break
-			end
-		end
-		Audio.play("RevealPop")
-		if winnerCard then
-			UIAnim.punch(winnerCard, 0.3)
-			local scale = winnerCard:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-			scale.Parent = winnerCard
-			TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.18 }):Play()
-		end
-		onLanded()
+		cursor = cursor % #sounds + 1
+		local sound = sounds[cursor]
+		sound.PlaybackSpeed = rate
+		sound.TimePosition = 0
+		sound:Play()
 	end
-
-	tween:Play()
-	tween.Completed:Once(finish)
-
-	return finish -- exposed so a tap can skip straight to it
+	function pool.destroy()
+		for _, sound in sounds do
+			sound:Stop()
+			sound:Destroy()
+		end
+		table.clear(sounds)
+	end
+	return pool
 end
 
 -- ==========================================================
--- THE SUCCESS DIALOG
+-- THE REVEAL (one purchase)
 -- ==========================================================
 
-local function buildResultsGrid(parent: Instance, items: { RolledItem })
-	-- Group by itemId, counted, best rarity first.
-	local order: { string } = {}
-	local counts: { [string]: number } = {}
-	local rarities: { [string]: string } = {}
-	for _, item in items do
-		if not counts[item.itemId] then
-			table.insert(order, item.itemId)
-			rarities[item.itemId] = item.rarity
-		end
-		counts[item.itemId] = (counts[item.itemId] or 0) + 1
-	end
-	table.sort(order, function(a, b)
-		return rank(rarities[a]) > rank(rarities[b])
-	end)
-
-	local scroller = Instance.new("ScrollingFrame")
-	scroller.Name = "Results"
-	scroller.BackgroundTransparency = 1
-	scroller.BorderSizePixel = 0
-	scroller.Size = UDim2.fromScale(1, 1)
-	scroller.CanvasSize = UDim2.new(0, 0, 0, 0)
-	scroller.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroller.ScrollBarThickness = 6
-	scroller.Parent = parent
-
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(84, 106)
-	grid.CellPadding = UDim2.fromOffset(8, 8)
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = scroller
-
-	for index, itemId in order do
-		local rarity = rarities[itemId]
-		local cell = Instance.new("Frame")
-		cell.Name = `Cell_{itemId}`
-		cell.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-		cell.LayoutOrder = index
-		cell.Parent = scroller
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 8)
-		corner.Parent = cell
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 2
-		stroke.Color = RarityConfig.Colors[rarity] or Color3.fromRGB(198, 205, 216)
-		stroke.Parent = cell
-
-		local icon = Instance.new("ImageLabel")
-		icon.BackgroundTransparency = 1
-		icon.Size = UDim2.new(1, -10, 1, -34)
-		icon.Position = UDim2.fromOffset(5, 5)
-		icon.Parent = cell
-		ItemThumb.apply(icon, rarity, itemId)
-
-		local name = Instance.new("TextLabel")
-		name.BackgroundTransparency = 1
-		name.AnchorPoint = Vector2.new(0.5, 1)
-		name.Position = UDim2.new(0.5, 0, 1, -4)
-		name.Size = UDim2.new(1, -6, 0, 16)
-		name.Font = Enum.Font.GothamBold
-		name.TextScaled = true
-		name.TextColor3 = Color3.fromRGB(230, 230, 235)
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.Text = nameOf(itemId)
-		name.Parent = cell
-
-		local count = counts[itemId]
-		if count > 1 then
-			local badge = Instance.new("TextLabel")
-			badge.AnchorPoint = Vector2.new(1, 0)
-			badge.Position = UDim2.new(1, -3, 0, 3)
-			badge.Size = UDim2.fromOffset(28, 18)
-			badge.BackgroundColor3 = Color3.fromRGB(255, 208, 96)
-			badge.Font = Enum.Font.FredokaOne
-			badge.TextScaled = true
-			badge.Text = `x{count}`
-			badge.TextColor3 = Color3.fromRGB(40, 30, 10)
-			badge.ZIndex = 3
-			badge.Parent = cell
-			local badgeCorner = Instance.new("UICorner")
-			badgeCorner.CornerRadius = UDim.new(1, 0)
-			badgeCorner.Parent = badge
-		end
-	end
-end
-
-local function showSuccessDialog(screen: ScreenGui, payload: { rollCount: number, items: { RolledItem } }, onClose: () -> ())
-	local best = bestOf(payload.items)
-
-	local dim = Instance.new("Frame")
-	dim.Name = "DialogDim"
-	dim.Size = UDim2.fromScale(1, 1)
-	dim.BackgroundColor3 = Color3.new(0, 0, 0)
-	dim.BackgroundTransparency = 1
-	dim.ZIndex = 10
-	dim.Parent = screen
-	TweenService:Create(dim, TweenInfo.new(0.2), { BackgroundTransparency = 0.4 }):Play()
-
-	local dialog = Instance.new("Frame")
-	dialog.Name = "Dialog"
-	dialog.AnchorPoint = Vector2.new(0.5, 0.5)
-	dialog.Position = UDim2.fromScale(0.5, 0.5)
-	dialog.Size = UDim2.fromOffset(380, if payload.rollCount > 1 then 480 else 300)
-	dialog.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-	dialog.ZIndex = 11
-	dialog.Parent = screen
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 16)
-	corner.Parent = dialog
-	local stroke = Instance.new("UIStroke")
-	stroke.Thickness = 2
-	stroke.Color = Color3.fromRGB(80, 80, 96)
-	stroke.Parent = dialog
-
-	local closeX = Instance.new("TextButton")
-	closeX.Name = "Close"
-	closeX.AnchorPoint = Vector2.new(1, 0)
-	closeX.Position = UDim2.new(1, -10, 0, 10)
-	closeX.Size = UDim2.fromOffset(36, 36)
-	closeX.Text = "X"
-	closeX.Font = Enum.Font.FredokaOne
-	closeX.TextScaled = true
-	closeX.TextColor3 = Color3.fromRGB(220, 220, 230)
-	closeX.BackgroundColor3 = Color3.fromRGB(50, 50, 62)
-	closeX.AutoButtonColor = false
-	closeX.ZIndex = 12
-	closeX.Parent = dialog
-	local closeCorner = Instance.new("UICorner")
-	closeCorner.CornerRadius = UDim.new(1, 0)
-	closeCorner.Parent = closeX
-	UIAnim.bindButton(closeX)
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, -30, 0, 30)
-	title.Position = UDim2.fromOffset(15, 16)
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.Text = "Successful Purchase!"
-	title.ZIndex = 11
-	title.Parent = dialog
-
-	local thanks = Instance.new("TextLabel")
-	thanks.BackgroundTransparency = 1
-	thanks.Size = UDim2.new(1, -30, 0, 22)
-	thanks.Position = UDim2.fromOffset(15, 50)
-	thanks.Font = Enum.Font.Gotham
-	thanks.TextScaled = true
-	thanks.TextColor3 = Color3.fromRGB(220, 220, 230)
-	thanks.Text = "Thank you for your support! \u{2764}"
-	thanks.ZIndex = 11
-	thanks.Parent = dialog
-
-	local itemName = Instance.new("TextLabel")
-	itemName.BackgroundTransparency = 1
-	itemName.Size = UDim2.new(1, -30, 0, 26)
-	itemName.Position = UDim2.fromOffset(15, 80)
-	itemName.Font = Enum.Font.GothamBold
-	itemName.TextScaled = true
-	itemName.TextColor3 = RarityConfig.Colors[best.rarity] or Color3.fromRGB(255, 255, 255)
-	itemName.Text = if payload.rollCount > 1
-		then `Best relic: {nameOf(best.itemId)} [{best.rarity}]`
-		else `{nameOf(best.itemId)}  [{best.rarity}]`
-	itemName.ZIndex = 11
-	itemName.Parent = dialog
-
-	if payload.rollCount > 1 then
-		local grid = Instance.new("Frame")
-		grid.Name = "GridHolder"
-		grid.BackgroundTransparency = 1
-		grid.Position = UDim2.fromOffset(12, 114)
-		-- From under the headline down to just above the Ok button.
-		grid.Size = UDim2.new(1, -24, 1, -(114 + 78))
-		grid.ZIndex = 11
-		grid.Parent = dialog
-		buildResultsGrid(grid, payload.items)
-	end
-
-	local okButton = Instance.new("TextButton")
-	okButton.Name = "Ok"
-	okButton.AnchorPoint = Vector2.new(0.5, 1)
-	okButton.Position = UDim2.new(0.5, 0, 1, -18)
-	okButton.Size = UDim2.fromOffset(160, 48)
-	okButton.BackgroundColor3 = Color3.fromRGB(70, 200, 96)
-	okButton.Text = "Ok!"
-	okButton.Font = Enum.Font.FredokaOne
-	okButton.TextScaled = true
-	okButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	okButton.AutoButtonColor = false
-	okButton.ZIndex = 11
-	okButton.Parent = dialog
-	local okCorner = Instance.new("UICorner")
-	okCorner.CornerRadius = UDim.new(0, 12)
-	okCorner.Parent = okButton
-	UIAnim.bindButton(okButton)
-
-	local closed = false
-	local function doClose()
-		if closed then
-			return
-		end
-		closed = true
-		onClose()
-	end
-	okButton.Activated:Connect(doClose)
-	closeX.Activated:Connect(doClose)
-
-	burstConfetti(screen)
-	Audio.play("CashPurchase")
-end
-
--- ==========================================================
--- THE FULL SEQUENCE
--- ==========================================================
-
-local function playReveal(payload: { purchaseId: string, rollCount: number, items: { RolledItem } })
-	local gui = player:FindFirstChild("PlayerGui")
+--- Plays every roll of `payload`. Yields until the reveal is over. Returns
+--- true when it ran, false when there was no PlayerGui to draw into.
+local function playReveal(payload: Payload): boolean
+	local gui = player:WaitForChild("PlayerGui", 10)
 	if not gui then
-		return
+		return false
 	end
-	if playing then
-		playing:Destroy()
-		playing = nil
+
+	-- 1. NOTHING ELSE ON SCREEN. Whatever panel the purchase came from (the
+	-- Shop) closes through the MainUI script's own path - slide-down, blur
+	-- off, HUD restored - and the HUD is then held hidden for the reveal.
+	local closeAll = (_G :: any).CloseAllUIFrames
+	if type(closeAll) == "function" then
+		pcall(closeAll)
 	end
+	UIStateController.claim(CLAIM)
 
 	local screen = Instance.new("ScreenGui")
 	screen.Name = "RelicRollReveal"
 	screen.ResetOnSpawn = false
-	-- Sibling, not the Instance.new default (Global): under Global every cell
-	-- of the results grid (ZIndex 1) drew UNDER the dialog plate (ZIndex 11),
-	-- so a 3x/10x/50x roll showed an empty box.
 	screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screen.IgnoreGuiInset = true
-	screen.DisplayOrder = 55
+	screen.DisplayOrder = DISPLAY_ORDER
 	screen.Parent = gui
-	playing = screen
 
-	local shade = Instance.new("TextButton")
-	shade.Name = "Shade"
-	shade.Text = ""
-	shade.AutoButtonColor = false
-	shade.Size = UDim2.fromScale(1, 1)
-	shade.BackgroundColor3 = Color3.new(0, 0, 0)
-	shade.BackgroundTransparency = 1
-	shade.ZIndex = 1
-	shade.Parent = screen
-	TweenService:Create(shade, TweenInfo.new(0.25), { BackgroundTransparency = 0.25 }):Play()
+	local tickPool = buildTickPool(screen)
 
-	local title = Instance.new("TextLabel")
-	title.Name = "PackTitle"
-	title.BackgroundTransparency = 1
-	title.AnchorPoint = Vector2.new(0.5, 0)
-	title.Position = UDim2.new(0.5, 0, 0, 40)
-	title.Size = UDim2.new(1, -40, 0, 46)
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 214, 96)
-	title.TextStrokeColor3 = Color3.fromRGB(30, 20, 6)
-	title.TextStrokeTransparency = 0
-	title.Text = "Relic Pack!"
-	title.ZIndex = 2
-	title.Parent = screen
+	local acked: { [number]: boolean } = {}
+	local skippedAll = false
 
-	local skipHint = Instance.new("TextLabel")
-	skipHint.Name = "SkipHint"
-	skipHint.BackgroundTransparency = 1
-	skipHint.AnchorPoint = Vector2.new(0.5, 1)
-	skipHint.Position = UDim2.new(0.5, 0, 1, -24)
-	skipHint.Size = UDim2.new(1, -40, 0, 24)
-	skipHint.Font = Enum.Font.Gotham
-	skipHint.TextSize = 16
-	skipHint.TextTransparency = 0.25
-	skipHint.TextColor3 = Color3.fromRGB(255, 255, 255)
-	skipHint.Text = "Tap to skip"
-	skipHint.ZIndex = 2
-	skipHint.Parent = screen
-
-	-- The track: fixed width, clips the belt, centred; a UIScale keeps card
-	-- sizes sane on a phone the same way FusionController's stage does.
-	local stage = Instance.new("Frame")
-	stage.Name = "Stage"
-	stage.AnchorPoint = Vector2.new(0.5, 0.5)
-	stage.Position = UDim2.fromScale(0.5, 0.48)
-	stage.BackgroundTransparency = 1
-	stage.Size = UDim2.fromOffset(0, 0)
-	stage.ZIndex = 2
-	stage.Parent = screen
-	local stageScale = Instance.new("UIScale")
-	local camera = workspace.CurrentCamera
-	local shortEdge = if camera then math.min(camera.ViewportSize.X, camera.ViewportSize.Y) else 720
-	stageScale.Scale = math.clamp(shortEdge / 700, 0.62, 1.15)
-	stageScale.Parent = stage
-
-	local TRACK_WIDTH = 700
-	local track = Instance.new("Frame")
-	track.Name = "Track"
-	track.AnchorPoint = Vector2.new(0.5, 0.5)
-	track.Position = UDim2.fromOffset(0, 0)
-	track.Size = UDim2.fromOffset(TRACK_WIDTH, CARD_W * 1.25 + 8)
-	track.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-	track.BackgroundTransparency = 0.15
-	track.ClipsDescendants = true
-	track.ZIndex = 2
-	track.Parent = stage
-	local trackCorner = Instance.new("UICorner")
-	trackCorner.CornerRadius = UDim.new(0, 12)
-	trackCorner.Parent = track
-
-	-- The fixed selector: a thin vertical line with notches top and bottom.
-	local selector = Instance.new("Frame")
-	selector.Name = "Selector"
-	selector.AnchorPoint = Vector2.new(0.5, 0)
-	selector.Position = UDim2.fromScale(0.5, 0)
-	selector.Size = UDim2.new(0, 3, 1, 0)
-	selector.BackgroundColor3 = Color3.fromRGB(255, 214, 96)
-	selector.BorderSizePixel = 0
-	selector.ZIndex = 5
-	selector.Parent = track
-	for _, anchorY in { 0, 1 } do
-		local notch = Instance.new("Frame")
-		notch.AnchorPoint = Vector2.new(0.5, anchorY)
-		notch.Position = UDim2.fromScale(0.5, anchorY)
-		notch.Size = UDim2.fromOffset(16, 6)
-		notch.BackgroundColor3 = Color3.fromRGB(255, 214, 96)
-		notch.BorderSizePixel = 0
-		notch.ZIndex = 5
-		notch.Parent = selector
+	local function ack(rollIndex: number)
+		Remotes.get("RelicRollAck"):FireServer(payload.purchaseId, rollIndex)
 	end
 
-	local best = bestOf(payload.items)
-	local wonLabel = Instance.new("TextLabel")
-	wonLabel.Name = "WonLabel"
-	wonLabel.BackgroundTransparency = 1
-	wonLabel.AnchorPoint = Vector2.new(0.5, 0)
-	wonLabel.Position = UDim2.fromScale(0.5, 0.62)
-	wonLabel.Size = UDim2.new(1, -40, 0, 60)
-	wonLabel.Font = Enum.Font.FredokaOne
-	wonLabel.TextScaled = true
-	wonLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	wonLabel.Text = ""
-	wonLabel.Visible = false
-	wonLabel.ZIndex = 2
-	wonLabel.Parent = screen
+	local function body()
+		-- ---------- sizes from the real viewport (portrait and landscape) ----------
+		local size = screen.AbsoluteSize
+		if size.X < 100 or size.Y < 100 then
+			local camera = workspace.CurrentCamera
+			size = if camera then camera.ViewportSize else Vector2.new(1280, 720)
+		end
+		local trackW = math.clamp(size.X * 0.94, 300, 900)
+		local cardW = math.floor(math.clamp(math.min(trackW / 5.5, size.Y * 0.27), 52, 128))
+		local gap = math.max(6, math.floor(cardW * 0.09))
+		local pitch = cardW + gap
+		local cardH = cardW * 1.25
+		local trackH = cardH + 12
+		local trackCenterY = size.Y * 0.46
+		local selectorX = trackW / 2
 
-	local function toResults()
-		title.Visible = false
-		skipHint.Visible = false
+		local shade = Instance.new("TextButton")
+		shade.Name = "Shade"
+		shade.Text = ""
+		shade.AutoButtonColor = false
+		shade.Size = UDim2.fromScale(1, 1)
+		shade.BackgroundColor3 = Color3.new(0, 0, 0)
+		shade.BackgroundTransparency = 1
+		shade.ZIndex = 1
+		shade.Parent = screen
+		TweenService:Create(shade, TweenInfo.new(0.2), { BackgroundTransparency = 0.12 }):Play()
+
+		local title = Instance.new("TextLabel")
+		title.Name = "PackTitle"
+		title.BackgroundTransparency = 1
+		title.AnchorPoint = Vector2.new(0.5, 0)
+		title.Position = UDim2.new(0.5, 0, 0, math.max(16, trackCenterY - trackH / 2 - 96))
+		title.Size = UDim2.new(1, -40, 0, math.clamp(size.Y * 0.07, 28, 46))
+		title.Font = Enum.Font.FredokaOne
+		title.TextScaled = true
+		title.TextColor3 = Color3.fromRGB(255, 214, 96)
+		title.TextStrokeColor3 = Color3.fromRGB(30, 20, 6)
+		title.TextStrokeTransparency = 0
+		title.Text = "Relic Pack!"
+		title.ZIndex = 2
+		title.Parent = screen
+
+		local counter = Instance.new("TextLabel")
+		counter.Name = "RollCounter"
+		counter.BackgroundTransparency = 1
+		counter.AnchorPoint = Vector2.new(0.5, 0)
+		counter.Position = UDim2.new(0.5, 0, 0, title.Position.Y.Offset + title.Size.Y.Offset + 4)
+		counter.Size = UDim2.new(1, -40, 0, 24)
+		counter.Font = Enum.Font.GothamBold
+		counter.TextScaled = true
+		counter.TextColor3 = Color3.fromRGB(230, 230, 240)
+		counter.Text = ""
+		counter.Visible = payload.total > 1
+		counter.ZIndex = 2
+		counter.Parent = screen
+
+		local hint = Instance.new("TextLabel")
+		hint.Name = "SkipHint"
+		hint.BackgroundTransparency = 1
+		hint.AnchorPoint = Vector2.new(0.5, 1)
+		hint.Position = UDim2.new(0.5, 0, 1, -24)
+		hint.Size = UDim2.new(1, -40, 0, 24)
+		hint.Font = Enum.Font.Gotham
+		hint.TextSize = 16
+		hint.TextTransparency = 0.25
+		hint.TextColor3 = Color3.fromRGB(255, 255, 255)
+		hint.Text = "Tap to skip"
+		hint.ZIndex = 2
+		hint.Parent = screen
+
+		local skipAllButton = Instance.new("TextButton")
+		skipAllButton.Name = "SkipAll"
+		skipAllButton.AnchorPoint = Vector2.new(1, 1)
+		skipAllButton.Position = UDim2.new(1, -16, 1, -16)
+		skipAllButton.Size = UDim2.fromOffset(112, 44)
+		skipAllButton.BackgroundColor3 = Color3.fromRGB(50, 50, 62)
+		skipAllButton.BackgroundTransparency = 0.1
+		skipAllButton.AutoButtonColor = false
+		skipAllButton.Font = Enum.Font.GothamBold
+		skipAllButton.TextSize = 16
+		skipAllButton.TextColor3 = Color3.fromRGB(235, 235, 245)
+		skipAllButton.Text = "Skip all"
+		skipAllButton.Visible = payload.total > 1
+		skipAllButton.ZIndex = 10
+		skipAllButton.Parent = screen
+		local skipCorner = Instance.new("UICorner")
+		skipCorner.CornerRadius = UDim.new(0, 10)
+		skipCorner.Parent = skipAllButton
+		UIAnim.bindButton(skipAllButton)
+
+		local track = Instance.new("Frame")
+		track.Name = "Track"
+		track.AnchorPoint = Vector2.new(0.5, 0.5)
+		track.Position = UDim2.new(0.5, 0, 0, trackCenterY)
+		track.Size = UDim2.fromOffset(trackW, trackH)
+		track.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+		track.BackgroundTransparency = 0.15
+		track.ClipsDescendants = true
+		track.ZIndex = 2
+		track.Parent = screen
+		local trackCorner = Instance.new("UICorner")
+		trackCorner.CornerRadius = UDim.new(0, 12)
+		trackCorner.Parent = track
+
+		local belt = Instance.new("Frame")
+		belt.Name = "Belt"
+		belt.BackgroundTransparency = 1
+		belt.Size = UDim2.new(0, 0, 1, 0)
+		belt.Parent = track
+
+		-- The fixed selector: a thin vertical line with notches top and bottom.
+		local selector = Instance.new("Frame")
+		selector.Name = "Selector"
+		selector.AnchorPoint = Vector2.new(0.5, 0)
+		selector.Position = UDim2.fromScale(0.5, 0)
+		selector.Size = UDim2.new(0, 3, 1, 0)
+		selector.BackgroundColor3 = Color3.fromRGB(255, 214, 96)
+		selector.BorderSizePixel = 0
+		selector.ZIndex = 5
+		selector.Parent = track
+		for _, anchorY in { 0, 1 } do
+			local notch = Instance.new("Frame")
+			notch.AnchorPoint = Vector2.new(0.5, anchorY)
+			notch.Position = UDim2.fromScale(0.5, anchorY)
+			notch.Size = UDim2.fromOffset(16, 6)
+			notch.BackgroundColor3 = Color3.fromRGB(255, 214, 96)
+			notch.BorderSizePixel = 0
+			notch.ZIndex = 5
+			notch.Parent = selector
+		end
+
+		local wonLabel = Instance.new("TextLabel")
+		wonLabel.Name = "WonLabel"
+		wonLabel.BackgroundTransparency = 1
+		wonLabel.AnchorPoint = Vector2.new(0.5, 0)
+		wonLabel.Position = UDim2.new(0.5, 0, 0, trackCenterY + trackH / 2 + 14)
+		wonLabel.Size = UDim2.new(1, -40, 0, math.clamp(size.Y * 0.075, 30, 46))
+		wonLabel.Font = Enum.Font.FredokaOne
+		wonLabel.TextScaled = true
+		wonLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		wonLabel.TextStrokeTransparency = 0.5
+		wonLabel.Text = ""
 		wonLabel.Visible = false
-		showSuccessDialog(screen, payload, function()
-			if playing then
-				playing:Destroy()
-				playing = nil
+		wonLabel.ZIndex = 2
+		wonLabel.Parent = screen
+
+		-- ---------- input ----------
+		local phase = "spinning" -- "spinning" | "landed"
+		local skipRoll = false
+		local advance = false
+		shade.Activated:Connect(function()
+			if phase == "spinning" then
+				skipRoll = true
+			else
+				advance = true
 			end
-			Remotes.get("RelicRollAck"):FireServer(payload.purchaseId)
 		end)
+		skipAllButton.Activated:Connect(function()
+			skippedAll = true
+		end)
+
+		-- ---------- the belt (persistent; only a few cards are swapped per roll) ----------
+		local reduced = Effects.isReduced()
+		local travel = if reduced then math.min(RelicRollConfig.TRAVEL_CARDS, 12) else RelicRollConfig.TRAVEL_CARDS
+		local duration = if reduced then RelicRollConfig.REDUCED_ROLL_SECONDS else RelicRollConfig.ROLL_SECONDS
+		local power = RelicRollConfig.EASE_POWER
+		local vPeak = power * travel / duration
+		local winnerIndex = START_INDEX + travel
+		local cardCount = winnerIndex + BELT_TAIL
+		belt.Size = UDim2.new(0, cardCount * pitch, 1, 0)
+
+		local cards: { Frame } = {}
+		local function placeCard(index: number, itemId: string, rarity: string)
+			local old = cards[index]
+			if old then
+				old:Destroy()
+			end
+			cards[index] = buildCard(belt, itemId, rarity, (index - 1) * pitch, cardW)
+		end
+		for index = 1, cardCount do
+			local itemId, rarity = fillerItem()
+			placeCard(index, itemId, rarity)
+		end
+
+		local function beltX(pos: number): number
+			return selectorX - (START_INDEX - 0.5) * pitch - pos * pitch
+		end
+
+		local function tickRate(speed: number): number
+			local frac = math.clamp(speed / vPeak, 0, 1)
+			return RelicRollConfig.TICK_RATE_MIN + (RelicRollConfig.TICK_RATE_MAX - RelicRollConfig.TICK_RATE_MIN) * frac ^ RelicRollConfig.TICK_RATE_CURVE
+		end
+
+		-- ---------- one roll ----------
+		for order, roll in payload.rolls do
+			if skippedAll then
+				break
+			end
+			local item = roll.item
+			phase = "spinning"
+			skipRoll = false
+			advance = false
+			wonLabel.Visible = false
+			hint.Text = "Tap to skip"
+			counter.Text = `Roll {roll.index} / {payload.total}`
+
+			-- Refresh the winner and a handful of fillers (cheap: ~11 cards, not
+			-- 40) so consecutive rolls do not scroll the identical strip.
+			placeCard(winnerIndex, item.itemId, item.rarity)
+			for _ = 1, 10 do
+				local at = math.random(1, winnerIndex - 1)
+				local itemId, rarity = fillerItem()
+				placeCard(at, itemId, rarity)
+			end
+			belt.Position = UDim2.fromOffset(beltX(0), 0)
+			if order == 1 then
+				task.wait(0.2) -- let the shade fade and the first frame draw
+			end
+
+			local startClock = os.clock()
+			local pos = 0
+			local tickIndex = 0 -- boundaries already ticked: crossing k + 0.5 => k + 1
+			local lastTickClock = -1
+			local speed = 0
+			local lastPos = 0
+			local lastClock = startClock
+			local landed = false
+			while not landed do
+				RunService.RenderStepped:Wait()
+				if skippedAll or not screen.Parent then
+					break
+				end
+				local now = os.clock()
+				local u = math.min((now - startClock) / duration, 1)
+				if skipRoll then
+					u = 1
+				end
+				pos = travel * (1 - (1 - u) ^ power)
+				belt.Position = UDim2.fromOffset(beltX(pos), 0)
+
+				if skipRoll then
+					-- A skip jumps straight to the result: no burst of ticks.
+					tickIndex = travel
+				else
+					local dt = math.max(now - lastClock, 1 / 240)
+					speed = speed * 0.5 + (math.abs(pos - lastPos) / dt) * 0.5
+					lastPos, lastClock = pos, now
+					local crossed = math.floor(pos + 0.5)
+					if crossed > tickIndex then
+						tickIndex = crossed
+						-- A tick this soon after the last is only skippable
+						-- away from the end: the final TICK_PROTECT_CARDS
+						-- cards each get heard.
+						local protected = travel - pos <= RelicRollConfig.TICK_PROTECT_CARDS + 0.5
+						if protected or now - lastTickClock >= RelicRollConfig.TICK_MIN_GAP then
+							lastTickClock = now
+							tickPool.play(tickRate(speed))
+						end
+					end
+				end
+				landed = u >= 1
+			end
+			if skippedAll or not screen.Parent then
+				break
+			end
+
+			-- ---------- the landing ----------
+			belt.Position = UDim2.fromOffset(beltX(travel), 0)
+			phase = "landed"
+			hint.Text = "Tap to continue"
+			local winnerCard = cards[winnerIndex]
+			Audio.play("RelicWin")
+			if not reduced then
+				UIAnim.punch(winnerCard, 0.3)
+				local scale = winnerCard:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+				scale.Parent = winnerCard
+				TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.18 }):Play()
+			end
+			wonLabel.Text = `{nameOf(item.itemId)}  [{item.rarity}]`
+			wonLabel.TextColor3 = rarityColor(item.rarity)
+			wonLabel.Visible = true
+			burstConfetti(screen, trackCenterY / size.Y)
+
+			-- This roll has now been SHOWN: the server may hold its item.
+			if not acked[roll.index] then
+				acked[roll.index] = true
+				ack(roll.index)
+			end
+
+			local deadline = os.clock() + RelicRollConfig.LANDING_HOLD_SECONDS
+			while os.clock() < deadline and not advance and not skippedAll and screen.Parent do
+				task.wait(0.03)
+			end
+		end
+
+		if skippedAll then
+			-- Grant everything now: index 0 = every roll not yet acked.
+			ack(0)
+		end
 	end
 
-	local function onLanded()
-		skipHint.Visible = false
-		wonLabel.Visible = true
-		wonLabel.Text = `{nameOf(best.itemId)}\n[{best.rarity}]`
-		wonLabel.TextColor3 = RarityConfig.Colors[best.rarity] or Color3.fromRGB(255, 255, 255)
-		task.delay(1.4, toResults)
+	local ok: boolean, err: any = (pcall :: any)(body)
+	if not ok then
+		warn(`[RelicRollRevealController] reveal failed: {err}`)
+		-- Never strand the purchase: hold whatever was not shown yet.
+		if not skippedAll then
+			ack(0)
+		end
 	end
 
-	local skipToEnd = runRoulette(track, TRACK_WIDTH / 2, best, onLanded)
+	-- EVERY exit path lands here: no Sound, no GUI, no HUD claim left behind.
+	tickPool.destroy()
+	screen:Destroy()
+	UIStateController.release(CLAIM)
+	return true
+end
 
-	shade.Activated:Connect(function()
-		skipToEnd()
+-- ==========================================================
+-- THE QUEUE
+-- ==========================================================
+
+local function pump()
+	if pumping then
+		return
+	end
+	pumping = true
+	task.spawn(function()
+		while #queue > 0 do
+			local payload = table.remove(queue, 1) :: Payload
+			local ok, ran = pcall(playReveal, payload)
+			if not ok then
+				warn(`[RelicRollRevealController] {ran}`)
+			elseif ran == false then
+				-- No PlayerGui yet: let the next state push offer it again.
+				seen[payload.purchaseId] = nil
+			end
+		end
+		pumping = false
 	end)
+end
+
+--- Turns a state record into a payload of the rolls still to show, or nil.
+local function payloadFrom(pending: { [string]: any }): Payload?
+	local purchaseId = tostring(pending.purchaseId or "")
+	if purchaseId == "" or seen[purchaseId] then
+		return nil
+	end
+	local items = pending.items
+	if type(items) ~= "table" or #items == 0 then
+		return nil
+	end
+	local ackedSet: { [number]: boolean } = {}
+	if type(pending.acked) == "table" then
+		for _, index in pending.acked do
+			if type(index) == "number" then
+				ackedSet[index] = true
+			end
+		end
+	end
+	local rolls: { Roll } = {}
+	for index, item in items do
+		if not ackedSet[index] and type(item) == "table" and type(item.itemId) == "string" then
+			table.insert(rolls, { index = index, item = item :: RolledItem })
+		end
+	end
+	if #rolls == 0 then
+		return nil
+	end
+	return { purchaseId = purchaseId, total = #items, rolls = rolls }
 end
 
 -- ==========================================================
@@ -635,20 +636,13 @@ function RelicRollRevealController.start()
 		if type(pending) ~= "table" then
 			return
 		end
-		local purchaseId = tostring(pending.purchaseId or "")
-		if purchaseId == "" or purchaseId == currentPurchaseId then
+		local payload = payloadFrom(pending)
+		if not payload then
 			return
 		end
-		local items = pending.items
-		if type(items) ~= "table" or #items == 0 then
-			return
-		end
-		currentPurchaseId = purchaseId
-		playReveal({
-			purchaseId = purchaseId,
-			rollCount = tonumber(pending.rollCount) or #items,
-			items = items :: { RolledItem },
-		})
+		seen[payload.purchaseId] = true
+		table.insert(queue, payload)
+		pump()
 	end)
 end
 
