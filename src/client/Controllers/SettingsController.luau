@@ -87,7 +87,7 @@ local IDLE_COLOR = Color3.fromRGB(96, 104, 124)
 
 -- [round3-ui-base-settings] Row geometry (see `arrange`).
 --- Row order in the list; anything else keeps its order after these.
-local ROW_ORDER: { [string]: number } = { Music = 10, Sound_Effects = 20, Shadows = 30, VFX = 40, Graphics = 50, AutoReveal = 60 }
+local ROW_ORDER: { [string]: number } = { Music = 10, Sound_Effects = 20, Shadows = 30, VFX = 40, Graphics = 50, AutoReveal = 60, WatchTutorial = 70 }
 --- Width / height used when a row could not be measured.
 local DEFAULT_RATIO = 6.5
 --- Smallest row height in screen pixels (the toggles sit inside it).
@@ -384,6 +384,70 @@ local function bindToggle(row: Instance, label: string?, initial: boolean, onCha
 	end
 end
 
+--- [tutorial-film] A plain action button, built from the same Shadows-shaped
+--- row `bindToggle` uses. SettingsPresentation.row (run later, by `arrange`)
+--- repaints every row's ON/OFF pair to its fixed 48%-width layout regardless
+--- of what a binder does, so rather than fight that layout this keeps BOTH
+--- halves - they just do the same thing (replay) instead of two opposite
+--- states. Reads exactly like every other row; there is nothing to save.
+local function bindAction(row: Instance, label: string, words: { string }, onPress: () -> ())
+	local body = row:FindFirstChild("Frame")
+	local choose = body and body:FindFirstChild("Choose")
+	local onButton = choose and choose:FindFirstChild("ON")
+	local offButton = choose and choose:FindFirstChild("OFF")
+	if not onButton or not onButton:IsA("GuiButton") or not offButton or not offButton:IsA("GuiButton") then
+		return
+	end
+
+	local title = body and body:FindFirstChild("Multiplier1")
+	if title and title:IsA("TextLabel") then
+		title.Text = label
+		local limit = title:FindFirstChildOfClass("UITextSizeConstraint") or Instance.new("UITextSizeConstraint")
+		limit.MinTextSize = 12
+		limit.MaxTextSize = math.max(limit.MaxTextSize, 30)
+		limit.Parent = title
+	end
+
+	local function face(button: GuiButton): GuiObject?
+		local inner = button:FindFirstChild("Frame")
+		return if inner and inner:IsA("GuiObject") then inner else nil
+	end
+
+	for _, pair in { { onButton, words[1] or "WATCH" }, { offButton, words[2] or "AGAIN" } } do
+		local button = pair[1] :: GuiButton
+		local buttonFace = face(button)
+		if buttonFace then
+			buttonFace.BackgroundColor3 = Color3.fromRGB(90, 110, 220)
+		end
+		button.BackgroundTransparency = 0
+		local existing = button:FindFirstChild("Word")
+		local wordLabel: TextLabel
+		if existing and existing:IsA("TextLabel") then
+			wordLabel = existing
+		else
+			wordLabel = Instance.new("TextLabel")
+			wordLabel.Name = "Word"
+			wordLabel.BackgroundTransparency = 1
+			wordLabel.Size = UDim2.fromScale(1, 0.7)
+			wordLabel.Position = UDim2.fromScale(0, 0.15)
+			wordLabel.Font = Enum.Font.FredokaOne
+			wordLabel.TextScaled = true
+			wordLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			wordLabel.TextStrokeTransparency = 0.3
+			wordLabel.ZIndex = 7
+			wordLabel.Parent = button
+		end
+		wordLabel.Text = pair[2] :: string
+		wordLabel.TextTransparency = 0
+
+		UIAnim.claimButton(button)
+		button.Activated:Connect(function()
+			UIAnim.punch(button, 0.2)
+			onPress()
+		end)
+	end
+end
+
 -- ==========================================================
 -- LAYOUT  (round3-ui-base-settings)
 -- ==========================================================
@@ -606,6 +670,26 @@ function SettingsController.start()
 		end
 		copy.Parent = list
 		autoRevealRow = copy
+	end
+	-- [tutorial-film] "Watch tutorial again": another Shadows copy, after
+	-- Auto Reveal, but a plain button (bindAction) rather than a toggle -
+	-- there is nothing to save, it only replays the short film.
+	local watchTutorialRow: Instance? = list:FindFirstChild("WatchTutorial")
+	if not watchTutorialRow and shadowsTemplate then
+		local copy = shadowsTemplate:Clone()
+		copy.Name = "WatchTutorial"
+		local after = autoRevealRow or graphicsRow or list:FindFirstChild("VFX") or shadowsTemplate
+		if copy:IsA("GuiObject") and after:IsA("GuiObject") then
+			copy.LayoutOrder = after.LayoutOrder + 1
+		end
+		copy.Parent = list
+		watchTutorialRow = copy
+	end
+	if watchTutorialRow then
+		bindAction(watchTutorialRow, "Tutorial", { "WATCH", "AGAIN" }, function()
+			local TutorialFilmController = require(script.Parent.TutorialFilmController)
+			TutorialFilmController.replay()
+		end)
 	end
 
 	local music = list:FindFirstChild("Music")

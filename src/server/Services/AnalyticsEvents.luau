@@ -292,6 +292,10 @@ AnalyticsEvents.CUSTOM_EVENTS = {
 	-- [hold-items] fields kept low-cardinality: rarity name + a small "nN"
 	-- hand-count bucket, never an item id or name.
 	"ItemPickedUp", "ItemPlaced",
+	-- [tutorial-film] the short film that replaced the old objective-line
+	-- tutorial. Low cardinality: one event per player per stage of the film,
+	-- so the owner can see where new players drop off.
+	"FilmStarted", "FilmSkipped", "FilmFinished",
 } :: { string }
 
 local customAllowed: { [string]: true } = {}
