@@ -439,6 +439,8 @@ GameConfig.RATE_LIMITS = {
 	HoldRequest = 4, -- [hold-items] pickup / place / equip, one bucket
 	-- [relic-roll] The client acking a played (or skipped) reveal.
 	RelicRollAck = 2,
+	-- [lasers-rework] The client reporting a laser touch it detected itself.
+	LaserHit = 4,
 }
 
 -- ==========================================================

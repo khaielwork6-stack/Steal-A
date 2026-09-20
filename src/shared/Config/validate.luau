@@ -1721,6 +1721,16 @@ return function(): Report
 		check(knock.OVERSHOOT >= 4 and knock.OVERSHOOT <= 20 and knock.OVERSHOOT_MAX >= knock.OVERSHOOT and knock.OVERSHOOT_MAX <= 45, "LaserConfig.KNOCKBACK.OVERSHOOT must land in the corridor (4-20, max <= 45)")
 		check(knock.GROUND_STUN >= 0.5 and knock.GROUND_STUN <= 2 and knock.IMMUNITY > 0 and knock.IMMUNITY <= 1 and knock.RETRIGGER_GUARD <= 0.5, "LaserConfig.KNOCKBACK: short stun, no cooldown (owner)")
 		check(knock.ZAP_SECONDS > 0 and knock.ZAP_SECONDS <= 3, "LaserConfig.KNOCKBACK.ZAP_SECONDS must be a short zap")
+		-- Client-side hits: who detects the touch, and how much the server believes.
+		local client = LaserConfig.CLIENT
+		check(client.SERVER_HZ >= 30 and client.SERVER_HZ <= 120, "LaserConfig.CLIENT.SERVER_HZ must be 30-120 (the fallback detector must not be slower than 30 Hz)")
+		check(client.CLAIM_GRACE >= 0.1 and client.CLAIM_GRACE <= 0.5, "LaserConfig.CLIENT.CLAIM_GRACE must be 0.1-0.5 s (a cheat client is hit that late)")
+		check(client.CLAIM_RADIUS >= 10 and client.CLAIM_RADIUS <= 60 and client.CLAIM_LATENCY >= 0.2 and client.CLAIM_LATENCY <= 1.5, "LaserConfig.CLIENT claim plausibility radius")
+		check(client.CLAIM_BURST >= 2 and client.CLAIM_BURST <= 10 and (GameConfig.RATE_LIMITS :: { [string]: number }).LaserHit ~= nil and (GameConfig.RATE_LIMITS :: { [string]: number }).LaserHit >= 2, "LaserHit must be rate limited (GameConfig.RATE_LIMITS.LaserHit >= 2, CLAIM_BURST 2-10)")
+		check(client.STAMP_TAIL >= 0 and client.STAMP_TAIL < knock.GROUND_STUN, "LaserConfig.CLIENT.STAMP_TAIL must be shorter than the ground stun")
+		check(client.LANDING_RADIUS >= 30 and client.LANDING_RADIUS <= 120 and client.LANDING_CHECK_AFTER >= 0.2 and client.LANDING_CHECK_AFTER <= 1.5, "LaserConfig.CLIENT landing check")
+		check(client.SLIDE_SPEED >= 0 and client.SLIDE_SPEED <= 30 and client.RESCUE_PROBE >= 50, "LaserConfig.CLIENT slide / rescue")
+		check(knock.GUIDED_SPEED >= 40 and knock.GUIDED_SPEED <= 200 and knock.GUIDED_MIN_SECONDS >= 0.2 and knock.GUIDED_MAX_SECONDS >= knock.GUIDED_MIN_SECONDS and knock.GUIDED_MAX_SECONDS <= 2 and knock.ARC_HEIGHT >= 0 and knock.ARC_HEIGHT <= 14, "LaserConfig.KNOCKBACK guided flight numbers")
 		check(field.Z_MIN >= walker.SIDE_CLEARANCE + 6 and field.Z_MAX > field.Z_MIN + 10, "LaserConfig.FIELD must leave the doorway apron clear")
 		check(field.LOW_Y <= walker.LOW_MAX_Y and field.SLANT_LOW_Y <= walker.LOW_MAX_Y and field.HIGH_Y >= walker.HIGH_MIN_Y and field.HIGH_Y <= walker.STAND_CLEAR_Y
 			and field.MID_Y > walker.LOW_MAX_Y and field.MID_Y < walker.HIGH_MIN_Y, "LaserConfig.FIELD beam heights must match the validator's low / mid / high classes")

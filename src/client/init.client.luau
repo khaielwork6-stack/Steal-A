@@ -244,6 +244,12 @@ end)
 startLater("LaserFxController", function()
 	require(script.Controllers.LaserFxController).start()
 end)
+-- [lasers-rework] The player's OWN client detects a laser touch the frame it
+-- happens and flies its own character out of the room (smooth, instant); the
+-- server validates the LaserHit claim. See the controller's header.
+startLater("LaserHitController", function()
+	require(script.Controllers.LaserHitController).start()
+end)
 -- [fusion-autoreveal-bases] The fusion animation (the FUSE page itself is
 -- drawn inside Storage by InventoryController; the BASE page is attached to
 -- the Upgrades panel by UpgradesController; the Auto Reveal shop card is

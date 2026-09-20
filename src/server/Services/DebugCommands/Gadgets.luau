@@ -532,7 +532,9 @@ return {
 			-- [lasers-rework] This touch really throws the runner at the doorway
 			-- (it used to wake the guard): read it; the pivot below takes over.
 			move(player, CFrame.new(at.X, 3.2, at.Z))
-			task.wait(0.35)
+			-- The server detector holds a touch for LaserConfig.CLIENT.CLAIM_GRACE (0.25 s)
+			-- before applying it when no client claimed it.
+			task.wait(0.75)
 			report.tripAfterJam = player:GetAttribute("LastLaserTrip") ~= nil
 			report.pass = report.jammed and report.noTripWhileJammed and report.guardStillIdle and report.tripAfterJam
 		end)

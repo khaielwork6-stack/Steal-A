@@ -67,11 +67,20 @@ local movers: { Mover } = {}
 --- Per beam: what it looks like at rest, and the token of its latest flash.
 local resting: { [BasePart]: { color: Color3, size: Vector3, token: number } } = {}
 
-local function flash(beam: BasePart)
-	local stamp = beam:GetAttribute("HitAt")
-	if type(stamp) ~= "number" or math.abs(workspace:GetServerTimeNow() - stamp) > FLASH_FRESH then
+--- When each beam last flashed (os.clock): the local hit flashes it the
+--- instant the body touches it, and the server's `HitAt` arrives a network
+--- trip later - it must not flash a second time.
+local flashedAt: { [BasePart]: number } = {}
+--- When the local player's own client last reported a hit (os.clock): the
+--- server's `LastLaserTrip` then must not shake the camera a second time.
+local localHitAt = -math.huge
+local LOCAL_HIT_DEDUPE = 1.5
+
+local function flashNow(beam: BasePart)
+	if os.clock() - (flashedAt[beam] or -math.huge) < 0.5 then
 		return
 	end
+	flashedAt[beam] = os.clock()
 	local rest = resting[beam]
 	if not rest then
 		rest = { color = beam.Color, size = beam.Size, token = 0 }
@@ -96,6 +105,15 @@ local function flash(beam: BasePart)
 			beam.Size, beam.Color = rest.size, rest.color
 		end
 	end)
+end
+
+--- The flash driven by the server's `HitAt` stamp (any player's touch).
+local function flash(beam: BasePart)
+	local stamp = beam:GetAttribute("HitAt")
+	if type(stamp) ~= "number" or math.abs(workspace:GetServerTimeNow() - stamp) > FLASH_FRESH then
+		return
+	end
+	flashNow(beam)
 end
 
 local registered: { [Instance]: boolean } = {}
@@ -178,10 +196,21 @@ local function shake()
 	end)
 end
 
+--- The local player's own client detected a touch (LaserHitController): the
+--- flash and the light shake happen NOW, not when the server's stamp arrives.
+function LaserFxController.onLocalHit(beam: BasePart?)
+	localHitAt = os.clock()
+	if beam then
+		flashNow(beam)
+	end
+	shake()
+end
+
 function LaserFxController.start()
 	player:GetAttributeChangedSignal("LastLaserTrip"):Connect(function()
 		local stamp = player:GetAttribute("LastLaserTrip")
-		if type(stamp) == "number" and math.abs(workspace:GetServerTimeNow() - stamp) < FLASH_FRESH then
+		if type(stamp) == "number" and math.abs(workspace:GetServerTimeNow() - stamp) < FLASH_FRESH
+			and os.clock() - localHitAt > LOCAL_HIT_DEDUPE then
 			shake()
 		end
 	end)

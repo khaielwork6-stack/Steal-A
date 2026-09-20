@@ -1,6 +1,23 @@
 --!strict
--- Static beams, server-owned posture, occupied-zone queries at 10 Hz. The
--- client sends only a crouch intent, never a hit/miss, beam or guardian id.
+-- Server-owned posture, the fallback touch detector (SERVER_HZ) and the
+-- validation of a client's touch claim. The client sends a crouch intent and,
+-- since the client-side hits (below), a LaserHit CLAIM naming a beam it says it
+-- touched; it never says what a touch does, and the server does not take a
+-- claim on faith (plausibility, rate limit, immunity - see `claim`).
+--
+-- WHO DETECTS (2026-09-20, from the owner's first playtest: "I always PASS it
+-- before it hits me", "it seems like my FPS is dropping"). The player's OWN
+-- client (LaserHitController) tests its swept body against the room's beams
+-- every frame - so a 260 stud/s runner is hit the frame it touches - and flies
+-- its own character (it owns the physics, so the flight is smooth). The
+-- server used to detect at 10 Hz from replicated positions (up to 26 studs of
+-- travel per sample, plus latency) and to fly the body itself after taking its
+-- network ownership (a 20 Hz slideshow on the client). The detector below is
+-- now the AUTHORITY, not the experience: when it sees a touch, it holds it for
+-- CLIENT.CLAIM_GRACE; if the client claimed it meanwhile nothing more happens,
+-- else the server applies it (drop, stamp, and the server-flown guided path).
+-- A cheat client that never reports is therefore still hit - a quarter of a
+-- second late. A vault's arms have no client detector: applied at once.
 --
 -- A TOUCH THROWS YOU OUT OF THE ROOM (lasers-rework, 2026-09-20; owner: "when
 -- you touch it, it kicks you backwards towards the exit. Every time you touch
@@ -32,7 +49,10 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
 local LaserConfig = require(ReplicatedStorage.Shared.Config.LaserConfig)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Geometry = require(ReplicatedStorage.Shared.Util.LaserGeometry)
+local LaserBeams = require(ReplicatedStorage.Shared.LaserBeams)
+local LaserFlight = require(ReplicatedStorage.Shared.LaserFlight)
 local Layout = require(ReplicatedStorage.Shared.MuseumLayout)
 local GuardianService = require(script.Parent.GuardianService)
 local LootService = require(script.Parent.LootService)
@@ -40,6 +60,8 @@ local LootService = require(script.Parent.LootService)
 local RagdollService = require(script.Parent.RagdollService)
 -- No cycle: CarryService requires Loot/Base/Data/Movement only.
 local CarryService = require(script.Parent.CarryService)
+-- A leaf (config only), like RagdollService's own require of it.
+local MovementService = require(script.Parent.MovementService)
 
 local LaserService = {}
 local KNOCKBACK = LaserConfig.KNOCKBACK
@@ -80,22 +102,22 @@ local function ringAlarm(player: Player)
 		end
 	end)
 end
-local INTERVAL = 0.1
+--- The fallback detector's period (LaserConfig.CLIENT.SERVER_HZ; was 10 Hz).
+--- The player's own client detects every frame; this is the authority for a
+--- client that never reports, and the only detector for a vault's arms.
+local INTERVAL = 1 / LaserConfig.CLIENT.SERVER_HZ
 local limiter = RateLimiter.new(8, 12)
+--- The LaserHit remote's limiter (GameConfig.RATE_LIMITS.LaserHit per second).
+local claimLimiter = RateLimiter.new(GameConfig.RATE_LIMITS.LaserHit, LaserConfig.CLIENT.CLAIM_BURST)
 type Sample = { position: Vector3, time: number, character: Model, serverTime: number }
-type Field = { index: number, startZ: number, endZ: number, folder: Instance }
-local fields: { Field } = {}
+--- How many `Lasers` folders were read (the beams themselves live in
+--- shared/LaserBeams, which the client reads the same way).
+local folderCount = 0
 --- ROTATING VAULT BEAMS (vaults-crews). Not parts the overlap query can find:
 --- the arms exist only as functions of the server clock, tested with
 --- Geometry.sweptArmHit. `inside` says whether a position is in the field.
 type MovingField = { zoneIndex: number, roomIndex: number, arms: { Geometry.SweepArm }, inside: (Vector3) -> boolean }
 local movingFields: { MovingField } = {}
---- A ROOM'S MOVING BEAMS (lasers-rework), by Layout.key(zone, room). Read once
---- from the `MovingBeam` parts MuseumGallery built; the part is only the
---- carrier of the numbers (and what gets the hit flash) - the test is
---- Geometry.sweptSegmentHit against the server clock.
-export type RoomMover = { segment: Geometry.MovingSegment, part: BasePart }
-local roomMovers: { [number]: { RoomMover } } = {}
 local previous: { [Player]: Sample } = {}
 local crouched: { [Player]: boolean } = {}
 --- os.clock before which a player is not processed as "hit" again
@@ -108,9 +130,10 @@ local exempt: { [Player]: boolean } = {}
 --- detector ignores this player. Server-owned and time-limited, live and in
 --- Studio alike - deliberately NOT the Studio-only `exempt` above.
 local jammedUntil: { [Player]: number } = {}
-local metrics = { queries = 0, narrowChecks = 0, trips = 0, launches = 0, lastStepMs = 0, maxStepMs = 0 }
-local overlap = OverlapParams.new()
-overlap.FilterType = Enum.RaycastFilterType.Include
+local metrics = {
+	narrowChecks = 0, trips = 0, launches = 0, lastStepMs = 0, maxStepMs = 0,
+	serverApplied = 0, claimsAccepted = 0, claimsRejected = 0, claimsSnapped = 0,
+}
 
 local function validBody(player: Player): (Model?, BasePart?, Humanoid?)
 	local character = player.Character
@@ -193,41 +216,55 @@ function LaserService.exitAim(zoneIndex: number, roomIndex: number, position: Ve
 	return frame:VectorToWorldSpace(direction), speed
 end
 
+--- The frame and half door width of a room (or a vault, room VAULT_ROOM).
+local function doorOf(zoneIndex: number, roomIndex: number): (CFrame, number)
+	if roomIndex == Layout.VAULT_ROOM then
+		return Layout.vaultFrame(zoneIndex), Layout.VAULT_DOOR_WIDTH / 2
+	end
+	return Layout.frame(zoneIndex, roomIndex), Layout.DOOR_WIDTH / 2
+end
+
 --- THE FLIGHT PATH for a touch at `position`: world points to fly through
 --- (the doorway, when the body is not already lined up with it, then the
 --- landing spot KNOCKBACK.OVERSHOOT studs out in the corridor) and how long
---- the flight takes at KNOCKBACK.GUIDED_SPEED.
+--- the flight takes at KNOCKBACK.GUIDED_SPEED. The arithmetic is
+--- shared/LaserFlight, which the player's own client flies too.
 function LaserService.exitPath(zoneIndex: number, roomIndex: number, position: Vector3): ({ Vector3 }, number)
-	local frame: CFrame, halfDoor: number
-	if roomIndex == Layout.VAULT_ROOM then
-		frame, halfDoor = Layout.vaultFrame(zoneIndex), Layout.VAULT_DOOR_WIDTH / 2
-	else
-		frame, halfDoor = Layout.frame(zoneIndex, roomIndex), Layout.DOOR_WIDTH / 2
-	end
-	local at = frame:PointToObjectSpace(position)
-	local reach = math.max(halfDoor - KNOCKBACK.DOOR_MARGIN, math.min(halfDoor, 2))
-	local doorX = math.clamp(at.X, -reach, reach)
-	local points: { Vector3 } = {}
-	local length = 0
-	local from = at
-	-- Off to one side of the opening: fly to the doorway first, then out.
-	if at.Z > 0.5 and math.abs(at.X - doorX) > 1 then
-		local door = Vector3.new(doorX, at.Y, 0)
-		table.insert(points, frame:PointToWorldSpace(door))
-		length += (door - from).Magnitude
-		from = door
-	end
-	local landing = Vector3.new(doorX, at.Y, math.min(from.Z, 0) - KNOCKBACK.OVERSHOOT)
-	table.insert(points, frame:PointToWorldSpace(landing))
-	length += (landing - from).Magnitude
-	return points, math.clamp(length / KNOCKBACK.GUIDED_SPEED, KNOCKBACK.GUIDED_MIN_SECONDS, KNOCKBACK.GUIDED_MAX_SECONDS)
+	local frame, halfDoor = doorOf(zoneIndex, roomIndex)
+	local plan = LaserFlight.plan(frame, halfDoor, position)
+	return plan.points, plan.seconds
 end
 
---- One touch. `beam` is the part that gets the red flash on every client
---- (its `HitAt` attribute, server time; LaserFxController) - nil for a vault
---- arm, which has no part of its own on the server's side of the test.
-local function hit(player: Player, root: BasePart, zoneIndex: number, roomIndex: number, beam: BasePart?, now: number)
-	hitGuard[player] = now + KNOCKBACK.RETRIGGER_GUARD
+-- ==========================================================
+-- APPLYING A TOUCH
+-- ==========================================================
+--
+-- ONE function applies the consequences of a touch, whoever noticed it:
+--   "client"  the player's own client detected it and is flying the body
+--             itself (LaserService.claim, from the LaserHit remote). The
+--             server only records it: drop, analytics, the ragdoll STAMP.
+--   "server"  the fallback detector saw it and no claim came in time: the
+--             server flies the body (RagdollService.launch `path`).
+-- Both begin with the same guard - a player the server has on record as
+-- ragdolled or immune is never touched again - and both stamp that record
+-- before they return, in the same Luau step, so a claim and a detection can
+-- never both apply (the single-threaded scheduler is the lock).
+
+type Pending = { at: number, zoneIndex: number, roomIndex: number, beam: BasePart?, beamKey: string }
+--- A touch the server detected and is holding for CLIENT.CLAIM_GRACE.
+local pending: { [Player]: Pending } = {}
+--- "This touch was handled": the beam that was claimed / applied and until
+--- when. A detection of the same beam inside the window is dropped.
+local handled: { [Player]: { key: string, untilTime: number } } = {}
+
+local function beamKeyOf(zoneIndex: number, roomIndex: number, beamId: number?): string
+	return `{zoneIndex}:{roomIndex}:{beamId or 0}`
+end
+
+--- What every applied touch does, before the body moves: the attributes the
+--- analytics / camera read (unchanged names), the flash on the beam, and the
+--- carried MUSEUM loot dropped where the beam was touched.
+local function recordTouch(player: Player, zoneIndex: number, roomIndex: number, beam: BasePart?)
 	metrics.trips += 1
 	-- AnalyticsSession watches LastLaserTrip ("LaserTouched"); ChaseWarning and
 	-- the camera shake (LaserFxController) read it too. Same names as ever.
@@ -237,10 +274,9 @@ local function hit(player: Player, root: BasePart, zoneIndex: number, roomIndex:
 	if beam then
 		beam:SetAttribute("HitAt", workspace:GetServerTimeNow())
 	end
-
-	-- THE CARRY DROPS WHERE THE BEAM WAS TOUCHED, before the launch (the same
-	-- order as a bat hit), through the one drop path there is. Museum loot
-	-- only: a stolen BASE item has no business with a museum beam, and
+	-- THE CARRY DROPS WHERE THE BEAM WAS TOUCHED, before the body moves (the
+	-- same order as a bat hit), through the one drop path there is. Museum
+	-- loot only: a stolen BASE item has no business with a museum beam, and
 	-- forceDrop would hand it straight back to its owner.
 	local carried = CarryService.getCarried(player)
 	if carried and not carried.heist and carried.zoneIndex >= 1 then
@@ -252,14 +288,24 @@ local function hit(player: Player, root: BasePart, zoneIndex: number, roomIndex:
 			warn(`[LaserService] drop failed for {player.Name}: {err}`)
 		end
 	end
+	ringAlarm(player)
+end
 
+--- The server flies the body (fallback). Returns whether it was applied.
+local function applyByServer(player: Player, root: BasePart, zoneIndex: number, roomIndex: number, beam: BasePart?, beamKey: string): boolean
+	if RagdollService.isRagdolled(player) or RagdollService.isImmune(player) then
+		return false
+	end
+	local now = os.clock()
+	hitGuard[player] = now + KNOCKBACK.RETRIGGER_GUARD
+	recordTouch(player, zoneIndex, roomIndex, beam)
 	-- RagdollService.launch pushes AWAY from a point, so the point is put
 	-- behind the body on the line to the door. It also takes network
 	-- ownership, calls MovementService.allowTeleport either side of the
-	-- flight, damps a point-blank wall and nets a body that leaves the map.
+	-- flight and nets a body that leaves the map. GUIDED (2026-09-20): through
+	-- the doorway and out into the corridor from ANYWHERE in the room; see
+	-- RagdollService LaunchOptions.path.
 	local direction, speed = LaserService.exitAim(zoneIndex, roomIndex, root.Position)
-	-- GUIDED, not thrown (2026-09-20): through the doorway and out into the
-	-- corridor from ANYWHERE in the room. See RagdollService LaunchOptions.path.
 	local path, seconds = LaserService.exitPath(zoneIndex, roomIndex, root.Position)
 	local launched = RagdollService.launch(player, root.Position - direction * 10, {
 		knockback = speed,
@@ -272,13 +318,142 @@ local function hit(player: Player, root: BasePart, zoneIndex: number, roomIndex:
 	})
 	if launched then
 		metrics.launches += 1
+		metrics.serverApplied += 1
+		handled[player] = { key = beamKey, untilTime = now + seconds + KNOCKBACK.GROUND_STUN }
 	end
-	ringAlarm(player)
+	return launched
+end
+
+--- A touch the server's own detector found. Room beams wait CLAIM_GRACE for
+--- the player's client to claim it (`waitForClaim`); a vault arm has no
+--- client detector, so it is applied at once.
+local function detected(player: Player, root: BasePart, zoneIndex: number, roomIndex: number, beam: BasePart?, beamId: number?, waitForClaim: boolean, started: number)
+	local key = beamKeyOf(zoneIndex, roomIndex, beamId)
+	local token = handled[player]
+	if token and token.key == key and token.untilTime > started then
+		return
+	end
+	if not waitForClaim then
+		applyByServer(player, root, zoneIndex, roomIndex, beam, key)
+		return
+	end
+	if pending[player] then
+		return
+	end
+	pending[player] = { at = started, zoneIndex = zoneIndex, roomIndex = roomIndex, beam = beam, beamKey = key }
+end
+
+--- Applies the touches whose grace ran out without a claim. Called each step.
+local function resolvePending(started: number)
+	for player, entry in pending do
+		local _, root = validBody(player)
+		if not root or RagdollService.isRagdolled(player) or RagdollService.isImmune(player) or not player.Parent then
+			-- Gone, or a claim (or anything else) already put them down.
+			pending[player] = nil
+		elseif started - entry.at >= LaserConfig.CLIENT.CLAIM_GRACE then
+			pending[player] = nil
+			if not exempt[player] and not LootService.isClosed() and (jammedUntil[player] or 0) <= started then
+				applyByServer(player, root, entry.zoneIndex, entry.roomIndex, entry.beam, entry.beamKey)
+			end
+		end
+	end
+end
+
+--- THE CLIENT'S CLAIM: the entry point behind the LaserHit remote (and the
+--- debug command laserClientClaimTest). The player's own client detected a
+--- touch of beam `beamId` in (zoneIndex, roomIndex) and is already flying its
+--- character. The server does NOT re-run the geometry - the client saw the
+--- exact frame, the server's view of the body is a network snapshot behind -
+--- it validates PLAUSIBILITY: well-formed, rate-limited, the beam exists, the
+--- player is not jammed / closed out / exempt / already down, and the
+--- server-known position is within a generous radius of the beam's space (a
+--- fast body is far past the beam by the time its claim arrives). On accept
+--- it applies the consequences the fallback would, minus moving the body.
+--- Returns (accepted, reason); a rejection is never announced to the client.
+function LaserService.claim(player: Player, zoneIndex: any, roomIndex: any, beamId: any): (boolean, string?)
+	if type(zoneIndex) ~= "number" or type(roomIndex) ~= "number" or type(beamId) ~= "number"
+		or zoneIndex ~= math.floor(zoneIndex) or roomIndex ~= math.floor(roomIndex) or beamId ~= math.floor(beamId)
+		or zoneIndex < 1 or zoneIndex > MapConfig.ZONE_COUNT or roomIndex < 1 or roomIndex > Layout.ROOMS_PER_ZONE
+		or beamId < 1 or beamId > 200 then
+		return false, "malformed"
+	end
+	if not claimLimiter:consume(player) then
+		metrics.claimsRejected += 1
+		return false, "rate limited"
+	end
+	local reject = function(reason: string): (boolean, string?)
+		metrics.claimsRejected += 1
+		return false, reason
+	end
+	local character, root, humanoid = validBody(player)
+	if not character or not root or not humanoid then
+		return reject("no body")
+	end
+	local started = os.clock()
+	if exempt[player] then
+		return reject("exempt")
+	end
+	if LootService.isClosed() then
+		return reject("closed")
+	end
+	if (jammedUntil[player] or 0) > started then
+		return reject("jammed")
+	end
+	if RagdollService.isRagdolled(player) or RagdollService.isImmune(player) then
+		return reject("already down")
+	end
+	local beam = LaserBeams.find(zoneIndex, roomIndex, beamId)
+	if not beam then
+		return reject("no such beam")
+	end
+	-- The position the server trusts (a teleport is not believed), against the
+	-- beam's whole space, with room for how far a fast body gets in the
+	-- claim's flight time.
+	local position = MovementService.verifiedPosition(player) or root.Position
+	local speed = MovementService.peakSpeedSince(player, started - 3)
+	local radius = LaserConfig.CLIENT.CLAIM_RADIUS + speed * LaserConfig.CLIENT.CLAIM_LATENCY
+	if LaserBeams.distance(beam, position) > radius then
+		return reject("too far from that beam")
+	end
+	if position.Z < 0 or math.abs(position.X) > MapConfig.LANE_HALF then
+		return reject("not in the lane")
+	end
+
+	-- ACCEPTED. The server's own record of the flight (see stampFlight for
+	-- why the tail is short) and the consequences of a touch.
+	local frame, halfDoor = doorOf(zoneIndex, roomIndex)
+	local plan = LaserFlight.plan(frame, halfDoor, position)
+	local duration = math.max(plan.seconds + KNOCKBACK.GROUND_STUN - LaserConfig.CLIENT.STAMP_TAIL, 0.5)
+	local key = beamKeyOf(zoneIndex, roomIndex, beamId)
+	pending[player] = nil
+	handled[player] = { key = key, untilTime = started + duration }
+	metrics.claimsAccepted += 1
+	recordTouch(player, zoneIndex, roomIndex, LaserBeams.partOf(beam) :: BasePart?)
+	RagdollService.stampFlight(player, duration)
+
+	-- A claim buys a movement-check window, not a teleport: shortly after the
+	-- flight should have landed, a body far from the landing spot is put on it.
+	local landing = plan.landing
+	task.delay(plan.seconds + LaserConfig.CLIENT.LANDING_CHECK_AFTER, function()
+		local nowCharacter, nowRoot = validBody(player)
+		if nowCharacter ~= character or not nowRoot or exempt[player] then
+			return
+		end
+		if (nowRoot.Position - landing).Magnitude > LaserConfig.CLIENT.LANDING_RADIUS then
+			metrics.claimsSnapped += 1
+			warn(`[LaserService] {player.Name} claimed a laser flight but is {math.floor((nowRoot.Position - landing).Magnitude)} studs from its landing; put on it`)
+			MovementService.allowTeleport(player)
+			character:PivotTo(CFrame.new(landing) * nowRoot.CFrame.Rotation)
+			nowRoot.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
+	return true, nil
 end
 
 local function step()
 	local started = os.clock()
 	local closed = LootService.isClosed()
+	resolvePending(started)
 	for _, player in Players:GetPlayers() do
 		local character, root, humanoid = validBody(player)
 		if not character or not root or not humanoid or closed or root.Position.Z < 0
@@ -326,6 +501,11 @@ local function step()
 		if (hitGuard[player] or 0) > started then
 			continue
 		end
+		-- A touch is already waiting for the client's claim: nothing more to
+		-- find until it is resolved (claimed, applied or dropped).
+		if pending[player] then
+			continue
+		end
 		-- ONE TOUCH PER STEP. The first beam found throws the player; testing
 		-- the rest against a body that is already leaving would be noise.
 		local struck = false
@@ -339,7 +519,8 @@ local function step()
 			for _, arm in field.arms do
 				metrics.narrowChecks += 1
 				if Geometry.sweptArmHit(arm, serverFrom, serverNow, from, center, half) then
-					hit(player, root, field.zoneIndex, field.roomIndex, nil, started)
+					-- No client detector for a vault's arms: applied at once.
+					detected(player, root, field.zoneIndex, field.roomIndex, nil, nil, false, started)
 					struck = true
 					break
 				end
@@ -351,49 +532,20 @@ local function step()
 		if struck then
 			continue
 		end
-		-- [lasers-rework] The room's own moving beams, by the room the body is in
-		-- (a body in the doorway strip counts: locate's rooms start at the facade).
+		-- [lasers-rework] The room's beams (static AND moving: one list, one
+		-- test - shared/LaserBeams and LaserGeometry.beamHit, the same the
+		-- player's own client runs every frame), by the room the body is in (a
+		-- body in the doorway strip counts: locate's rooms start at the facade).
+		-- Only the room's own <= 40 beams, each rejected by its bounding box
+		-- before the exact sweep: cheap enough for SERVER_HZ.
 		local zoneHere, roomHere = Layout.locate(root.Position)
-		local movers = if zoneHere and roomHere then roomMovers[Layout.key(zoneHere, roomHere)] else nil
-		if movers and zoneHere and roomHere then
-			for _, mover in movers do
+		if zoneHere and roomHere then
+			for _, beam in LaserBeams.room(zoneHere, roomHere) do
 				metrics.narrowChecks += 1
-				if Geometry.sweptSegmentHit(mover.segment, serverFrom, serverNow, from, center, half) then
-					hit(player, root, zoneHere, roomHere, mover.part, started)
-					struck = true
+				if Geometry.beamHit(beam, serverFrom, serverNow, from, center, half) then
+					detected(player, root, zoneHere, roomHere, LaserBeams.partOf(beam) :: BasePart?, beam.id, true, started)
 					break
 				end
-			end
-		end
-		if struck then
-			continue
-		end
-		local containers: { Instance } = {}
-		for _, field in fields do
-			if math.max(from.Z, center.Z) + half.Z >= field.startZ and math.min(from.Z, center.Z) - half.Z <= field.endZ then
-				table.insert(containers, field.folder)
-			end
-		end
-		if #containers == 0 then continue end
-		-- ONE OverlapParams, re-pointed per query (security pass B13b), rather
-		-- than a fresh one for every player on every tick.
-		local params = overlap
-		params.FilterDescendantsInstances = containers
-		local delta = center - from
-		local size = Vector3.new(math.abs(delta.X), math.abs(delta.Y), math.abs(delta.Z)) + half * 2 + Vector3.one * 0.2
-		local candidates = workspace:GetPartBoundsInBox(CFrame.new((from + center) / 2), size, params)
-		metrics.queries += 1
-		for _, beam in candidates do
-			local a, b = beam:GetAttribute("A"), beam:GetAttribute("B")
-			if typeof(a) ~= "Vector3" or typeof(b) ~= "Vector3" then continue end
-			local index = beam:GetAttribute("ZoneIndex")
-			local room = beam:GetAttribute("RoomIndex")
-			if type(room) ~= "number" then continue end
-			if type(index) ~= "number" then continue end
-			metrics.narrowChecks += 1
-			if Geometry.sweptBoxHit(a, b, from, center, half) then
-				hit(player, root, index, room, beam, started)
-				break
 			end
 		end
 	end
@@ -406,6 +558,9 @@ end
 function LaserService.setExempt(player: Player, on: boolean)
 	if RunService:IsStudio() then
 		exempt[player] = if on then true else nil
+		-- The player's own client detects touches too (LaserHitController):
+		-- it must stand down for an exempt runner as well.
+		player:SetAttribute("LaserExempt", if on then true else nil)
 	end
 end
 
@@ -437,26 +592,21 @@ end
 
 function LaserService.snapshot(): any
 	local out: any = table.clone(metrics)
-	out.fields, out.hz = #fields, 1 / INTERVAL
+	out.fields, out.hz = folderCount, 1 / INTERVAL
 	out.movingFields = #movingFields
-	local movers = 0
-	for _, list in roomMovers do
-		movers += #list
-	end
-	out.roomMovers = movers
 	return out
-end
-
---- The moving beams the detector tests in one room (debug: laserMoverSync).
-function LaserService.moversIn(zoneIndex: number, roomIndex: number): { RoomMover }
-	return roomMovers[Layout.key(zoneIndex, roomIndex)] or {}
 end
 
 --- Registers a field of rotating arms (vaults-crews: VaultService, one per
 --- vault). A player whose root is `inside` it is swept against every arm on
---- each step; a touch wakes the guard of (zoneIndex, roomIndex).
+--- each step; a touch throws them out of (zoneIndex, roomIndex)'s door.
 function LaserService.addMovingField(zoneIndex: number, roomIndex: number, arms: { Geometry.SweepArm }, inside: (Vector3) -> boolean)
 	table.insert(movingFields, { zoneIndex = zoneIndex, roomIndex = roomIndex, arms = arms, inside = inside })
+end
+
+--- Debug: a touch the server has detected and is holding for a claim.
+function LaserService.hasPending(player: Player): boolean
+	return pending[player] ~= nil
 end
 
 function LaserService.start()
@@ -464,38 +614,25 @@ function LaserService.start()
 		local index = zone:GetAttribute("ZoneIndex")
 		local field = zone:FindFirstChild("Lasers")
 		if type(index) == "number" and index >= 1 and field then
-			table.insert(fields, { index = index, startZ = MapConfig.zoneStartZ(index), endZ = MapConfig.zoneEndZ(index), folder = field })
-			-- [lasers-rework] The room's moving beams: numbers off the part, once.
-			for _, beam in field:GetChildren() do
-				local restA, restB, travel = beam:GetAttribute("RestA"), beam:GetAttribute("RestB"), beam:GetAttribute("Travel")
-				local room = beam:GetAttribute("RoomIndex")
-				if not beam:IsA("BasePart") or typeof(restA) ~= "Vector3" or typeof(restB) ~= "Vector3" or typeof(travel) ~= "Vector3" or type(room) ~= "number" then
-					continue
-				end
-				local key = Layout.key(index, room)
-				local list = roomMovers[key] or {}
-				roomMovers[key] = list
-				table.insert(list, {
-					part = beam,
-					segment = {
-						a = restA, b = restB, travel = travel,
-						period = tonumber(beam:GetAttribute("Period")) or 0,
-						phase = tonumber(beam:GetAttribute("Phase")) or 0,
-						onSeconds = tonumber(beam:GetAttribute("OnSeconds")),
-						offSeconds = tonumber(beam:GetAttribute("OffSeconds")),
-						blinkPhase = tonumber(beam:GetAttribute("BlinkPhase")),
-					},
-				})
-			end
+			folderCount += 1
+			-- [lasers-rework] Every room beam, static and moving, into the list
+			-- the client reads too (shared/LaserBeams).
+			LaserBeams.scan(field)
 		end
 	end
 	Remotes.get("CrouchRequest").OnServerEvent:Connect(function(player, wanted)
 		if type(wanted) == "boolean" and limiter:consume(player) then LaserService.setCrouched(player, wanted) end
 	end)
+	-- The player's own client reporting a touch it detected (see claim). The
+	-- arguments are validated inside claim; a rejection is silent.
+	Remotes.get("LaserHit").OnServerEvent:Connect(function(player, zoneIndex, roomIndex, beamId)
+		LaserService.claim(player, zoneIndex, roomIndex, beamId)
+	end)
 	local function watch(player: Player)
 		player.CharacterAdded:Connect(function()
 			local wasCrouched = crouched[player]
 			previous[player], crouched[player], hitGuard[player] = nil, nil, nil
+			pending[player], handled[player] = nil, nil
 			-- Nor does a jam: it belonged to the body that used it.
 			if jammedUntil[player] then LaserService.clearJam(player) end
 			-- A crouch does not survive a respawn, and neither may its speed cost.
@@ -506,9 +643,11 @@ function LaserService.start()
 	Players.PlayerAdded:Connect(watch)
 	Players.PlayerRemoving:Connect(function(player)
 		previous[player], crouched[player], hitGuard[player] = nil, nil, nil
+		pending[player], handled[player] = nil, nil
 		exempt[player] = nil
 		jammedUntil[player] = nil
 		limiter:release(player)
+		claimLimiter:release(player)
 	end)
 	local accumulated = 0
 	RunService.Heartbeat:Connect(function(dt)
