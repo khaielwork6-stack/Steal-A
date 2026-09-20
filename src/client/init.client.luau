@@ -9,6 +9,7 @@
 local HUDController = require(script.Controllers.HUDController)
 local GuardianFxController = require(script.Controllers.GuardianFxController)
 local HeldItemFxController = require(script.Controllers.HeldItemFxController) -- [hold-items]
+local DevToolsController = require(script.Controllers.DevToolsController) -- Studio-only dev panel
 local BasePromptController = require(script.Controllers.BasePromptController)
 local TutorialFilmController = require(script.Controllers.TutorialFilmController)
 local CombatController = require(script.Controllers.CombatController)
@@ -107,6 +108,7 @@ boot("HUDController", HUDController.start)
 boot("HUDLayoutController", HUDLayoutController.start)
 startLater("GuardianFxController", GuardianFxController.start)
 startLater("HeldItemFxController", HeldItemFxController.start) -- [hold-items]
+startLater("DevToolsController", DevToolsController.start) -- returns outside Studio
 startLater("BasePromptController", BasePromptController.start)
 startLater("TutorialFilmController", TutorialFilmController.start)
 startLater("CombatController", CombatController.start)

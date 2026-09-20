@@ -709,6 +709,7 @@ require(Services.FusionService).isLocked = require(Services.TradeService).isOffe
 require(Services.GiftService).start()
 
 DebugService.start()
+require(Services.DevService).start() -- Studio-only dev tools (returns outside Studio)
 
 -- (Scenery is made walk-through once, inside MapBuilder.rebuildGalleries at the
 -- top of this file - see MapBuilder.applyDecorCollision. The zone 9 -> 5 snow

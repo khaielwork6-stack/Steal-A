@@ -284,6 +284,11 @@ Remotes.NAMES = {
 	-- existing InventoryPush (they are ordinary Inventory entries flagged
 	-- Held) - no new push channel.
 	"HoldRequest",
+	-- ==== DEV TOOLS (Studio only) ====
+	-- client -> server. DevRequest(action, argument): "grantCash" (a number)
+	-- and "resetAll" ("RESET"). Handled ONLY in Studio (DevService.start
+	-- returns outside it): on a live server the remote has no listener.
+	"DevRequest",
 	-- ==== RELIC-ROLL ====
 	-- The "MUSEUM RELICS [LIMITED]" gacha banner. Buying a roll is the
 	-- existing PurchaseRequest("product", "RelicRoll<n>x"); this is the one

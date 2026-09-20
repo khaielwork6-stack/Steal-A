@@ -1932,6 +1932,34 @@ function DataService.save(player: Player): boolean
 	return requestSave(player, false)
 end
 
+--- STUDIO ONLY (DevService). Replaces the player's profile, IN PLACE, with a
+--- brand-new player's (the same defaults -> migrate -> reconcile a first join
+--- gets), keeping the same table so everything holding it stays valid. The
+--- current state is saved first, so the version being wiped is the newest saved
+--- one and stays in DataStore's version history. Returns false outside Studio
+--- or with no profile.
+function DataService.devReset(player: Player): boolean
+	if not RunService:IsStudio() then
+		return false
+	end
+	local profile = profiles[player]
+	if not profile then
+		return false
+	end
+	if useDataStore and not studioGuest[player] then
+		requestSave(player, false)
+	end
+	local fresh = reconcile(migrate(defaultProfile()))
+	local live = profile :: any
+	for key in live do
+		live[key] = nil
+	end
+	for key, value in fresh :: any do
+		live[key] = value
+	end
+	return true
+end
+
 --- Saves made by this server so far. Studio test support only.
 function DataService.debugWriteCount(): number
 	return writeCount
