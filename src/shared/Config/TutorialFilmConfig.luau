@@ -18,7 +18,13 @@ local TutorialFilmConfig = {}
 
 --- Master switch. Off = the film never plays and nothing is marked seen, so
 --- turning it back on later still shows it to anyone who has not watched it.
-TutorialFilmConfig.ENABLED = true
+--- TEMPORARILY OFF (owner, 2026-09-20): new players get no tutorial film while it
+--- is being reworked. Set this back to true to turn it on again; nothing else
+--- needs to change (no profile is marked, so everyone who has not watched it
+--- will see it once it is back). While it is off the Settings "Tutorial" row
+--- does nothing. The old objective-line tutorial no longer exists, so a new
+--- player currently gets no guidance at all.
+TutorialFilmConfig.ENABLED = false
 
 --- Hard cap on how long a player can be marked "in cinematic" server-side,
 --- whatever the client reports (or fails to report). Belt and braces against
