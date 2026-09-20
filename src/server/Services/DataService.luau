@@ -1418,7 +1418,32 @@ local function heldByOther(lock: any, now: number): boolean
 	return now - at < GameConfig.DATA_LOCK_STALE_SECONDS
 end
 
-type ClaimOutcome = "taken" | "held" | "corrupt"
+type ClaimOutcome = "taken" | "held" | "corrupt" | "borrowed"
+
+--- STUDIO NEVER TAKES A SAVE FROM A LIVE SERVER (2026-09-20). A Studio Play
+--- session loads the REAL profile of whoever presses Play. With the owner in
+--- the live game at the same moment, Studio used to wait DATA_LOCK_WAIT_SECONDS
+--- and then take the lock over like any other server - and the live server,
+--- finding its lock gone, kicked the owner ("Your progress was opened in
+--- another server") and threw away everything since its last save. It happened
+--- twice in one afternoon of testing.
+---
+--- Now a lock held by a LIVE session (any JobId not starting "studio-") is
+--- never touched from Studio. The stored profile is BORROWED instead: read
+--- without writing, played in memory, and never saved. The live session keeps
+--- its lock and its progress; the Studio session is a guest.
+local IS_STUDIO_SESSION = RunService:IsStudio()
+local studioGuest: { [Player]: boolean } = {}
+
+local function isLiveHolder(holder: any): boolean
+	return type(holder) == "string" and string.sub(holder, 1, 7) ~= "studio-"
+end
+
+--- True for a Studio session playing on a borrowed copy of a profile a live
+--- server owns: nothing this player does here is ever written.
+function DataService.isStudioGuest(player: Player): boolean
+	return studioGuest[player] == true
+end
 
 --- ONE atomic read-and-lock. "taken" returns the stored document (the lock
 --- now ours; a brand-new key gets a locked default profile written straight
@@ -1447,6 +1472,12 @@ local function claim(target: DataStore, storeKey: string, takeover: boolean): (C
 		local lock = stored.SessionLock
 		if heldByOther(lock, os.time()) then
 			holder = lock.JobId
+			if IS_STUDIO_SESSION and isLiveHolder(holder) then
+				-- Read it, write nothing, leave the live server's lock alone.
+				outcome = "borrowed"
+				document = stored
+				return nil
+			end
 			if not takeover then
 				outcome = "held"
 				return nil
@@ -1568,7 +1599,11 @@ local function acquire(player: Player): (string, any)
 			ok, outcome = false, "the DataStore could not be opened"
 		end
 
-		if ok and outcome == "taken" then
+		if ok and outcome == "borrowed" then
+			studioGuest[player] = true
+			warn(`[DataService] {player.Name}'s save is open on a LIVE server ({tostring(holder)}). Studio is playing a borrowed copy: NOTHING in this session will be saved, and the live session is not disturbed.`)
+			return "ok", document
+		elseif ok and outcome == "taken" then
 			if holder ~= nil then
 				warn(`[DataService] took over {player.Name}'s save from session {tostring(holder)} after waiting {GameConfig.DATA_LOCK_WAIT_SECONDS}s`)
 			end
@@ -1706,7 +1741,7 @@ local function runQueue(player: Player, queue: SaveQueue)
 		local ok = false
 		local profile = profiles[player]
 		local target = openStore()
-		if profile and target and not sessionLost[player] and not queue.released then
+		if profile and target and not sessionLost[player] and not studioGuest[player] and not queue.released then
 			-- The hooks run per WRITE, right before it, so what they stamp (the
 			-- offline clock) is as fresh as the data it is saved with.
 			runBeforeSave(player, profile)
@@ -1766,6 +1801,11 @@ local function requestSave(player: Player, release: boolean): boolean
 		return false
 	end
 	if sessionLost[player] then
+		return false
+	end
+	if studioGuest[player] then
+		-- A borrowed profile is never written (see STUDIO NEVER TAKES A SAVE).
+		runBeforeSave(player, profile)
 		return false
 	end
 
@@ -1901,8 +1941,9 @@ function DataService.release(player: Player)
 	if useDataStore then
 		local attempts = GameConfig.DATA_RELEASE_SAVE_ATTEMPTS
 		for attempt = 1, attempts do
-			if sessionLost[player] then
-				-- Another server owns the save; retrying could only be refused.
+			if sessionLost[player] or studioGuest[player] then
+				-- Another server owns the save (or this is a Studio guest on a
+				-- borrowed copy); retrying could only be refused.
 				break
 			end
 			if requestSave(player, true) then
@@ -1929,6 +1970,7 @@ function DataService.release(player: Player)
 	loading[player] = nil
 	saveQueues[player] = nil
 	sessionLost[player] = nil
+	studioGuest[player] = nil
 	releasing[userId] = nil
 	releasingPlayers[player] = nil
 	runAfterRelease(player)
