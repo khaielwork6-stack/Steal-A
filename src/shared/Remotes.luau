@@ -254,6 +254,29 @@ Remotes.NAMES = {
 	-- Clamped, whitelisted and rate-limited in PerfFeed; grants nothing.
 	-- (The open-panel report rides the existing AnalyticsClientEvent.)
 	"PerfReport",
+
+	-- ==========================================================
+	-- HOLD ITEMS [hold-items] - pick a placed trophy up into your hands,
+	-- carry it small, place it back on a pad.
+	-- ==========================================================
+	-- client -> server. HoldRequest(action, a, b): every intent, tagged, on
+	-- one remote (the InventoryRequest / CrewRequest pattern) so a new action
+	-- never means a new RemoteEvent:
+	--   ("pickup", padSlotIndex)         take the revealed trophy on that
+	--                                     display slot into your hands.
+	--   ("place", padSlotIndex)          put your currently EQUIPPED held
+	--                                     item down on that (empty) slot.
+	--   ("equip", handSlotRank)          make the held item at that rank
+	--                                     (1..HoldConfig.MAX_HELD_ITEMS, by
+	--                                     pickup order) the one shown small
+	--                                     in your hands.
+	-- No amounts, no item ids, no instance ids: every argument is an index
+	-- the server re-resolves against DataService.get(player) itself, so a
+	-- lie here can only name an index that fails, never move someone else's
+	-- item. Validated and rate-limited in HoldService. Held items ride the
+	-- existing InventoryPush (they are ordinary Inventory entries flagged
+	-- Held) - no new push channel.
+	"HoldRequest",
 }
 
 local folder: Folder

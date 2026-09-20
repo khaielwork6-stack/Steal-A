@@ -435,6 +435,7 @@ GameConfig.RATE_LIMITS = {
 	GuardianRequest = 3,
 	WeaponRequest = 3,
 	OfflineClaimRequest = 2,
+	HoldRequest = 4, -- [hold-items] pickup / place / equip, one bucket
 }
 
 -- ==========================================================

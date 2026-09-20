@@ -143,6 +143,14 @@ function FusionService.fuse(player: Player, itemId: string, instanceIds: { strin
 		if item.Hatched == false then
 			return nil, "Reveal it first!"
 		end
+		-- [hold-items] A held item is deliberately off-limits here - place it
+		-- back on a pad first. Safest option: fusion DESTROYS its inputs, and
+		-- a held item is the one Storage entry the player is actively looking
+		-- at in their hands; silently consuming it out of their hand would be
+		-- the single most surprising thing this feature could do.
+		if item.Held then
+			return nil, "Place it first!"
+		end
 		if item.RobbedBy or HeistService.isReserved(instanceId) or HatchService.isRevealing(instanceId) then
 			return nil, "One of those copies is busy right now."
 		end

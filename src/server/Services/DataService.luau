@@ -157,6 +157,31 @@ export type DisplayItem = {
 	--- Cleared on every load - a robbery never survives a session - and
 	--- resolved by HeistService before the owner's profile is saved on leave.
 	RobbedBy: number?,
+	-- ==========================================================
+	-- HOLD ITEMS [hold-items] - additive, no schema bump. Nil reads as
+	-- false/absent on every field below, so an old save needs no migration.
+	-- ==========================================================
+	--- True while this STORED item is "in your hands" rather than plain
+	--- storage: still an Inventory entry (still counts against storage
+	--- capacity, still saved, still safe on leave/crash/server hop), just
+	--- flagged so HoldService and the Storage UI know to show it as held and
+	--- HotbarController knows to give it a hand slot. Never true at the same
+	--- time as being in DisplayItems - an item is on a pad, in a hand, or in
+	--- plain storage, never two of those at once.
+	Held: boolean?,
+	--- The order this item was most recently picked up in, a per-player
+	--- monotonically increasing counter (HoldService). Ranking every Held
+	--- item by this number, ascending, IS the hand-slot numbering ("your
+	--- inventory becomes 1, 2, 3..."): nothing renumbers on a pickup or a
+	--- place, the rank is just recomputed from whichever items are still
+	--- Held. Meaningless once Held is not true.
+	HeldOrder: number?,
+	--- True for the ONE held item currently shown small in the owner's hands
+	--- (and earning no income, wherever it sits). Exactly one Held item may
+	--- carry this at a time; HoldService.equip moves it. Persisted rather
+	--- than kept in memory so which item you were holding survives a
+	--- server hop exactly like the fact that you were holding it at all.
+	HeldActive: boolean?,
 }
 
 export type Profile = {
@@ -1249,6 +1274,37 @@ local function reconcile(profile: Profile): Profile
 	end
 	if repaired > 0 then
 		print(`[DataService] rebuilt income on {repaired} saved item(s) from the current economy`)
+	end
+
+	-- [hold-items] DEFENSIVE, not a migration (every field here is optional
+	-- and a missing one already reads as "not held"). Cleans up states that
+	-- should never exist rather than trusting they don't:
+	--   * A DisplayItem (on a pad) can never be Held - Held only ever means
+	--     "in Inventory, off display, in hand". A pad and a hand are not the
+	--     same place.
+	--   * At most one Inventory item may carry HeldActive.
+	-- Either could only happen from a bug or a hand-edited save; both are
+	-- repaired quietly rather than left to confuse HoldService later.
+	for _, item in profile.DisplayItems do
+		if item.Held then
+			item.Held = nil
+			item.HeldOrder = nil
+			item.HeldActive = nil
+		end
+	end
+	local activeSeen = false
+	for _, item in profile.Inventory do
+		if item.Held ~= true then
+			item.Held = nil
+			item.HeldOrder = nil
+			item.HeldActive = nil
+		elseif item.HeldActive then
+			if activeSeen then
+				item.HeldActive = nil
+			else
+				activeSeen = true
+			end
+		end
 	end
 
 	return profile

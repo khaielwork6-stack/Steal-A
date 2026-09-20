@@ -8,6 +8,7 @@
 
 local HUDController = require(script.Controllers.HUDController)
 local GuardianFxController = require(script.Controllers.GuardianFxController)
+local HeldItemFxController = require(script.Controllers.HeldItemFxController) -- [hold-items]
 local BasePromptController = require(script.Controllers.BasePromptController)
 local TutorialController = require(script.Controllers.TutorialController)
 local CombatController = require(script.Controllers.CombatController)
@@ -104,6 +105,7 @@ boot("HUDController", HUDController.start)
 -- and Storage openers are cloned from.
 boot("HUDLayoutController", HUDLayoutController.start)
 startLater("GuardianFxController", GuardianFxController.start)
+startLater("HeldItemFxController", HeldItemFxController.start) -- [hold-items]
 startLater("BasePromptController", BasePromptController.start)
 startLater("TutorialController", TutorialController.start)
 startLater("CombatController", CombatController.start)

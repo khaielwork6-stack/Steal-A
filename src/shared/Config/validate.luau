@@ -1609,6 +1609,22 @@ return function(): Report
 		end
 	end
 
+	-- ==========================================================
+	-- HOLD ITEMS [hold-items]
+	-- ==========================================================
+	do
+		local HoldConfig = require(script.Parent.HoldConfig)
+		check(HoldConfig.MAX_HELD_ITEMS >= 1 and HoldConfig.MAX_HELD_ITEMS <= 20, "HoldConfig.MAX_HELD_ITEMS must be 1-20")
+		check(HoldConfig.HELD_TARGET_LONGEST_SIDE > 0 and HoldConfig.HELD_TARGET_LONGEST_SIDE <= 10,
+			"HoldConfig.HELD_TARGET_LONGEST_SIDE must be a small positive size")
+		check(HoldConfig.HELD_MIN_LONGEST_SIDE > 0 and HoldConfig.HELD_MIN_LONGEST_SIDE < HoldConfig.HELD_TARGET_LONGEST_SIDE,
+			"HoldConfig.HELD_MIN_LONGEST_SIDE must be positive and smaller than the target")
+		check(typeof(HoldConfig.HELD_OFFSET) == "CFrame", "HoldConfig.HELD_OFFSET must be a CFrame")
+		check(HoldConfig.HELD_OUTLINE_TRANSPARENCY >= 0 and HoldConfig.HELD_OUTLINE_TRANSPARENCY < 1,
+			"HoldConfig.HELD_OUTLINE_TRANSPARENCY must be in [0, 1)")
+		check(HoldConfig.HELD_BILLBOARD_MAX_DISTANCE > 0, "HoldConfig.HELD_BILLBOARD_MAX_DISTANCE must be positive")
+	end
+
 	if #report.failed == 0 then
 		print(`[Config] validation PASSED - {report.passed} checks`)
 	else
