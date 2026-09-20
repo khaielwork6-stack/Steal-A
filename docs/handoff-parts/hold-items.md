@@ -8,6 +8,93 @@ Remotes, HatchService, PlacementService...) - none of these are new; they are
 the checker repeating existing diagnostics once more for every module that
 now requires a file this pass touched.
 
+## 2026-09-20 REWORK (hotbar, overflow, Store it) - this section wins
+
+Where the text below disagrees (a 6-item cap, keys 6-0, "Hands full", the
+"Picked up"/"PLACED" toasts, `holdFullTest`), THIS section is current. Nothing
+was run in Studio (rule 1); check.sh hard errors empty, selene 0 errors.
+
+**Rules settled**
+
+1. **No pickup/place toasts.** `HoldService.pickup`, `HoldService.place` and
+   `PlacementService.equip` (Storage DISPLAY) no longer call notify on success.
+   Errors still toast. The pad ProximityPrompt text ("Pick up <name>" /
+   "Place") is unchanged.
+2. **Positional, compact hotbar, max 10.** Slots are
+   `[1 Slap/Bat][2 Trap][owned gadgets in GadgetConfig order][held items in
+   pickup order]`, numbered consecutively, only occupied slots drawn (no empty
+   dark placeholders). Keys 1-9 and 0 (= 10th) equip by position; a tap
+   equips too. A gadget's key is now its position (with no gadgets, the first
+   held item is 3). While carrying, only gadget slots show (still above DROP,
+   keeping their positional numbers) and pressing one calls
+   `GadgetController.quickUse`; held items are hidden. `HotbarController`
+   keeps a fixed pool of 10 slot buttons (all from the pack's MenuButtons
+   slot: same frame, key number, size, lift, ViewportFrame icon, name label)
+   and repaints a slot only when its content id changes, so a rebuild never
+   re-tweens unchanged slots.
+3. **Overflow inventory.** Held items past the hotbar's room (10 minus
+   tools/gadgets) live in `HeldOverflowController`'s panel (backtick =
+   `HoldConfig.OVERFLOW_KEY`; a "Bag +N" button beside the hotbar on touch;
+   Escape/X/picking closes). Grid of rarity-bordered tiles with the name under
+   each, scrolls, handles 90; viewports are made lazily as tiles scroll in.
+   Tapping a tile sends `HoldRequest("equip", rank)`.
+4. **Server and client agree by position only.** `src/shared/Util/HeldLayout`
+   (`rank`, `capacity`) is the one ordering: Held Inventory entries by
+   `HeldOrder` asc; ranks `1..capacity` are on the hotbar, the rest overflow.
+   The server derives `capacity` from the player's Tool count (`toolCount`).
+   Equipping an overflow rank, or picking up / `hold()`ing while the bar is
+   full, puts that item in the LAST hotbar position and pushes the least
+   recently used hotbar item (in-memory use clock, unknown = oldest, ties by
+   lowest position) to the overflow - `activate()` re-deals the existing
+   `HeldOrder` values in the new sequence. The equipped item is therefore
+   always on the hotbar (unless tools fill all 10).
+5. **No hand cap.** `HoldConfig.MAX_HELD_ITEMS` is now the largest Storage
+   tier's capacity (90), a validation/UI ceiling only; the "Hands full"
+   refusal is gone. Storage capacity ("Storage full") is the only bound.
+   Held items still refuse sell / trade / fuse / display-from-storage
+   (unchanged code).
+6. **"Store it" button.** `HeldOverflowController`, own ScreenGui
+   `HeldExtrasUI` (added to `UIStateController.HUD_SCREENS`, not to
+   SCREEN_KEEP, so a carry or any panel/reveal claim hides it and closes the
+   open overflow). 96x40 (44 tall on touch), mid-right (touch: left of the
+   offer-rail column, above the event pills). Slides in/out; instant when
+   `Effects.isReduced()`. Fires `HoldRequest("store")` (no arguments).
+7. **New server action** `HoldService.store(player)` on `HoldRequest` action
+   `"store"`: same 4/s limiter; resolves the active item itself, clears
+   `Held/HeldOrder/HeldActive` (item stays in Inventory), the newest remaining
+   held item becomes active; refused with "You are not holding anything." when
+   empty-handed.
+
+**Public API (Relic Roll calls it; do not rename)**
+- `HoldService.hold(player, instanceId): (boolean, string?)` - item in
+  Inventory, not held -> Held with next HeldOrder, active, visual + push
+  refreshed; false only for no profile / not in Storage / already held. Same
+  atomic (no-yield) `markHeld` path as pickup.
+- `HoldService.holdMany(player, ids)` - in the given order, LAST is active,
+  one refresh; unholdable ids are skipped and the first reason returned.
+- Also `HoldService.hotbarCapacity(player)`.
+
+**Files** (this pass): `src/shared/Util/HeldLayout.luau` (new),
+`src/client/Controllers/HeldOverflowController.luau` (new),
+`HotbarController.luau` (rewritten), `HoldService.luau`, `HoldConfig.luau`,
+`validate.luau`, `Remotes.luau` (comment only), `PlacementService.luau`
+(PLACED toast), `UIStateController.luau` (HUD_SCREENS), `init.client.luau`,
+`DebugCommands/HoldItems.luau`.
+
+**Debug suite** (`holdSuite` runs all, each restores the profile even on
+error): `holdFullTest` (no cap, 14 held), `holdPositionTest` (0 vs 2 gadgets,
+overflow counts), `holdOverflowTest` (active always on the bar, overflow swap),
+`holdFromStorageTest` (hold/holdMany), `holdStoreTest`, `holdNoToastTest`,
+plus the existing pickup/place/race/persist/titan tests.
+
+**Studio checklist (not verifiable without Studio):** slot look identical
+across tools and items on desktop and phone; icon framing of odd item models;
+10th slot label reads "0"; backtick does not clash with a Studio/console
+shortcut; Store it position on a short phone screen vs offer rail and event
+pills; overflow panel with 90 tiles (scroll + lazy viewports); the bar
+width/center while slots appear and disappear; gadget quick use during a carry
+by position; hotbar re-render with no flicker while a StatePush arrives.
+
 ## What it does
 
 Walk up to your own base pad holding a revealed trophy: the prompt reads

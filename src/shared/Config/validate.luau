@@ -1672,7 +1672,8 @@ return function(): Report
 	-- ==========================================================
 	do
 		local HoldConfig = require(script.Parent.HoldConfig)
-		check(HoldConfig.MAX_HELD_ITEMS >= 1 and HoldConfig.MAX_HELD_ITEMS <= 20, "HoldConfig.MAX_HELD_ITEMS must be 1-20")
+		check(HoldConfig.MAX_HELD_ITEMS >= 1 and HoldConfig.MAX_HELD_ITEMS <= 200, "HoldConfig.MAX_HELD_ITEMS must be a sane ceiling (1-200)")
+		check(HoldConfig.HOTBAR_SLOTS >= 5 and HoldConfig.HOTBAR_SLOTS <= 10, "HoldConfig.HOTBAR_SLOTS must be 5-10 (keys 1-9 and 0)")
 		check(HoldConfig.HELD_TARGET_LONGEST_SIDE > 0 and HoldConfig.HELD_TARGET_LONGEST_SIDE <= 10,
 			"HoldConfig.HELD_TARGET_LONGEST_SIDE must be a small positive size")
 		check(HoldConfig.HELD_MIN_LONGEST_SIDE > 0 and HoldConfig.HELD_MIN_LONGEST_SIDE < HoldConfig.HELD_TARGET_LONGEST_SIDE,

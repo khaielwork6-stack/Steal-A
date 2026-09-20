@@ -9,12 +9,24 @@
 	every rule the owner's brief left for this pass to decide.
 ]]
 
+local StorageConfig = require(script.Parent.StorageConfig)
+
 local HoldConfig = {}
 
---- How many items a player may hold in their hands at once. The reference
---- video never fills more than a handful of slots; six leaves room for a
---- full pickup spree without turning the hotbar into a second Storage panel.
-HoldConfig.MAX_HELD_ITEMS = 6
+--- Sanity ceiling on held items, NOT a hand limit any more: a held item is
+--- an Inventory (Storage) entry flagged Held, so the real bound is Storage
+--- capacity. This equals the biggest Storage tier so the two can never
+--- disagree; it exists as an upper bound for validation and the UI only.
+HoldConfig.MAX_HELD_ITEMS = StorageConfig.Tiers[#StorageConfig.Tiers].capacity
+
+--- The hotbar draws at most this many slots (keys 1-9 and 0 = the 10th).
+--- Positions are compact: [tools and owned gadgets][held items in pickup
+--- order]. Held items past what is left of these go to the overflow
+--- inventory (backtick), decided by position alone.
+HoldConfig.HOTBAR_SLOTS = 10
+
+--- The overflow inventory panel opens/closes on this key.
+HoldConfig.OVERFLOW_KEY = Enum.KeyCode.Backquote
 
 --- The longest side (X, Y or Z, whichever is biggest) a held model is scaled
 --- to, in studs, REGARDLESS of the item's real placed size. A Titan that

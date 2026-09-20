@@ -42,7 +42,7 @@ local player = Players.LocalPlayer
 local HUD_ELEMENTS = { "Buttons", "Bottom", "Top", "StatHUD", "SocialBoosts", "Notifications", "NightTimer", "EventPill" }
 local HUD_PREFIXES = { "UI FOR ANIMAL" }
 --- Whole ScreenGuis of ours that are HUD too (the hotbar).
-local HUD_SCREENS = { "HotbarUI", "TouchGui", "ShiftLockUI" }
+local HUD_SCREENS = { "HotbarUI", "TouchGui", "ShiftLockUI", "HeldExtrasUI" } -- HeldExtrasUI: "Store it" + the overflow inventory ([hold-items])
 --- Claims a screen stays up for (round3-gameplay): a carrier keeps the
 --- hotbar so the gadgets on 3-5 stay usable (HotbarController shows only the
 --- gadget slots during a carry). Any OTHER claim still hides it.

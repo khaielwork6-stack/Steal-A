@@ -23,9 +23,24 @@
 	      left the held set, landed with the right SlotIndex, and income
 	      came back to exactly what it was before pickup.
 	  holdFullTest
-	      fills every hand slot (HoldConfig.MAX_HELD_ITEMS) from separate
-	      pads, then tries one more: must be refused with the exact "Hands
-	      full" message and must NOT have moved the item.
+	      holds HOTBAR_SLOTS + 4 items (one pickup off a pad, the rest hold()
+	      from Storage): none may be refused - there is no "Hands full" any
+	      more.
+	  holdPositionTest
+	      pure layout: 12 held items with 0 gadgets (tools = Slap + Trap, held
+	      keys start at 3, 8 on the hotbar, 4 overflow) and with 2 gadgets
+	      (held keys start at 5, 6 on the hotbar, 6 overflow).
+	  holdOverflowTest
+	      holdMany() past the hotbar: the active item is always ON the hotbar,
+	      and equipping an overflow rank takes the last hotbar position.
+	  holdFromStorageTest
+	      HoldService.hold / holdMany from Storage: order, active flag,
+	      "already held" / "missing" refusals, a racing second hold().
+	  holdStoreTest
+	      the "store" action: flags cleared, item stays in Inventory, the next
+	      held item becomes active, an empty-handed store is refused.
+	  holdNoToastTest
+	      pickup + place fire NO StateService.notify at all.
 	  holdRaceTest [itemId]
 	      fires pickup() twice back-to-back with no yield between them (the
 	      shape a doubled remote/prompt trigger would take) and checks the
@@ -49,6 +64,7 @@
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local HeldLayout = require(ReplicatedStorage.Shared.Util.HeldLayout)
 local HoldConfig = require(ReplicatedStorage.Shared.Config.HoldConfig)
 local LootConfig = require(ReplicatedStorage.Shared.Config.LootConfig)
 local LootModel = require(ReplicatedStorage.Shared.Util.LootModel)
@@ -265,41 +281,303 @@ Commands.holdPlaceTest = function(player: Player, itemIdArg: any): any
 end
 
 -- ==========================================================
--- HANDS FULL
+-- NO HAND CAP: past the hotbar's ten positions everything is overflow
 -- ==========================================================
+
+--- Adds `count` plain (not held) trophies to Storage and returns their ids.
+local function injectStored(profile: DataService.Profile, itemId: string, count: number): { string }
+	local ids: { string } = {}
+	for _ = 1, count do
+		local item = placedItem(itemId, 0, 1, "Normal")
+		table.insert(profile.Inventory, item)
+		table.insert(ids, item.InstanceId)
+	end
+	return ids
+end
+
+--- Position (1-based rank) of `instanceId` among the held items.
+local function rankOf(profile: DataService.Profile, instanceId: string): number?
+	for rank, item in HeldLayout.rank(profile.Inventory) do
+		if item.InstanceId == instanceId then
+			return rank
+		end
+	end
+	return nil
+end
 
 Commands.holdFullTest = function(player: Player): any
 	local itemId = defaultItemId()
 	return withRestore(player, function(profile)
 		local free = BaseService.freeSlots(player)
-		if #free < HoldConfig.MAX_HELD_ITEMS + 1 then
-			return { error = `need {HoldConfig.MAX_HELD_ITEMS + 1} free display slots on this base, have {#free}` }
+		local count = HoldConfig.HOTBAR_SLOTS + 4 -- well past the hotbar
+		if not free[1] then
+			return { error = "no free display slot on this base" }
 		end
-		for i = 1, HoldConfig.MAX_HELD_ITEMS + 1 do
-			table.insert(profile.DisplayItems, placedItem(itemId, free[i], 1, "Normal"))
-		end
+		-- One real pickup off a pad, then the rest from Storage: neither may be
+		-- refused for "hands full" any more.
+		table.insert(profile.DisplayItems, placedItem(itemId, free[1], 1, "Normal"))
 		BaseService.rebuildDisplays(player)
-
-		for i = 1, HoldConfig.MAX_HELD_ITEMS do
-			local ok, reason = HoldService.pickup(player, free[i])
+		local okPickup, reasonPickup = HoldService.pickup(player, free[1])
+		local ids = injectStored(profile, itemId, count - 1)
+		local refusals: { string } = {}
+		for _, id in ids do
+			local ok, reason = HoldService.hold(player, id)
 			if not ok then
-				return { error = reason, failedAt = i, stage = "filling hands" }
+				table.insert(refusals, tostring(reason))
 			end
 		end
-		local overflowSlot = free[HoldConfig.MAX_HELD_ITEMS + 1]
-		local ok, reason = HoldService.pickup(player, overflowSlot)
-		local stillDisplayed = false
-		for _, item in profile.DisplayItems do
-			if item.SlotIndex == overflowSlot then
-				stillDisplayed = true
+		local held = HoldService.heldCount(player)
+		return {
+			pass = okPickup and #refusals == 0 and held == count and HoldConfig.MAX_HELD_ITEMS >= 90,
+			pickupOk = okPickup,
+			pickupReason = reasonPickup,
+			refusals = refusals,
+			heldCount = held,
+			expected = count,
+			maxHeldCeiling = HoldConfig.MAX_HELD_ITEMS,
+		}
+	end)
+end
+
+-- ==========================================================
+-- POSITIONAL NUMBERING (pure layout: 0 gadgets vs 2 gadgets vs a full bar)
+-- ==========================================================
+
+Commands.holdPositionTest = function(_player: Player): any
+	-- 12 held items with out-of-order HeldOrder values, to prove the rank
+	-- comes from HeldOrder and nothing else.
+	local inventory: { any } = {}
+	local orders = { 7, 3, 12, 1, 9, 2, 11, 5, 4, 10, 6, 8 }
+	for _, order in orders do
+		table.insert(inventory, { InstanceId = `i{order}`, Held = true, HeldOrder = order })
+	end
+	table.insert(inventory, { InstanceId = "plain" }) -- stored, never held
+	local ranked = HeldLayout.rank(inventory)
+
+	local function layout(toolCount: number): { firstHeldKey: number, onHotbar: number, overflow: number, lastKey: number }
+		local capacity = HeldLayout.capacity(toolCount)
+		local onHotbar = math.min(capacity, #ranked)
+		return {
+			firstHeldKey = toolCount + 1, -- consecutive right after the tools
+			onHotbar = onHotbar,
+			overflow = #ranked - onHotbar,
+			lastKey = toolCount + onHotbar,
+		}
+	end
+	local none = layout(2) -- Slap, Trap only: no gadgets owned
+	local two = layout(4) -- Slap, Trap and two gadgets
+	local sorted = true
+	for rank, item in ranked do
+		sorted = sorted and item.HeldOrder == rank
+	end
+	return {
+		pass = #ranked == 12
+			and sorted
+			and none.firstHeldKey == 3
+			and none.onHotbar == 8
+			and none.overflow == 4
+			and none.lastKey == 10
+			and two.firstHeldKey == 5
+			and two.onHotbar == 6
+			and two.overflow == 6
+			and two.lastKey == 10
+			and HeldLayout.capacity(12) == 0,
+		zeroGadgets = none,
+		twoGadgets = two,
+		rankedByHeldOrder = sorted,
+	}
+end
+
+-- ==========================================================
+-- OVERFLOW SWAP: the equipped item is always on the hotbar
+-- ==========================================================
+
+Commands.holdOverflowTest = function(player: Player): any
+	local itemId = defaultItemId()
+	return withRestore(player, function(profile)
+		local capacity = HoldService.hotbarCapacity(player)
+		if capacity < 1 then
+			return { error = "this player's tools already fill the hotbar; nothing to test" }
+		end
+		local total = capacity + 3
+		local ids = injectStored(profile, itemId, total)
+		local ok, reason = HoldService.holdMany(player, ids)
+		if not ok then
+			return { error = reason, stage = "holdMany" }
+		end
+		local lastId = ids[total]
+		local lastRank = rankOf(profile, lastId)
+		-- holdMany leaves the LAST as active and the active item must be on
+		-- the hotbar even though it came last.
+		local lastOnHotbar = lastRank ~= nil and lastRank <= capacity
+		local active = HoldService.activeHeld(player)
+		local lastIsActive = active ~= nil and active.InstanceId == lastId
+
+		-- Equip an overflow item (whatever is at rank capacity + 1 now).
+		local ranked = HeldLayout.rank(profile.Inventory)
+		local target = ranked[capacity + 1]
+		local rankBefore = capacity + 1
+		local okEquip, reasonEquip = HoldService.equip(player, rankBefore)
+		local rankAfter = rankOf(profile, target.InstanceId)
+		local activeAfter = HoldService.activeHeld(player)
+		local swappedIn = rankAfter ~= nil and rankAfter <= capacity and rankAfter == capacity
+		return {
+			pass = lastOnHotbar
+				and lastIsActive
+				and okEquip
+				and swappedIn
+				and activeAfter ~= nil
+				and activeAfter.InstanceId == target.InstanceId
+				and HoldService.heldCount(player) == total,
+			capacity = capacity,
+			lastRank = lastRank,
+			lastOnHotbar = lastOnHotbar,
+			equipOk = okEquip,
+			equipReason = reasonEquip,
+			rankAfterEquip = rankAfter,
+			swappedIntoLastHotbarPosition = swappedIn,
+			heldCount = HoldService.heldCount(player),
+		}
+	end)
+end
+
+-- ==========================================================
+-- hold() / holdMany() FROM STORAGE (the Relic Roll entry point)
+-- ==========================================================
+
+Commands.holdFromStorageTest = function(player: Player): any
+	local itemId = defaultItemId()
+	return withRestore(player, function(profile)
+		local ids = injectStored(profile, itemId, 3)
+		local okOne, reasonOne = HoldService.hold(player, ids[1])
+		local okAgain, reasonAgain = HoldService.hold(player, ids[1]) -- already held
+		local okMissing, reasonMissing = HoldService.hold(player, "no-such-item")
+		local okMany, reasonMany = HoldService.holdMany(player, { ids[2], ids[3] })
+		local first = findHeld(profile, ids[1])
+		local activeItem = HoldService.activeHeld(player)
+		local order2, order3 = findHeld(profile, ids[2]), findHeld(profile, ids[3])
+
+		-- Racing calls: the second sees the first's result, never a double hold.
+		local more = injectStored(profile, itemId, 1)
+		local race1 = HoldService.hold(player, more[1])
+		local race2 = HoldService.hold(player, more[1])
+
+		local activeCount = 0
+		for _, item in profile.Inventory do
+			if item.Held and item.HeldActive then
+				activeCount += 1
 			end
 		end
 		return {
-			pass = ok == false and reason == "Hands full - place something first." and stillDisplayed,
-			refused = ok == false,
-			reason = reason,
-			overflowItemStillOnPad = stillDisplayed,
+			pass = okOne
+				and not okAgain
+				and reasonAgain ~= nil
+				and not okMissing
+				and reasonMissing ~= nil
+				and okMany
+				and first ~= nil
+				and order2 ~= nil
+				and order3 ~= nil
+				and (first.HeldOrder :: number) < (order2.HeldOrder :: number)
+				and (order2.HeldOrder :: number) < (order3.HeldOrder :: number)
+				and race1 == true
+				and race2 == false
+				and activeCount == 1
+				and HoldService.heldCount(player) == 4,
+			holdOne = { ok = okOne, reason = reasonOne },
+			holdAgain = { ok = okAgain, reason = reasonAgain },
+			holdMissing = { ok = okMissing, reason = reasonMissing },
+			holdMany = { ok = okMany, reason = reasonMany },
+			exactlyOneActive = activeCount == 1,
 			heldCount = HoldService.heldCount(player),
+			lastHeldWasActiveBeforeRace = activeItem ~= nil,
+		}
+	end)
+end
+
+-- ==========================================================
+-- STORE IT
+-- ==========================================================
+
+Commands.holdStoreTest = function(player: Player): any
+	local itemId = defaultItemId()
+	return withRestore(player, function(profile)
+		local ids = injectStored(profile, itemId, 2)
+		HoldService.holdMany(player, ids)
+		local storedActive = ids[2] -- the last is the active one
+		local okStore, reasonStore = HoldService.store(player)
+		local stillInInventory = false
+		for _, item in profile.Inventory do
+			if item.InstanceId == storedActive then
+				stillInInventory = item.Held == nil and item.HeldOrder == nil and item.HeldActive == nil
+			end
+		end
+		local other = findHeld(profile, ids[1])
+		local otherNowActive = other ~= nil and other.HeldActive == true
+		local inventoryCount = #profile.Inventory
+		-- The remote limiter is one shared bucket (4/s), so wait it out
+		-- between the two store presses instead of tripping "Slow down!".
+		task.wait(1.1)
+		local okSecond = HoldService.store(player)
+		task.wait(1.1)
+		local okThird, reasonThird = HoldService.store(player) -- hands empty now
+		return {
+			pass = okStore
+				and stillInInventory
+				and otherNowActive
+				and okSecond
+				and not okThird
+				and reasonThird == "You are not holding anything."
+				and HoldService.heldCount(player) == 0
+				and #profile.Inventory == inventoryCount,
+			store = { ok = okStore, reason = reasonStore },
+			itemStayedInStorageUnheld = stillInInventory,
+			otherBecameActive = otherNowActive,
+			secondStoreOk = okSecond,
+			thirdStore = { ok = okThird, reason = reasonThird },
+			inventoryUnchanged = #profile.Inventory == inventoryCount,
+		}
+	end)
+end
+
+-- ==========================================================
+-- NO TOAST ON PICKUP / PLACE (errors still notify)
+-- ==========================================================
+
+Commands.holdNoToastTest = function(player: Player): any
+	local itemId = defaultItemId()
+	return withRestore(player, function(profile)
+		local free = BaseService.freeSlots(player)
+		if not free[1] or not free[2] then
+			return { error = "need 2 free display slots on this base" }
+		end
+		table.insert(profile.DisplayItems, placedItem(itemId, free[1], 1, "Normal"))
+		BaseService.rebuildDisplays(player)
+
+		-- Count every notify() the two calls make. StateService.notify is what
+		-- HoldService's toasts go through; restored in a pcall so a failure
+		-- cannot leave it swapped out.
+		local mutable = StateService :: any
+		local original = mutable.notify
+		local toasts = 0
+		mutable.notify = function(_p: Player, _kind: string, _message: string, _detail: string?)
+			toasts += 1
+		end
+		local ok, result = pcall(function()
+			local pickedUp = HoldService.pickup(player, free[1])
+			task.wait(0.3) -- past the shared rate-limit bucket
+			local placed = HoldService.place(player, free[2])
+			return { pickedUp = pickedUp, placed = placed }
+		end)
+		mutable.notify = original
+		if not ok then
+			return { error = tostring(result) }
+		end
+		return {
+			pass = result.pickedUp == true and result.placed == true and toasts == 0,
+			pickedUp = result.pickedUp,
+			placed = result.placed,
+			toasts = toasts,
 		}
 	end)
 end
@@ -463,7 +741,19 @@ end
 -- ==========================================================
 
 Commands.holdSuite = function(player: Player, itemIdArg: any): any
-	local order = { "holdPickupTest", "holdPlaceTest", "holdFullTest", "holdRaceTest", "holdPersistTest", "holdTitanScaleTest" }
+	local order = {
+		"holdPickupTest",
+		"holdPlaceTest",
+		"holdFullTest",
+		"holdPositionTest",
+		"holdOverflowTest",
+		"holdFromStorageTest",
+		"holdStoreTest",
+		"holdNoToastTest",
+		"holdRaceTest",
+		"holdPersistTest",
+		"holdTitanScaleTest",
+	}
 	local results: { [string]: any } = {}
 	local allPass = true
 	for _, name in order do
