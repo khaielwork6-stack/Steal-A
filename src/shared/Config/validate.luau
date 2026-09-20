@@ -1498,7 +1498,7 @@ return function(): Report
 			totalWeight += method.weight
 		end
 		check(totalWeight > 0, "VaultConfig.MINIGAMES must have weight")
-		check(VaultConfig.CUT.rotationSeconds >= 4 and VaultConfig.CUT.padFraction > 0.03 and VaultConfig.CUT.padFraction < 0.3 and VaultConfig.CUT.graceSeconds >= 0, "VaultConfig.CUT is sane")
+		check(VaultConfig.CUT.rotationSeconds >= 4 and VaultConfig.CUT.targetRadius >= 0.06 and VaultConfig.CUT.targetRadius <= 0.3 and VaultConfig.CUT.touchScale >= 1 and VaultConfig.CUT.graceSeconds >= 0, "VaultConfig.CUT is sane")
 		check(#VaultConfig.PINS.countByBand == 3 and VaultConfig.PINS.notchFraction > 0.05 and VaultConfig.PINS.periodMin > 0 and VaultConfig.PINS.periodMax >= VaultConfig.PINS.periodMin, "VaultConfig.PINS is sane")
 		-- A 2.2-stud player must fit between the pedestal and the arms.
 		check(VaultConfig.RING_GAP >= 2.5, "the vault ring gap must fit a standing player")

@@ -11,12 +11,19 @@
 	and anything that interrupts the game here - the player has no cancel -
 	is judged by the server as a failure (death, walking off, timeout).
 
-	CUT   A green target pad orbits a big steel dial at a rate that eases up
-	      and down. The cursor (a held finger on touch) must stay inside the
-	      pad; a cutting arm follows it, leaving a cyan cut line and sparks.
-	      Outside the pad for longer than the grace: failure. One full turn:
-	      success. The turn does not begin until the cursor first enters the
-	      pad, so nobody fails before they have started.
+	CUT   ONE blue circle - the cutter - orbits a big steel dial at a rate
+	      that eases up and down. The cursor (a held finger on touch) must
+	      stay ON the circle; the arm follows, leaving a cyan cut line and
+	      sparks. Off it for longer than the grace: failure. One full turn:
+	      success. The turn does not begin until the cursor first touches the
+	      circle, so nobody fails before they have started.
+	      (2026-09-20: the green/red capsule is gone - the owner held the
+	      cursor inside it and still failed. Two causes, both fixed: the hit
+	      test compared the raw mouse position with GUI coordinates, which
+	      differ by the top-bar inset, so the pad was judged ~58 px away from
+	      where it was drawn at the top and bottom of the dial; and a thin
+	      rotating capsule was hard to read. Now the target IS the thing you
+	      see, it is round, and the test is one distance.)
 
 	PINS  Cylinders bob through a horizontal line. Tap each while the line
 	      passes through its bright notch: it locks with a click and a flash
@@ -31,6 +38,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 
 local Audio = require(ReplicatedStorage.Shared.Util.Audio)
@@ -165,7 +173,12 @@ local function pointer(): (Vector2?, boolean)
 		end
 		return nil, false
 	end
-	return UserInputService:GetMouseLocation(), true
+	-- GetMouseLocation is RAW screen space; every GuiObject.AbsolutePosition
+	-- (and a touch's InputObject.Position) is that minus the top-bar inset.
+	-- Comparing the two unadjusted put the target ~58 px from where it was
+	-- drawn - the "I am inside it and it still fails" bug.
+	local inset = GuiService:GetGuiInset()
+	return UserInputService:GetMouseLocation() - inset, true
 end
 
 -- ==========================================================
@@ -255,7 +268,7 @@ end
 
 local function runCut(current: Session, stage: Frame, params: { [string]: any })
 	local rotationSeconds = tonumber(params.rotationSeconds) or 9
-	local padFraction = tonumber(params.padFraction) or 0.11
+	local targetFraction = tonumber(params.targetRadius) or 0.12
 	local grace = tonumber(params.graceSeconds) or 0.4
 	local wobble = tonumber(params.wobble) or 0.35
 	local direction = if tonumber(params.direction) == -1 then -1 else 1
@@ -312,18 +325,24 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 		dots[index] = dot
 	end
 
-	-- The target pad: a green capsule lying along the track.
-	local padLength = math.max(48, math.floor(2 * math.pi * trackRadius * padFraction))
-	local pad = Instance.new("Frame")
-	pad.Name = "Target"
-	pad.AnchorPoint = Vector2.new(0.5, 0.5)
-	pad.Size = UDim2.fromOffset(padLength, 30)
-	pad.BackgroundColor3 = GREEN
-	pad.BorderSizePixel = 0
-	pad.ZIndex = 4
-	pad.Parent = dial
-	corner(pad, UDim.new(1, 0))
-	local padGlow = stroke(pad, GREEN, 6, 0.6)
+	-- THE TARGET IS THE CUTTER: one blue circle, a little bigger than the old
+	-- cutter head, bigger again under a finger (which hides what it touches -
+	-- the halo around it is what a touch player actually watches).
+	local touchScale = if Device.isTouch() then (tonumber(params.touchScale) or 1.35) else 1
+	local targetRadius = math.max(if Device.isTouch() then 40 else 26, math.floor(radius * targetFraction * touchScale))
+	--- Forgiveness beyond the drawn edge: the rule is "stay on it", not
+	--- "stay pixel-perfect on it".
+	local hitRadius = targetRadius + (if Device.isTouch() then 22 else 12)
+	local halo = Instance.new("Frame")
+	halo.Name = "TargetHalo"
+	halo.AnchorPoint = Vector2.new(0.5, 0.5)
+	halo.Size = UDim2.fromOffset(targetRadius * 2 + 26, targetRadius * 2 + 26)
+	halo.BackgroundTransparency = 1
+	halo.BorderSizePixel = 0
+	halo.ZIndex = 4
+	halo.Parent = dial
+	corner(halo, UDim.new(1, 0))
+	local haloStroke = stroke(halo, CYAN, 4, 0.45)
 
 	-- The arm: from the hub to the track, with a cutter head at its tip.
 	-- A GuiObject rotates about its own CENTRE, not its anchor, so the arm is
@@ -342,13 +361,13 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 	local head = Instance.new("Frame")
 	head.Name = "Cutter"
 	head.AnchorPoint = Vector2.new(0.5, 0.5)
-	head.Size = UDim2.fromOffset(20, 20)
+	head.Size = UDim2.fromOffset(targetRadius * 2, targetRadius * 2)
 	head.BackgroundColor3 = CYAN
 	head.BorderSizePixel = 0
 	head.ZIndex = 6
 	head.Parent = dial
 	corner(head, UDim.new(1, 0))
-	stroke(head, WHITE, 2)
+	local headStroke = stroke(head, WHITE, 3)
 
 	-- Sparks: a pool of tiny squares flung from the cutter.
 	type Spark = { frame: Frame, velocity: Vector2, life: number }
@@ -382,9 +401,8 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 		arm.Rotation = degrees - 90
 		arm.Position = onTrack(degrees, trackRadius / 2)
 		head.Position = onTrack(degrees, trackRadius)
+		halo.Position = head.Position
 	end
-	pad.Position = onTrack(angle, trackRadius)
-	pad.Rotation = angle
 	placeArm(angle)
 
 	current.loop = RunService.RenderStepped:Connect(function(dt)
@@ -393,17 +411,16 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 		end
 		elapsed += dt
 
-		-- Where is the cursor, and is it on the pad?
+		-- Where is the cursor, and is it on the circle? ONE distance, from the
+		-- circle's centre worked out from the dial (an unrotated frame, so its
+		-- AbsolutePosition is exact) - the same numbers the circle is drawn from.
 		local at, held = pointer()
-		local padCentre = pad.AbsolutePosition + pad.AbsoluteSize / 2
+		local radians = math.rad(angle)
+		local centre = dial.AbsolutePosition + dial.AbsoluteSize / 2
+			+ Vector2.new(math.sin(radians), -math.cos(radians)) * trackRadius
 		local inside = false
 		if at and held then
-			-- Along the pad's own axis: a capsule test in the pad's frame.
-			local rel = at - padCentre
-			local rad = math.rad(pad.Rotation)
-			local along = rel.X * math.cos(rad) + rel.Y * math.sin(rad)
-			local across = -rel.X * math.sin(rad) + rel.Y * math.cos(rad)
-			inside = math.abs(along) <= padLength / 2 + 10 and math.abs(across) <= 26
+			inside = (at - centre).Magnitude <= hitRadius
 		end
 
 		if not started then
@@ -411,7 +428,10 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 				started = true
 				Audio.play("UiClick")
 			else
-				padGlow.Transparency = 0.35 + 0.25 * math.sin(elapsed * 6)
+				-- Waiting: the halo breathes to say "put it here".
+				local breathe = 0.5 + 0.5 * math.sin(elapsed * 5)
+				haloStroke.Transparency = 0.15 + 0.45 * breathe
+				halo.Size = UDim2.fromOffset(targetRadius * 2 + 22 + 16 * breathe, targetRadius * 2 + 22 + 16 * breathe)
 				return
 			end
 		end
@@ -421,8 +441,6 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 		local step = rate * dt
 		angle = (angle + direction * step) % 360
 		covered += step
-		pad.Position = onTrack(angle, trackRadius)
-		pad.Rotation = angle
 		placeArm(angle)
 		percent.Text = `{math.floor(math.min(covered / 360, 1) * 100)}%`
 
@@ -466,12 +484,23 @@ local function runCut(current: Session, stage: Frame, params: { [string]: any })
 		-- The rule: stay inside, or lose the attempt.
 		if inside then
 			outside = 0
-			pad.BackgroundColor3 = GREEN
-			padGlow.Transparency = 0.4
+			head.BackgroundColor3 = CYAN
+			headStroke.Color = WHITE
+			haloStroke.Color = CYAN
+			haloStroke.Transparency = 0.45
+			halo.Size = UDim2.fromOffset(targetRadius * 2 + 26, targetRadius * 2 + 26)
+			percent.TextColor3 = CYAN
 		else
 			outside += dt
-			pad.BackgroundColor3 = pad.BackgroundColor3:Lerp(RED, 0.2)
-			padGlow.Transparency = 0.15
+			-- Off it: the circle reddens and the halo CLOSES IN over the grace,
+			-- so "how long have I got" is on screen, not in a rulebook.
+			local left = math.clamp(1 - outside / math.max(grace, 0.05), 0, 1)
+			head.BackgroundColor3 = CYAN:Lerp(RED, 1 - left * 0.6)
+			headStroke.Color = RED
+			haloStroke.Color = RED
+			haloStroke.Transparency = 0.05
+			halo.Size = UDim2.fromOffset(targetRadius * 2 + 8 + 60 * left, targetRadius * 2 + 8 + 60 * left)
+			percent.TextColor3 = RED
 			if outside > grace then
 				finish(current, false)
 				return
@@ -669,8 +698,8 @@ function VaultMinigameController.start()
 			runPins(current, stage, if type(params) == "table" then params else {})
 		else
 			local current, stage = openSession(token, zoneName, if Device.isTouch()
-				then "Hold your finger inside the green target and follow it all the way round."
-				else "Keep your cursor inside the green target and follow it all the way round.")
+				then "Hold your finger on the blue circle and follow it all the way round."
+				else "Keep your cursor on the blue circle and follow it all the way round.")
 			-- Touch tracking for the cut: the held finger is the cursor.
 			local touch = { down = false, at = Vector2.zero }
 			(current :: any).touch = touch

@@ -64,8 +64,8 @@ VaultConfig.MINIGAMES = {
 	{ key = "Pins", weight = 1 },
 }
 
---- CIRCULAR CUTTING: a target pad orbits the door's dial and the player keeps
---- the cursor (or a held finger) inside it while a cutting arm follows; one
+--- CIRCULAR CUTTING: one blue circle orbits the door's dial and the player
+--- keeps the cursor (or a held finger) on it while the cutting arm follows; one
 --- full turn opens the vault. The pad's speed is not constant: it eases
 --- between the two rates below so the player has to read it, not just lead
 --- it.
@@ -76,8 +76,10 @@ VaultConfig.MINIGAMES = {
 VaultConfig.CUT = {
 	--- Seconds one full rotation takes (the whole minigame's length).
 	rotationSeconds = 11,
-	--- The target pad's width, as a fraction of the dial's circumference.
-	padFraction = 0.17,
+	--- The blue circle's radius, as a fraction of the dial's radius (never
+	--- under 26 px; 40 px on touch), and how much bigger a finger gets it.
+	targetRadius = 0.12,
+	touchScale = 1.35,
 	--- Seconds the cursor may be outside the pad before the attempt fails.
 	--- Long enough to forgive a stutter (and a dropped frame), short enough
 	--- that "keep it inside" still means it.

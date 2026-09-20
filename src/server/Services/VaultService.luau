@@ -257,7 +257,8 @@ local function paramsFor(method: Method, zoneIndex: number): ({ [string]: any },
 		local cut = VaultConfig.CUT
 		return {
 			rotationSeconds = cut.rotationSeconds,
-			padFraction = cut.padFraction,
+			targetRadius = cut.targetRadius,
+			touchScale = cut.touchScale,
 			graceSeconds = cut.graceSeconds,
 			wobble = cut.wobble,
 			startAngle = math.random() * 360,
