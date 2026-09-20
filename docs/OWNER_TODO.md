@@ -4,6 +4,23 @@ Everything below is something only the owner can do (Creator Dashboard,
 Studio saves, decisions). The code already works without any of it: every
 missing id/asset falls back to a placeholder or hides the feature.
 
+## 0. After the 2026-09-20 pass (do these first)
+
+- [ ] **File > Save, then Publish with "Migrate to latest update".** Until then the live game still has
+      the smoke-bomb exploit (Zone 12 loot at any Speed) and the Base03/Base04 "cannot place" bug.
+      The Base03/Base04 SafeZone fix is IN THE PLACE FILE, so it needs the Save.
+- [ ] Creator Dashboard > Developer Products: confirm the four **Relic Roll** products exist and are on
+      sale: x1 3713786892 (52 R$), x3 3713786898 (128), x10 3713786905 (410), x50 3713786914 (1792).
+- [ ] Decide the Relic Roll prize pool. Today it is six Zone 1-2 items (39/25/20/10/5/1 %, top prize
+      Cursed Coin): a strong deal for a new player, worthless to a late one. `RelicRollConfig.Tiers`.
+- [ ] Look at, in a real play session (the Studio screenshot tool cannot see 3D or viewports):
+      the tutorial film's camera framing and pacing (`TutorialFilmConfig.BEATS`), the new laser rooms
+      (zones 5+ have moving beams), the held item in your hands, the Relic Roll figures looking at the mouse.
+- [ ] russ1719 (UserId 3230257566) used the smoke exploit: Zone 2 -> Zone 12 in 30 minutes, now ~$4.3T and
+      1.06M Speed. Decide: roll back to the 16:59 UTC 2026-09-19 version, or leave.
+- [ ] Studio Play tests use YOUR real save. If you are in the live game at the same time, Studio now plays
+      a borrowed copy and saves nothing (console: "borrowed copy") instead of kicking you.
+
 ## 1. Right after syncing
 
 - [ ] In Studio, accept/sync Rojo, then **File > Save** and **Publish**. New
