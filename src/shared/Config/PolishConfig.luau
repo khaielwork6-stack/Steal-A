@@ -78,13 +78,10 @@ PolishConfig.ANALYTICS_DUMP_SIZE = 200
 -- ==========================================================
 -- TUTORIAL ONBOARDING
 -- ==========================================================
-
---- The pointing-hand icon drawn inside the tutorial's target ring
---- (TutorialController). The reference build draws a cartoon hand there; no
---- such art exists yet, so this is 0 and the ring shows its verb alone,
---- which reads fine. Codex writes the image id here -
---- see docs/codex-prompts/tutorial.md.
-PolishConfig.TUTORIAL_POINTER_ICON = "rbxassetid://0"
+-- The objective line, chevron trail and target ring (TutorialController)
+-- were retired by the tutorial-film pass in favour of the short film
+-- (TutorialFilmConfig / TutorialFilmController); TUTORIAL_POINTER_ICON went
+-- with them; there is nothing left to point at.
 
 --- The client funnel remote: sustained rate and burst per player.
 PolishConfig.ANALYTICS_CLIENT_PER_SECOND = 0.5

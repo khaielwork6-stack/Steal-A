@@ -1,24 +1,23 @@
 --!strict
 --[[
 	DebugCommands.Tutorial
-	Studio-only test commands for the first-minute onboarding (the objective
-	line, the chevron trail and the target ring). Loaded by DebugService;
-	invoke through ServerStorage.DebugInvoke:Invoke("<name>", "<PlayerName>", ...)
-	or the DebugRequest attribute bridge.
+	Studio-only test commands for what is LEFT of TutorialService after the
+	tutorial-film pass: the persisted stage machine and the guaranteed first
+	item. The objective line / chevron trail / target ring presentation this
+	file used to test (`tutorialStep`, `tutorialSteps`) is gone with
+	TutorialController - see DebugCommands.TutorialFilm for the film's own
+	commands. Loaded by DebugService; invoke through
+	ServerStorage.DebugInvoke:Invoke("<name>", "<PlayerName>", ...) or the
+	DebugRequest attribute bridge.
 
 	PROFILE SAFETY. Studio with API access writes to the owner's REAL
-	DataStore. `tutorialStep` touches nothing persisted - it only swaps which
-	step's presentation is shown. The two commands that DO write the profile
-	(`tutorialReset`, `tutorialSealed`) take a snapshot of every field they
-	can touch first; a command that throws restores it on the spot, and
-	`tutorialRestore` puts it back (and saves) when the test is over.
+	DataStore. The two commands that write the profile (`tutorialReset`,
+	`tutorialSealed`) take a snapshot of every field they can touch first; a
+	command that throws restores it on the spot, and `tutorialRestore` puts
+	it back (and saves) when the test is over.
 
-	  tutorialState                 derived stage, the pushed state, the
-	                                profile's tutorial fields
-	  tutorialStep <step|clear>     show one step's presentation (steal,
-	                                escape, place, reveal, income, train,
-	                                nextZone) regardless of the real one;
-	                                "clear" puts the derived step back
+	  tutorialState                 derived stage, the analytics step label,
+	                                the profile's tutorial fields
 	  tutorialReset                 back to stage 1 for this player: the
 	                                tutorial item forgotten from the Index,
 	                                so the derivation starts at "steal"
@@ -75,7 +74,6 @@ local function restore(player: Player): boolean
 		(profile :: any)[field] = copy(value)
 	end
 	snapshots[player] = nil
-	TutorialService.debugForceStep(player, nil)
 	BaseService.rebuildDisplays(player)
 	StateService.pushNow(player)
 	if DataService.isPersistent() then
@@ -115,27 +113,12 @@ commands.tutorialState = function(player: Player)
 	end
 	return {
 		derivedStage = TutorialService.deriveStage(player),
-		state = state,
-		-- A Vector3 does not survive the JSON bridge; the target as text does.
-		targetText = if state and state.target then tostring(state.target) else nil,
+		step = state and state.step,
 		savedStage = profile and profile.TutorialStage,
-		introSeen = profile and profile.TutorialIntroSeen,
 		indexHasItem = profile and profile.Index[GameConfig.TUTORIAL_ITEM_ID] == true,
 		sealedOnBase = sealed,
-		steps = TutorialService.debugSteps(),
 		snapshotHeld = snapshots[player] ~= nil,
 	}
-end
-
-commands.tutorialStep = function(player: Player, step: string?): any
-	if step == nil or step == "clear" then
-		TutorialService.debugForceStep(player, nil)
-		return { forced = false }
-	end
-	if not TutorialService.debugForceStep(player, step) then
-		return { error = `unknown step "{step}"`, steps = TutorialService.debugSteps() }
-	end
-	return { forced = step, note = "tutorialStep clear puts the derived step back" }
 end
 
 commands.tutorialReset = function(player: Player)
@@ -146,7 +129,6 @@ commands.tutorialReset = function(player: Player)
 		-- (clearDisplays) for a true fresh start.
 		profile.TutorialStage = TutorialService.STAGE.STEAL
 		profile.Index = {}
-		TutorialService.debugForceStep(player, nil)
 		StateService.pushNow(player)
 		return {
 			derivedStage = TutorialService.deriveStage(player),
@@ -172,14 +154,13 @@ commands.tutorialSealed = function(player: Player)
 		if profile.TutorialStage > TutorialService.STAGE.PLACE then
 			profile.TutorialStage = TutorialService.STAGE.PLACE
 		end
-		TutorialService.debugForceStep(player, nil)
 		BaseService.rebuildDisplays(player)
 		StateService.pushNow(player)
 		return {
 			slot = item.SlotIndex,
 			opensIn = GameConfig.TUTORIAL_HATCH_SECONDS,
 			derivedStage = TutorialService.deriveStage(player),
-			note = "expect step reveal: 'It's opening…' then 'Open it!' with the OPEN IT ring",
+			note = "derives back to PLACE / step 'reveal' until it opens",
 		}
 	end)
 end

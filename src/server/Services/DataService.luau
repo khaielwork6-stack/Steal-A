@@ -229,8 +229,16 @@ export type Profile = {
 	-- after a rejoin still reveals the container it paid for. See HatchService.
 	PendingReveal: any?,
 	-- v12. The one-time opening popup has been shown. Durable so it never
-	-- returns after a respawn or a rejoin.
+	-- returns after a respawn or a rejoin. The popup itself was retired by
+	-- the tutorial-film pass; the field stays only so old saves still
+	-- migrate cleanly (see the "started" check in reconcile).
 	TutorialIntroSeen: boolean,
+	-- [tutorial-film] Whether this player has seen (or skipped) the short
+	-- film that replaced the old objective-line tutorial. Set once, by
+	-- TutorialFilmService, on finish or skip - never by anything else. A
+	-- save that predates this field is an EXISTING player and is treated as
+	-- already done (see reconcile): only a brand-new profile starts false.
+	TutorialFilmDone: boolean,
 	VaultLockoutUntil: number,
 	-- v8. Offline earnings (OfflineService). All three are written by the
 	-- SERVER only. `LastLeaveTimestamp` is the os.time() of the last save;
@@ -425,6 +433,9 @@ local function defaultProfile(): Profile
 		PendingSteal = nil,
 		PendingReveal = nil,
 		TutorialIntroSeen = false,
+		-- [tutorial-film] Only a genuinely brand-new profile starts false; see
+		-- the Profile type and reconcile.
+		TutorialFilmDone = false,
 		-- [vault-minigames] Server-clock stamp (workspace:GetServerTimeNow)
 		-- until which every vault refuses this player; 0 when not locked out.
 		-- Saved so a rejoin cannot shed it; NightService's Nightfall clears it.
@@ -930,6 +941,14 @@ local function reconcile(profile: Profile): Profile
 			life.FirstReveal = life.FirstReveal == true
 			life.FirstEpic = life.FirstEpic == true
 			life.D1Counted = life.D1Counted == true
+		end
+		-- [tutorial-film] A save without this field predates the film
+		-- entirely, whatever `started` says: it is an existing player, and
+		-- the owner wants no existing player to see the film. Only a
+		-- brand-new profile (defaultProfile, never missing the field) starts
+		-- false.
+		if type(raw.TutorialFilmDone) ~= "boolean" then
+			raw.TutorialFilmDone = true
 		end
 	end
 

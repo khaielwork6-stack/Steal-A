@@ -1097,9 +1097,6 @@ return function(): Report
 		check(flyoverSeconds >= 5 and flyoverSeconds <= 9, `the flyover shots should total 5-9 s (6-8 s with the fades), got {flyoverSeconds}`)
 		check(PolishConfig.ANALYTICS_BUDGET_SAFETY > 0 and PolishConfig.ANALYTICS_BUDGET_SAFETY <= 1, "analytics safety must be (0, 1]")
 		check(PolishConfig.ANALYTICS_PASSIVE_FLUSH_SECONDS >= 60, "passive income must be batched at least a minute")
-		-- TUTORIAL ONBOARDING: the ring's hand icon is an asset id or the 0
-		-- placeholder the client skips; never anything else.
-		check(assetOk(PolishConfig.TUTORIAL_POINTER_ICON), "PolishConfig.TUTORIAL_POINTER_ICON must be an rbxassetid")
 		-- The branded loading screen was removed (owner, 2026-09-18); Roblox
 		-- draws its own, so there is no LoadingConfig left to check.
 	end
@@ -1607,6 +1604,33 @@ return function(): Report
 			check(DiscordConfig.WEBHOOK == "" or string.match(DiscordConfig.WEBHOOK, "^https://") ~= nil,
 				"DiscordConfig.WEBHOOK must be empty or a full https webhook URL")
 		end
+	end
+
+	-- ==========================================================
+	-- TUTORIAL FILM (tutorial-film pass)
+	-- ==========================================================
+	do
+		local TutorialFilmConfig = require(script.Parent.TutorialFilmConfig)
+		check(type(TutorialFilmConfig.ENABLED) == "boolean", "TutorialFilmConfig.ENABLED must be a boolean")
+		check(
+			TutorialFilmConfig.HARD_CAP_SECONDS >= 30 and TutorialFilmConfig.HARD_CAP_SECONDS <= 180,
+			"TutorialFilmConfig.HARD_CAP_SECONDS must be 30-180"
+		)
+		check(#TutorialFilmConfig.BEATS >= 5, "the tutorial film needs at least five beats")
+		local seenKeys: { [string]: boolean } = {}
+		local totalHold = 0
+		for _, beat in TutorialFilmConfig.BEATS do
+			check(type(beat.key) == "string" and beat.key ~= "" and not seenKeys[beat.key], `every film beat needs a unique key, got "{tostring(beat.key)}"`)
+			seenKeys[beat.key] = true
+			check(type(beat.caption) == "string" and #beat.caption > 0 and #beat.caption <= 40, `film beat "{beat.key}" caption must be 1-40 characters`)
+			check(beat.hold > 0 and beat.hold <= 8, `film beat "{beat.key}" hold must be 0-8 s`)
+			totalHold += beat.hold
+		end
+		check(totalHold >= 25 and totalHold <= 75, `the film's beats should total roughly 25-75 s, got {totalHold}`)
+		check(type(TutorialFilmConfig.END_CAPTION) == "string" and #TutorialFilmConfig.END_CAPTION > 0, "TutorialFilmConfig.END_CAPTION must not be empty")
+		check(TutorialFilmConfig.END_CARD_SECONDS >= 2, "the end card must hold at least 2 s")
+		check(typeof(TutorialFilmConfig.STAGE_ORIGIN) == "Vector3", "TutorialFilmConfig.STAGE_ORIGIN must be a Vector3")
+		check(#TutorialFilmConfig.STAGE_FOLDER_NAME > 0, "TutorialFilmConfig.STAGE_FOLDER_NAME must not be empty")
 	end
 
 	if #report.failed == 0 then

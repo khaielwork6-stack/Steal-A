@@ -69,7 +69,8 @@ Rojo maps `src/shared` -> `ReplicatedStorage.Shared`, `src/server` ->
 | MonetizationService | Developer Products, granted exactly once. |
 | SpinWheelService | The free spin on every plot. |
 | OfflineService | Offline earnings (capped, claimed once). |
-| StarterTaskService / TutorialService | Beginner checklist; T0-T9 opening. |
+| StarterTaskService / TutorialService | Beginner checklist; the persisted T0-T9 stage and the guaranteed first item (no UI any more). |
+| TutorialFilmService | The new-player short film: due flag, "in cinematic" safety, completion (`TutorialFilmController` plays it). |
 | GroupGiftService / GiftChestService | Group-join gift; the lobby gift chest. |
 | LeaderboardService / StatsService | World boards; the player-list stats. |
 | EnvironmentService | Lighting. |

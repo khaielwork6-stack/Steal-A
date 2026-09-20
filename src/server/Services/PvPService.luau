@@ -36,6 +36,7 @@ local MovementService = require(script.Parent.MovementService)
 local RagdollService = require(script.Parent.RagdollService)
 local StateService = require(script.Parent.StateService)
 local ProgressEvents = require(script.Parent.ProgressEvents) -- [retention-quests-pass]
+local TutorialFilmService = require(script.Parent.TutorialFilmService) -- [tutorial-film]
 
 local PvPService = {}
 
@@ -227,6 +228,12 @@ local function resolveSwing(attacker: Player, weapon: PvPConfig.WeaponDef)
 		end
 
 		if RagdollService.isImmune(victim) then
+			continue
+		end
+
+		-- [tutorial-film] Belt and braces on top of the safe-zone check
+		-- above: nobody can be hit while the short film has them anchored.
+		if TutorialFilmService.isInCinematic(victim) then
 			continue
 		end
 

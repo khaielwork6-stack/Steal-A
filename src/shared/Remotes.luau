@@ -254,6 +254,22 @@ Remotes.NAMES = {
 	-- Clamped, whitelisted and rate-limited in PerfFeed; grants nothing.
 	-- (The open-panel report rides the existing AnalyticsClientEvent.)
 	"PerfReport",
+
+	-- ==========================================================
+	-- TUTORIAL FILM (tutorial-film pass)
+	-- ==========================================================
+	-- client -> server. TutorialFilmRequest(action, ...):
+	--   ("start")   the automatic first-time play is beginning. The server
+	--               marks this player "in cinematic" (see TutorialFilmService)
+	--               for the film's length.
+	--   ("replay")  the Settings "Watch tutorial again" button asked for a
+	--               replay. Same in-cinematic mark; touches no profile flag.
+	--   ("done", skipped: boolean) the film ended (finished or was skipped).
+	--               Clears the in-cinematic mark. A "start" session also sets
+	--               Profile.TutorialFilmDone and completes the old tutorial
+	--               stage; a "replay" session sets neither.
+	-- Rate-limited; grants nothing. See TutorialFilmService.
+	"TutorialFilmRequest",
 }
 
 local folder: Folder

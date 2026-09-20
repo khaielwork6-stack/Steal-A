@@ -289,6 +289,10 @@ AnalyticsEvents.CUSTOM_EVENTS = {
 	"CrewAssist", "SpinUsed", "CodeRedeemed",
 	-- purchases and performance
 	"PurchaseCancelled", "PerfSpike",
+	-- [tutorial-film] the short film that replaced the old objective-line
+	-- tutorial. Low cardinality: one event per player per stage of the film,
+	-- so the owner can see where new players drop off.
+	"FilmStarted", "FilmSkipped", "FilmFinished",
 } :: { string }
 
 local customAllowed: { [string]: true } = {}

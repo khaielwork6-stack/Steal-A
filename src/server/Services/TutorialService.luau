@@ -1,30 +1,41 @@
 --!strict
 --[[
 	TutorialService
-	The persistent T0-T9 opening (GDD section 4).
+	The persisted T0-T9 stage machine (GDD section 4) and the guaranteed
+	first-item mechanic.
 
-	The single most important rule here: the stage is DERIVED from actual saved
-	data - is the tutorial item discovered, has Speed moved - and
-	never merely trusted from a stale TutorialStage integer. That means a player
-	who disconnects at any point, dies, gets caught, or rejoins on a different
-	plot resumes at the right place automatically, and no recovery special-case
-	is needed for each stage.
+	THE TUTORIAL-FILM PASS RETIRED THE PRESENTATION LAYER THIS SERVICE USED
+	TO OWN: the objective line, the chevron trail and the target ring
+	(TutorialController, deleted) are replaced by an in-engine short film
+	(TutorialFilmService / TutorialFilmController). What is LEFT here is not
+	that UI - it is real, non-cosmetic state other systems still read:
 
-	A caught thief drops back to "go steal it again" without losing the rest of
-	their tutorial progress.
+	  * Profile.TutorialStage, a persisted "how far in" signal FlyoverService
+	    (the first-join camera tour), DailyRewardController (when to
+	    auto-open) and AnalyticsSession (the QuitInTutorial bucket) all read
+	    directly, independent of the film;
+	  * the guaranteed first item - one Pharaoh Mask kept pinned in Zone 1's
+	    own socket for any player who has not placed their first item yet
+	    (`isTutorialLoot` / `mayTakeLoot`, used by CarryService).
+
+	The single most important rule here, unchanged: the stage is DERIVED from
+	actual saved data - is the tutorial item discovered, has Speed moved -
+	and never merely trusted from a stale TutorialStage integer. That means a
+	player who disconnects at any point, dies, gets caught, or rejoins on a
+	different plot resumes at the right place automatically, and no recovery
+	special-case is needed for each stage. A caught thief drops back to "go
+	steal it again" without losing the rest of their progress.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local ZoneConfig = require(ReplicatedStorage.Shared.Config.ZoneConfig)
 
 local BaseService = require(script.Parent.BaseService)
 local CarryService = require(script.Parent.CarryService)
 local DataService = require(script.Parent.DataService)
 local LootService = require(script.Parent.LootService)
-local StateService = require(script.Parent.StateService)
 
 local TutorialService = {}
 
@@ -51,44 +62,14 @@ local STAGE = {
 export type TutorialState = {
 	--- Persisted, monotonic, drives derivation. Never renumbered.
 	stage: number,
-	--- What the CLIENT renders. Decoupled from `stage` on purpose: the reveal
-	--- step lives between PLACE (4) and INCOME (5) and there is no number
-	--- free between them, so copy must never be hostage to a number that
-	--- cannot be renumbered. One of "steal", "escape", "place", "reveal",
-	--- "income", "train", "nextZone", or nil at COMPLETE.
+	--- A short analytics label only (AnalyticsSession's QuitInTutorial
+	--- bucket) - "steal", "escape", "place", "reveal", "income", "train",
+	--- "nextZone", or nil at COMPLETE. NOT rendered anywhere any more; the
+	--- film has its own copy (TutorialFilmConfig), unrelated to this.
 	step: string?,
-	--- The one objective line at the top of the screen. Server-owned copy.
-	title: string?,
-	--- Where the chevron trail runs to.
-	target: Vector3?,
-	--- nil, or the verb for the world ring drawn at `target` - only for the
-	--- two steps that need a button press rather than a walk.
-	pointer: string?,
-	--- Whether the chevron trail is drawn at all. False for good once the
-	--- player has stolen ANYTHING (owner, 2026-09-19): the trail is for a
-	--- player who has never done it; after the first theft the line and the
-	--- ring are enough, and a trail on the floor of every later run is noise.
-	trail: boolean?,
-	--- True on exactly one push in a player's life: the first-ever start.
-	--- Still sent; the client ignores it (see TutorialController).
-	showIntro: boolean?,
 }
 
 local nextZoneShownAt: { [Player]: number } = {}
---- Player -> os.clock until which the opening popup flag rides every push.
---- The first push can land before the client has wired its controllers (the
---- profile loads faster than forty modules require), so a single-tick flag
---- was lost on a slow client. Sending it for a window is safe: the client
---- shows it once and ignores repeats, and the saved flag still stops it ever
---- returning after a rejoin.
-local introUntil: { [Player]: number } = {}
-local INTRO_WINDOW = 20
---- Player -> os.clock of the last push made only to carry the intro. Pushes
---- are otherwise event-driven, and a fresh idle profile has no events: the
---- join push was the only one, and a client still wiring its controllers
---- missed it for good. Inside the window this pushes once a second instead.
-local lastIntroPushAt: { [Player]: number } = {}
-local INTRO_PUSH_INTERVAL = 1
 local incomeShownAt: { [Player]: number } = {}
 local cached: { [Player]: TutorialState } = {}
 
@@ -108,55 +89,6 @@ local function sealedTutorialItem(profile: DataService.Profile): DataService.Dis
 		end
 	end
 	return nil
-end
-
---- Whether a sealed item's incubation has run out. Read straight off the
---- profile rather than through HatchService.isReady, so this service keeps
---- its place in the boot order and adds no require edge.
-local function isReadyToReveal(item: DataService.DisplayItem): boolean
-	return item.Hatched == false and (tonumber(item.HatchEndsAt) or 0) <= os.time()
-end
-
-local function tutorialSocketPosition(): Vector3?
-	local socket = LootService.getSocket(GameConfig.TUTORIAL_ZONE, GameConfig.TUTORIAL_SOCKET)
-	return if socket then socket.part.Position else nil
-end
-
-local function firstEmptySlot(player: Player): BasePart?
-	local plot = BaseService.getPlot(player)
-	if not plot then
-		return nil
-	end
-	local slots = plot:FindFirstChild("DisplaySlots")
-	if not slots then
-		return nil
-	end
-	local free = BaseService.freeSlots(player)
-	if #free == 0 then
-		return nil
-	end
-	local slot = slots:FindFirstChild(string.format("DisplaySlot%02d", free[1]))
-	return if slot and slot:IsA("BasePart") then slot else nil
-end
-
-local function plotPart(player: Player, name: string): BasePart?
-	local plot = BaseService.getPlot(player)
-	if not plot then
-		return nil
-	end
-	local found = plot:FindFirstChild(name, true)
-	return if found and found:IsA("BasePart") then found else nil
-end
-
-local function zoneTwoSignPosition(): Vector3?
-	local map = workspace:FindFirstChild("Map")
-	local signs = map and map:FindFirstChild("ZoneSigns")
-	local sign = signs and signs:FindFirstChild("Sign_" .. ZoneConfig.Zones[2].id)
-	if not sign then
-		return nil
-	end
-	local board = sign:FindFirstChild("Board")
-	return if board and board:IsA("BasePart") then board.Position else nil
 end
 
 -- ==========================================================
@@ -224,106 +156,36 @@ local function deriveStage(player: Player): number
 end
 
 -- ==========================================================
--- PRESENTATION
+-- ANALYTICS LABEL
 -- ==========================================================
 
---- THE COPY, server-owned and final. One short line each, sentence case,
---- one exclamation mark at most; the pointer is the verb on the world ring
---- for the two steps that need a button press rather than a walk. `income`
---- has no target and no pointer on purpose: it is a beat, not a task, and
---- `evaluate` times it out.
-local COPY: { [string]: { title: string, pointer: string? } } = {
-	steal = { title = "Steal your first treasure!" },
-	escape = { title = "Run it home!" },
-	place = { title = "Put it on a pedestal!", pointer = "PLACE IT HERE" },
-	reveal = { title = "Open it!", pointer = "OPEN IT" },
-	income = { title = "It's earning you cash!" },
-	train = { title = "Train your Speed!", pointer = "STEP ON" },
-	nextZone = { title = "Zone 2 is open — go deeper!" },
-}
-
---- The pad a sealed tutorial item is sitting on, so the reveal step can
---- point at THAT pad rather than the first free one.
-local function slotOfItem(player: Player, item: DataService.DisplayItem): BasePart?
-	return plotPart(player, string.format("DisplaySlot%02d", item.SlotIndex))
-end
-
---- The presentation of one STEP: its target, its line and its pointer. Split
---- from buildState so the debug bridge can show any step's presentation
---- without touching the derivation or the profile.
-local function present(player: Player, step: string?, stage: number): TutorialState
-	local state: TutorialState = { stage = stage, step = step }
-	-- The trail is for a player who has never stolen. Lifetime.Steals counts
-	-- every theft (CarryService.trySteal), not just the tutorial's, so one
-	-- steal of anything anywhere retires it for good - across rejoins too.
-	local profileForTrail = DataService.get(player)
-	state.trail = profileForTrail == nil or (profileForTrail.Lifetime.Steals or 0) <= 0
-	local copy = if step then COPY[step] else nil
-	if copy then
-		state.title = copy.title
-		state.pointer = copy.pointer
-	end
-	if step == "steal" then
-		state.target = tutorialSocketPosition()
-	elseif step == "escape" then
-		local home = plotPart(player, "Spawn") or plotPart(player, "Slab")
-		state.target = if home then home.Position else nil
-	elseif step == "place" then
-		local slot = firstEmptySlot(player)
-		state.target = if slot then slot.Position else nil
-	elseif step == "reveal" then
-		local profile = DataService.get(player)
-		local sealed = if profile then sealedTutorialItem(profile) else nil
-		local slot = if sealed then slotOfItem(player, sealed) else nil
-		state.target = if slot then slot.Position else nil
-		-- Still incubating (TUTORIAL_HATCH_SECONDS, a brief beat): one line,
-		-- no verb. The ring and "OPEN IT" appear the moment it is ready.
-		if sealed and not isReadyToReveal(sealed) then
-			state.title = "It's opening…"
-			state.pointer = nil
-		end
-	elseif step == "train" then
-		local frame = plotPart(player, "Frame")
-		state.target = if frame then frame.Position else nil
-	elseif step == "nextZone" then
-		state.target = zoneTwoSignPosition()
-	end
-	return state
-end
-
---- What a stage presents. PLACE is the one stage with two faces: the walk
---- to a pad while still carrying, and the reveal once the container is
---- sitting sealed on one - same persisted number, different step.
-local function buildState(player: Player, stage: number): TutorialState
+--- The step keyword for AnalyticsSession's QuitInTutorial bucket only - NOT
+--- rendered anywhere. PLACE has two faces (walking to a pad while carrying,
+--- vs. a container already sealed on one waiting to be opened), same
+--- persisted stage number, different label.
+local function stepFor(player: Player, stage: number): string?
 	if stage == STAGE.STEAL then
-		return present(player, "steal", stage)
+		return "steal"
 	elseif stage == STAGE.ESCAPE then
-		return present(player, "escape", stage)
+		return "escape"
 	elseif stage == STAGE.PLACE then
-		return present(player, if CarryService.getCarried(player) ~= nil then "place" else "reveal", stage)
+		return if CarryService.getCarried(player) ~= nil then "place" else "reveal"
 	elseif stage == STAGE.INCOME then
-		return present(player, "income", stage)
+		return "income"
 	elseif stage == STAGE.TRAIN then
-		return present(player, "train", stage)
+		return "train"
 	elseif stage == STAGE.NEXT_ZONE then
-		return present(player, "nextZone", stage)
+		return "nextZone"
 	end
-	return { stage = STAGE.COMPLETE }
+	return nil
 end
 
---- Debug only (DebugCommands.Tutorial): a step whose presentation is shown
---- in place of the derived one. The derivation, the persisted stage and the
---- profile are untouched; clearing it puts the real step back on the next
---- tick.
-local forcedStep: { [Player]: string } = {}
-
---- Read by StateService each push.
---- A player who has not yet stolen anything. BaseService starts them on the
---- hub, a few seconds from the tutorial item, rather than at their plot.
+--- A player who has not yet stolen anything.
 function TutorialService.isAtStart(player: Player): boolean
 	return deriveStage(player) == STAGE.STEAL
 end
 
+--- Read by AnalyticsSession for the QuitInTutorial bucket only.
 function TutorialService.getState(player: Player): TutorialState?
 	return cached[player]
 end
@@ -352,8 +214,8 @@ local function evaluate(player: Player)
 		end
 	end
 
-	-- The zone-2 pointer is the one stage that ends on a timer rather than on a
-	-- player action, so the tutorial does not sit on screen forever.
+	-- The zone-2 beat is the one stage that ends on a timer rather than on a
+	-- player action, so the persisted stage does not sit below COMPLETE forever.
 	if stage == STAGE.NEXT_ZONE then
 		local shownAt = nextZoneShownAt[player]
 		if not shownAt then
@@ -369,48 +231,7 @@ local function evaluate(player: Player)
 		profile.TutorialStage = stage
 	end
 
-	local previous = cached[player]
-	local state = buildState(player, stage)
-	local forced = forcedStep[player]
-	if forced then
-		state = present(player, forced, stage)
-	end
-
-	-- THE ONE OPENING POPUP, on a first-ever start and never again. The flag
-	-- is flipped and saved before the push goes out, so a respawn, a rejoin or
-	-- a second server can never show it twice.
-	if not profile.TutorialIntroSeen then
-		profile.TutorialIntroSeen = true
-		introUntil[player] = os.clock() + INTRO_WINDOW
-		if DataService.isPersistent() then
-			task.spawn(DataService.save, player)
-		end
-	end
-	local window = introUntil[player]
-	if window and os.clock() < window then
-		state.showIntro = true
-	elseif window then
-		introUntil[player] = nil
-	end
-	cached[player] = state
-
-	local introDue = state.showIntro == true and os.clock() - (lastIntroPushAt[player] or 0) >= INTRO_PUSH_INTERVAL
-	-- One push when the window closes, so the client sees the flag stop and
-	-- disarms; without it an idle profile would carry the armed state forever.
-	local introClosed = previous ~= nil and previous.showIntro == true and state.showIntro ~= true
-	-- A STEP CHANGE PUSHES TOO. The stage number no longer says everything:
-	-- PLACE turns into the reveal beat without changing number, and the
-	-- reveal's own line changes when the container is ready. Anything the
-	-- client renders that differs from the last push goes out.
-	local stepChanged = previous ~= nil
-		and (previous.step ~= state.step or previous.title ~= state.title or previous.pointer ~= state.pointer
-			or previous.trail ~= state.trail)
-	if not previous or previous.stage ~= state.stage or stepChanged or introDue or introClosed then
-		if state.showIntro then
-			lastIntroPushAt[player] = os.clock()
-		end
-		StateService.pushNow(player)
-	end
+	cached[player] = { stage = stage, step = stepFor(player, stage) }
 end
 
 --- True while `player` still needs their guaranteed first item.
@@ -504,15 +325,10 @@ local function maintainTutorialLoot()
 end
 
 function TutorialService.start()
-	StateService.setTutorialProvider(TutorialService.getState)
-
 	Players.PlayerRemoving:Connect(function(player)
 		cached[player] = nil
 		nextZoneShownAt[player] = nil
 		incomeShownAt[player] = nil
-		introUntil[player] = nil
-		lastIntroPushAt[player] = nil
-		forcedStep[player] = nil
 	end)
 
 	task.spawn(function()
@@ -543,41 +359,5 @@ end
 --- Exposed for the debug bridge.
 TutorialService.STAGE = STAGE
 TutorialService.deriveStage = deriveStage
-
---- Debug only: show one step's presentation regardless of the derived one.
---- nil clears it. Nothing persisted changes; the next tick pushes it.
-function TutorialService.debugForceStep(player: Player, step: string?)
-	if step ~= nil and COPY[step] == nil then
-		return false
-	end
-	if step then
-		forcedStep[player] = step
-	else
-		forcedStep[player] = nil
-	end
-	cached[player] = nil
-	return true
-end
-
---- Debug only: the step names the presentation knows, for the bridge.
-function TutorialService.debugSteps(): { string }
-	local names = {}
-	for name in COPY do
-		table.insert(names, name)
-	end
-	table.sort(names)
-	return names
-end
-
---- Debug only: lets the opening popup be shown again for a test.
-function TutorialService.resetIntro(player: Player)
-	local profile = DataService.get(player)
-	if profile then
-		profile.TutorialIntroSeen = false
-	end
-	introUntil[player] = nil
-	lastIntroPushAt[player] = nil
-	cached[player] = nil
-end
 
 return TutorialService

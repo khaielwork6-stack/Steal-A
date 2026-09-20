@@ -445,13 +445,6 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		}
 	end,
 
-	--- Lets the opening popup be observed again:   introReset()
-	introReset = function(player)
-		local TutorialService = require(script.Parent.TutorialService)
-		TutorialService.resetIntro(player)
-		return { reset = true }
-	end,
-
 	--- Puts SEALED containers on the base the way PlacementService does, so the
 	--- incubation, the base rebuild and the hatch can be tested without running
 	--- a steal per container:
@@ -1004,8 +997,8 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		return {
 			savedStage = profile and profile.TutorialStage,
 			derivedStage = TutorialService.deriveStage(player),
-			introSeen = profile and profile.TutorialIntroSeen,
-			hasTarget = state ~= nil and state.target ~= nil,
+			step = state and state.step,
+			filmDone = profile and profile.TutorialFilmDone,
 		}
 	end,
 
@@ -1147,6 +1140,7 @@ local COMMANDS: { [string]: (Player, ...any) -> any } = {
 		-- "already carrying" and the reset is not really a reset.
 		CarryService.releaseCarry(player)
 		profile.TutorialStage = 0
+		profile.TutorialFilmDone = false
 		profile.Index = {}
 		-- Claims must go with the discoveries that earned them, or the reset
 		-- leaves a permanent income multiplier standing on an empty Index.
